@@ -1,0 +1,39 @@
+TagTracker and TrackerConfig by Julias Hocking
+
+0.6.5:
++ version control!
++ now makes a new logs folder if none exists
++ added configurable list of retired tags
++ added single line command parsing for deletion, query, and edit functions
++ added max stay attribution for interest
++ simplified some functions' structures
++ added "help" function and hint to use it in re of nonsense prompt
+
+0.6.4:
++ added checking for duplicate tag entries on load
++ added parsing of times entered without ":" delimiter ie "1024" vs "10:24"
++ added confirmation check when checking out tags that stayed less than X mins (configurable)
++ added "deletion cancelled" to "this tag isn't in today's records" in del process
++ added "enter a tag or command" to main prompt for clarity
++ shortest stay now attributed to the bike(s) that made it
+
+0.6.3:
++ allowed escape from all portions of edit dialog
++ changed "basket" to "return basket" for clarity
++ added iprint function to easily print console output with the configurable indent
++ enabled del dialog to dlete check-out only for tag with both events recorded
+- removed leftover "even stays" / "odd stays" from diagnostics
+
+0.6.2:
++ split checking whether a time is valid into a new validate_time() function rather than part of get_time_input
++ read_tags() now checks if the log is valid (using above), gives the line the error is on if one exists
+- removed numpy dependency with new median_stay() fn
+- removed scipy dependency by simplifying mode_stay()
+
+0.6.1:
+~ cleaned up visual layout of sumamry printing
+~ clarified edit dialog's invalid i/o question response message
+
+0.6:
++ added automatic count of number of each colour of tags in the corral and the basket for faster audit
++ updated extent of valid tags to match what actually exists downtown
