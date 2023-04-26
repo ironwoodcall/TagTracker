@@ -64,17 +64,15 @@ colour_letters = { # doesn't have to be 1 letter only
 
 # keywords to trigger showing stats for day end
 statistics_kws = [
+    's',
     'stat',
     'stats',
     'statistics'
 ]
 
-# keywords for summary / audit
-summary_kws = [
-    'summary',
-    'sum',
+# keywords for audit
+audit_kws = [
     'audit',
-    's',
     'a'
 ]
 
@@ -114,11 +112,13 @@ help_kws = [
     'commands'
 ]
 
-help_message = """TAG TRACKER FUNCTIONS:
-Check a tag in or out   =  name of tag (eg “wa3”)
-Summary/audit of tags	=  s
-Look up times for a tag =  q
-Edit a time for a tag 	=  e
-Delete a check in/out	=  d
-End of day statistics 	=  “stat”
+help_message = """TAG TRACKER FUNCTIONS
+List these commands	:    help
+Check in or out   	:    <tag name> (eg “wa3”)
+Audit of logged tags    :    audit / a
+Lookup times for a tag	:    query / q / ?
+Edit a time for a tag	:    edit  / e
+Delete a check in/out	:    del   / d
+End of day statistics	:    stat  / s
+Shutdown                :    stop  / x
 """

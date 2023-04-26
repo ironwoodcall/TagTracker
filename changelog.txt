@@ -1,6 +1,7 @@
-TagTracker and TrackerConfig by Julias Hocking
+TagTracker by Julias Hocking
 
 0.6.5:
+~ renamed "summary" to "audit" for unique single letter 'a' (gave 's' to "statistics" instead)
 + version control!
 + now makes a new logs folder if none exists
 + added configurable list of retired tags

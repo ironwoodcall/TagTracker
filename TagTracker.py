@@ -397,7 +397,7 @@ def count_colours(inv:list[str]) -> str:
         
     return colour_count_str
 
-def summarize_corral() -> None: # perhaps alphabetize? not critical
+def audit() -> None: # perhaps alphabetize? not critical
     '''Prints a list of all tags that should be in the corral.'''
     if len(check_ins) - len(check_outs) > 0: # if bikes are in
         corral = []
@@ -462,12 +462,12 @@ def process_prompt(prompt:str) -> None:
     '''logic for main loop'''
     cells = prompt.rstrip().split(' ') # break into each phrase (already .lower()'d)
     kwd = cells[0] # take first phrase as fn to call
-    if kwd in statistics_kws: # do stats if prompted 'stats', etc.
+    if kwd in statistics_kws:
         show_stats()
     elif kwd in help_kws:
         iprint(help_message)
-    elif kwd in summary_kws:
-        summarize_corral()
+    elif kwd in audit_kws:
+        audit()
     elif kwd in edit_kws:
         args = len(cells) - 1 # number of arguments passed
         target, in_or_out, new_time = False, False, False # initialize all
@@ -506,7 +506,7 @@ def process_prompt(prompt:str) -> None:
 def main() -> None:
     '''main program loop'''
     write_tags() # save before input regardless
-    #summarize_corral() # show all bikes currently in
+    #audit() # show all bikes currently in
     prompt = input(f"\n\nEnter a tag or command {CURSOR}").lower() # take input
     process_prompt(prompt)
     main() # loop
