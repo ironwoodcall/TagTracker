@@ -1,8 +1,13 @@
 TagTracker by Julias Hocking
 
+0.7:
++ split all lists of tags and abbreviations into their own .cfg files
++ print the name and version (both pulled from here) of the program at startup
++ wrote a real README file
+
 0.6.5:
-~ renamed "summary" to "audit" for unique single letter 'a' (gave 's' to "statistics" instead)
 + version control!
+~ renamed "summary" to "audit" for unique single letter 'a' (gave 's' to "statistics" instead)
 + now makes a new logs folder if none exists
 + added configurable list of retired tags
 + added single line command parsing for deletion, query, and edit functions

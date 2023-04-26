@@ -1,7 +1,5 @@
 # TagTracker by Julias Hocking
-# limitation: won't work across either side of midnight because calendar date changes
 import time
-#from pathlib import Path
 from TrackerConfig import *
 
 
@@ -371,6 +369,7 @@ def count_colours(inv:list[str]) -> str:
     '''Count the number of tags corresponding to each config'd colour abbreviation
     in a given list, and return results as a str. Probably avoid calling
     this on empty lists'''
+    print(colour_letters)
     just_colour_abbreviations = []
     for tag in inv: # shorten tags to just their colours
         shortened = ''
@@ -378,7 +377,13 @@ def count_colours(inv:list[str]) -> str:
             if not char.isdigit():
                 shortened += char
         # cut off last, non-colour letter and add to list of abbrevs
-        just_colour_abbreviations += shortened[:-1]
+        if shortened in colour_letters:
+            just_colour_abbreviations.append(shortened)
+        else:
+            for x in range(10):
+                cutoff_by_x = shortened[:-x]
+                if cutoff_by_x in colour_letters:
+                    just_colour_abbreviations.append(cutoff_by_x)
         
     colour_count = {} # build the count dictionary
     for abbrev in colour_letters: # for each valid colour, loop through all tags
@@ -465,7 +470,7 @@ def process_prompt(prompt:str) -> None:
     if kwd in statistics_kws:
         show_stats()
     elif kwd in help_kws:
-        iprint(help_message)
+        print(help_message)
     elif kwd in audit_kws:
         audit()
     elif kwd in edit_kws:
@@ -512,6 +517,7 @@ def main() -> None:
     main() # loop
 
 # STARTUP
+print(f"TagTracker {VERSION} by Julias Hocking")
 DATE = get_date()
 if read_tags(): # only run main() if tags read successfully
     main()
