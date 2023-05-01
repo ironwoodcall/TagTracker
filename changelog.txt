@@ -1,5 +1,13 @@
 TagTracker by Julias Hocking
 
+0.7.1:
++ made editing a time default to using the current time
++ added 'h' to help keywords
+~ clarified check-in/out message styling
+~ clarified edit messages wording - "bikes" vs "tags"
+~ clarified edit error messages for check-in/-out times that produce negative stay lengths
+- removed erroneous 's' in edit syntax message
+
 0.7:
 + split all lists of tags and abbreviations into their own .cfg files
 + print the name and version (both pulled from here) of the program at startup

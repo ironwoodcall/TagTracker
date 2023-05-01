@@ -303,12 +303,12 @@ def query(target = 'ask') -> str:
     else:
         problem = False
         try:
-            iprint(f"{target} checked in at {check_ins[target]}")
+            iprint(f"{target} checked IN at {check_ins[target]}")
         except KeyError:
             iprint(f"'{target}' isn't in today's records.")
             return 'none' # tag is neither in nor out
         try:
-            iprint(f"{target} checked out at {check_outs[target]}")
+            iprint(f"{target} checked OUT at {check_outs[target]}")
             return 'both' # tag is in and out
         except KeyError:
             return 'in' # tag is in but not out
@@ -317,9 +317,12 @@ def get_time_input(inp = False) -> bool or str:
     '''Helper for edit_entry(); if no time passed in, get a valid
     24h time input from the user and return an HH:MM string.'''
     if not inp:
-        iprint("What is the correct time for this event? (use 24-hour format)")
-        inp = input(f"(HH:MM) {CURSOR}")
-    if validate_time(inp):
+        iprint(f"What is the correct time for this event?")
+        iprint(f"Use 24-hour format, or 'now' to use the current time ({now()})")
+        inp = input(f"(HH:MM) {CURSOR}").lower()
+    if inp == 'now':
+        return now()
+    elif validate_time(inp):
         HH = inp[:2]
         MM = inp[-2:]
         HHMM = f"{HH}:{MM}"
@@ -329,17 +332,17 @@ def get_time_input(inp = False) -> bool or str:
 
 def edit_entry(target = False, in_or_out = False, new_time = False):
     '''Dialog to correct a tag's check in/out time.'''
-    edit_syntax_message = "Syntax: e <tag> <in or out s(i/o)> <new time>"
+    edit_syntax_message = "Syntax: e <bike's tag> <in or out (i/o)> <new time or 'now'>"
     if not target:
-        iprint(f"Which tag do you want to correct?")
-        target = input(f"{CURSOR}").lower()
+        iprint(f"Which bike's record do you want to edit?")
+        target = input(f"(tag ID) {CURSOR}").lower()
     elif not target in all_tags:
         iprint(edit_syntax_message)
         return False
     if target in all_tags:
         if target in check_ins:
             if not in_or_out:
-                iprint(f"Do you want to change this tag's check-(i)n or check-(o)ut time?")
+                iprint(f"Do you want to change this bike's check-(i)n or check-(o)ut time?")
                 in_or_out = input(f"(i/o) {CURSOR}").lower()
                 if not in_or_out in ['i','o']:
                     iprint(f"'{in_or_out}' needs to be 'i' or 'o' (cancelled edit).")
@@ -351,19 +354,24 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                 if new_time == False:
                     iprint('Invalid time entered (cancelled edit).')
                 elif in_or_out == 'i':
-                    iprint(f"Check-in time for {target} changed to {new_time}.")
-                    check_ins[target] = new_time
+                    if time_string_to_mins(new_time) > time_string_to_mins(check_outs[target]):
+                        iprint("Can't set a check-IN later than a check-OUT;")
+                        iprint(f"{target} checked OUT at {check_outs[target]}")
+                    else:
+                        iprint(f"Check-in time for {target} changed to {new_time}.")
+                        check_ins[target] = new_time
                 elif in_or_out == 'o':
                     if time_string_to_mins(new_time) < time_string_to_mins(check_ins[target]):
                         # don't check a tag out earlier than it checked in
-                        iprint(f"Can't check {target} out earlier than it checked in ({check_ins[target]}).")
+                        iprint(f"Can't set a check-OUT earlier than a check-IN;")
+                        iprint(f"{target} checked IN at {check_ins[target]}")
                     else:
                         iprint(f"Check-out time for {target} changed to {new_time}.")
                         check_outs[target] = new_time   
         else:
             iprint(f"{target} isn't in today's records (cancelled edit).")
     else:
-        iprint(f"'{target}' isn't a valid tag ID (cancelled edit).")
+        iprint(f"'{target}' isn't a valid tag (cancelled edit).")
 
 def count_colours(inv:list[str]) -> str:
     '''Count the number of tags corresponding to each config'd colour abbreviation
@@ -447,26 +455,29 @@ def tag_check(tag:str) -> None:
                 check_in_mins = time_string_to_mins(check_ins[tag])
                 time_diff_mins = now_mins - check_in_mins
                 if time_diff_mins < CHECK_OUT_CONFIRM_TIME: # if stay has been less than a half hour...
-                    iprint(f"This tag checked in at {check_ins[tag]} ({time_diff_mins} mins ago). Do you want to check it out? (Y/n)")
+                    iprint(f"This bike checked in at {check_ins[tag]} ({time_diff_mins} mins ago).")
+                    iprint("Do you want to check it out? (Y/n)")
                     sure = input(f"(Y/n) {CURSOR}").lower() in ['', 'y'] # just Enter -> yes for this very normal action
                 else: # don't check for long stays
                     sure = True
                 if sure:
                     check_outs[tag] = now()# check it out
-                    iprint(f"Checked out {tag}!")
+                    iprint(f"**{tag} checked OUT**")
                 else:
                     iprint("Cancelled check-out")
         else:# if string is in neither dict
             check_ins[tag] = now()# check it in
-            iprint(f"{tag} checked in!")
+            iprint(f"{tag} checked IN")
     else: # must be retired
-        iprint(f"{tag} has been retired.")
+        iprint(f"{tag} is retired.")
 
 def process_prompt(prompt:str) -> None:
     '''logic for main loop'''
     cells = prompt.rstrip().split(' ') # break into each phrase (already .lower()'d)
     kwd = cells[0] # take first phrase as fn to call
-    if kwd in statistics_kws:
+    if prompt[0] in ['?', '/'] and len(prompt) > 1: # take non-letter query prompts without space
+        query(prompt[1:])
+    elif kwd in statistics_kws:
         show_stats()
     elif kwd in help_kws:
         print(help_message)

@@ -34,7 +34,7 @@ SETUP
  
 
 USAGE - basic commands / short versions
-List these commands     :   help
+List these commands     :   help  / h
 Check in or out         :   <tag name> (eg “wa3”)
 Audit of logged tags    :   audit / a
 Lookup times for a tag  :   query / q / ?
@@ -42,7 +42,7 @@ Edit a time for a tag   :   edit  / e
 Delete a check in/out   :   del   / d
 End of day statistics   :   stat  / s
 Shutdown*               :   stop  / exit / quit / x
-*using this isn't important; working info is autosaved to the day's .log
+*using this isn't important; working info is autosaved to the day's .log file
 
 Single-line command processing:
 Normally the commands edit, del, and query will all begin some sort of dialog.

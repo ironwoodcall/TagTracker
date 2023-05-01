@@ -21,26 +21,21 @@ statistics_kws = ['s','stat']
 audit_kws = ['audit','a']
 
 # keywords to quit the program
-quit_kws = [
-    'quit',
-    'exit',
-    'stop',
-    'x'
-]
+quit_kws = ['quit','exit','stop','x']
 
 # keywords to delete a tag entry
 del_kws = ['del','delete','d']
 
 # keywords to query a tag
-query_kws = ['query','q','?']
+query_kws = ['query','q','?', '/']
 
 # editing
 edit_kws = ['edit','e']
 
 # help message
-help_kws = ['help','commands']
+help_kws = ['help','h']
 
-help_message = f"""{INDENT}List these commands     :   help
+help_message = f"""{INDENT}List these commands     :   help  /  h
 {INDENT}Check in or out         :   <tag name> (eg “wa3”)
 {INDENT}Audit of logged tags    :   audit / a
 {INDENT}Lookup times for a tag  :   query / q / ?
@@ -48,7 +43,7 @@ help_message = f"""{INDENT}List these commands     :   help
 {INDENT}Delete a check in/out   :   del   / d
 {INDENT}End of day statistics   :   stat  / s
 {INDENT}Shutdown*               :   stop  / exit / quit / x
-{INDENT}*using this isn't important; working info is autosaved to the day's .log"""
+{INDENT}*using this isn't important; data is autosaved"""
 
 # assemble list of normal tags
 if not Path("Normal Tags.cfg").is_file(): # make new normal tags file if none yet exists
