@@ -1,7 +1,7 @@
 TagTracker by Julias Hocking
 
 0.7.1:
-+ made editing a time default to using the current time
++ made option for using the current time when editing
 + added 'h' to help keywords
 ~ clarified check-in/out message styling
 ~ clarified edit messages wording - "bikes" vs "tags"
