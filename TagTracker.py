@@ -369,7 +369,6 @@ def count_colours(inv:list[str]) -> str:
     '''Count the number of tags corresponding to each config'd colour abbreviation
     in a given list, and return results as a str. Probably avoid calling
     this on empty lists'''
-    print(colour_letters)
     just_colour_abbreviations = []
     for tag in inv: # shorten tags to just their colours
         shortened = ''
