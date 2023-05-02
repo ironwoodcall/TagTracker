@@ -227,15 +227,15 @@ def show_stats():
     else: # don't try to calculate stats on nothing
         iprint(f"Can't calulate statistics because no bikes have checked out yet. {tot_in} are checked in.")
 
-def delete_entry(target = 'ask', which_to_del = 'ask', confirm = 'ask') -> None:
+def delete_entry(target = False, which_to_del = False, confirm = False) -> None:
     '''tag entry deletion dialogue'''
     del_syntax_message = "Syntax: d <tag> <both or check-out only (b/o)> <optional pre-confirm (y)>"
-    if not target in ['ask'] + all_tags or not which_to_del in ['ask', 'b', 'o'] or not confirm in ['ask', 'y']:
+    if not(target in [False] + all_tags or which_to_del in [False, 'b', 'o'] or confirm in [False, 'y']):
         iprint(del_syntax_message) # remind of syntax if invalid input
         return None # interrupt
-    if target == 'ask': # get target if unspecified
+    if not target: # get target if unspecified
         iprint("Which tag's entry would you like to remove?")
-        target = input(f"tag name {CURSOR}").lower()
+        target = input(f"(tag name) {CURSOR}").lower()
     checked_in = target in check_ins
     checked_out = target in check_outs
     if not checked_in and not checked_out:
@@ -243,7 +243,7 @@ def delete_entry(target = 'ask', which_to_del = 'ask', confirm = 'ask') -> None:
     elif checked_out: # both events recorded
         time_in_temp = check_ins[target]
         time_out_temp = check_outs[target]
-        if which_to_del == 'ask': # ask which to del if not specified
+        if not which_to_del: # ask which to del if not specified
             iprint(f"This tag has both a check-in ({time_in_temp}) and a check-out ({time_out_temp}) recorded.")
             iprint(f"Do you want to delete (b)oth events, or just the check-(o)ut?")
             which_to_del = input(f"(b/o) {CURSOR}").lower()
@@ -277,7 +277,7 @@ def delete_entry(target = 'ask', which_to_del = 'ask', confirm = 'ask') -> None:
             iprint("Cancelled deletion.")
     else: # checked in only
         time_in_temp = check_ins[target]
-        if which_to_del in ['b', 'ask']:
+        if which_to_del in ['b', False]:
             if confirm == 'y':
                 sure = True
             else: # check
@@ -292,16 +292,15 @@ def delete_entry(target = 'ask', which_to_del = 'ask', confirm = 'ask') -> None:
         else:#  which_to_del == 'o':
             iprint(f"{target} has only a check-in ({time_in_temp}) recorded; can't delete a nonexistent check-out.")
 
-def query(target = 'ask') -> str:
+def query(target = False, do_printing = True) -> str:
     '''Query the check in/out times of a specific tag.'''
-    if target == 'ask': # only do dialog if no target passed
+    if not target: # only do dialog if no target passed
         iprint(f"Which tag would you like to query?")
         target = input(f"(tag name) {CURSOR}").lower()
     if target in retired_tags:
         iprint(f"{target} has been retired.")
         return 'retired' # tag is retired
     else:
-        problem = False
         try:
             iprint(f"{target} checked IN at {check_ins[target]}")
         except KeyError:
@@ -358,7 +357,7 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                         iprint("Can't set a check-IN later than a check-OUT;")
                         iprint(f"{target} checked OUT at {check_outs[target]}")
                     else:
-                        iprint(f"Check-in time for {target} changed to {new_time}.")
+                        iprint(f"Check-IN time for {target} changed to {new_time}.")
                         check_ins[target] = new_time
                 elif in_or_out == 'o':
                     if time_string_to_mins(new_time) < time_string_to_mins(check_ins[target]):
@@ -366,7 +365,7 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                         iprint(f"Can't set a check-OUT earlier than a check-IN;")
                         iprint(f"{target} checked IN at {check_ins[target]}")
                     else:
-                        iprint(f"Check-out time for {target} changed to {new_time}.")
+                        iprint(f"Check-OUT time for {target} changed to {new_time}.")
                         check_outs[target] = new_time   
         else:
             iprint(f"{target} isn't in today's records (cancelled edit).")
@@ -409,7 +408,7 @@ def count_colours(inv:list[str]) -> str:
         
     return colour_count_str
 
-def audit() -> None: # perhaps alphabetize? not critical
+def audit() -> None:
     '''Prints a list of all tags that should be in the corral.'''
     if len(check_ins) - len(check_outs) > 0: # if bikes are in
         corral = []
@@ -473,50 +472,52 @@ def tag_check(tag:str) -> None:
 
 def process_prompt(prompt:str) -> None:
     '''logic for main loop'''
-    cells = prompt.rstrip().split(' ') # break into each phrase (already .lower()'d)
+    cells = prompt.strip().split() # break into each phrase (already .lower()'d)
     kwd = cells[0] # take first phrase as fn to call
-    if prompt[0] in ['?', '/'] and len(prompt) > 1: # take non-letter query prompts without space
-        query(prompt[1:])
-    elif kwd in statistics_kws:
-        show_stats()
-    elif kwd in help_kws:
-        print(help_message)
-    elif kwd in audit_kws:
-        audit()
-    elif kwd in edit_kws:
-        args = len(cells) - 1 # number of arguments passed
-        target, in_or_out, new_time = False, False, False # initialize all
-        if args > 0:
-            target = cells[1]
-        if args > 1:
-            in_or_out = cells[2]
-        if args > 2:
-            new_time = cells[3]        
-        edit_entry(target = target, in_or_out = in_or_out, new_time = new_time)
-        
-    elif kwd in del_kws:
-        #map_kwd = lambda cell, arg: exec(f"{arg} = cells[{cell}]")
-        args = len(cells) - 1 # number of arguments passed
-        target, which_to_del, pre_confirm = 'ask', 'ask', 'ask' # initialize all to 'ask'
-        if args > 0:
-            target = cells[1]
-        if args > 1:
-            which_to_del = cells[2]
-        if args > 2:
-            pre_confirm = cells[3]        
-        delete_entry(target = target, which_to_del = which_to_del, confirm = pre_confirm)
-        
-    elif kwd in query_kws:
-        try:
-            query(target = cells[1]) # query the tag passed after the command
-        except IndexError:
-            query() # if no tag passed run the dialog
-    elif kwd in quit_kws:
-        exit() # quit program
-    elif kwd in all_tags:
-        tag_check(kwd)
-    else: # not anything recognized so...
-        iprint(f"'{prompt}' isn't a recognized tag or command (type 'help' for a list of these).")
+    try:
+        if cells[0][0] in ['?', '/'] and len(cells[0])>1: # take non-letter query prompts without space
+            query(cells[0][1:], False)
+        elif kwd in statistics_kws:
+            show_stats()
+        elif kwd in help_kws:
+            print(help_message)
+        elif kwd in audit_kws:
+            audit()
+        elif kwd in edit_kws:
+            args = len(cells) - 1 # number of arguments passed
+            target, in_or_out, new_time = None, None, None# initialize all
+            if args > 0:
+                target = cells[1]
+            if args > 1:
+                in_or_out = cells[2]
+            if args > 2:
+                new_time = cells[3]        
+            edit_entry(target = target, in_or_out = in_or_out, new_time = new_time)
+            
+        elif kwd in del_kws:
+            args = len(cells) - 1 # number of arguments passed
+            target, which_to_del, pre_confirm = False, False, False # initialize all to False
+            if args > 0:
+                target = cells[1]
+            if args > 1:
+                which_to_del = cells[2]
+            if args > 2:
+                pre_confirm = cells[3]        
+            delete_entry(target = target, which_to_del = which_to_del, confirm = pre_confirm)
+            
+        elif kwd in query_kws:
+            try:
+                query(target = cells[1]) # query the tag passed after the command
+            except IndexError:
+                query() # if no tag passed run the dialog
+        elif kwd in quit_kws:
+            exit() # quit program
+        elif kwd in all_tags:
+            tag_check(kwd)
+        else: # not anything recognized so...
+            iprint(f"'{prompt}' isn't a recognized tag or command (type 'help' for a list of these).")
+    except IndexError: # if no prompt
+        return None
     
 def main() -> None:
     '''main program loop'''

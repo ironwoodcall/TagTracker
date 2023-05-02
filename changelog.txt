@@ -1,7 +1,13 @@
 TagTracker by Julias Hocking
 
+0.7.2:
+~ clarified edit messages styling
++ strip leading AND trailing spaces from prompts
+~ made default variables for query and delete_entry consistent with edit_entry (False instead of 'ask')
++ added currently unused option for querying without printing for use streamlining other functions
+
 0.7.1:
-+ made option for using the current time when editing
++ option for using the current time when editing
 + added 'h' to help keywords
 ~ clarified check-in/out message styling
 ~ clarified edit messages wording - "bikes" vs "tags"
