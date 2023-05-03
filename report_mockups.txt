@@ -1,0 +1,111 @@
+These are possible report mockups for tag tracker.
+
+2023-05-03	Todd
+
+A: audit
+L: log (printout in tracking-sheet style)
+R: recent activity (tags in order, last hour)
+Z: zany stats (fun stuff)
+
+=====================================================
+Audit (YYYY-MM-DD HH:MM)
+
+Summary             Regular Oversize  Total
+-------             ------- --------  -----
+Bikes checked in:       12      10       22
+Bikes returned out:      7       9       16
+Bikes at valet now:      5       1 	      6
+
+Bikes returned out (tags are back with us):
+-------------------------------------------
+WA       02    04    06 07 08 09 10       13
+WB 00 01 02 03 04 05 06 07 08 09 10 11 12 13
+WC          03
+BE                         08 09       12
+BF    01 02 03
+
+
+Bikes remaining at valet (tags still out):
+------------------------------------------
+WA 00 01    03    05                11 12
+WB    01       04       07 08    10 11 12 13
+WC 00 01 02    04 05 06 07 08 09 10
+BE 00 01 02 03 04 05 06 07       10 11    13
+BF 00          04 05 06 07 08
+
+
+
+
+================================================
+Log of checkin/checkout activity
+
+Bikes IN:
+---------
+07:00-07:30  WA1 WA0 WA2 BE4 BE5 BE2
+07:30-08:00  WA3 WA4 WA5 BE1 BE3
+08:30-09:00  WA6 WA7 WA8
+09:00-09:30  WA9 BE6
+09:30-10:00  WA10 WA11 WA12
+
+Bikes RETURNED OUT:
+-------------------
+08:30-09:00  WA2 BE5
+09:30-10:00  WA4 WA5 BE2
+
+=====================================================
+Recent activity (last hour):
+
+Time    Tag    Bike activity
+----	  ---	   -------------
+14:31   WA1    IN
+14:32   BE13   RETURNED OUT
+14:40   WB2    RETURNED OUT
+14:45   WA5    IN
+14:45   BA1    RETURNED OUT
+14:50   BE12   IN
+14:51   BE13   IN
+
+=====================================================
+Statistics (YYYY-MM-DD HH:MM)
+[Based on 111 of 114 tags]
+
+
+
+
+======================================================
+Zany stats (YYYY-MM-DD HH:MM)
+[Based on 111 of 114 tags]]
+
+Queue-like or Stack-like?
+-------------------------
+  Of the 111 completed bike valetions:
+   32 were queue-like (xx%)
+   80 were stack-like (xx%)
+
+
+Max bikes on hand through the day
+---------------------------------
+Hr Ttl(Rg/Ov)   Histogram
+07  15(10/5)    rrro
+08  25(18/7)    rrrrroo
+09 111(80/31)   rrrrrrrrrrrrrrrrrrrroooooooo
+10 [etc]
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+
+
+
+
+
+
+
