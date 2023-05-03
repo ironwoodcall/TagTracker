@@ -4,7 +4,7 @@ from TrackerConfig import *
 
 
 def get_date() -> str:
-    """get today's date and return as string: YYYY-MM-DD"""
+    """Return current date as string: YYYY-MM-DD."""
     localtime = time.localtime()
     year = str(localtime.tm_year)
     month = str(localtime.tm_mon)
@@ -14,14 +14,13 @@ def get_date() -> str:
     date = f"{year}-{month}-{day}"
     return date
 
-def now() -> str:
-    '''returns current time in 24H format: HH:MM'''
+def get_time() -> str:
+    """Return current time as string: HH:MM."""
     now = time.asctime(time.localtime())[11:16]
     return now
 
-def validate_time(inp:str) -> bool:
-    """Check whether an HH:MM format time string is valid,
-    return True or False."""
+def valid_time(inp:str) -> bool:
+    """Check whether inp is a valid HH:MM string."""
     time_lengths = [4,5]
     if len(inp) in time_lengths:
         HH = inp[:2]
@@ -32,15 +31,18 @@ def validate_time(inp:str) -> bool:
     return False
 
 def iprint(text:str, x:int=1) -> None:
-    """print, plus configurable indent"""
+    """Print the text, indented."""
     print(f"{INDENT * x}{text}")
 
 def read_tags() -> bool:
-    '''read data from a preexisting log file, if one exists
-    check for .txt file for today's date in folder called 'logs' 
-    ie "logs/2023-04-20.txt"
+    """Fetch tag data from file.
+
+    Read data from a preexisting log file, if one exists
+    check for .txt file for today's date in folder called 'logs'
+    e.g. "logs/2023-04-20.txt"
     if exists, read for ins and outs
-    if none exists, make one'''
+    if none exists, make one.
+    """
     Path("logs").mkdir(exist_ok = True) # make logs folder if none exists
     global check_ins, check_outs
     check_ins = {} # check in dictionary tag:time
@@ -51,10 +53,10 @@ def read_tags() -> bool:
             line = f.readline() # read check ins header
             line = f.readline() # read first tag entry if exists
             line_counter = 2 # track line number
-            while line[0] != 'B': # while the first character of each line isn't a header
+            while line[0] != 'B': # while the first chr of each line isn't a header
                 cells = line.rstrip().split(',')
                 # if either a tag or time is invalid...
-                if not cells[0] in all_tags or not validate_time(cells[1]):
+                if not cells[0] in all_tags or not valid_time(cells[1]):
                     print(f"Problem while reading {filedir} -- check-ins, line {line_counter}.")
                     return False
                 elif cells[0] in check_ins:
@@ -67,7 +69,7 @@ def read_tags() -> bool:
             line_counter += 1
             while line != '':
                 cells = line.rstrip().split(',')
-                if not cells[0] in all_tags or not validate_time(cells[1]):
+                if not cells[0] in all_tags or not valid_time(cells[1]):
                     print(f"Problem while reading {filedir} -- check-outs, line {line_counter}.")
                     return False
                 elif cells[0] in check_outs:
@@ -76,49 +78,55 @@ def read_tags() -> bool:
                 check_outs[cells[0]] = cells[1]
                 line = f.readline() # final will load trailing empty line
                 line_counter += 1 # increment line counter
-        print('Previous log for today successfully loaded')    
+        print('Previous log for today successfully loaded')
     except FileNotFoundError: # if no file, don't read it lol
         print('No previous log for today found. Starting fresh...')
     return True
 
 def write_tags() -> None:
-    '''write current data to today's log file'''
+    """Write current data to today's log file."""
     lines = []
     lines.append('Bikes checked in / tags out:')
     for tag in check_ins: # for each bike checked in
         lines.append(f'{tag},{check_ins[tag]}') # add a line "tag,time"
-    
+
     lines.append('Bikes checked out / tags in:')
-    for tag in check_outs: # for each  checked 
+    for tag in check_outs: # for each  checked
         lines.append(f'{tag},{check_outs[tag]}') # add a line "tag,time"
-    
+
     with open(f'logs/{DATE}.log', 'w') as f: # write stored lines to file
         for line in lines:
             f.write(line)
             f.write('\n')
 
-def time_string_to_mins(HHMM) -> int:
-    '''convert time string HH:MM to number of mins.'''
+def time_str_to_minutes(HHMM:str) -> int:
+    """Convert time string HH:MM to number of minutes."""
     cells = HHMM.split(':')
     hrs = int(cells[0])
     mins = int(cells[1])
     mins += hrs * 60
     return mins
 
-def mins_to_time_string(stats:list[int]) -> list[str]:
-    '''KIND OF reverse of above but for a batch of stats all at once.'''
-    stats_HHMM = []
-    for stat in stats:
-        whole_hours = stat // 60
-        mins_left = stat - 60*whole_hours
-        MM = f'0{mins_left}'[-2:] # ensure leading zero
-        HHMM = f"{whole_hours}:{MM}" # no leading zeroes here
-        stats_HHMM.append(HHMM)
-    return tuple(stats_HHMM)
-    
+def minutes_to_time_str(time_in_minutes:int) -> str:
+    """Convert a time in minutes to a HH:MM string."""
+    hours_portion = time_in_minutes // 60
+    minutes_portion = time_in_minutes - 60*hours_portion
+    time_as_text = f"{hours_portion}:{minutes_portion:02d}"
+    return time_as_text
+
+def minutes_to_time_str_list(times:list[int]) -> list[str]:
+    """Convert list of times in minutes to list of HH:MM strings."""
+    # FIXME: I think better to use minutes_to_time_str() than this
+    text_times = []
+    for time_in_minutes in times:
+        text_times.append(minutes_to_time_str(time_in_minutes))
+    return text_times
+
 def calc_stays() -> list[int]:
-    '''calculate how long each tag has stayed in the bikevalet.
-    (Leftovers aren't counted as stays for these purposes)'''
+    """Calculate how long each tag has stayed in the bikevalet.
+
+    (Leftovers aren't counted as stays for these purposes)
+    """
     global shortest_stay_tags_str
     global longest_stay_tags_str
     global min_stay
@@ -126,8 +134,8 @@ def calc_stays() -> list[int]:
     stays = []
     tags = []
     for tag in check_outs:
-        time_in = time_string_to_mins(check_ins[tag])
-        time_out = time_string_to_mins(check_outs[tag])
+        time_in = time_str_to_minutes(check_ins[tag])
+        time_out = time_str_to_minutes(check_outs[tag])
         stay = time_out - time_in
         stays.append(stay)
         tags.append(tag) # add to list of tags in same order for next step
@@ -140,7 +148,7 @@ def calc_stays() -> list[int]:
     return stays
 
 def median_stay(stays:list) -> int:
-    """compute the median of a list of stay lengths"""
+    """Compute the median of a list of stay lengths."""
     stays = sorted(stays) # order by length
     quantity = len(stays)
     if quantity % 2 == 0: # even number of stays
@@ -152,8 +160,12 @@ def median_stay(stays:list) -> int:
         median = stays[quantity//2]
     return median
 
-def mode_stay(stays) -> (int,int):
-    '''round stays and compute mode stay length'''
+def mode_stay(stays:list) -> (int,int):
+    """Compute the mode for a list of stay lengths.
+
+    (rounds stays)
+    """
+    # FIXME: what does 'round_stays' do? It doesn't seem to get used.
     round_stays = []
     for stay in stays:
         remainder = stay % MODE_ROUND_TO_NEAREST
@@ -167,7 +179,7 @@ def mode_stay(stays) -> (int,int):
     return mode, count
 
 def show_stats():
-    '''show # of bikes currently in, and statistics for day end form'''
+    """Show # of bikes currently in, and statistics for day end form."""
     norm = 0 # counting bikes by type
     over = 0
     for tag in check_ins:
@@ -176,7 +188,7 @@ def show_stats():
         elif tag in over_tags:
             over += 1
     tot_in = norm + over
-    
+
     if len(check_outs) > 0: # if any bikes have completed their stay, do stats
         AM_ins = 0
         PM_ins = 0
@@ -192,8 +204,10 @@ def show_stats():
         median = round(median_stay(all_stays))
         mode, count = mode_stay(all_stays)
         # convert each stat to HH:MM format
-        max_stay_HHMM, min_stay_HHMM, mean_HHMM, median_HHMM, mode_HHMM = mins_to_time_string([max_stay, min_stay, mean, median, mode])
-        
+        (max_stay_HHMM, min_stay_HHMM, mean_HHMM, median_HHMM,mode_HHMM
+                ) = minutes_to_time_str_list(
+                [max_stay, min_stay, mean, median, mode])
+
         stays_under = 0
         stays_between = 0
         stays_over = 0
@@ -204,31 +218,32 @@ def show_stats():
                 stays_between += 1
             else:
                 stays_over += 1
-        hrs_under = T_UNDER / 60 # times in hours for print clarity
-        hrs_over = T_OVER / 60
-        
-        print(f'''\
-{INDENT}Total bikes: {tot_in}
-{INDENT}AM bikes: {AM_ins}
-{INDENT}PM bikes: {PM_ins}
-{INDENT}Regular: {norm}
-{INDENT}Oversize: {over}
+        hrs_under = f"{(T_UNDER / 60):3.1f}" # times in hours for print clarity
+        hrs_over = f"{(T_OVER / 60):3.1f}"
 
-{INDENT}Stays under {hrs_under} h: {stays_under}
-{INDENT}Stays {hrs_under} - {hrs_over} h: {stays_between}
-{INDENT}Stays over {hrs_over} h: {stays_over}
+        print(f"""\
+{INDENT}Total bikes: {tot_in:3d}
+{INDENT}AM bikes:    {AM_ins:3d}
+{INDENT}PM bikes:    {PM_ins:3d}
+{INDENT}Regular:     {norm:3d}
+{INDENT}Oversize:    {over:3d}
 
-{INDENT}Max. stay = {max_stay_HHMM} --- {longest_stay_tags_str}
-{INDENT}Min. stay = {min_stay_HHMM} --- {shortest_stay_tags_str}
+{INDENT}Stays under {hrs_under}h: {stays_under:3d}
+{INDENT}Stays {hrs_under} - {hrs_over}h: {stays_between:3d}
+{INDENT}Stays over {hrs_over}h:  {stays_over:3d}
 
-{INDENT}Mean stay = {mean_HHMM}
-{INDENT}Median stay = {median_HHMM}
-{INDENT}Mode stay = {mode_HHMM} by {count} bikes - {MODE_ROUND_TO_NEAREST} min blocks''')
+{INDENT}Max stay:    {max_stay_HHMM}   [tag {longest_stay_tags_str}]
+{INDENT}Min stay:    {min_stay_HHMM}   [tag {shortest_stay_tags_str}]
+
+{INDENT}Mean stay:   {mean_HHMM}
+{INDENT}Median stay: {median_HHMM}
+{INDENT}Mode stay:   {mode_HHMM} by {count} bike(s)  [{MODE_ROUND_TO_NEAREST} minute blocks]""")
     else: # don't try to calculate stats on nothing
-        iprint(f"Can't calulate statistics because no bikes have checked out yet. {tot_in} are checked in.")
+        iprint("No bikes returned out, can't calculate statistics. "
+               f"({tot_in} bikes currently checked in.)")
 
 def delete_entry(target = False, which_to_del = False, confirm = False) -> None:
-    '''tag entry deletion dialogue'''
+    """Perform tag entry deletion dialogue."""
     del_syntax_message = "Syntax: d <tag> <both or check-out only (b/o)> <optional pre-confirm (y)>"
     if not(target in [False] + all_tags or which_to_del in [False, 'b', 'o'] or confirm in [False, 'y']):
         iprint(del_syntax_message) # remind of syntax if invalid input
@@ -259,14 +274,14 @@ def delete_entry(target = False, which_to_del = False, confirm = False) -> None:
                 iprint(f"Deleted all records today for {target} (in at {time_in_temp}, out at {time_out_temp}).")
             else:
                 iprint(f"Cancelled deletion.")
-        
+
         elif which_to_del == 'o': # selected to delete
             if confirm == 'y':
                 sure = True
             else:
                 iprint(f"Are you sure you want to delete the check-out record for {target}? (y/N)")
                 sure = input(f"(y/N) {CURSOR}").lower() == 'y'
-            
+
             if sure:
                 time_temp = check_outs[target]
                 check_outs.pop(target)
@@ -292,8 +307,8 @@ def delete_entry(target = False, which_to_del = False, confirm = False) -> None:
         else:#  which_to_del == 'o':
             iprint(f"{target} has only a check-in ({time_in_temp}) recorded; can't delete a nonexistent check-out.")
 
-def query(target = False, do_printing = True) -> str:
-    '''Query the check in/out times of a specific tag.'''
+def query_tag(target = False, do_printing = True) -> str:
+    """Query the check in/out times of a specific tag."""
     if not target: # only do dialog if no target passed
         iprint(f"Which tag would you like to query?")
         target = input(f"(tag name) {CURSOR}").lower()
@@ -312,16 +327,19 @@ def query(target = False, do_printing = True) -> str:
         except KeyError:
             return 'in' # tag is in but not out
 
-def get_time_input(inp = False) -> bool or str:
-    '''Helper for edit_entry(); if no time passed in, get a valid
-    24h time input from the user and return an HH:MM string.'''
+def prompt_for_time(inp = False) -> bool or str:
+    """Prompt for a time input if needed.
+
+    Helper for edit_entry(); if no time passed in, get a valid
+    24h time input from the user and return an HH:MM string.
+    """
     if not inp:
         iprint(f"What is the correct time for this event?")
-        iprint(f"Use 24-hour format, or 'now' to use the current time ({now()})")
+        iprint(f"Use 24-hour format, or 'now' to use the current time ({get_time()})")
         inp = input(f"(HH:MM) {CURSOR}").lower()
     if inp == 'now':
-        return now()
-    elif validate_time(inp):
+        return get_time()
+    elif valid_time(inp):
         HH = inp[:2]
         MM = inp[-2:]
         HHMM = f"{HH}:{MM}"
@@ -330,7 +348,7 @@ def get_time_input(inp = False) -> bool or str:
     return HHMM
 
 def edit_entry(target = False, in_or_out = False, new_time = False):
-    '''Dialog to correct a tag's check in/out time.'''
+    """Perform Dialog to correct a tag's check in/out time."""
     edit_syntax_message = "Syntax: e <bike's tag> <in or out (i/o)> <new time or 'now'>"
     if not target:
         iprint(f"Which bike's record do you want to edit?")
@@ -349,33 +367,37 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
             if not in_or_out in ['i','o']:
                 iprint(edit_syntax_message)
             else:
-                new_time = get_time_input(new_time)
+                new_time = prompt_for_time(new_time)
                 if new_time == False:
                     iprint('Invalid time entered (cancelled edit).')
                 elif in_or_out == 'i':
-                    if time_string_to_mins(new_time) > time_string_to_mins(check_outs[target]):
+                    if time_str_to_minutes(new_time) > time_str_to_minutes(check_outs[target]):
                         iprint("Can't set a check-IN later than a check-OUT;")
                         iprint(f"{target} checked OUT at {check_outs[target]}")
                     else:
                         iprint(f"Check-IN time for {target} changed to {new_time}.")
                         check_ins[target] = new_time
                 elif in_or_out == 'o':
-                    if time_string_to_mins(new_time) < time_string_to_mins(check_ins[target]):
+                    if time_str_to_minutes(new_time) < time_str_to_minutes(check_ins[target]):
                         # don't check a tag out earlier than it checked in
                         iprint(f"Can't set a check-OUT earlier than a check-IN;")
                         iprint(f"{target} checked IN at {check_ins[target]}")
                     else:
                         iprint(f"Check-OUT time for {target} changed to {new_time}.")
-                        check_outs[target] = new_time   
+                        check_outs[target] = new_time
         else:
             iprint(f"{target} isn't in today's records (cancelled edit).")
     else:
         iprint(f"'{target}' isn't a valid tag (cancelled edit).")
 
 def count_colours(inv:list[str]) -> str:
-    '''Count the number of tags corresponding to each config'd colour abbreviation
+    """Return a string describing number of tags by colour.
+
+    Count the number of tags corresponding to each config'd colour abbreviation
     in a given list, and return results as a str. Probably avoid calling
-    this on empty lists'''
+    this on empty lists
+    """
+    # FIXME: test for and handle empty list passed-in
     just_colour_abbreviations = []
     for tag in inv: # shorten tags to just their colours
         shortened = ''
@@ -390,7 +412,7 @@ def count_colours(inv:list[str]) -> str:
                 cutoff_by_x = shortened[:-x]
                 if cutoff_by_x in colour_letters:
                     just_colour_abbreviations.append(cutoff_by_x)
-        
+
     colour_count = {} # build the count dictionary
     for abbrev in colour_letters: # for each valid colour, loop through all tags
         if abbrev in just_colour_abbreviations:
@@ -400,16 +422,21 @@ def count_colours(inv:list[str]) -> str:
                     this_colour_count += 1
             colour_name = colour_letters[abbrev]
             colour_count[colour_name] = this_colour_count
-    
+
     colour_count_str = '' # convert count dict to string
     for colour in colour_count:
         colour_count_str += f",  {colour} x {colour_count[colour]}"
     colour_count_str = colour_count_str[3:] # cut off leading comma
-        
+
     return colour_count_str
 
-def audit() -> None:
-    '''Prints a list of all tags that should be in the corral.'''
+def show_audit() -> None:
+    """Perform audit function.
+
+    Prints a list of all tags that should be in the corral
+    and bikes that should be on hand.  Format to be easy to use
+    during mid-day reconciliations.
+    """
     if len(check_ins) - len(check_outs) > 0: # if bikes are in
         corral = []
         for tag in check_ins:
@@ -422,7 +449,7 @@ def audit() -> None:
         iprint(f"individually:  {corral_str}\n", 2)
     else:
         iprint('No bikes currently checked in.')
-        
+
     if len(check_outs) > 0:
         basket = []
         for tag in check_outs: # put checked out tags into list
@@ -436,22 +463,25 @@ def audit() -> None:
         iprint('No tags should be in the basket.')
 
 def tag_check(tag:str) -> None:
-    """Process a prompt that's just a tag ID"""
+    """Check a tag in or out.
+
+    This processes a prompt that's just a tag ID.
+    """
     if not tag in retired_tags:
         checked_in = tag in check_ins
         checked_out = tag in check_outs
         if checked_in:
             if checked_out:# if string is in checked_in AND in checked_out
-                query(tag)
-                iprint(f"Overwrite {check_outs[tag]} check-out with current time ({now()})? (y/N)")
+                query_tag(tag)
+                iprint(f"Overwrite {check_outs[tag]} check-out with current time ({get_time()})? (y/N)")
                 sure = input(f"(y/N) {CURSOR}") == 'y'
                 if sure:
-                    edit_entry(target = tag, in_or_out = 'o', new_time = now())
+                    edit_entry(target = tag, in_or_out = 'o', new_time = get_time())
                 else:
                     iprint("Cancelled")
             else:
-                now_mins = time_string_to_mins(now())
-                check_in_mins = time_string_to_mins(check_ins[tag])
+                now_mins = time_str_to_minutes(get_time())
+                check_in_mins = time_str_to_minutes(check_ins[tag])
                 time_diff_mins = now_mins - check_in_mins
                 if time_diff_mins < CHECK_OUT_CONFIRM_TIME: # if stay has been less than a half hour...
                     iprint(f"This bike checked in at {check_ins[tag]} ({time_diff_mins} mins ago).")
@@ -460,29 +490,32 @@ def tag_check(tag:str) -> None:
                 else: # don't check for long stays
                     sure = True
                 if sure:
-                    check_outs[tag] = now()# check it out
+                    check_outs[tag] = get_time()# check it out
                     iprint(f"**{tag} checked OUT**")
                 else:
                     iprint("Cancelled check-out")
         else:# if string is in neither dict
-            check_ins[tag] = now()# check it in
+            check_ins[tag] = get_time()# check it in
             iprint(f"{tag} checked IN")
     else: # must be retired
         iprint(f"{tag} is retired.")
 
 def process_prompt(prompt:str) -> None:
-    '''logic for main loop'''
+    """Process one user-input command.
+
+    This is the logic for main loop
+    """
     cells = prompt.strip().split() # break into each phrase (already .lower()'d)
     kwd = cells[0] # take first phrase as fn to call
     try:
         if cells[0][0] in ['?', '/'] and len(cells[0])>1: # take non-letter query prompts without space
-            query(cells[0][1:], False)
+            query_tag(cells[0][1:], False)
         elif kwd in statistics_kws:
             show_stats()
         elif kwd in help_kws:
             print(help_message)
         elif kwd in audit_kws:
-            audit()
+            show_audit()
         elif kwd in edit_kws:
             args = len(cells) - 1 # number of arguments passed
             target, in_or_out, new_time = None, None, None# initialize all
@@ -491,9 +524,9 @@ def process_prompt(prompt:str) -> None:
             if args > 1:
                 in_or_out = cells[2]
             if args > 2:
-                new_time = cells[3]        
+                new_time = cells[3]
             edit_entry(target = target, in_or_out = in_or_out, new_time = new_time)
-            
+
         elif kwd in del_kws:
             args = len(cells) - 1 # number of arguments passed
             target, which_to_del, pre_confirm = False, False, False # initialize all to False
@@ -502,14 +535,14 @@ def process_prompt(prompt:str) -> None:
             if args > 1:
                 which_to_del = cells[2]
             if args > 2:
-                pre_confirm = cells[3]        
+                pre_confirm = cells[3]
             delete_entry(target = target, which_to_del = which_to_del, confirm = pre_confirm)
-            
+
         elif kwd in query_kws:
             try:
-                query(target = cells[1]) # query the tag passed after the command
+                query_tag(target = cells[1]) # query the tag passed after the command
             except IndexError:
-                query() # if no tag passed run the dialog
+                query_tag() # if no tag passed run the dialog
         elif kwd in quit_kws:
             exit() # quit program
         elif kwd in all_tags:
@@ -518,11 +551,11 @@ def process_prompt(prompt:str) -> None:
             iprint(f"'{prompt}' isn't a recognized tag or command (type 'help' for a list of these).")
     except IndexError: # if no prompt
         return None
-    
+
 def main() -> None:
-    '''main program loop'''
+    """Run main program loop."""
     write_tags() # save before input regardless
-    #audit() # show all bikes currently in
+    #show_audit() # show all bikes currently in
     prompt = input(f"\n\nEnter a tag or command {CURSOR}").lower() # take input
     process_prompt(prompt)
     main() # loop
