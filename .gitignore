@@ -3,3 +3,5 @@
 *.pyc
 *.cfg
 *.docx
+logs
+__pycache__
