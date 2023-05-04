@@ -116,7 +116,7 @@ def read_tags() -> bool:
     return True
 
 def rotate_log() -> None:
-    f"""Rename the current log to <itself>.bak."""
+    """Rename the current log to <itself>.bak."""
     backuppath = f"{LOG_FILEPATH}.bak"
     if os.path.exists(backuppath):
         os.unlink(backuppath)
