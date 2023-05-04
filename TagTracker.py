@@ -1,4 +1,5 @@
 # TagTracker by Julias Hocking
+import os
 import time
 from TrackerConfig import *
 
@@ -48,7 +49,7 @@ def read_tags() -> bool:
     check_ins = {} # check in dictionary tag:time
     check_outs = {} # check out dictionary tag:time
     try: # read saved stuff into dicts
-        filedir = f'logs/{DATE}.log'
+        filedir = LOG_FILEPATH
         with open(filedir, 'r') as f:
             line = f.readline() # read check ins header
             line = f.readline() # read first tag entry if exists
@@ -83,6 +84,14 @@ def read_tags() -> bool:
         print('No previous log for today found. Starting fresh...')
     return True
 
+def rotate_log() -> None:
+    f"""Rename the current log to <itself>.bak."""
+    backuppath = f"{LOG_FILEPATH}.bak"
+    if os.path.exists(backuppath):
+        os.unlink(backuppath)
+    os.rename(LOG_FILEPATH,backuppath)
+    return None
+
 def write_tags() -> None:
     """Write current data to today's log file."""
     lines = []
@@ -94,7 +103,7 @@ def write_tags() -> None:
     for tag in check_outs: # for each  checked
         lines.append(f'{tag},{check_outs[tag]}') # add a line "tag,time"
 
-    with open(f'logs/{DATE}.log', 'w') as f: # write stored lines to file
+    with open(LOG_FILEPATH, 'w') as f: # write stored lines to file
         for line in lines:
             f.write(line)
             f.write('\n')
@@ -554,6 +563,7 @@ def process_prompt(prompt:str) -> None:
 
 def main() -> None:
     """Run main program loop."""
+    rotate_log()
     write_tags() # save before input regardless
     #show_audit() # show all bikes currently in
     prompt = input(f"\n\nEnter a tag or command {CURSOR}").lower() # take input
@@ -563,6 +573,8 @@ def main() -> None:
 # STARTUP
 print(f"TagTracker {VERSION} by Julias Hocking")
 DATE = get_date()
+LOG_FILEPATH = f"logs/{LOG_BASENAME}{DATE}.log"
+
 if read_tags(): # only run main() if tags read successfully
     main()
 else: # if read_tags() problem
