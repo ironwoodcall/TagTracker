@@ -3,7 +3,6 @@
 # Should use valid_tags instead? (valid_tags is all_tags less retired_tags)
 #
 import os
-import os
 import time
 import re
 from pathlib import Path
@@ -116,7 +115,7 @@ def read_tags() -> bool:
     return True
 
 def rotate_log() -> None:
-    f"""Rename the current log to <itself>.bak."""
+    """Rename the current log to <itself>.bak."""
     backuppath = f"{LOG_FILEPATH}.bak"
     if os.path.exists(backuppath):
         os.unlink(backuppath)
