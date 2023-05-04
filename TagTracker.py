@@ -1,7 +1,19 @@
 # TagTracker by Julias Hocking
+# FIXME: this uses all_tags as the master list of allowable tags.
+# Should use valid_tags instead? (valid_tags is all_tags less retired_tags)
+#
 import time
-from TrackerConfig import *
-
+import re
+from pathlib import Path
+from typing import Tuple
+from TrackerConfig import (
+        all_tags,norm_tags,over_tags,retired_tags,
+        colour_letters,
+        CHECK_OUT_CONFIRM_TIME,T_UNDER,T_OVER,
+        CURSOR,INDENT,MODE_ROUND_TO_NEAREST,
+        statistics_kws,help_kws,audit_kws,edit_kws,del_kws,
+        query_kws,quit_kws,help_message,VERSION
+    )
 
 def get_date() -> str:
     """Return current date as string: YYYY-MM-DD."""
@@ -30,6 +42,22 @@ def valid_time(inp:str) -> bool:
                 return True
     return False
 
+# FIXME - for later
+def canonical_tag( maybe_tag:str ) -> str|None:
+    """Return 'maybe_tag' as canonical tag representation (or None).
+
+    Canonical tag representation is a single colour letter, a tag letter
+    and a sequence number, without lead zeroes.  All lowercase.
+    """
+    if r := re.match(r"^ *([a-zA-z][a-zA-Z])0*([1-9][0-9]*) *$", maybe_tag ):
+        return f"{r.group(1).lower()}{r.group(2)}"
+    return None
+
+# FIXME - for later
+def valid_tag( tag:str ) ->bool:
+    """Return whether 'tag' simplifies to a valid [known] tag."""
+    return bool(canonical_tag( tag ) in all_tags)
+
 def iprint(text:str, x:int=1) -> None:
     """Print the text, indented."""
     print(f"{INDENT * x}{text}")
@@ -37,12 +65,14 @@ def iprint(text:str, x:int=1) -> None:
 def read_tags() -> bool:
     """Fetch tag data from file.
 
-    Read data from a preexisting log file, if one exists
+    Read data from a pre-existing log file, if one exists
     check for .txt file for today's date in folder called 'logs'
     e.g. "logs/2023-04-20.txt"
     if exists, read for ins and outs
     if none exists, make one.
     """
+
+    #FIXME: Refactor
     Path("logs").mkdir(exist_ok = True) # make logs folder if none exists
     global check_ins, check_outs
     check_ins = {} # check in dictionary tag:time
@@ -114,6 +144,7 @@ def minutes_to_time_str(time_in_minutes:int) -> str:
     time_as_text = f"{hours_portion}:{minutes_portion:02d}"
     return time_as_text
 
+#FIXME: this fn should now be unused & deprecated
 def minutes_to_time_str_list(times:list[int]) -> list[str]:
     """Convert list of times in minutes to list of HH:MM strings."""
     # FIXME: I think better to use minutes_to_time_str() than this
@@ -122,27 +153,53 @@ def minutes_to_time_str_list(times:list[int]) -> list[str]:
         text_times.append(minutes_to_time_str(time_in_minutes))
     return text_times
 
+#FIXME: this is not used yet
+def find_tag_durations(include_bikes_on_hand=True) -> dict[str:int]:
+    """Make dict of tags with their stay duration in minutes.
+
+    include_bikes_on_hand, if True, will include checked in
+    but not returned out.  If False, only bikes returned out.
+    """
+    timenow = time_str_to_minutes(get_time())
+    tag_durations = {}
+    for tag,in_str in check_ins.items():
+        in_minutes = time_str_to_minutes(in_str)
+        if tag in check_outs:
+            out_minutes = time_str_to_minutes(check_outs[tag])
+            tag_durations[tag] = out_minutes-in_minutes
+        elif include_bikes_on_hand:
+            tag_durations[tag] = timenow - in_minutes
+    # Any bike stays that are zero minutes, arbitrarily call one minute.
+    for tag,duration in tag_durations.items():
+        if duration < 1:
+            tag_durations[tag] = 1
+    return tag_durations
+
 def calc_stays() -> list[int]:
     """Calculate how long each tag has stayed in the bikevalet.
 
     (Leftovers aren't counted as stays for these purposes)
     """
+    #FIXME: Refactor (see issue #11)
     global shortest_stay_tags_str
     global longest_stay_tags_str
     global min_stay
     global max_stay
     stays = []
     tags = []
+    # FIXME: should use check_ins and use now() for any not returned out.
     for tag in check_outs:
         time_in = time_str_to_minutes(check_ins[tag])
         time_out = time_str_to_minutes(check_outs[tag])
-        stay = time_out - time_in
+        stay = max(time_out - time_in,1)    # If zero just call it one minute.
         stays.append(stay)
         tags.append(tag) # add to list of tags in same order for next step
     min_stay = min(stays)
     max_stay = max(stays)
-    shortest_stay_tags = [tags[i] for i in range(len(stays)) if stays[i] == min_stay]
-    longest_stay_tags = [tags[i] for i in range(len(stays)) if stays[i] == max_stay]
+    shortest_stay_tags = [tags[i] for i in range(len(stays))
+            if stays[i] == min_stay]
+    longest_stay_tags = [tags[i] for i in range(len(stays))
+            if stays[i] == max_stay]
     shortest_stay_tags_str = ', '.join(shortest_stay_tags)
     longest_stay_tags_str = ', '.join(longest_stay_tags)
     return stays
@@ -160,7 +217,7 @@ def median_stay(stays:list) -> int:
         median = stays[quantity//2]
     return median
 
-def mode_stay(stays:list) -> (int,int):
+def mode_stay(stays:list) -> Tuple[int,int]:
     """Compute the mode for a list of stay lengths.
 
     (rounds stays)
@@ -203,49 +260,52 @@ def show_stats():
         mean = round(sum(all_stays)/len(all_stays))
         median = round(median_stay(all_stays))
         mode, count = mode_stay(all_stays)
-        # convert each stat to HH:MM format
-        (max_stay_HHMM, min_stay_HHMM, mean_HHMM, median_HHMM,mode_HHMM
-                ) = minutes_to_time_str_list(
-                [max_stay, min_stay, mean, median, mode])
 
-        stays_under = 0
-        stays_between = 0
-        stays_over = 0
+        # Find num of stays between various time values.
+        short_stays = 0
+        medium_stays = 0
+        long_stays = 0
         for stay in all_stays: # count stays over/under x time
-            if stay <= T_UNDER:
-                stays_under += 1
+            if stay < T_UNDER:  # Changed from <= to < so matches description.
+                short_stays += 1
             elif stay <= T_OVER:
-                stays_between += 1
+                medium_stays += 1
             else:
-                stays_over += 1
+                long_stays += 1
         hrs_under = f"{(T_UNDER / 60):3.1f}" # times in hours for print clarity
         hrs_over = f"{(T_OVER / 60):3.1f}"
 
-        print(f"""\
-{INDENT}Total bikes: {tot_in:3d}
-{INDENT}AM bikes:    {AM_ins:3d}
-{INDENT}PM bikes:    {PM_ins:3d}
-{INDENT}Regular:     {norm:3d}
-{INDENT}Oversize:    {over:3d}
+        iprint(f"\nSummary statistics as of {get_time()} "
+               f"with {len(check_ins)-len(check_outs)} bikes still on hand:\n")
+        iprint(f"Total bikes:    {tot_in:3d}")
+        iprint(f"AM bikes:       {AM_ins:3d}")
+        iprint(f"PM bikes:       {PM_ins:3d}")
+        iprint(f"Regular:        {norm:3d}")
+        iprint(f"Oversize:       {over:3d}")
+        print()
+        iprint(f"Stays < {hrs_under}h:   {short_stays:3d}")
+        iprint(f"Stays {hrs_under}-{hrs_over}h: {medium_stays:3d}")
+        iprint(f"Stays > {hrs_over}h:   {long_stays:3d}")
+        print()
+        iprint(f"Max stay:     {minutes_to_time_str(max_stay):>5}   "
+               f"[tag(s) {longest_stay_tags_str}]")
+        iprint(f"Min stay:     {minutes_to_time_str(min_stay):>5}   "
+               f"[tag(s) {shortest_stay_tags_str}]")
+        iprint(f"Mean stay:    {minutes_to_time_str(mean):>5}")
+        iprint(f"Median stay:  {minutes_to_time_str(median):>5}")
+        iprint(f"Mode stay:    {minutes_to_time_str(mode):>5} "
+               f"by {count} bike(s)  [{MODE_ROUND_TO_NEAREST} minute blocks]")
 
-{INDENT}Stays under {hrs_under}h: {stays_under:3d}
-{INDENT}Stays {hrs_under} - {hrs_over}h: {stays_between:3d}
-{INDENT}Stays over {hrs_over}h:  {stays_over:3d}
-
-{INDENT}Max stay:    {max_stay_HHMM}   [tag {longest_stay_tags_str}]
-{INDENT}Min stay:    {min_stay_HHMM}   [tag {shortest_stay_tags_str}]
-
-{INDENT}Mean stay:   {mean_HHMM}
-{INDENT}Median stay: {median_HHMM}
-{INDENT}Mode stay:   {mode_HHMM} by {count} bike(s)  [{MODE_ROUND_TO_NEAREST} minute blocks]""")
     else: # don't try to calculate stats on nothing
         iprint("No bikes returned out, can't calculate statistics. "
                f"({tot_in} bikes currently checked in.)")
 
-def delete_entry(target = False, which_to_del = False, confirm = False) -> None:
+def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
     """Perform tag entry deletion dialogue."""
-    del_syntax_message = "Syntax: d <tag> <both or check-out only (b/o)> <optional pre-confirm (y)>"
-    if not(target in [False] + all_tags or which_to_del in [False, 'b', 'o'] or confirm in [False, 'y']):
+    del_syntax_message = ("Syntax: d <tag> <both or check-out only"
+            " (b/o)> <optional pre-confirm (y)>")
+    if not(target in [False] + all_tags or which_to_del in [False, 'b', 'o']
+           or confirm in [False, 'y']):
         iprint(del_syntax_message) # remind of syntax if invalid input
         return None # interrupt
     if not target: # get target if unspecified
@@ -259,27 +319,32 @@ def delete_entry(target = False, which_to_del = False, confirm = False) -> None:
         time_in_temp = check_ins[target]
         time_out_temp = check_outs[target]
         if not which_to_del: # ask which to del if not specified
-            iprint(f"This tag has both a check-in ({time_in_temp}) and a check-out ({time_out_temp}) recorded.")
-            iprint(f"Do you want to delete (b)oth events, or just the check-(o)ut?")
+            iprint(f"This tag has both a check-in ({time_in_temp}) and "
+                   f"a check-out ({time_out_temp}) recorded.")
+            iprint("Do you want to delete (b)oth events, "
+                   "or just the check-(o)ut?")
             which_to_del = input(f"(b/o) {CURSOR}").lower()
         if which_to_del == 'b':
             if confirm == 'y': # pre-confirmation
                 sure = True
             else:
-                iprint(f"Are you sure you want to delete both events for {target}? (y/N)")
+                iprint("Are you sure you want to delete both events "
+                       f"for {target}? (y/N)")
                 sure = input(f"(y/N) {CURSOR}").lower() == 'y'
             if sure:
                 check_ins.pop(target)
                 check_outs.pop(target)
-                iprint(f"Deleted all records today for {target} (in at {time_in_temp}, out at {time_out_temp}).")
+                iprint(f"Deleted all records today for {target} "
+                       f"(in at {time_in_temp}, out at {time_out_temp}).")
             else:
-                iprint(f"Cancelled deletion.")
+                iprint("Cancelled deletion.")
 
         elif which_to_del == 'o': # selected to delete
             if confirm == 'y':
                 sure = True
             else:
-                iprint(f"Are you sure you want to delete the check-out record for {target}? (y/N)")
+                iprint("Are you sure you want to delete the "
+                       f"check-out record for {target}? (y/N)")
                 sure = input(f"(y/N) {CURSOR}").lower() == 'y'
 
             if sure:
@@ -296,21 +361,24 @@ def delete_entry(target = False, which_to_del = False, confirm = False) -> None:
             if confirm == 'y':
                 sure = True
             else: # check
-                iprint(f"This tag has only a check-in recorded. Are you sure you want to delete it? (y/N)")
+                iprint("This tag has only a check-in recorded. "
+                       "Are you sure you want to delete it? (y/N)")
                 sure = input(f"(y/N) {CURSOR}").lower() == 'y'
             if sure:
                 time_temp = check_ins[target]
                 check_ins.pop(target)
                 iprint(f"Deleted today's {time_temp} check-in for {target}.")
             else:
-                iprint(f"Cancelled deletion.")
+                iprint("Cancelled deletion.")
         else:#  which_to_del == 'o':
-            iprint(f"{target} has only a check-in ({time_in_temp}) recorded; can't delete a nonexistent check-out.")
+            iprint(f"{target} has only a check-in ({time_in_temp}) recorded; "
+                   "can't delete a nonexistent check-out.")
 
 def query_tag(target = False, do_printing = True) -> str:
     """Query the check in/out times of a specific tag."""
+    #FIXME: what is do_printing meant to do?
     if not target: # only do dialog if no target passed
-        iprint(f"Which tag would you like to query?")
+        iprint("Which tag would you like to query?")
         target = input(f"(tag name) {CURSOR}").lower()
     if target in retired_tags:
         iprint(f"{target} has been retired.")
@@ -334,8 +402,9 @@ def prompt_for_time(inp = False) -> bool or str:
     24h time input from the user and return an HH:MM string.
     """
     if not inp:
-        iprint(f"What is the correct time for this event?")
-        iprint(f"Use 24-hour format, or 'now' to use the current time ({get_time()})")
+        iprint("What is the correct time for this event?")
+        iprint("Use 24-hour format, or 'now' to use "
+               f"the current time ({get_time()})")
         inp = input(f"(HH:MM) {CURSOR}").lower()
     if inp == 'now':
         return get_time()
@@ -349,9 +418,10 @@ def prompt_for_time(inp = False) -> bool or str:
 
 def edit_entry(target = False, in_or_out = False, new_time = False):
     """Perform Dialog to correct a tag's check in/out time."""
-    edit_syntax_message = "Syntax: e <bike's tag> <in or out (i/o)> <new time or 'now'>"
+    edit_syntax_message = ("Syntax: e <bike's tag> <in or out (i/o)> "
+            "<new time or 'now'>")
     if not target:
-        iprint(f"Which bike's record do you want to edit?")
+        iprint("Which bike's record do you want to edit?")
         target = input(f"(tag ID) {CURSOR}").lower()
     elif not target in all_tags:
         iprint(edit_syntax_message)
@@ -359,10 +429,12 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
     if target in all_tags:
         if target in check_ins:
             if not in_or_out:
-                iprint(f"Do you want to change this bike's check-(i)n or check-(o)ut time?")
+                iprint("Do you want to change this bike's "
+                       "check-(i)n or check-(o)ut time?")
                 in_or_out = input(f"(i/o) {CURSOR}").lower()
                 if not in_or_out in ['i','o']:
-                    iprint(f"'{in_or_out}' needs to be 'i' or 'o' (cancelled edit).")
+                    iprint(f"'{in_or_out}' needs to be 'i' or 'o' "
+                           "(cancelled edit).")
                     return False
             if not in_or_out in ['i','o']:
                 iprint(edit_syntax_message)
@@ -371,19 +443,23 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                 if new_time == False:
                     iprint('Invalid time entered (cancelled edit).')
                 elif in_or_out == 'i':
-                    if time_str_to_minutes(new_time) > time_str_to_minutes(check_outs[target]):
+                    if (time_str_to_minutes(new_time) >
+                            time_str_to_minutes(check_outs[target])):
                         iprint("Can't set a check-IN later than a check-OUT;")
                         iprint(f"{target} checked OUT at {check_outs[target]}")
                     else:
-                        iprint(f"Check-IN time for {target} changed to {new_time}.")
+                        iprint(f"Check-IN time for {target} "
+                               f"changed to {new_time}.")
                         check_ins[target] = new_time
                 elif in_or_out == 'o':
-                    if time_str_to_minutes(new_time) < time_str_to_minutes(check_ins[target]):
+                    if (time_str_to_minutes(new_time) <
+                            time_str_to_minutes(check_ins[target])):
                         # don't check a tag out earlier than it checked in
-                        iprint(f"Can't set a check-OUT earlier than a check-IN;")
+                        iprint("Can't set a check-OUT earlier than a check-IN;")
                         iprint(f"{target} checked IN at {check_ins[target]}")
                     else:
-                        iprint(f"Check-OUT time for {target} changed to {new_time}.")
+                        iprint(f"Check-OUT time for {target} "
+                               f"changed to {new_time}.")
                         check_outs[target] = new_time
         else:
             iprint(f"{target} isn't in today's records (cancelled edit).")
@@ -456,7 +532,7 @@ def show_audit() -> None:
             basket.append(tag)
         basket = sorted(basket) # alphabetize
         basket_str = '  '.join(map(str,basket)) # stringify
-        iprint(f"Tags that should be in the return basket:")
+        iprint( "Tags that should be in the return basket:")
         iprint(f"by colour:     {count_colours(basket)}", 2)
         iprint(f"individually:  {basket_str}", 2)
     else:
@@ -473,20 +549,23 @@ def tag_check(tag:str) -> None:
         if checked_in:
             if checked_out:# if string is in checked_in AND in checked_out
                 query_tag(tag)
-                iprint(f"Overwrite {check_outs[tag]} check-out with current time ({get_time()})? (y/N)")
+                iprint(f"Overwrite {check_outs[tag]} check-out with "
+                       f"current time ({get_time()})? (y/N)")
                 sure = input(f"(y/N) {CURSOR}") == 'y'
                 if sure:
-                    edit_entry(target = tag, in_or_out = 'o', new_time = get_time())
+                    edit_entry(target = tag, in_or_out = 'o',
+                            new_time = get_time())
                 else:
                     iprint("Cancelled")
             else:
                 now_mins = time_str_to_minutes(get_time())
                 check_in_mins = time_str_to_minutes(check_ins[tag])
                 time_diff_mins = now_mins - check_in_mins
-                if time_diff_mins < CHECK_OUT_CONFIRM_TIME: # if stay has been less than a half hour...
-                    iprint(f"This bike checked in at {check_ins[tag]} ({time_diff_mins} mins ago).")
+                if time_diff_mins < CHECK_OUT_CONFIRM_TIME: # if < 1/2 hr
+                    iprint("This bike checked in at "
+                           f"{check_ins[tag]} ({time_diff_mins} mins ago).")
                     iprint("Do you want to check it out? (Y/n)")
-                    sure = input(f"(Y/n) {CURSOR}").lower() in ['', 'y'] # just Enter -> yes for this very normal action
+                    sure = input(f"(Y/n) {CURSOR}").lower() in ['', 'y']
                 else: # don't check for long stays
                     sure = True
                 if sure:
@@ -525,22 +604,24 @@ def process_prompt(prompt:str) -> None:
                 in_or_out = cells[2]
             if args > 2:
                 new_time = cells[3]
-            edit_entry(target = target, in_or_out = in_or_out, new_time = new_time)
+            edit_entry(target = target, in_or_out = in_or_out,
+                    new_time = new_time)
 
         elif kwd in del_kws:
             args = len(cells) - 1 # number of arguments passed
-            target, which_to_del, pre_confirm = False, False, False # initialize all to False
+            target, which_to_del, pre_confirm = False, False, False
             if args > 0:
                 target = cells[1]
             if args > 1:
                 which_to_del = cells[2]
             if args > 2:
                 pre_confirm = cells[3]
-            delete_entry(target = target, which_to_del = which_to_del, confirm = pre_confirm)
+            delete_entry(target = target, which_to_del = which_to_del,
+                    confirm = pre_confirm)
 
         elif kwd in query_kws:
             try:
-                query_tag(target = cells[1]) # query the tag passed after the command
+                query_tag(target = cells[1]) # query the tag that follows cmd
             except IndexError:
                 query_tag() # if no tag passed run the dialog
         elif kwd in quit_kws:
@@ -548,7 +629,8 @@ def process_prompt(prompt:str) -> None:
         elif kwd in all_tags:
             tag_check(kwd)
         else: # not anything recognized so...
-            iprint(f"'{prompt}' isn't a recognized tag or command (type 'help' for a list of these).")
+            iprint(f"'{prompt}' isn't a recognized tag or command "
+                   "(type 'help' for a list of these).")
     except IndexError: # if no prompt
         return None
 
@@ -561,6 +643,9 @@ def main() -> None:
     main() # loop
 
 # STARTUP
+check_ins = {}
+check_outs = {}
+
 print(f"TagTracker {VERSION} by Julias Hocking")
 DATE = get_date()
 if read_tags(): # only run main() if tags read successfully
