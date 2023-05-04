@@ -1,5 +1,10 @@
 # Config for TagTracker by Julias Hocking
 from pathlib import Path
+
+# Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
+LOG_BASENAME = ""
+
+
 # time cutoffs for stays under x time and over y time
 T_UNDER = 1.5*60 # minutes
 T_OVER = 5*60
