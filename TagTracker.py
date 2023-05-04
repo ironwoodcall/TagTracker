@@ -15,7 +15,6 @@ from TrackerConfig import (
         query_kws,quit_kws,help_message,VERSION
     )
 
-
 def get_date() -> str:
     """Return current date as string: YYYY-MM-DD."""
     localtime = time.localtime()
@@ -43,6 +42,7 @@ def valid_time(inp:str) -> bool:
                 return True
     return False
 
+# FIXME - for later
 def canonical_tag( maybe_tag:str ) -> str|None:
     """Return 'maybe_tag' as canonical tag representation (or None).
 
@@ -53,6 +53,7 @@ def canonical_tag( maybe_tag:str ) -> str|None:
         return f"{r.group(1).lower()}{r.group(2)}"
     return None
 
+# FIXME - for later
 def valid_tag( tag:str ) ->bool:
     """Return whether 'tag' simplifies to a valid [known] tag."""
     return bool(canonical_tag( tag ) in all_tags)
@@ -70,6 +71,8 @@ def read_tags() -> bool:
     if exists, read for ins and outs
     if none exists, make one.
     """
+
+    #FIXME: Refactor
     Path("logs").mkdir(exist_ok = True) # make logs folder if none exists
     global check_ins, check_outs
     check_ins = {} # check in dictionary tag:time
@@ -141,6 +144,7 @@ def minutes_to_time_str(time_in_minutes:int) -> str:
     time_as_text = f"{hours_portion}:{minutes_portion:02d}"
     return time_as_text
 
+#FIXME: this fn should now be unused & deprecated
 def minutes_to_time_str_list(times:list[int]) -> list[str]:
     """Convert list of times in minutes to list of HH:MM strings."""
     # FIXME: I think better to use minutes_to_time_str() than this
@@ -149,21 +153,45 @@ def minutes_to_time_str_list(times:list[int]) -> list[str]:
         text_times.append(minutes_to_time_str(time_in_minutes))
     return text_times
 
+#FIXME: this is not used yet
+def find_tag_durations(include_bikes_on_hand=True) -> dict[str:int]:
+    """Make dict of tags with their stay duration in minutes.
+
+    include_bikes_on_hand, if True, will include checked in
+    but not returned out.  If False, only bikes returned out.
+    """
+    timenow = time_str_to_minutes(get_time())
+    tag_durations = {}
+    for tag,in_str in check_ins.items():
+        in_minutes = time_str_to_minutes(in_str)
+        if tag in check_outs:
+            out_minutes = time_str_to_minutes(check_outs[tag])
+            tag_durations[tag] = out_minutes-in_minutes
+        elif include_bikes_on_hand:
+            tag_durations[tag] = timenow - in_minutes
+    # Any bike stays that are zero minutes, arbitrarily call one minute.
+    for tag,duration in tag_durations.items():
+        if duration < 1:
+            tag_durations[tag] = 1
+    return tag_durations
+
 def calc_stays() -> list[int]:
     """Calculate how long each tag has stayed in the bikevalet.
 
     (Leftovers aren't counted as stays for these purposes)
     """
+    #FIXME: Refactor (see issue #11)
     global shortest_stay_tags_str
     global longest_stay_tags_str
     global min_stay
     global max_stay
     stays = []
     tags = []
+    # FIXME: should use check_ins and use now() for any not returned out.
     for tag in check_outs:
         time_in = time_str_to_minutes(check_ins[tag])
         time_out = time_str_to_minutes(check_outs[tag])
-        stay = time_out - time_in
+        stay = max(time_out - time_in,1)    # If zero just call it one minute.
         stays.append(stay)
         tags.append(tag) # add to list of tags in same order for next step
     min_stay = min(stays)
@@ -232,41 +260,42 @@ def show_stats():
         mean = round(sum(all_stays)/len(all_stays))
         median = round(median_stay(all_stays))
         mode, count = mode_stay(all_stays)
-        # convert each stat to HH:MM format
-        max_stay_HHMM = minutes_to_time_str(max_stay)
-        min_stay_HHMM = minutes_to_time_str(min_stay)
-        mean_HHMM = minutes_to_time_str(mean)
-        median_HHMM = minutes_to_time_str(median)
-        mode_HHMM = minutes_to_time_str(mode)
 
-        stays_under = 0
-        stays_between = 0
-        stays_over = 0
+        # Find num of stays between various time values.
+        short_stays = 0
+        medium_stays = 0
+        long_stays = 0
         for stay in all_stays: # count stays over/under x time
-            if stay <= T_UNDER:
-                stays_under += 1
+            if stay < T_UNDER:  # Changed from <= to < so matches description.
+                short_stays += 1
             elif stay <= T_OVER:
-                stays_between += 1
+                medium_stays += 1
             else:
-                stays_over += 1
+                long_stays += 1
         hrs_under = f"{(T_UNDER / 60):3.1f}" # times in hours for print clarity
         hrs_over = f"{(T_OVER / 60):3.1f}"
 
+        iprint(f"\nSummary statistics as of {get_time()} "
+               f"with {len(check_ins)-len(check_outs)} bikes still on hand:\n")
         iprint(f"Total bikes:    {tot_in:3d}")
         iprint(f"AM bikes:       {AM_ins:3d}")
         iprint(f"PM bikes:       {PM_ins:3d}")
         iprint(f"Regular:        {norm:3d}")
         iprint(f"Oversize:       {over:3d}")
         print()
-        iprint(f"Stays < {hrs_under}h:   {stays_under:3d}")
-        iprint(f"Stays {hrs_under}-{hrs_over}h: {stays_between:3d}")
-        iprint(f"Stays > {hrs_over}h:   {stays_over:3d}")
+        iprint(f"Stays < {hrs_under}h:   {short_stays:3d}")
+        iprint(f"Stays {hrs_under}-{hrs_over}h: {medium_stays:3d}")
+        iprint(f"Stays > {hrs_over}h:   {long_stays:3d}")
         print()
-        iprint(f"Max stay:      {max_stay_HHMM}   [tag(s) {longest_stay_tags_str}]")
-        iprint(f"Min stay:      {min_stay_HHMM}   [tag(s) {shortest_stay_tags_str}]")
-        iprint(f"Mean stay:     {mean_HHMM}")
-        iprint(f"Median stay:   {median_HHMM}")
-        iprint(f"Mode stay:     {mode_HHMM} by {count} bike(s)  [{MODE_ROUND_TO_NEAREST} minute blocks]")
+        iprint(f"Max stay:     {minutes_to_time_str(max_stay):>5}   "
+               f"[tag(s) {longest_stay_tags_str}]")
+        iprint(f"Min stay:     {minutes_to_time_str(min_stay):>5}   "
+               f"[tag(s) {shortest_stay_tags_str}]")
+        iprint(f"Mean stay:    {minutes_to_time_str(mean):>5}")
+        iprint(f"Median stay:  {minutes_to_time_str(median):>5}")
+        iprint(f"Mode stay:    {minutes_to_time_str(mode):>5} "
+               f"by {count} bike(s)  [{MODE_ROUND_TO_NEAREST} minute blocks]")
+
     else: # don't try to calculate stats on nothing
         iprint("No bikes returned out, can't calculate statistics. "
                f"({tot_in} bikes currently checked in.)")
@@ -614,6 +643,9 @@ def main() -> None:
     main() # loop
 
 # STARTUP
+check_ins = {}
+check_outs = {}
+
 print(f"TagTracker {VERSION} by Julias Hocking")
 DATE = get_date()
 if read_tags(): # only run main() if tags read successfully
