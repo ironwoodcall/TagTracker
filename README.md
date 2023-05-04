@@ -1,4 +1,5 @@
-TagTracker by Julias Hocking
+# TagTracker by Julias Hocking
+
 This is a simple tag tracking/data gathering system for bike valet operations I wrote for use at Victoria, BC's downtown bike valet program.
 It generates persistent .log files titled by date that can be collated and analyzed later.
 I intend to write some kind of script for this later but their formatting is very simple, so if you have any experience with programmatic data analysis it's
@@ -18,7 +19,7 @@ The "intended" workflow here is:
 5. tag is placed in some kind of return basket and not reused that day
 
 
-SETUP
+# SETUP
 1. Put all TagTracker files into the folder you want to use them in.
 2. Run TagTracker once to generate 'logs' folder and .cfg's, and close it.
 3. Populate .cfg files as directed by their headers:
@@ -33,7 +34,9 @@ SETUP
  (5. If you want, you can change some style options in TrackerConfig.py)
  
 
-USAGE - basic commands / short versions
+# USAGE - basic commands / short versions
+
+```
 List these commands     :   help  / h
 Check in or out         :   <tag name> (eg “wa3”)
 Audit of logged tags    :   audit / a
@@ -51,3 +54,5 @@ As long as these are in the right order you can specify in advance as much or as
 ie instead of entering "edit", then, as prompted: <tag name>, then "i" for check-in, then "1340" for the new time,
 ...you'd just enter "e wb4 i 1340" all as one
 or to delete tag bi8's check-out: "d bi8 o y"
+
+```
