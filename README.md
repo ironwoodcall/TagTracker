@@ -2,7 +2,7 @@
 
 This is a simple tag tracking/data gathering system for bike valet operations I wrote for use at Victoria, BC's downtown bike valet program.
 It generates persistent .log files titled by date that can be collated and analyzed later.
-I intend to write some kind of script for this later but their formatting is very simple, so if you have any experience with programmatic data analysis it's
+I intend to write some kind of script for this later.
 
 Some important assumptions the program makes:
 * Opening hours don't cross midnight - the program automatically decides whether to start a new .log based on the computer's date
@@ -11,7 +11,7 @@ Some important assumptions the program makes:
 * Each tag separates into two pieces, one for the bike and one for the customer, like a coat check
 * Tags are reused day-to-day but not within a single day
 
-The "intended" workflow here is:
+The "intended" workflow using the tracker is:
 1. bike checks in - bike receives half tag, owner receives half tag
 2. log check-in with tracker
 3. bike checks out - half tags are reunited
