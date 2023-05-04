@@ -506,8 +506,8 @@ def process_prompt(prompt:str) -> None:
     This is the logic for main loop
     """
     cells = prompt.strip().split() # break into each phrase (already .lower()'d)
-    kwd = cells[0] # take first phrase as fn to call
     try:
+        kwd = cells[0] # take first phrase as fn to call
         if cells[0][0] in ['?', '/'] and len(cells[0])>1: # take non-letter query prompts without space
             query_tag(cells[0][1:], False)
         elif kwd in statistics_kws:
