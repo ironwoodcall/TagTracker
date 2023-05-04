@@ -2,7 +2,7 @@
 # FIXME: this uses all_tags as the master list of allowable tags.
 # Should use valid_tags instead? (valid_tags is all_tags less retired_tags)
 #
-import os
+
 import os
 import time
 import re
