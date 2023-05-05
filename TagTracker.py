@@ -232,7 +232,6 @@ def mode_stay(stays:list) -> Tuple[int,int]:
 
     (rounds stays)
     """
-    # FIXME: what does 'round_stays' do? It doesn't seem to get used.
     round_stays = []
     for stay in stays:
         remainder = stay % MODE_ROUND_TO_NEAREST
@@ -241,7 +240,7 @@ def mode_stay(stays:list) -> Tuple[int,int]:
             mult += 1
         rounded = mult * MODE_ROUND_TO_NEAREST
         round_stays.append(rounded)
-    mode = max(set(stays), key=stays.count)
+    mode = max(set(round_stays), key=round_stays.count)
     count = stays.count(mode)
     return mode, count
 
