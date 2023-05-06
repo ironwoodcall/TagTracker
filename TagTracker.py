@@ -9,7 +9,7 @@ import re
 import pathlib
 from typing import Tuple
 
-import trackerconfig
+import tkrconfig
 
 def get_date() -> str:
     """Return current date as string: YYYY-MM-DD."""
@@ -52,11 +52,11 @@ def canonical_tag( maybe_tag:str ) -> str|None:
 def valid_tag( tag:str ) ->bool:
     """Return whether 'tag' simplifies to a valid [known] tag."""
     #FIXME: this is not used yet
-    return bool(canonical_tag( tag ) in trackerconfig.all_tags)
+    return bool(canonical_tag( tag ) in tkrconfig.all_tags)
 
 def iprint(text:str, x:int=1) -> None:
     """Print the text, indented."""
-    print(f"{trackerconfig.INDENT * x}{text}")
+    print(f"{tkrconfig.INDENT * x}{text}")
 
 def read_tags() -> bool:
     """Fetch tag data from file.
@@ -81,7 +81,7 @@ def read_tags() -> bool:
             while line[0] != 'B': # while the first chr of each line isn't a header
                 cells = line.rstrip().split(',')
                 # if either a tag or time is invalid...
-                if not cells[0] in trackerconfig.all_tags or not valid_time(cells[1]):
+                if not cells[0] in tkrconfig.all_tags or not valid_time(cells[1]):
                     print(f"Problem while reading {filedir} -- check-ins, line {line_counter}.")
                     return False
                 elif cells[0] in check_ins:
@@ -94,7 +94,7 @@ def read_tags() -> bool:
             line_counter += 1
             while line != '':
                 cells = line.rstrip().split(',')
-                if not cells[0] in trackerconfig.all_tags or not valid_time(cells[1]):
+                if not cells[0] in tkrconfig.all_tags or not valid_time(cells[1]):
                     print(f"Problem while reading {filedir} -- check-outs, line {line_counter}.")
                     return False
                 elif cells[0] in check_outs:
@@ -229,11 +229,11 @@ def mode_stay(stays:list) -> Tuple[int,int]:
     """
     round_stays = []
     for stay in stays:
-        remainder = stay % trackerconfig.MODE_ROUND_TO_NEAREST
-        mult = stay // trackerconfig.MODE_ROUND_TO_NEAREST
+        remainder = stay % tkrconfig.MODE_ROUND_TO_NEAREST
+        mult = stay // tkrconfig.MODE_ROUND_TO_NEAREST
         if remainder > 4:
             mult += 1
-        rounded = mult * trackerconfig.MODE_ROUND_TO_NEAREST
+        rounded = mult * tkrconfig.MODE_ROUND_TO_NEAREST
         round_stays.append(rounded)
     mode = max(set(round_stays), key=round_stays.count)
     count = stays.count(mode)
@@ -244,9 +244,9 @@ def show_stats():
     norm = 0 # counting bikes by type
     over = 0
     for tag in check_ins:
-        if tag in trackerconfig.norm_tags:
+        if tag in tkrconfig.norm_tags:
             norm += 1
-        elif tag in trackerconfig.over_tags:
+        elif tag in tkrconfig.over_tags:
             over += 1
     tot_in = norm + over
 
@@ -270,14 +270,14 @@ def show_stats():
         medium_stays = 0
         long_stays = 0
         for stay in all_stays: # count stays over/under x time
-            if stay < trackerconfig.T_UNDER:  # Changed from <= to < so matches description.
+            if stay < tkrconfig.T_UNDER:  # Changed from <= to < so matches description.
                 short_stays += 1
-            elif stay <= trackerconfig.T_OVER:
+            elif stay <= tkrconfig.T_OVER:
                 medium_stays += 1
             else:
                 long_stays += 1
-        hrs_under = f"{(trackerconfig.T_UNDER / 60):3.1f}" # times in hours for print clarity
-        hrs_over = f"{(trackerconfig.T_OVER / 60):3.1f}"
+        hrs_under = f"{(tkrconfig.T_UNDER / 60):3.1f}" # times in hours for print clarity
+        hrs_over = f"{(tkrconfig.T_OVER / 60):3.1f}"
 
         iprint(f"\nSummary statistics as of {get_time()} "
                f"with {len(check_ins)-len(check_outs)} bikes still on hand:\n")
@@ -298,7 +298,7 @@ def show_stats():
         iprint(f"Mean stay:    {minutes_to_time_str(mean):>5}")
         iprint(f"Median stay:  {minutes_to_time_str(median):>5}")
         iprint(f"Mode stay:    {minutes_to_time_str(mode):>5} "
-               f"by {count} bike(s)  [{trackerconfig.MODE_ROUND_TO_NEAREST} minute blocks]")
+               f"by {count} bike(s)  [{tkrconfig.MODE_ROUND_TO_NEAREST} minute blocks]")
 
     else: # don't try to calculate stats on nothing
         iprint("No bikes returned out, can't calculate statistics. "
@@ -308,13 +308,13 @@ def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
     """Perform tag entry deletion dialogue."""
     del_syntax_message = ("Syntax: d <tag> <both or check-out only"
             " (b/o)> <optional pre-confirm (y)>")
-    if not(target in [False] + trackerconfig.all_tags or which_to_del in [False, 'b', 'o']
+    if not(target in [False] + tkrconfig.all_tags or which_to_del in [False, 'b', 'o']
            or confirm in [False, 'y']):
         iprint(del_syntax_message) # remind of syntax if invalid input
         return None # interrupt
     if not target: # get target if unspecified
         iprint("Which tag's entry would you like to remove?")
-        target = input(f"(tag name) {trackerconfig.CURSOR}").lower()
+        target = input(f"(tag name) {tkrconfig.CURSOR}").lower()
     checked_in = target in check_ins
     checked_out = target in check_outs
     if not checked_in and not checked_out:
@@ -327,14 +327,14 @@ def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
                    f"a check-out ({time_out_temp}) recorded.")
             iprint("Do you want to delete (b)oth events, "
                    "or just the check-(o)ut?")
-            which_to_del = input(f"(b/o) {trackerconfig.CURSOR}").lower()
+            which_to_del = input(f"(b/o) {tkrconfig.CURSOR}").lower()
         if which_to_del == 'b':
             if confirm == 'y': # pre-confirmation
                 sure = True
             else:
                 iprint("Are you sure you want to delete both events "
                        f"for {target}? (y/N)")
-                sure = input(f"(y/N) {trackerconfig.CURSOR}").lower() == 'y'
+                sure = input(f"(y/N) {tkrconfig.CURSOR}").lower() == 'y'
             if sure:
                 check_ins.pop(target)
                 check_outs.pop(target)
@@ -349,7 +349,7 @@ def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
             else:
                 iprint("Are you sure you want to delete the "
                        f"check-out record for {target}? (y/N)")
-                sure = input(f"(y/N) {trackerconfig.CURSOR}").lower() == 'y'
+                sure = input(f"(y/N) {tkrconfig.CURSOR}").lower() == 'y'
 
             if sure:
                 time_temp = check_outs[target]
@@ -367,7 +367,7 @@ def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
             else: # check
                 iprint("This tag has only a check-in recorded. "
                        "Are you sure you want to delete it? (y/N)")
-                sure = input(f"(y/N) {trackerconfig.CURSOR}").lower() == 'y'
+                sure = input(f"(y/N) {tkrconfig.CURSOR}").lower() == 'y'
             if sure:
                 time_temp = check_ins[target]
                 check_ins.pop(target)
@@ -383,8 +383,8 @@ def query_tag(target = False, do_printing = True) -> str:
     #FIXME: what is do_printing meant to do?
     if not target: # only do dialog if no target passed
         iprint("Which tag would you like to query?")
-        target = input(f"(tag name) {trackerconfig.CURSOR}").lower()
-    if target in trackerconfig.retired_tags:
+        target = input(f"(tag name) {tkrconfig.CURSOR}").lower()
+    if target in tkrconfig.retired_tags:
         iprint(f"{target} has been retired.")
         return 'retired' # tag is retired
     else:
@@ -409,7 +409,7 @@ def prompt_for_time(inp = False) -> bool or str:
         iprint("What is the correct time for this event?")
         iprint("Use 24-hour format, or 'now' to use "
                f"the current time ({get_time()})")
-        inp = input(f"(HH:MM) {trackerconfig.CURSOR}").lower()
+        inp = input(f"(HH:MM) {tkrconfig.CURSOR}").lower()
     if inp == 'now':
         return get_time()
     elif valid_time(inp):
@@ -426,16 +426,16 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
             "<new time or 'now'>")
     if not target:
         iprint("Which bike's record do you want to edit?")
-        target = input(f"(tag ID) {trackerconfig.CURSOR}").lower()
-    elif not target in trackerconfig.all_tags:
+        target = input(f"(tag ID) {tkrconfig.CURSOR}").lower()
+    elif not target in tkrconfig.all_tags:
         iprint(edit_syntax_message)
         return False
-    if target in trackerconfig.all_tags:
+    if target in tkrconfig.all_tags:
         if target in check_ins:
             if not in_or_out:
                 iprint("Do you want to change this bike's "
                        "check-(i)n or check-(o)ut time?")
-                in_or_out = input(f"(i/o) {trackerconfig.CURSOR}").lower()
+                in_or_out = input(f"(i/o) {tkrconfig.CURSOR}").lower()
                 if not in_or_out in ['i','o']:
                     iprint(f"'{in_or_out}' needs to be 'i' or 'o' "
                            "(cancelled edit).")
@@ -485,22 +485,22 @@ def count_colours(inv:list[str]) -> str:
             if not char.isdigit():
                 shortened += char
         # cut off last, non-colour letter and add to list of abbrevs
-        if shortened in trackerconfig.colour_letters:
+        if shortened in tkrconfig.colour_letters:
             just_colour_abbreviations.append(shortened)
         else:
             for x in range(10):
                 cutoff_by_x = shortened[:-x]
-                if cutoff_by_x in trackerconfig.colour_letters:
+                if cutoff_by_x in tkrconfig.colour_letters:
                     just_colour_abbreviations.append(cutoff_by_x)
 
     colour_count = {} # build the count dictionary
-    for abbrev in trackerconfig.colour_letters: # for each valid colour, loop through all tags
+    for abbrev in tkrconfig.colour_letters: # for each valid colour, loop through all tags
         if abbrev in just_colour_abbreviations:
             this_colour_count = 0
             for tag in just_colour_abbreviations:
                 if tag == abbrev:
                     this_colour_count += 1
-            colour_name = trackerconfig.colour_letters[abbrev]
+            colour_name = tkrconfig.colour_letters[abbrev]
             colour_count[colour_name] = this_colour_count
 
     colour_count_str = '' # convert count dict to string
@@ -547,7 +547,7 @@ def tag_check(tag:str) -> None:
 
     This processes a prompt that's just a tag ID.
     """
-    if not tag in trackerconfig.retired_tags:
+    if not tag in tkrconfig.retired_tags:
         checked_in = tag in check_ins
         checked_out = tag in check_outs
         if checked_in:
@@ -555,7 +555,7 @@ def tag_check(tag:str) -> None:
                 query_tag(tag)
                 iprint(f"Overwrite {check_outs[tag]} check-out with "
                        f"current time ({get_time()})? (y/N)")
-                sure = input(f"(y/N) {trackerconfig.CURSOR}") == 'y'
+                sure = input(f"(y/N) {tkrconfig.CURSOR}") == 'y'
                 if sure:
                     edit_entry(target = tag, in_or_out = 'o',
                             new_time = get_time())
@@ -565,11 +565,11 @@ def tag_check(tag:str) -> None:
                 now_mins = time_str_to_minutes(get_time())
                 check_in_mins = time_str_to_minutes(check_ins[tag])
                 time_diff_mins = now_mins - check_in_mins
-                if time_diff_mins < trackerconfig.CHECK_OUT_CONFIRM_TIME: # if < 1/2 hr
+                if time_diff_mins < tkrconfig.CHECK_OUT_CONFIRM_TIME: # if < 1/2 hr
                     iprint("This bike checked in at "
                            f"{check_ins[tag]} ({time_diff_mins} mins ago).")
                     iprint("Do you want to check it out? (Y/n)")
-                    sure = input(f"(Y/n) {trackerconfig.CURSOR}").lower() in ['', 'y']
+                    sure = input(f"(Y/n) {tkrconfig.CURSOR}").lower() in ['', 'y']
                 else: # don't check for long stays
                     sure = True
                 if sure:
@@ -593,13 +593,13 @@ def process_prompt(prompt:str) -> None:
         kwd = cells[0] # take first phrase as fn to call
         if cells[0][0] in ['?', '/'] and len(cells[0])>1: # take non-letter query prompts without space
             query_tag(cells[0][1:], False)
-        elif kwd in trackerconfig.statistics_kws:
+        elif kwd in tkrconfig.statistics_kws:
             show_stats()
-        elif kwd in trackerconfig.help_kws:
-            print(trackerconfig.help_message)
-        elif kwd in trackerconfig.audit_kws:
+        elif kwd in tkrconfig.help_kws:
+            print(tkrconfig.help_message)
+        elif kwd in tkrconfig.audit_kws:
             show_audit()
-        elif kwd in trackerconfig.edit_kws:
+        elif kwd in tkrconfig.edit_kws:
             args = len(cells) - 1 # number of arguments passed
             target, in_or_out, new_time = None, None, None# initialize all
             if args > 0:
@@ -611,7 +611,7 @@ def process_prompt(prompt:str) -> None:
             edit_entry(target = target, in_or_out = in_or_out,
                     new_time = new_time)
 
-        elif kwd in trackerconfig.del_kws:
+        elif kwd in tkrconfig.del_kws:
             args = len(cells) - 1 # number of arguments passed
             target, which_to_del, pre_confirm = False, False, False
             if args > 0:
@@ -623,14 +623,14 @@ def process_prompt(prompt:str) -> None:
             delete_entry(target = target, which_to_del = which_to_del,
                     confirm = pre_confirm)
 
-        elif kwd in trackerconfig.query_kws:
+        elif kwd in tkrconfig.query_kws:
             try:
                 query_tag(target = cells[1]) # query the tag that follows cmd
             except IndexError:
                 query_tag() # if no tag passed run the dialog
-        elif kwd in trackerconfig.quit_kws:
+        elif kwd in tkrconfig.quit_kws:
             exit() # quit program
-        elif kwd in trackerconfig.all_tags:
+        elif kwd in tkrconfig.all_tags:
             tag_check(kwd)
         else: # not anything recognized so...
             iprint(f"'{prompt}' isn't a recognized tag or command "
@@ -643,7 +643,7 @@ def main() -> None:
     rotate_log()
     write_tags() # save before input regardless
     #show_audit() # show all bikes currently in
-    prompt = input(f"\n\nEnter a tag or command {trackerconfig.CURSOR}").lower() # take input
+    prompt = input(f"\n\nEnter a tag or command {tkrconfig.CURSOR}").lower() # take input
     process_prompt(prompt)
     main() # loop
 
@@ -651,12 +651,12 @@ def main() -> None:
 check_ins = {}
 check_outs = {}
 
-print(f"TagTracker {trackerconfig.VERSION} by Julias Hocking")
+print(f"TagTracker {tkrconfig.VERSION} by Julias Hocking")
 DATE = get_date()
-LOG_FILEPATH = f"logs/{trackerconfig.LOG_BASENAME}{DATE}.log"
+LOG_FILEPATH = f"logs/{tkrconfig.LOG_BASENAME}{DATE}.log"
 
 if read_tags(): # only run main() if tags read successfully
     main()
 else: # if read_tags() problem
-    print(f"\n{trackerconfig.INDENT}Closing automatically in 30 seconds...")
+    print(f"\n{tkrconfig.INDENT}Closing automatically in 30 seconds...")
     time.sleep(30)
