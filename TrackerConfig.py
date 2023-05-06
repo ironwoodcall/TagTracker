@@ -78,8 +78,6 @@ retired_tags = [line.rstrip().split()[0] for line in lines if not line in ['', '
 
 # combine allowable tags into single list for brevity in main script
 all_tags = norm_tags + over_tags
-valid_tags = [tag for tag in all_tags if not tag in retired_tags]
-
 
 if not Path("Tag Colour Abbreviations.cfg").is_file(): # make new retired tags file if none yet exists
     with open('Tag Colour Abbreviations.cfg', 'w') as f:
