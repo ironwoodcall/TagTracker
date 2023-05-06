@@ -1,6 +1,4 @@
 # TagTracker by Julias Hocking
-# FIXME: this uses all_tags as the master list of allowable tags.
-# Should use valid_tags instead? (valid_tags is all_tags less retired_tags)
 #
 
 import os
@@ -447,8 +445,9 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                 if new_time == False:
                     iprint('Invalid time entered (cancelled edit).')
                 elif in_or_out == 'i':
-                    if (time_str_to_minutes(new_time) >
-                            time_str_to_minutes(check_outs[target])):
+                    if target in check_outs and \
+                        (time_str_to_minutes(new_time) >
+                        time_str_to_minutes(check_outs[target])):
                         iprint("Can't set a check-IN later than a check-OUT;")
                         iprint(f"{target} checked OUT at {check_outs[target]}")
                     else:
@@ -547,7 +546,9 @@ def tag_check(tag:str) -> None:
 
     This processes a prompt that's just a tag ID.
     """
-    if not tag in cfg.retired_tags:
+    if tag in cfg.retired_tags: # if retired print specific retirement message
+        iprint(f"{tag} is retired.")
+    else: # must not be retired so handle as normal
         checked_in = tag in check_ins
         checked_out = tag in check_outs
         if checked_in:
@@ -580,8 +581,7 @@ def tag_check(tag:str) -> None:
         else:# if string is in neither dict
             check_ins[tag] = get_time()# check it in
             iprint(f"{tag} checked IN")
-    else: # must be retired
-        iprint(f"{tag} is retired.")
+    
 
 def process_prompt(prompt:str) -> None:
     """Process one user-input command.
