@@ -2,8 +2,7 @@
 from pathlib import Path
 
 # Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
-LOG_BASENAME = ""
-
+LOG_BASENAME = "cityhall_"
 
 # time cutoffs for stays under x time and over y time
 T_UNDER = 1.5*60 # minutes
@@ -20,13 +19,13 @@ INDENT = '  '
 CURSOR = '>>> '
 
 # keywords for day end statistics
-statistics_kws = ['s','stat']
+statistics_kws = ['s','stat','stats','sum','summary']
 
 # keywords for audit of logged tags
-audit_kws = ['audit','a']
+audit_kws = ['audit','a','aud']
 
 # keywords to quit the program
-quit_kws = ['quit','exit','stop','x']
+quit_kws = ['quit','exit','stop','x','bye']
 
 # keywords to delete a tag entry
 del_kws = ['del','delete','d']
@@ -35,7 +34,7 @@ del_kws = ['del','delete','d']
 query_kws = ['query','q','?', '/']
 
 # editing
-edit_kws = ['edit','e']
+edit_kws = ['edit','e','ed']
 
 # help message
 help_kws = ['help','h']
