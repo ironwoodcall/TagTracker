@@ -27,6 +27,8 @@ def get_time() -> str:
 
 def valid_time(inp:str) -> bool:
     """Check whether inp is a valid HH:MM string."""
+    return bool(fix_hhmm(inp))
+    """
     time_lengths = [4,5]
     if len(inp) in time_lengths:
         HH = inp[:2]
@@ -35,6 +37,23 @@ def valid_time(inp:str) -> bool:
             if int(HH) < 24 and int(MM) < 60:#physically possible earth time
                 return True
     return False
+    """
+
+def fix_hhmm(inp:str) -> str:
+    """Convert a string that might be a time to HH:MM (or to "")
+
+    Return is either "" (doesn't look like a valid time) or
+    will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
+    """
+    if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", inp)):
+        return ""
+    h = int(r.groups(1)[0])
+    m = int(r.groups(2)[0])
+    # Test for a possible time
+    if h > 23 or m > 59:
+        return ""
+    # Return 5-digit time string
+    return f"{h:02d}:{m:02d}"
 
 PARSE_TAG_RE = None
 def parse_tag( maybe_tag:str, test_availability=False ) -> str|None:
@@ -540,9 +559,11 @@ def count_colours(inv:list[str]) -> str:
 
     return colour_count_str
 
-def audit_report() -> None:
-    """Create & display audit report.
+def audit_report(as_of_when:str|int=None) -> None:
+    """Create & display audit report as at a particular time.
 
+    This is smart about any checkouts that are alter than as_of_when.
+    If as_of_when is missing, then counts as of current time.
     (This is replacement for existing show_audit function.)
     Reads:
         check_ins
@@ -550,8 +571,60 @@ def audit_report() -> None:
         cfg.colour_letters
         cfg.normal_tags
         cfg.oversize_tags
-
     """
+    # For when?
+    if type(as_of_when) == type(None):
+        print("None")
+        as_of_when = get_time()
+    elif type(as_of_when) == type(1):
+        print("int")
+        as_of_when = minutes_to_time_str(as_of_when)
+    elif type(as_of_when) != type("str"):
+        print( "INTERNAL: audit_report passed bad value")
+        return
+    print(f"{as_of_when=}")
+
+    # Get rid of any check-ins or -outs later than the requested time.
+    # (Yes I know there's a slicker way to do this but this is nice and clear.)
+    my_check_ins = {}
+    for (tag,ctime) in check_ins.items():
+        if ctime <= as_of_when:
+            my_check_ins[tag] = ctime
+    my_check_outs = {}
+    for (tag,ctime) in check_outs.items():
+        if ctime <= as_of_when:
+            my_check_outs[tag] = ctime
+
+    bikes_on_hand = len(my_check_ins) - len(my_check_outs)
+    normal_in = 0
+    normal_out = 0
+    oversize_in = 0
+    oversize_out = 0
+
+    # This assumes that any tag not a normal tag is an oversize tag
+    for tag in my_check_ins:
+        if tag in cfg.normal_tags:
+            normal_in += 1
+            if tag in my_check_outs:
+                normal_out += 1
+        else:
+            oversize_in += 1
+            if tag in my_check_outs:
+                oversize_out += 1
+    sum_in = normal_in + oversize_in
+    sum_out = normal_out + oversize_out
+    sum_total = sum_in - sum_out
+
+    iprint( f"Audit report as at {get_date()} {as_of_when}\n")
+
+    iprint( "Summary             Regular Oversize Total")
+    iprint( "-------             ------- -------- -----")
+    iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}    {sum_in:4d}")
+    iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}    {sum_out:4d}")
+    iprint(f"Bikes at valet now:   {(normal_in-normal_out):4d}    {(oversize_in-oversize_out):4d}    {sum_total:4d}")
+    if (sum_total != bikes_on_hand):
+        iprint( f"** Totals mismatch, expected total {bikes_on_hand} != {sum_total} **")
+    return
 
 def show_audit() -> None:
     """Perform audit function.
@@ -624,7 +697,6 @@ def tag_check(tag:str) -> None:
             check_ins[tag] = get_time()# check it in
             iprint(f"{tag} checked IN")
 
-
 def process_prompt(prompt:str) -> None:
     """Process one user-input command.
 
@@ -640,6 +712,9 @@ def process_prompt(prompt:str) -> None:
         elif kwd in cfg.help_kws:
             print(cfg.help_message)
         elif kwd in cfg.audit_kws:
+            print(f"{len(cells)=}")
+            audit_report( None if len(cells) == 1 else cells[1])
+            #audit_report('12:00')
             show_audit()
         elif kwd in cfg.edit_kws:
             args = len(cells) - 1 # number of arguments passed
