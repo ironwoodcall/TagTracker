@@ -76,8 +76,8 @@ def build_tags_config(filename:str) -> list[str] | None:
             line_words = line.rstrip().split() # split into each tag name
             for word in line_words: # check line for nonconforming tag names
                 if not re.match(TAG_NAME_REGEX, word):
-                    print(f'Invalid tag "{word}" found \
-in {filename} on line {line_counter}')
+                    print(f'Invalid tag "{word}" found '
+                          f'in {filename} on line {line_counter}')
                     return None # stop loading
             tags += line_words # add all tags in that line to this tag type
     return tags
