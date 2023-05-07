@@ -47,8 +47,8 @@ def fix_hhmm(inp:str) -> str:
     """
     if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", inp)):
         return ""
-    h = int(r.groups(1)[0])
-    m = int(r.groups(2)[0])
+    h = int(r.group(1))
+    m = int(r.group(2))
     # Test for a possible time
     if h > 23 or m > 59:
         return ""
@@ -574,15 +574,13 @@ def audit_report(as_of_when:str|int=None) -> None:
     """
     # For when?
     if type(as_of_when) == type(None):
-        print("None")
         as_of_when = get_time()
     elif type(as_of_when) == type(1):
-        print("int")
         as_of_when = minutes_to_time_str(as_of_when)
     elif type(as_of_when) != type("str"):
         print( "INTERNAL: audit_report passed bad value")
         return
-    print(f"{as_of_when=}")
+    as_of_when = fix_hhmm(as_of_when)
 
     # Get rid of any check-ins or -outs later than the requested time.
     # (Yes I know there's a slicker way to do this but this is nice and clear.)
@@ -616,14 +614,18 @@ def audit_report(as_of_when:str|int=None) -> None:
     sum_total = sum_in - sum_out
 
     iprint( f"Audit report as at {get_date()} {as_of_when}\n")
+    if as_of_when > get_time():
+        iprint("** Caution: audit report speculating about the future **")
 
     iprint( "Summary             Regular Oversize Total")
     iprint( "-------             ------- -------- -----")
     iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}    {sum_in:4d}")
     iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}    {sum_out:4d}")
-    iprint(f"Bikes at valet now:   {(normal_in-normal_out):4d}    {(oversize_in-oversize_out):4d}    {sum_total:4d}")
+    iprint(f"Bikes at valet:       {(normal_in-normal_out):4d}    {(oversize_in-oversize_out):4d}    {sum_total:4d}")
     if (sum_total != bikes_on_hand):
         iprint( f"** Totals mismatch, expected total {bikes_on_hand} != {sum_total} **")
+    print("\n\n")
+
     return
 
 def show_audit() -> None:
