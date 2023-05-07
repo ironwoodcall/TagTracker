@@ -624,7 +624,7 @@ def audit_report(as_of_when:str|int=None) -> None:
     iprint(f"Bikes at valet:       {(normal_in-normal_out):4d}    {(oversize_in-oversize_out):4d}    {sum_total:4d}")
     if (sum_total != bikes_on_hand):
         iprint( f"** Totals mismatch, expected total {bikes_on_hand} != {sum_total} **")
-    print("\n\n")
+    print("\n\nStandard Audit Report follows:\n\n")
 
     return
 
