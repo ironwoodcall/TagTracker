@@ -27,6 +27,8 @@ def get_time() -> str:
 
 def valid_time(inp:str) -> bool:
     """Check whether inp is a valid HH:MM string."""
+    return bool(fix_hhmm(inp))
+    """
     time_lengths = [4,5]
     if len(inp) in time_lengths:
         HH = inp[:2]
@@ -35,22 +37,67 @@ def valid_time(inp:str) -> bool:
             if int(HH) < 24 and int(MM) < 60:#physically possible earth time
                 return True
     return False
-
-def canonical_tag( maybe_tag:str ) -> str|None:
-    """Return 'maybe_tag' as canonical tag representation (or None).
-
-    Canonical tag representation is a single colour letter, a tag letter
-    and a sequence number, without lead zeroes.  All lowercase.
     """
-    # FIXME - for later
-    if r := re.match(r"^ *([a-zA-z][a-zA-Z])0*([1-9][0-9]*) *$", maybe_tag ):
-        return f"{r.group(1).lower()}{r.group(2)}"
-    return None
+
+def fix_hhmm(inp:str) -> str:
+    """Convert a string that might be a time to HH:MM (or to "")
+
+    Return is either "" (doesn't look like a valid time) or
+    will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
+    """
+    if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", inp)):
+        return ""
+    h = int(r.group(1))
+    m = int(r.group(2))
+    # Test for a possible time
+    if h > 23 or m > 59:
+        return ""
+    # Return 5-digit time string
+    return f"{h:02d}:{m:02d}"
+
+PARSE_TAG_RE = None
+def parse_tag( maybe_tag:str, test_availability=False ) -> str|None:
+    """Test maybe_tag as a tag, return it as tag and bits.
+
+    Tests maybe_tag by breaking it down into its constituent parts.
+    If looks like a valid tagname, returns a list of
+        [tag_id, colour, tag_letter, tag_number]
+    If tag is not valid, then the return list is empty []
+
+    If test_availability flag is True then will check whether this
+    tag is in the list of all available tags (all_tags), and if
+    not in the list, will return the empty list.
+
+    Canonical tag id is a concatenation of
+        tag_colour: 1+ lc letters representing the tag's colour,
+                as defined in cfg.colour_letters
+        tag_letter: 1 lc letter, the first character on the tag
+        tag_number: a sequence number, without lead zeroes.
+    """
+
+    # Compile the tagid re only once
+    global PARSE_TAG_RE
+    if not PARSE_TAG_RE:
+        PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([1-9][0-9]*) *")
+
+    maybe_tag = maybe_tag.lower()
+    if not bool(r := PARSE_TAG_RE.match(maybe_tag)):
+        return []
+
+    tag_colour = r.group(1)
+    tag_letter = r.group(2)
+    tag_number = r.group(3)
+    tag_id = f"{tag_colour}{tag_letter}{tag_number}"
+
+    if test_availability and tag_id not in cfg.all_tags:
+        return []
+
+    return [tag_id,tag_colour,tag_letter,tag_number]
 
 def valid_tag( tag:str ) -> bool:
     """Return whether 'tag' simplifies to a valid [known] tag."""
     #FIXME: this is not used yet
-    return bool(canonical_tag( tag ) in cfg.all_tags)
+    return bool(parse_tag( tag ) in cfg.all_tags)
 
 def iprint(text:str, x:int=1) -> None:
     """Print the text, indented."""
@@ -74,9 +121,9 @@ def read_tags() -> bool:
             line = f.readline() # read first tag entry if exists
             line_counter = 2 # track line number
 
-            # FIXME: below check for the line being a tag should
-            # probably be based on cfg.valid_tags or canonical_tag()
-            # rather than the first character being 'B'
+            # FIXME: rather than checking for in all_tags, maybe check
+            # the potential with parse_tag(cell[0],test_availability=True)
+            # rather than the first character not being 'B'
             while line[0] != 'B': # if first char isn't the start of the header
                 cells = line.rstrip().split(',')
                 # if either a tag or time is invalid...
@@ -514,6 +561,75 @@ def count_colours(inv:list[str]) -> str:
 
     return colour_count_str
 
+def audit_report(as_of_when:str|int=None) -> None:
+    """Create & display audit report as at a particular time.
+
+    This is smart about any checkouts that are alter than as_of_when.
+    If as_of_when is missing, then counts as of current time.
+    (This is replacement for existing show_audit function.)
+    Reads:
+        check_ins
+        check_outs
+        cfg.colour_letters
+        cfg.normal_tags
+        cfg.oversize_tags
+    """
+    # For when?
+    if type(as_of_when) == type(None):
+        as_of_when = get_time()
+    elif type(as_of_when) == type(1):
+        as_of_when = minutes_to_time_str(as_of_when)
+    elif type(as_of_when) != type("str"):
+        print( "INTERNAL: audit_report passed bad value")
+        return
+    as_of_when = fix_hhmm(as_of_when)
+
+    # Get rid of any check-ins or -outs later than the requested time.
+    # (Yes I know there's a slicker way to do this but this is nice and clear.)
+    my_check_ins = {}
+    for (tag,ctime) in check_ins.items():
+        if ctime <= as_of_when:
+            my_check_ins[tag] = ctime
+    my_check_outs = {}
+    for (tag,ctime) in check_outs.items():
+        if ctime <= as_of_when:
+            my_check_outs[tag] = ctime
+
+    bikes_on_hand = len(my_check_ins) - len(my_check_outs)
+    normal_in = 0
+    normal_out = 0
+    oversize_in = 0
+    oversize_out = 0
+
+    # This assumes that any tag not a normal tag is an oversize tag
+    for tag in my_check_ins:
+        if tag in cfg.normal_tags:
+            normal_in += 1
+            if tag in my_check_outs:
+                normal_out += 1
+        else:
+            oversize_in += 1
+            if tag in my_check_outs:
+                oversize_out += 1
+    sum_in = normal_in + oversize_in
+    sum_out = normal_out + oversize_out
+    sum_total = sum_in - sum_out
+
+    iprint( f"Audit report as at {get_date()} {as_of_when}\n")
+    if as_of_when > get_time():
+        iprint("** Caution: audit report speculating about the future **")
+
+    iprint( "Summary             Regular Oversize Total")
+    iprint( "-------             ------- -------- -----")
+    iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}    {sum_in:4d}")
+    iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}    {sum_out:4d}")
+    iprint(f"Bikes at valet:       {(normal_in-normal_out):4d}    {(oversize_in-oversize_out):4d}    {sum_total:4d}")
+    if (sum_total != bikes_on_hand):
+        iprint( f"** Totals mismatch, expected total {bikes_on_hand} != {sum_total} **")
+    print("\n\nStandard Audit Report follows:\n\n")
+
+    return
+
 def show_audit() -> None:
     """Perform audit function.
 
@@ -585,7 +701,6 @@ def tag_check(tag:str) -> None:
             check_ins[tag] = get_time()# check it in
             iprint(f"{tag} checked IN")
 
-
 def process_prompt(prompt:str) -> None:
     """Process one user-input command.
 
@@ -602,6 +717,9 @@ def process_prompt(prompt:str) -> None:
         elif kwd in cfg.help_kws:
             print(cfg.help_message)
         elif kwd in cfg.audit_kws:
+            print(f"{len(cells)=}")
+            audit_report( None if len(cells) == 1 else cells[1])
+            #audit_report('12:00')
             show_audit()
         elif kwd in cfg.edit_kws:
             args = len(cells) - 1 # number of arguments passed
