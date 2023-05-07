@@ -1,6 +1,4 @@
 # TagTracker by Julias Hocking
-# FIXME: this uses all_tags as the master list of allowable tags.
-# Should use valid_tags instead? (valid_tags is all_tags less retired_tags)
 #
 
 import os
@@ -49,7 +47,7 @@ def canonical_tag( maybe_tag:str ) -> str|None:
         return f"{r.group(1).lower()}{r.group(2)}"
     return None
 
-def valid_tag( tag:str ) ->bool:
+def valid_tag( tag:str ) -> bool:
     """Return whether 'tag' simplifies to a valid [known] tag."""
     #FIXME: this is not used yet
     return bool(canonical_tag( tag ) in cfg.all_tags)
@@ -68,7 +66,7 @@ def read_tags() -> bool:
     if none exists, make one.
     """
     #FIXME: Refactor
-    pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if none exists
+    pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
     global check_ins, check_outs
     check_ins = {} # check in dictionary tag:time
     check_outs = {} # check out dictionary tag:time
@@ -78,6 +76,10 @@ def read_tags() -> bool:
             line = f.readline() # read check ins header
             line = f.readline() # read first tag entry if exists
             line_counter = 2 # track line number
+
+            # FIXME: below check for the line being a tag should 
+            # probably be based on cfg.valid_tags or canonical_tag()
+            # rather than the first character being 'B'
             while line[0] != 'B': # while the first chr of each line isn't a header
                 cells = line.rstrip().split(',')
                 # if either a tag or time is invalid...
@@ -244,9 +246,9 @@ def show_stats():
     norm = 0 # counting bikes by type
     over = 0
     for tag in check_ins:
-        if tag in cfg.norm_tags:
+        if tag in cfg.normal_tags:
             norm += 1
-        elif tag in cfg.over_tags:
+        elif tag in cfg.oversize_tags:
             over += 1
     tot_in = norm + over
 
@@ -447,8 +449,9 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                 if new_time == False:
                     iprint('Invalid time entered (cancelled edit).')
                 elif in_or_out == 'i':
-                    if (time_str_to_minutes(new_time) >
-                            time_str_to_minutes(check_outs[target])):
+                    if target in check_outs and \
+                        (time_str_to_minutes(new_time) >
+                        time_str_to_minutes(check_outs[target])):
                         iprint("Can't set a check-IN later than a check-OUT;")
                         iprint(f"{target} checked OUT at {check_outs[target]}")
                     else:
@@ -547,11 +550,11 @@ def tag_check(tag:str) -> None:
 
     This processes a prompt that's just a tag ID.
     """
-    if not tag in cfg.retired_tags:
-        checked_in = tag in check_ins
-        checked_out = tag in check_outs
-        if checked_in:
-            if checked_out:# if string is in checked_in AND in checked_out
+    if tag in cfg.retired_tags: # if retired print specific retirement message
+        iprint(f"{tag} is retired.")
+    else: # must not be retired so handle as normal
+        if tag in check_ins:
+            if tag in check_outs:# if string is in checked_in AND in checked_out
                 query_tag(tag)
                 iprint(f"Overwrite {check_outs[tag]} check-out with "
                        f"current time ({get_time()})? (y/N)")
@@ -561,7 +564,7 @@ def tag_check(tag:str) -> None:
                             new_time = get_time())
                 else:
                     iprint("Cancelled")
-            else:
+            else:# checked in only
                 now_mins = time_str_to_minutes(get_time())
                 check_in_mins = time_str_to_minutes(check_ins[tag])
                 time_diff_mins = now_mins - check_in_mins
@@ -580,8 +583,7 @@ def tag_check(tag:str) -> None:
         else:# if string is in neither dict
             check_ins[tag] = get_time()# check it in
             iprint(f"{tag} checked IN")
-    else: # must be retired
-        iprint(f"{tag} is retired.")
+
 
 def process_prompt(prompt:str) -> None:
     """Process one user-input command.
@@ -648,15 +650,19 @@ def main() -> None:
     main() # loop
 
 # STARTUP
-check_ins = {}
-check_outs = {}
+if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
+    check_ins = {}
+    check_outs = {}
 
-print(f"TagTracker {cfg.VERSION} by Julias Hocking")
-DATE = get_date()
-LOG_FILEPATH = f"logs/{cfg.LOG_BASENAME}{DATE}.log"
+    print(f"TagTracker {cfg.VERSION} by Julias Hocking")
+    DATE = get_date()
+    LOG_FILEPATH = f"logs/{cfg.LOG_BASENAME}{DATE}.log"
 
-if read_tags(): # only run main() if tags read successfully
-    main()
-else: # if read_tags() problem
+    if read_tags(): # only run main() if tags read successfully
+        main()
+    else: # if read_tags() problem
+        print(f"\n{cfg.INDENT}Closing automatically in 30 seconds...")
+        time.sleep(30)
+else:
     print(f"\n{cfg.INDENT}Closing automatically in 30 seconds...")
     time.sleep(30)

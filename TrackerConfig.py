@@ -1,8 +1,12 @@
 # Config for TagTracker by Julias Hocking
-from pathlib import Path
+import os
+import re
 
 # Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
 LOG_BASENAME = "cityhall_"
+
+# regular expression for tag name format
+TAG_NAME_REGEX = "^ *[a-zA-Z][a-zA-Z]*[0-9][0-9]* *$"
 
 # time cutoffs for stays under x time and over y time
 T_UNDER = 1.5*60 # minutes
@@ -31,7 +35,7 @@ quit_kws = ['quit','exit','stop','x','bye']
 del_kws = ['del','delete','d']
 
 # keywords to query a tag
-query_kws = ['query','q','?', '/']
+query_kws = ['query','q','?','/']
 
 # editing
 edit_kws = ['edit','e','ed']
@@ -50,42 +54,54 @@ help_message = f"""{INDENT}List these commands     :   help  /  h
 {INDENT}*using this isn't important; data is autosaved"""
 
 # assemble list of normal tags
-if not Path("Normal Tags.cfg").is_file(): # make new normal tags file if none yet exists
-    with open('Normal Tags.cfg', 'w') as f:
-        header = "Enter each NORMAL tag on its own line, separating any comments with whitespace eg 'wa4 comment'\n"
-        f.writelines(header)
-with open('Normal Tags.cfg', 'r') as f:
-    lines = f.readlines()[1:] # ignore header text
-norm_tags = [line.rstrip().split()[0] for line in lines if not line in ['', '\n']]
+def build_tags_config(filename:str) -> list[str] | None:
+    """Build a tag list from a file.
+    
+    Constructs a list of each allowable tag in a given category
+    (normal, oversize, retired, etc) by reading its category.cfg file.
+    """
+    tags = []
+    if not os.path.exists(filename): # make new tags config file if needed
+        with open(filename, 'w') as f:
+            header = "# Enter lines of whitespace-separated tags, \
+eg 'wa0 wa1 wa2 wa3'\n"
+            f.writelines(header)
+    with open(filename, 'r') as f: # open and read
+        lines = f.readlines()
+    line_counter = 0 # init line counter to 0
+    for line in lines:
+        line_counter += 1 # increment for current line
+        if not line[0] == '#': # for each non-comment line 
+            # (blank lines do nothing here anyway)
+            line_words = line.rstrip().split() # split into each tag name
+            for word in line_words: # check line for nonconforming tag names
+                if not re.match(TAG_NAME_REGEX, word):
+                    print(f'Invalid tag "{word}" found \
+in {filename} on line {line_counter}')
+                    return None # stop loading
+            tags += line_words # add all tags in that line to this tag type
+    return tags
 
-# assemble list of oversize tags
-if not Path("Oversize Tags.cfg").is_file(): # make new oversize tags file if none yet exists
-    with open('Oversize Tags.cfg', 'w') as f:
-        header = "Enter each OVERSIZE tag on its own line, separating any comments with whitespace eg 'be4 comment'\n"
-        f.writelines(header)
-with open('Oversize Tags.cfg', 'r') as f:
-    lines = f.readlines()[1:] # ignore header text
-over_tags = [line.rstrip().split()[0] for line in lines if not line in ['', '\n']]
+normal_tags   = build_tags_config('normal_tags.cfg')
 
-# assemble list of retired tags
-if not Path("Retired Tags.cfg").is_file(): # make new retired tags file if none yet exists
-    with open('Retired Tags.cfg', 'w') as f:
-        header = "Enter each RETIRED tag on its own line with no punctuation, separating any comments with whitespace eg 'wa4 lost/damaged/etc'\n"
-        f.writelines(header)
-with open('Retired Tags.cfg', 'r') as f:
-    lines = f.readlines()[1:] # ignore header text
-retired_tags = [line.rstrip().split()[0] for line in lines if not line in ['', '\n']]
+oversize_tags = build_tags_config('oversize_tags.cfg')
+
+retired_tags  = build_tags_config('retired_tags.cfg')
 
 # combine allowable tags into single list for brevity in main script
-all_tags = norm_tags + over_tags
-valid_tags = [tag for tag in all_tags if not tag in retired_tags]
+try:
+    all_tags = normal_tags + oversize_tags
+    SETUP_PROBLEM = False # don't flag because it's fine
+except TypeError: # if returned None for any of these tags lists
+    # flag problem for main script
+    SETUP_PROBLEM = "Unsuccessful load of config files;" 
 
-
-if not Path("Tag Colour Abbreviations.cfg").is_file(): # make new retired tags file if none yet exists
-    with open('Tag Colour Abbreviations.cfg', 'w') as f:
-        header = "Enter each first letter(s) of a tag name corresponding to a tag colour separated by whitespace on its own line, eg 'b black' etc"
+if not os.path.exists("tag_colour_abbreviations.cfg"):
+    with open('tag_colour_abbreviations.cfg', 'w') as f:
+        header = "Enter each first letter(s) of a tag name corresponding \
+to a tag colour separated by whitespace on their own line, eg 'b black' etc"
         f.writelines(header)
-with open('Tag Colour Abbreviations.cfg', 'r') as f:
+with open('tag_colour_abbreviations.cfg', 'r') as f:
     lines = f.readlines()[1:] # ignore header text
 colour_letters = {}
 for line in lines:
@@ -97,6 +113,6 @@ for line in lines:
 
 # pull startup header and version from changelog
 with open('changelog.txt', 'r') as f:
-    f.readline()#[:-1] # cut off '\n'
-    f.readline() # skip empty line
+    f.readline()
+    f.readline() # skip empty lines
     VERSION = f.readline()[:-2] # cut off ':\n'
