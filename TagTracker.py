@@ -36,21 +36,49 @@ def valid_time(inp:str) -> bool:
                 return True
     return False
 
-def canonical_tag( maybe_tag:str ) -> str|None:
-    """Return 'maybe_tag' as canonical tag representation (or None).
+PARSE_TAG_RE = None
+def parse_tag( maybe_tag:str, test_availability=False ) -> str|None:
+    """Test maybe_tag as a tag, return it as tag and bits.
 
-    Canonical tag representation is a single colour letter, a tag letter
-    and a sequence number, without lead zeroes.  All lowercase.
+    Tests maybe_tag by breaking it down into its constituent parts.
+    If looks like a valid tagname, returns a list of
+        [tag_id, colour, tag_letter, tag_number]
+    If tag is not valid, then the return list is empty []
+
+    If test_availability flag is True then will check whether this
+    tag is in the list of all available tags (all_tags), and if
+    not in the list, will return the empty list.
+
+    Canonical tag id is a concatenation of
+        tag_colour: 1+ lc letters representing the tag's colour,
+                as defined in cfg.colour_letters
+        tag_letter: 1 lc letter, the first character on the tag
+        tag_number: a sequence number, without lead zeroes.
     """
-    # FIXME - for later
-    if r := re.match(r"^ *([a-zA-z][a-zA-Z])0*([1-9][0-9]*) *$", maybe_tag ):
-        return f"{r.group(1).lower()}{r.group(2)}"
-    return None
+
+    # Compile the tagid re only once
+    global PARSE_TAG_RE
+    if not PARSE_TAG_RE:
+        PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([1-9][0-9]*) *")
+
+    maybe_tag = maybe_tag.lower()
+    if not bool(r := PARSE_TAG_RE.match(maybe_tag)):
+        return []
+
+    tag_colour = r.group(1)
+    tag_letter = r.group(2)
+    tag_number = r.group(3)
+    tag_id = f"{tag_colour}{tag_letter}{tag_number}"
+
+    if test_availability and tag_id not in cfg.all_tags:
+        return []
+
+    return [tag_id,tag_colour,tag_letter,tag_number]
 
 def valid_tag( tag:str ) -> bool:
     """Return whether 'tag' simplifies to a valid [known] tag."""
     #FIXME: this is not used yet
-    return bool(canonical_tag( tag ) in cfg.all_tags)
+    return bool(parse_tag( tag ) in cfg.all_tags)
 
 def iprint(text:str, x:int=1) -> None:
     """Print the text, indented."""
@@ -77,9 +105,8 @@ def read_tags() -> bool:
             line = f.readline() # read first tag entry if exists
             line_counter = 2 # track line number
 
-            # FIXME: below check for the line being a tag should 
-            # probably be based on cfg.valid_tags or canonical_tag()
-            # rather than the first character being 'B'
+            # FIXME: rather than checking for in all_tags, maybe check
+            # the potential with parse_tag(cell[0],test_availability=True)
             while line[0] != 'B': # while the first chr of each line isn't a header
                 cells = line.rstrip().split(',')
                 # if either a tag or time is invalid...
@@ -512,6 +539,19 @@ def count_colours(inv:list[str]) -> str:
     colour_count_str = colour_count_str[3:] # cut off leading comma
 
     return colour_count_str
+
+def audit_report() -> None:
+    """Create & display audit report.
+
+    (This is replacement for existing show_audit function.)
+    Reads:
+        check_ins
+        check_outs
+        cfg.colour_letters
+        cfg.normal_tags
+        cfg.oversize_tags
+
+    """
 
 def show_audit() -> None:
     """Perform audit function.
