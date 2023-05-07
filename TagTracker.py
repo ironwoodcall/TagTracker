@@ -67,9 +67,6 @@ def read_tags() -> bool:
     """
     #FIXME: Refactor
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
-    global check_ins, check_outs
-    check_ins = {} # check in dictionary tag:time
-    check_outs = {} # check out dictionary tag:time
     try: # read saved stuff into dicts
         filedir = LOG_FILEPATH
         with open(filedir, 'r') as f:
@@ -77,17 +74,19 @@ def read_tags() -> bool:
             line = f.readline() # read first tag entry if exists
             line_counter = 2 # track line number
 
-            # FIXME: below check for the line being a tag should 
+            # FIXME: below check for the line being a tag should
             # probably be based on cfg.valid_tags or canonical_tag()
             # rather than the first character being 'B'
-            while line[0] != 'B': # while the first chr of each line isn't a header
+            while line[0] != 'B': # if first char isn't the start of the header
                 cells = line.rstrip().split(',')
                 # if either a tag or time is invalid...
                 if not cells[0] in cfg.all_tags or not valid_time(cells[1]):
-                    print(f"Problem while reading {filedir} -- check-ins, line {line_counter}.")
+                    print(f"Problem while reading {filedir} -- check-ins, "
+                          "line {line_counter}.")
                     return False
                 elif cells[0] in check_ins:
-                    print(f"Duplicate {cells[0]} check-in found at line {line_counter}")
+                    print(f"Duplicate {cells[0]} check-in found at "
+                          "line {line_counter}")
                     return False
                 check_ins[cells[0]] = cells[1]
                 line = f.readline() # final will load the check outs header
@@ -97,10 +96,12 @@ def read_tags() -> bool:
             while line != '':
                 cells = line.rstrip().split(',')
                 if not cells[0] in cfg.all_tags or not valid_time(cells[1]):
-                    print(f"Problem while reading {filedir} -- check-outs, line {line_counter}.")
+                    print(f"Problem while reading {filedir} -- check-outs, "
+                          "line {line_counter}.")
                     return False
                 elif cells[0] in check_outs:
-                    print(f"Duplicate {cells[0]} check-out found at line {line_counter}")
+                    print(f"Duplicate {cells[0]} check-out found at "
+                          "line {line_counter}")
                     return False
                 check_outs[cells[0]] = cells[1]
                 line = f.readline() # final will load trailing empty line
@@ -194,10 +195,12 @@ def calc_stays() -> list[int]:
     global max_stay
     stays = []
     tags = []
-    # FIXME: should use check_ins and use now() for any not returned out.
-    for tag in check_outs:
+    for tag in check_ins:
         time_in = time_str_to_minutes(check_ins[tag])
-        time_out = time_str_to_minutes(check_outs[tag])
+        if tag in check_outs:
+            time_out = time_str_to_minutes(check_outs[tag])
+        else:
+            time_out = time_str_to_minutes(get_time())
         stay = max(time_out - time_in,1)    # If zero just call it one minute.
         stays.append(stay)
         tags.append(tag) # add to list of tags in same order for next step
@@ -272,13 +275,13 @@ def show_stats():
         medium_stays = 0
         long_stays = 0
         for stay in all_stays: # count stays over/under x time
-            if stay < cfg.T_UNDER:  # Changed from <= to < so matches description.
+            if stay < cfg.T_UNDER:
                 short_stays += 1
-            elif stay <= cfg.T_OVER:
+            elif stay <= cfg.T_OVER: # middle bracket contains the edge cases
                 medium_stays += 1
             else:
                 long_stays += 1
-        hrs_under = f"{(cfg.T_UNDER / 60):3.1f}" # times in hours for print clarity
+        hrs_under = f"{(cfg.T_UNDER / 60):3.1f}" # in hours for print clarity
         hrs_over = f"{(cfg.T_OVER / 60):3.1f}"
 
         iprint(f"\nSummary statistics as of {get_time()} "
@@ -300,7 +303,8 @@ def show_stats():
         iprint(f"Mean stay:    {minutes_to_time_str(mean):>5}")
         iprint(f"Median stay:  {minutes_to_time_str(median):>5}")
         iprint(f"Mode stay:    {minutes_to_time_str(mode):>5} "
-               f"by {count} bike(s)  [{cfg.MODE_ROUND_TO_NEAREST} minute blocks]")
+               f"by {count} bike(s)  [{cfg.MODE_ROUND_TO_NEAREST} minute "
+               "blocks]")
 
     else: # don't try to calculate stats on nothing
         iprint("No bikes returned out, can't calculate statistics. "
@@ -310,7 +314,7 @@ def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
     """Perform tag entry deletion dialogue."""
     del_syntax_message = ("Syntax: d <tag> <both or check-out only"
             " (b/o)> <optional pre-confirm (y)>")
-    if not(target in [False] + cfg.all_tags or which_to_del in [False, 'b', 'o']
+    if not(target in [False] + cfg.all_tags or which_to_del in [False,'b','o']
            or confirm in [False, 'y']):
         iprint(del_syntax_message) # remind of syntax if invalid input
         return None # interrupt
@@ -380,26 +384,22 @@ def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
             iprint(f"{target} has only a check-in ({time_in_temp}) recorded; "
                    "can't delete a nonexistent check-out.")
 
-def query_tag(target = False, do_printing = True) -> str:
+def query_tag(target = False) -> str:
     """Query the check in/out times of a specific tag."""
-    #FIXME: what is do_printing meant to do?
     if not target: # only do dialog if no target passed
         iprint("Which tag would you like to query?")
         target = input(f"(tag name) {cfg.CURSOR}").lower()
     if target in cfg.retired_tags:
         iprint(f"{target} has been retired.")
-        return 'retired' # tag is retired
     else:
         try:
             iprint(f"{target} checked IN at {check_ins[target]}")
         except KeyError:
             iprint(f"'{target}' isn't in today's records.")
-            return 'none' # tag is neither in nor out
         try:
             iprint(f"{target} checked OUT at {check_outs[target]}")
-            return 'both' # tag is in and out
         except KeyError:
-            return 'in' # tag is in but not out
+            iprint(f"{target} hasn't checked out and is still on hand.")
 
 def prompt_for_time(inp = False) -> bool or str:
     """Prompt for a time input if needed.
@@ -449,9 +449,9 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                 if new_time == False:
                     iprint('Invalid time entered (cancelled edit).')
                 elif in_or_out == 'i':
-                    if target in check_outs and \
-                        (time_str_to_minutes(new_time) >
-                        time_str_to_minutes(check_outs[target])):
+                    if (target in check_outs and 
+                            (time_str_to_minutes(new_time) >
+                            time_str_to_minutes(check_outs[target]))):
                         iprint("Can't set a check-IN later than a check-OUT;")
                         iprint(f"{target} checked OUT at {check_outs[target]}")
                     else:
@@ -462,7 +462,7 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                     if (time_str_to_minutes(new_time) <
                             time_str_to_minutes(check_ins[target])):
                         # don't check a tag out earlier than it checked in
-                        iprint("Can't set a check-OUT earlier than a check-IN;")
+                        iprint("Can't set a check-OUT earlier than check-IN;")
                         iprint(f"{target} checked IN at {check_ins[target]}")
                     else:
                         iprint(f"Check-OUT time for {target} "
@@ -497,7 +497,8 @@ def count_colours(inv:list[str]) -> str:
                     just_colour_abbreviations.append(cutoff_by_x)
 
     colour_count = {} # build the count dictionary
-    for abbrev in cfg.colour_letters: # for each valid colour, loop through all tags
+    for abbrev in cfg.colour_letters.keys():
+        # for each valid colour, check all tags
         if abbrev in just_colour_abbreviations:
             this_colour_count = 0
             for tag in just_colour_abbreviations:
@@ -554,7 +555,7 @@ def tag_check(tag:str) -> None:
         iprint(f"{tag} is retired.")
     else: # must not be retired so handle as normal
         if tag in check_ins:
-            if tag in check_outs:# if string is in checked_in AND in checked_out
+            if tag in check_outs:# if tag has checked in & out
                 query_tag(tag)
                 iprint(f"Overwrite {check_outs[tag]} check-out with "
                        f"current time ({get_time()})? (y/N)")
@@ -590,11 +591,12 @@ def process_prompt(prompt:str) -> None:
 
     This is the logic for main loop
     """
-    cells = prompt.strip().split() # break into each phrase (already .lower()'d)
+    cells = prompt.strip().split() # break into each phrase -- already .lower()
     try:
         kwd = cells[0] # take first phrase as fn to call
-        if cells[0][0] in ['?', '/'] and len(cells[0])>1: # take non-letter query prompts without space
-            query_tag(cells[0][1:], False)
+        if cells[0][0] in ['?', '/'] and len(cells[0])>1:
+        # take non-letter query prompts without space
+            query_tag(cells[0][1:])
         elif kwd in cfg.statistics_kws:
             show_stats()
         elif kwd in cfg.help_kws:
@@ -603,7 +605,7 @@ def process_prompt(prompt:str) -> None:
             show_audit()
         elif kwd in cfg.edit_kws:
             args = len(cells) - 1 # number of arguments passed
-            target, in_or_out, new_time = None, None, None# initialize all
+            target, in_or_out, new_time = None, None, None # initialize all
             if args > 0:
                 target = cells[1]
             if args > 1:
@@ -645,7 +647,7 @@ def main() -> None:
     rotate_log()
     write_tags() # save before input regardless
     #show_audit() # show all bikes currently in
-    prompt = input(f"\n\nEnter a tag or command {cfg.CURSOR}").lower() # take input
+    prompt = input(f"\n\nEnter a tag or command {cfg.CURSOR}").lower()
     process_prompt(prompt)
     main() # loop
 

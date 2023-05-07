@@ -63,15 +63,15 @@ def build_tags_config(filename:str) -> list[str] | None:
     tags = []
     if not os.path.exists(filename): # make new tags config file if needed
         with open(filename, 'w') as f:
-            header = "# Enter lines of whitespace-separated tags, \
-eg 'wa0 wa1 wa2 wa3'\n"
+            header = "# Enter lines of whitespace-separated tags, "
+            "eg 'wa0 wa1 wa2 wa3'\n"
             f.writelines(header)
     with open(filename, 'r') as f: # open and read
         lines = f.readlines()
     line_counter = 0 # init line counter to 0
     for line in lines:
         line_counter += 1 # increment for current line
-        if not line[0] == '#': # for each non-comment line 
+        if not line[0] == '#': # for each non-comment line
             # (blank lines do nothing here anyway)
             line_words = line.rstrip().split() # split into each tag name
             for word in line_words: # check line for nonconforming tag names
@@ -94,12 +94,13 @@ try:
     SETUP_PROBLEM = False # don't flag because it's fine
 except TypeError: # if returned None for any of these tags lists
     # flag problem for main script
-    SETUP_PROBLEM = "Unsuccessful load of config files;" 
+    SETUP_PROBLEM = "Unsuccessful load of config files;"
 
 if not os.path.exists("tag_colour_abbreviations.cfg"):
     with open('tag_colour_abbreviations.cfg', 'w') as f:
-        header = "Enter each first letter(s) of a tag name corresponding \
-to a tag colour separated by whitespace on their own line, eg 'b black' etc"
+        header = ("Enter each first letter(s) of a tag name corresponding to "
+                  "a tag colour separated by whitespace on their own line, "
+                  "eg 'b black' etc")
         f.writelines(header)
 with open('tag_colour_abbreviations.cfg', 'r') as f:
     lines = f.readlines()[1:] # ignore header text
