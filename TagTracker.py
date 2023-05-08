@@ -540,7 +540,9 @@ def tags_by_prefix(tags_dict:dict) -> dict:
 
     prefixes = {}
     for tag in tags_dict:
-        (prefix,t_number) = cfg.PARSE_TAG_PREFIX_RE.match(tag).groups()
+        #(prefix,t_number) = cfg.PARSE_TAG_PREFIX_RE.match(tag).groups()
+        (t_colour,t_letter,t_number) = parse_tag(tag,test_availability=False)[1:4]
+        prefix = f"{t_colour}{t_letter}"
         if prefix not in prefixes:
             prefixes[prefix] = []
         prefixes[prefix].append(int(t_number))

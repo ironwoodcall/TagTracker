@@ -7,9 +7,6 @@ LOG_BASENAME = "cityhall_"
 
 # Regular expression for parsing tags -- here & in main program.
 PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
-# Regex to pull apart prefix and number on a tag that is already in
-# canonical form (e.g. be7 or wa0 or puf13)
-PARSE_TAG_PREFIX_RE = re.compile( "([a-z]+)([0-9]+)")
 
 # time cutoffs for stays under x time and over y time
 T_UNDER = 1.5*60 # minutes
