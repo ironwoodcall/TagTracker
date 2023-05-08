@@ -77,10 +77,10 @@ def parse_tag( maybe_tag:str, test_availability=False ) -> list[str]:
 
     return [tag_id,tag_colour,tag_letter,tag_number]
 
-def valid_tag( tag:str ) -> bool:
-    """Return whether 'tag' simplifies to a valid [known] tag."""
-    #FIXME: this is not used yet
-    return bool(parse_tag( tag ) in cfg.all_tags)
+def fix_tag( maybe_tag:str, must_be_available=False ) -> str:
+    """Turn 'str' into a canonical tag name."""
+    bits = parse_tag(maybe_tag,test_availability=must_be_available)
+    return bits[0] if bits else ""
 
 def iprint(text:str="", num_indents:int=1,line_end:str="\n") -> None:
     """Print the text, indented."""
@@ -125,8 +125,7 @@ def read_tags() -> bool:
             if len(cells) != 2:
                 print(f"Bad line in file {logfilename} line {line_num}.")
                 return False
-            if not (this_tag := parse_tag(
-                    cells[0],test_availability=True)[0]):
+            if not (this_tag := fix_tag(cells[0],must_be_available=True)):
                 print("Poorly formed or unrecognized tag in file"
                         f" {logfilename} line {line_num}.")
                 return False
@@ -484,17 +483,18 @@ def query_tag(target = False) -> str:
     if not target: # only do dialog if no target passed
         iprint("Which tag would you like to query?")
         target = input(f"(tag name) {cfg.CURSOR}").lower()
-    if target in cfg.retired_tags:
-        iprint(f"{target} has been retired.")
+    fixed_target = fix_tag(target,must_be_available=True)
+    if not fixed_target:
+        iprint(f"Tag {target} is not available (retired, does not exist, etc).")
+        return
+    elif fixed_target not in check_ins:
+        iprint(f"'{fixed_target}' isn't in today's records.")
+        return
+    iprint(f"{fixed_target} checked IN at {check_ins[fixed_target]}")
+    if fixed_target in check_outs:
+        iprint(f"{fixed_target} returned OUT at {check_outs[fixed_target]}")
     else:
-        try:
-            iprint(f"{target} checked IN at {check_ins[target]}")
-        except KeyError:
-            iprint(f"'{target}' isn't in today's records.")
-        try:
-            iprint(f"{target} checked OUT at {check_outs[target]}")
-        except KeyError:
-            iprint(f"{target} hasn't checked out and is still on hand.")
+        iprint(f"{target} not returned out and is still on hand.")
 
 def prompt_for_time(inp = False) -> bool or str:
     """Prompt for a time input if needed.
@@ -548,7 +548,7 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                             (time_str_to_minutes(new_time) >
                             time_str_to_minutes(check_outs[target]))):
                         iprint("Can't set a check-IN later than a check-OUT;")
-                        iprint(f"{target} checked OUT at {check_outs[target]}")
+                        iprint(f"{target} returned OUT at {check_outs[target]}")
                     else:
                         iprint(f"Check-IN time for {target} "
                                f"changed to {new_time}.")
@@ -819,9 +819,9 @@ def tag_check(tag:str) -> None:
                     sure = True
                 if sure:
                     check_outs[tag] = get_time()# check it out
-                    iprint(f"**{tag} checked OUT**")
+                    iprint(f"**{tag} returned OUT**")
                 else:
-                    iprint("Cancelled check-out")
+                    iprint("Cancelled return bike out")
         else:# if string is in neither dict
             check_ins[tag] = get_time()# check it in
             iprint(f"{tag} checked IN")
@@ -878,13 +878,8 @@ def process_prompt(prompt:str) -> None:
             query_tag() # if no tag passed run the dialog
     elif kwd in cfg.quit_kws:
         exit() # quit program
-    elif a_tag_bits := parse_tag(kwd,test_availability=False):
-        a_tag = a_tag_bits[0]
-        print(f"have {a_tag=}")
-        if a_tag in cfg.all_tags:
-            tag_check(a_tag)
-        else:
-            iprint( f"'{prompt} is not a tag or is an unavailable tag")
+    elif (a_tag := fix_tag(kwd,must_be_available=True)) and a_tag:
+        tag_check(a_tag)
     else: # not anything recognized so...
         iprint(f"'{prompt}' isn't a recognized tag or command "
                 "(type 'help' for a list of these).")
