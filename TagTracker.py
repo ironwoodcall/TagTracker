@@ -560,7 +560,7 @@ def audit_report(as_of_when:str|int=None) -> None:
         cfg.normal_tags
         cfg.oversize_tags
     """
-    # FIXME: this is long and could get broken up
+    # FIXME: this is long and could get broken up with helper functions
 
     rightnow = get_time()
     # What time will this audit report reflect?
