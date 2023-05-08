@@ -1,12 +1,13 @@
-# Config for TagTracker by Julias Hocking
+"""Config for TagTracker by Julias Hocking."""
+
 import os
 import re
 
 # Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
 LOG_BASENAME = "cityhall_"
 
-# regular expression for tag name format
-TAG_NAME_REGEX = "^ *[a-zA-Z][a-zA-Z]*[0-9][0-9]* *$"
+# Regular expression for parsing tags -- here & in main program.
+PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
 
 # time cutoffs for stays under x time and over y time
 T_UNDER = 1.5*60 # minutes
@@ -54,17 +55,17 @@ help_message = f"""{INDENT}List these commands     :   help  /  h
 {INDENT}*using this isn't important; data is autosaved"""
 
 # assemble list of normal tags
-def build_tags_config(filename:str) -> list[str] | None:
+def build_tags_config(filename:str) -> list[str]:
     """Build a tag list from a file.
-    
+
     Constructs a list of each allowable tag in a given category
     (normal, oversize, retired, etc) by reading its category.cfg file.
     """
     tags = []
     if not os.path.exists(filename): # make new tags config file if needed
         with open(filename, 'w') as f:
-            header = "# Enter lines of whitespace-separated tags, "
-            "eg 'wa0 wa1 wa2 wa3'\n"
+            header = ("# Enter lines of whitespace-separated tags, "
+                    "eg 'wa0 wa1 wa2 wa3'\n")
             f.writelines(header)
     with open(filename, 'r') as f: # open and read
         lines = f.readlines()
@@ -75,7 +76,7 @@ def build_tags_config(filename:str) -> list[str] | None:
             # (blank lines do nothing here anyway)
             line_words = line.rstrip().split() # split into each tag name
             for word in line_words: # check line for nonconforming tag names
-                if not re.match(TAG_NAME_REGEX, word):
+                if not PARSE_TAG_RE.match(word):
                     print(f'Invalid tag "{word}" found '
                           f'in {filename} on line {line_counter}')
                     return None # stop loading
@@ -110,7 +111,6 @@ for line in lines:
         abbrev = line.rstrip().split()[0]
         colour = line.rstrip().split()[1]
         colour_letters[abbrev] = colour # add to dictionary
-
 
 # pull startup header and version from changelog
 with open('changelog.txt', 'r') as f:
