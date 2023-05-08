@@ -5,8 +5,11 @@ import re
 # Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
 LOG_BASENAME = "cityhall_"
 
-# regular expression for tag name format
-TAG_NAME_REGEX = "^ *[a-zA-Z][a-zA-Z]*[0-9][0-9]* *$"
+# Regular expression for parsing tags -- here & in main program.
+PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
+# Regex to pull apart prefix and number on a tag that is already in
+# canonical form (e.g. be7 or wa0 or puf13)
+PARSE_TAG_PREFIX_RE = re.compile( "([a-z]+)([0-9]+)")
 
 # time cutoffs for stays under x time and over y time
 T_UNDER = 1.5*60 # minutes
@@ -75,7 +78,7 @@ def build_tags_config(filename:str) -> list[str] | None:
             # (blank lines do nothing here anyway)
             line_words = line.rstrip().split() # split into each tag name
             for word in line_words: # check line for nonconforming tag names
-                if not re.match(TAG_NAME_REGEX, word):
+                if not PARSE_TAG_RE.match(word):
                     print(f'Invalid tag "{word}" found '
                           f'in {filename} on line {line_counter}')
                     return None # stop loading
@@ -118,5 +121,3 @@ with open('changelog.txt', 'r') as f:
     f.readline() # skip empty lines
     VERSION = f.readline()[:-2] # cut off ':\n'
 
-# Regular expression for parsing tags.
-PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([0-9]+) *$")

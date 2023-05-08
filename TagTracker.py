@@ -1,5 +1,4 @@
-# TagTracker by Julias Hocking
-#
+"""TagTracker by Julias Hocking."""
 
 import os
 import time
@@ -27,20 +26,11 @@ def get_time() -> str:
 
 def valid_time(inp:str) -> bool:
     """Check whether inp is a valid HH:MM string."""
+    # FIXME: remove all calls to valid_time(), use fix_hhmm() instead.
     return bool(fix_hhmm(inp))
-    """
-    time_lengths = [4,5]
-    if len(inp) in time_lengths:
-        HH = inp[:2]
-        MM = inp[-2:]
-        if HH.isdigit() and MM.isdigit():#format should be right
-            if int(HH) < 24 and int(MM) < 60:#physically possible earth time
-                return True
-    return False
-    """
 
 def fix_hhmm(inp:str) -> str:
-    """Convert a string that might be a time to HH:MM (or to "")
+    """Convert a string that might be a time to HH:MM (or to "").
 
     Return is either "" (doesn't look like a valid time) or
     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
@@ -73,7 +63,6 @@ def parse_tag( maybe_tag:str, test_availability=False ) -> str|None:
         tag_letter: 1 lc letter, the first character on the tag
         tag_number: a sequence number, without lead zeroes.
     """
-
     maybe_tag = maybe_tag.lower()
     if not bool(r := cfg.PARSE_TAG_RE.match(maybe_tag)):
         return []
@@ -191,16 +180,6 @@ def minutes_to_time_str(time_in_minutes:int) -> str:
     minutes_portion = time_in_minutes - 60*hours_portion
     time_as_text = f"{hours_portion}:{minutes_portion:02d}"
     return time_as_text
-
-
-def minutes_to_time_str_list(times:list[int]) -> list[str]:
-    """Convert list of times in minutes to list of HH:MM strings."""
-    # FIXME: I think better to use minutes_to_time_str() than this
-    # FIXME: this fn should now be unused & deprecated
-    text_times = []
-    for time_in_minutes in times:
-        text_times.append(minutes_to_time_str(time_in_minutes))
-    return text_times
 
 def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
     """Make dict of tags with their stay duration in minutes.
@@ -555,6 +534,19 @@ def count_colours(inv:list[str]) -> str:
 
     return colour_count_str
 
+def tags_by_prefix(tags_dict:dict) -> dict:
+    """Rtn tag prefixes with list of associated tag numbers."""
+
+    prefixes = {}
+    for tag in tags_dict:
+        (prefix,t_number) = cfg.PARSE_TAG_PREFIX_RE.match(tag).groups()
+        if prefix not in prefixes:
+            prefixes[prefix] = []
+        prefixes[prefix].append(int(t_number))
+    for numbers in prefixes.values():
+        numbers.sort()
+    return prefixes
+
 def audit_report(as_of_when:str|int=None) -> None:
     """Create & display audit report as at a particular time.
 
@@ -568,9 +560,12 @@ def audit_report(as_of_when:str|int=None) -> None:
         cfg.normal_tags
         cfg.oversize_tags
     """
-    # For when?
+    # FIXME: this is long and could get broken up
+
+    rightnow = get_time()
+    # What time will this audit report reflect?
     if type(as_of_when) == type(None):
-        as_of_when = get_time()
+        as_of_when = rightnow
     elif type(as_of_when) == type(1):
         as_of_when = minutes_to_time_str(as_of_when)
     elif type(as_of_when) != type("str"):
@@ -588,8 +583,12 @@ def audit_report(as_of_when:str|int=None) -> None:
     for (tag,ctime) in check_outs.items():
         if ctime <= as_of_when:
             my_check_outs[tag] = ctime
+    bikes_on_hand = {}
+    for (tag,ctime) in my_check_ins.items():
+        if tag not in my_check_outs:
+            bikes_on_hand[tag] = ctime
 
-    bikes_on_hand = len(my_check_ins) - len(my_check_outs)
+    num_bikes_on_hand = len(bikes_on_hand)
     normal_in = 0
     normal_out = 0
     oversize_in = 0
@@ -609,18 +608,71 @@ def audit_report(as_of_when:str|int=None) -> None:
     sum_out = normal_out + oversize_out
     sum_total = sum_in - sum_out
 
-    iprint( f"Audit report as at {get_date()} {as_of_when}\n")
-    if as_of_when > get_time():
-        iprint("** Caution: audit report speculating about the future **")
+    # Audit report header.
+    print()
+    if as_of_when == rightnow:
+        iprint( f"Audit report as at current time ({rightnow})")
+    elif as_of_when > rightnow:
+        iprint(f"Audit report guessing at future state (as at {as_of_when})")
+    else:
+        iprint(f"Audit report for past state (as at {as_of_when})")
+    print()
 
+    # Audit summary section.
     iprint( "Summary             Regular Oversize Total")
     iprint( "-------             ------- -------- -----")
-    iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}    {sum_in:4d}")
-    iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}    {sum_out:4d}")
-    iprint(f"Bikes at valet:       {(normal_in-normal_out):4d}    {(oversize_in-oversize_out):4d}    {sum_total:4d}")
-    if (sum_total != bikes_on_hand):
-        iprint( f"** Totals mismatch, expected total {bikes_on_hand} != {sum_total} **")
-    print("\n\nStandard Audit Report follows:\n\n")
+    iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}"
+           f"    {sum_in:4d}")
+    iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}"
+           f"    {sum_out:4d}")
+    iprint(f"Bikes in valet:       {(normal_in-normal_out):4d}"
+           f"    {(oversize_in-oversize_out):4d}    {sum_total:4d}")
+    if (sum_total != num_bikes_on_hand):
+        iprint( "** Totals mismatch, expected total "
+               f"{num_bikes_on_hand} != {sum_total} **")
+
+    no_item_str = "  "  # what to show when there's no tag
+    print()
+    iprint( "Tags on bikes in valet:")
+    iprint( "-----------------------")
+    prefixes_on_hand = tags_by_prefix(bikes_on_hand)
+    for prefix in sorted(prefixes_on_hand.keys()):
+        numbers = prefixes_on_hand[prefix]
+        line = f"{prefix.upper():3>} "
+        for i in range(0,max(numbers)+1):
+            s = f"{i:02d}" if i in numbers else no_item_str
+            line = f"{line} {s}"
+        iprint(line)
+    if not prefixes_on_hand:
+        iprint( "-no bikes-")
+    print()
+    prefixes_returned_out = tags_by_prefix(my_check_outs)
+    iprint( "Bikes returned out (tags in bin):")
+    iprint( "---------------------------------")
+    for prefix in sorted(prefixes_returned_out.keys()):
+        numbers = prefixes_returned_out[prefix]
+        line = f"{prefix.upper():3>} "
+        for i in range(0,max(numbers)+1):
+            s = f"{i:02d}" if i in numbers else no_item_str
+            line = f"{line} {s}"
+        iprint(line)
+    if not prefixes_returned_out:
+        iprint( "-no bikes-")
+
+    returns_by_colour = {}
+    for prefix,numbers in prefixes_returned_out.items():
+        colour_code = prefix[:-1]   # prefix without the tag_letter
+        if colour_code not in returns_by_colour:
+            returns_by_colour[colour_code] = len(numbers)
+        else:
+            returns_by_colour[colour_code] += len(numbers)
+    print()
+    iprint( "Tag colours in bin:")
+    iprint( "-------------------")
+    for colour_code in sorted(returns_by_colour.keys()):
+        num = returns_by_colour[colour_code]
+        iprint(f"{cfg.colour_letters[colour_code].title():10s}{num:4d}")
+    iprint(f"{'Total':10s}{sum_out:4d}")
 
     return
 
@@ -631,6 +683,7 @@ def show_audit() -> None:
     and bikes that should be on hand.  Format to be easy to use
     during mid-day reconciliations.
     """
+    # FIXME: can delete this function once happy with new audit
     if len(check_ins) - len(check_outs) > 0: # if bikes are in
         corral = []
         for tag in check_ins:
@@ -711,10 +764,9 @@ def process_prompt(prompt:str) -> None:
         elif kwd in cfg.help_kws:
             print(cfg.help_message)
         elif kwd in cfg.audit_kws:
-            print(f"{len(cells)=}")
+            # Audit report takes an optional timestamp.
             audit_report( None if len(cells) == 1 else cells[1])
-            #audit_report('12:00')
-            show_audit()
+            ## show_audit()
         elif kwd in cfg.edit_kws:
             args = len(cells) - 1 # number of arguments passed
             target, in_or_out, new_time = None, None, None # initialize all
