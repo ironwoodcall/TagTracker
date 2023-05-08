@@ -1,4 +1,5 @@
-# Config for TagTracker by Julias Hocking
+"""Config for TagTracker by Julias Hocking."""
+
 import os
 import re
 
@@ -63,8 +64,8 @@ def build_tags_config(filename:str) -> list[str]:
     tags = []
     if not os.path.exists(filename): # make new tags config file if needed
         with open(filename, 'w') as f:
-            header = "# Enter lines of whitespace-separated tags, "
-            "eg 'wa0 wa1 wa2 wa3'\n"
+            header = ("# Enter lines of whitespace-separated tags, "
+                    "eg 'wa0 wa1 wa2 wa3'\n")
             f.writelines(header)
     with open(filename, 'r') as f: # open and read
         lines = f.readlines()
@@ -111,10 +112,8 @@ for line in lines:
         colour = line.rstrip().split()[1]
         colour_letters[abbrev] = colour # add to dictionary
 
-
 # pull startup header and version from changelog
 with open('changelog.txt', 'r') as f:
     f.readline()
     f.readline() # skip empty lines
     VERSION = f.readline()[:-2] # cut off ':\n'
-
