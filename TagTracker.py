@@ -93,73 +93,71 @@ def read_tags() -> bool:
     check for .txt file for today's date in folder called 'logs'
     e.g. "logs/2023-04-20.txt"
     if exists, read for ins and outs
-    if none exists, make one.
+    if none exists, who cares -- one will get made.
     """
-    #FIXME: Refactor
+    logfilename = LOG_FILEPATH
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
-    try: # read saved stuff into dicts
-        logfilename = LOG_FILEPATH
-        check_inout = None
-        section = None
-        with open(logfilename, 'r') as f:
-            for line_num, line in enumerate(f, start=1):
-                # ignore blank or # lines
-                line = re.sub(r"\s*#.*","", line)
-                line = line.strip()
-                if not line:
-                    continue
-                # Look for section headers
-                if (re.match(r"^Bike.*check in.*:",line)):
-                    check_inout = check_ins
-                    section = "in"
-                    continue
-                elif (re.match(r"^Bike.*check out.*:", line)):
-                    check_inout = check_outs
-                    section = "out"
-                    continue
-                # Can do nothing unless we know what section we're in
-                if section is None:
-                    print( f"weirdness in line {line_num} of {logfilename}")
-                    return False
-                # Break into putative tag and text, looking for errors
-                cells = line.rstrip().split(',')
-                if len(cells) != 2:
-                    print(f"Bad line in file {logfilename} line {line_num}.")
-                    return False
-                if not (this_tag := parse_tag(cells[0],test_availability=True)):
-                    print("Poorly formed or unrecognized tag in file"
-                          f" {logfilename} line {line_num}.")
-                    return False
-                if not (this_time := fix_hhmm(cells[1])):
-                    print("Time value poorly formed in file"
-                          f" {logfilename} line {line_num}.")
-                    return False
-                # Maybe add to check_ins or check_outs structures.
-                if section == "in":
-                    # Maybe add to check_in structure
-                    if this_tag in check_ins:
-                        print(f"Duplicate {this_tag} check-in found at "
-                              f"line {line_num}")
-                        return False
-                    if this_tag in check_outs and check_outs[this_tag] < this_time:
-                        print(f"Tag {this_tag} check out before check-in"
-                              f" in file {logfilename}")
-                    check_ins[this_tag] = this_time
-                elif section == "out":
-                    if this_tag in check_outs:
-                        print(f"Duplicate {this_tag} check-out found at "
-                              f"line {line_num}")
-                        return False
-                    if this_tag in check_ins and check_ins[this_tag] > this_time:
-                        print(f"Tag {this_tag} check out before check-in"
-                              f" in file {logfilename}")
-                        return False
-                    check_outs[this_tag] = this_time
-                else:
-                    print( "should not reach this code spot 876238746")
-        print('Previous log for today successfully loaded')
-    except FileNotFoundError: # if no file, don't read it lol
+    if not os.path.exists(logfilename):
         print('No previous log for today found. Starting fresh...')
+        return True
+
+    section = None
+    with open(logfilename, 'r') as f:
+        for line_num, line in enumerate(f, start=1):
+            # ignore blank or # lines
+            line = re.sub(r"\s*#.*","", line)
+            line = line.strip()
+            if not line:
+                continue
+            # Look for section headers
+            if (re.match(r"^Bikes checked in.*:",line)):
+                section = "in"
+                continue
+            elif (re.match(r"^Bikes checked out.*:", line)):
+                section = "out"
+                continue
+            # Can do nothing unless we know what section we're in
+            if section is None:
+                print( f"weirdness in line {line_num} of {logfilename}")
+                return False
+            # Break into putative tag and text, looking for errors
+            cells = line.rstrip().split(',')
+            if len(cells) != 2:
+                print(f"Bad line in file {logfilename} line {line_num}.")
+                return False
+            if not (this_tag := parse_tag(
+                    cells[0],test_availability=True)[0]):
+                print("Poorly formed or unrecognized tag in file"
+                        f" {logfilename} line {line_num}.")
+                return False
+            if not (this_time := fix_hhmm(cells[1])):
+                print("Time value poorly formed in file"
+                        f" {logfilename} line {line_num}.")
+                return False
+            # Maybe add to check_ins or check_outs structures.
+            if section == "in":
+                # Maybe add to check_in structure
+                if this_tag in check_ins:
+                    print(f"Duplicate {this_tag} check-in found at "
+                            f"line {line_num}")
+                    return False
+                if this_tag in check_outs and check_outs[this_tag] < this_time:
+                    print(f"Tag {this_tag} check out before check-in"
+                            f" in file {logfilename}")
+                check_ins[this_tag] = this_time
+            elif section == "out":
+                if this_tag in check_outs:
+                    print(f"Duplicate {this_tag} check-out found at "
+                            f"line {line_num}")
+                    return False
+                if this_tag in check_ins and check_ins[this_tag] > this_time:
+                    print(f"Tag {this_tag} check out before check-in"
+                            f" in file {logfilename}")
+                    return False
+                check_outs[this_tag] = this_time
+            else:
+                print( "should not reach this code spot 876238746")
+    print('Previous log for today successfully loaded')
     return True
 
 def read_tags_OLD() -> bool:
@@ -834,66 +832,71 @@ def process_prompt(prompt:str) -> None:
     This is the logic for main loop
     """
     cells = prompt.strip().split() # break into each phrase -- already .lower()
-    try:
-        kwd = cells[0] # take first phrase as fn to call
-        if cells[0][0] in ['?', '/'] and len(cells[0])>1:
-        # take non-letter query prompts without space
-            query_tag(cells[0][1:])
-        elif kwd in cfg.statistics_kws:
-            show_stats()
-        elif kwd in cfg.help_kws:
-            print(cfg.help_message)
-        elif kwd in cfg.audit_kws:
-            # Audit report takes an optional timestamp.
-            audit_report( None if len(cells) == 1 else cells[1])
-            ## show_audit()
-        elif kwd in cfg.edit_kws:
-            args = len(cells) - 1 # number of arguments passed
-            target, in_or_out, new_time = None, None, None # initialize all
-            if args > 0:
-                target = cells[1]
-            if args > 1:
-                in_or_out = cells[2]
-            if args > 2:
-                new_time = cells[3]
-            edit_entry(target = target, in_or_out = in_or_out,
-                    new_time = new_time)
+    if not cells:
+        return False
 
-        elif kwd in cfg.del_kws:
-            args = len(cells) - 1 # number of arguments passed
-            target, which_to_del, pre_confirm = False, False, False
-            if args > 0:
-                target = cells[1]
-            if args > 1:
-                which_to_del = cells[2]
-            if args > 2:
-                pre_confirm = cells[3]
-            delete_entry(target = target, which_to_del = which_to_del,
-                    confirm = pre_confirm)
+    kwd = cells[0] # take first phrase as fn to call
+    if cells[0][0] in ['?', '/'] and len(cells[0])>1:
+    # take non-letter query prompts without space
+        query_tag(cells[0][1:])
+    elif kwd in cfg.statistics_kws:
+        show_stats()
+    elif kwd in cfg.help_kws:
+        print(cfg.help_message)
+    elif kwd in cfg.audit_kws:
+        # Audit report takes an optional timestamp.
+        audit_report( None if len(cells) == 1 else cells[1])
+        ## show_audit()
+    elif kwd in cfg.edit_kws:
+        args = len(cells) - 1 # number of arguments passed
+        target, in_or_out, new_time = None, None, None # initialize all
+        if args > 0:
+            target = cells[1]
+        if args > 1:
+            in_or_out = cells[2]
+        if args > 2:
+            new_time = cells[3]
+        edit_entry(target = target, in_or_out = in_or_out,
+                new_time = new_time)
 
-        elif kwd in cfg.query_kws:
-            try:
-                query_tag(target = cells[1]) # query the tag that follows cmd
-            except IndexError:
-                query_tag() # if no tag passed run the dialog
-        elif kwd in cfg.quit_kws:
-            exit() # quit program
-        elif kwd in cfg.all_tags:
-            tag_check(kwd)
-        else: # not anything recognized so...
-            iprint(f"'{prompt}' isn't a recognized tag or command "
-                   "(type 'help' for a list of these).")
-    except IndexError: # if no prompt
-        return None
+    elif kwd in cfg.del_kws:
+        args = len(cells) - 1 # number of arguments passed
+        target, which_to_del, pre_confirm = False, False, False
+        if args > 0:
+            target = cells[1]
+        if args > 1:
+            which_to_del = cells[2]
+        if args > 2:
+            pre_confirm = cells[3]
+        delete_entry(target = target, which_to_del = which_to_del,
+                confirm = pre_confirm)
+
+    elif kwd in cfg.query_kws:
+        try:
+            query_tag(target = cells[1]) # query the tag that follows cmd
+        except IndexError:
+            query_tag() # if no tag passed run the dialog
+    elif kwd in cfg.quit_kws:
+        exit() # quit program
+    elif a_tag_bits := parse_tag(kwd,test_availability=False):
+        a_tag = a_tag_bits[0]
+        print(f"have {a_tag=}")
+        if a_tag in cfg.all_tags:
+            tag_check(a_tag)
+        else:
+            iprint( f"'{prompt} is not a tag or is an unavailable tag")
+    else: # not anything recognized so...
+        iprint(f"'{prompt}' isn't a recognized tag or command "
+                "(type 'help' for a list of these).")
 
 def main() -> None:
     """Run main program loop."""
-    rotate_log()
-    write_tags() # save before input regardless
-    #show_audit() # show all bikes currently in
-    prompt = input(f"\n\nEnter a tag or command {cfg.CURSOR}").lower()
-    process_prompt(prompt)
-    main() # loop
+    while True:
+        #show_audit() # show all bikes currently in
+        prompt = input(f"\nEnter a tag or command {cfg.CURSOR}").lower()
+        process_prompt(prompt)
+        rotate_log()
+        write_tags() # save before input regardless
 
 # STARTUP
 if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
