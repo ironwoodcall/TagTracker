@@ -57,7 +57,7 @@ help_message = f"""{INDENT}List these commands     :   help  /  h
 {INDENT}*using this isn't important; data is autosaved"""
 
 # assemble list of normal tags
-def build_tags_config(filename:str) -> list[str] | None:
+def build_tags_config(filename:str) -> list[str]:
     """Build a tag list from a file.
 
     Constructs a list of each allowable tag in a given category
