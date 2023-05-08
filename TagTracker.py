@@ -129,11 +129,11 @@ def read_tags() -> bool:
                 # if either a tag or time is invalid...
                 if not cells[0] in cfg.all_tags or not valid_time(cells[1]):
                     print(f"Problem while reading {filedir} -- check-ins, "
-                          "line {line_counter}.")
+                          f"line {line_counter}.")
                     return False
                 elif cells[0] in check_ins:
                     print(f"Duplicate {cells[0]} check-in found at "
-                          "line {line_counter}")
+                          f"line {line_counter}")
                     return False
                 check_ins[cells[0]] = cells[1]
                 line = f.readline() # final will load the check outs header
@@ -144,11 +144,11 @@ def read_tags() -> bool:
                 cells = line.rstrip().split(',')
                 if not cells[0] in cfg.all_tags or not valid_time(cells[1]):
                     print(f"Problem while reading {filedir} -- check-outs, "
-                          "line {line_counter}.")
+                          f"line {line_counter}.")
                     return False
                 elif cells[0] in check_outs:
                     print(f"Duplicate {cells[0]} check-out found at "
-                          "line {line_counter}")
+                          f"line {line_counter}")
                     return False
                 check_outs[cells[0]] = cells[1]
                 line = f.readline() # final will load trailing empty line
