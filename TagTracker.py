@@ -45,7 +45,7 @@ def fix_hhmm(inp:str) -> str:
     # Return 5-digit time string
     return f"{h:02d}:{m:02d}"
 
-def parse_tag( maybe_tag:str, test_availability=False ) -> str|None:
+def parse_tag( maybe_tag:str, test_availability=False ) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -547,7 +547,7 @@ def tags_by_prefix(tags_dict:dict) -> dict:
         numbers.sort()
     return prefixes
 
-def audit_report(as_of_when:str|int=None) -> None:
+def audit_report(as_of_when=None) -> None:
     """Create & display audit report as at a particular time.
 
     This is smart about any checkouts that are alter than as_of_when.
@@ -564,28 +564,28 @@ def audit_report(as_of_when:str|int=None) -> None:
 
     rightnow = get_time()
     # What time will this audit report reflect?
-    if type(as_of_when) == type(None):
+    if as_of_when is None:
         as_of_when = rightnow
-    elif type(as_of_when) == type(1):
+    elif isinstance(as_of_when, int):
         as_of_when = minutes_to_time_str(as_of_when)
-    elif type(as_of_when) != type("str"):
+    elif not isinstance(as_of_when, str):
         print( "INTERNAL: audit_report passed bad value")
         return
     as_of_when = fix_hhmm(as_of_when)
 
     # Get rid of any check-ins or -outs later than the requested time.
     # (Yes I know there's a slicker way to do this but this is nice and clear.)
-    my_check_ins = {}
+    check_ins_to_now = {}
     for (tag,ctime) in check_ins.items():
         if ctime <= as_of_when:
-            my_check_ins[tag] = ctime
-    my_check_outs = {}
+            check_ins_to_now[tag] = ctime
+    check_outs_to_now = {}
     for (tag,ctime) in check_outs.items():
         if ctime <= as_of_when:
-            my_check_outs[tag] = ctime
+            check_outs_to_now[tag] = ctime
     bikes_on_hand = {}
-    for (tag,ctime) in my_check_ins.items():
-        if tag not in my_check_outs:
+    for (tag,ctime) in check_ins_to_now.items():
+        if tag not in check_outs_to_now:
             bikes_on_hand[tag] = ctime
 
     num_bikes_on_hand = len(bikes_on_hand)
@@ -595,14 +595,14 @@ def audit_report(as_of_when:str|int=None) -> None:
     oversize_out = 0
 
     # This assumes that any tag not a normal tag is an oversize tag
-    for tag in my_check_ins:
+    for tag in check_ins_to_now:
         if tag in cfg.normal_tags:
             normal_in += 1
-            if tag in my_check_outs:
+            if tag in check_outs_to_now:
                 normal_out += 1
         else:
             oversize_in += 1
-            if tag in my_check_outs:
+            if tag in check_outs_to_now:
                 oversize_out += 1
     sum_in = normal_in + oversize_in
     sum_out = normal_out + oversize_out
@@ -620,7 +620,7 @@ def audit_report(as_of_when:str|int=None) -> None:
 
     # Audit summary section.
     iprint( "Summary             Regular Oversize Total")
-    iprint( "-------             ------- -------- -----")
+    #iprint( "-------             ------- -------- -----")
     iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}"
            f"    {sum_in:4d}")
     iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}"
@@ -634,7 +634,6 @@ def audit_report(as_of_when:str|int=None) -> None:
     no_item_str = "  "  # what to show when there's no tag
     print()
     iprint( "Tags on bikes in valet:")
-    iprint( "-----------------------")
     prefixes_on_hand = tags_by_prefix(bikes_on_hand)
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
@@ -646,9 +645,20 @@ def audit_report(as_of_when:str|int=None) -> None:
     if not prefixes_on_hand:
         iprint( "-no bikes-")
     print()
-    prefixes_returned_out = tags_by_prefix(my_check_outs)
-    iprint( "Bikes returned out (tags in bin):")
-    iprint( "---------------------------------")
+    prefixes_returned_out = tags_by_prefix(check_outs_to_now)
+    returns_by_colour = {}
+    for prefix,numbers in prefixes_returned_out.items():
+        colour_code = prefix[:-1]   # prefix without the tag_letter
+        if colour_code not in returns_by_colour:
+            returns_by_colour[colour_code] = len(numbers)
+        else:
+            returns_by_colour[colour_code] += len(numbers)
+    bin_str = "Bikes returned out ("
+    for colour_code in sorted(returns_by_colour.keys()):
+        num = returns_by_colour[colour_code]
+        bin_str = f"{bin_str}{num} {cfg.colour_letters[colour_code].title()}, "
+    bin_str = f"{bin_str}{sum_out} Total)"
+    iprint(bin_str)
     for prefix in sorted(prefixes_returned_out.keys()):
         numbers = prefixes_returned_out[prefix]
         line = f"{prefix.upper():3>} "
@@ -658,21 +668,6 @@ def audit_report(as_of_when:str|int=None) -> None:
         iprint(line)
     if not prefixes_returned_out:
         iprint( "-no bikes-")
-
-    returns_by_colour = {}
-    for prefix,numbers in prefixes_returned_out.items():
-        colour_code = prefix[:-1]   # prefix without the tag_letter
-        if colour_code not in returns_by_colour:
-            returns_by_colour[colour_code] = len(numbers)
-        else:
-            returns_by_colour[colour_code] += len(numbers)
-    print()
-    iprint( "Tag colours in bin:")
-    iprint( "-------------------")
-    for colour_code in sorted(returns_by_colour.keys()):
-        num = returns_by_colour[colour_code]
-        iprint(f"{cfg.colour_letters[colour_code].title():10s}{num:4d}")
-    iprint(f"{'Total':10s}{sum_out:4d}")
 
     return
 
