@@ -55,7 +55,6 @@ def fix_hhmm(inp:str) -> str:
     # Return 5-digit time string
     return f"{h:02d}:{m:02d}"
 
-PARSE_TAG_RE = None
 def parse_tag( maybe_tag:str, test_availability=False ) -> str|None:
     """Test maybe_tag as a tag, return it as tag and bits.
 
@@ -75,13 +74,8 @@ def parse_tag( maybe_tag:str, test_availability=False ) -> str|None:
         tag_number: a sequence number, without lead zeroes.
     """
 
-    # Compile the tagid re only once
-    global PARSE_TAG_RE
-    if not PARSE_TAG_RE:
-        PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([1-9][0-9]*) *")
-
     maybe_tag = maybe_tag.lower()
-    if not bool(r := PARSE_TAG_RE.match(maybe_tag)):
+    if not bool(r := cfg.PARSE_TAG_RE.match(maybe_tag)):
         return []
 
     tag_colour = r.group(1)
@@ -496,7 +490,7 @@ def edit_entry(target = False, in_or_out = False, new_time = False):
                 if new_time == False:
                     iprint('Invalid time entered (cancelled edit).')
                 elif in_or_out == 'i':
-                    if (target in check_outs and 
+                    if (target in check_outs and
                             (time_str_to_minutes(new_time) >
                             time_str_to_minutes(check_outs[target]))):
                         iprint("Can't set a check-IN later than a check-OUT;")

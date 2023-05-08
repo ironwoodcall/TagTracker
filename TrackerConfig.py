@@ -56,7 +56,7 @@ help_message = f"""{INDENT}List these commands     :   help  /  h
 # assemble list of normal tags
 def build_tags_config(filename:str) -> list[str] | None:
     """Build a tag list from a file.
-    
+
     Constructs a list of each allowable tag in a given category
     (normal, oversize, retired, etc) by reading its category.cfg file.
     """
@@ -117,3 +117,6 @@ with open('changelog.txt', 'r') as f:
     f.readline()
     f.readline() # skip empty lines
     VERSION = f.readline()[:-2] # cut off ':\n'
+
+# Regular expression for parsing tags.
+PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
