@@ -501,7 +501,7 @@ def count_colours(inv:list[str]) -> str:
     in a given list, and return results as a str. Probably avoid calling
     this on empty lists
     """
-    # FIXME: test for and handle empty list passed-in
+    # FIXME: this function no longer required, replaced by audit_report()
     just_colour_abbreviations = []
     for tag in inv: # shorten tags to just their colours
         shortened = ''
