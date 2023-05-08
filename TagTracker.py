@@ -304,8 +304,9 @@ def show_stats():
         hrs_under = f"{(cfg.T_UNDER / 60):3.1f}" # in hours for print clarity
         hrs_over = f"{(cfg.T_OVER / 60):3.1f}"
 
-        iprint(f"\nSummary statistics as of {get_time()} "
-               f"with {len(check_ins)-len(check_outs)} bikes still on hand:\n")
+        print()
+        iprint("Summary statistics "
+               f"({len(check_ins)-len(check_outs)} bikes still on hand):\n")
         iprint(f"Total bikes:    {tot_in:3d}")
         iprint(f"AM bikes:       {AM_ins:3d}")
         iprint(f"PM bikes:       {PM_ins:3d}")
