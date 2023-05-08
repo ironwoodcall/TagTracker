@@ -82,9 +82,9 @@ def valid_tag( tag:str ) -> bool:
     #FIXME: this is not used yet
     return bool(parse_tag( tag ) in cfg.all_tags)
 
-def iprint(text:str, x:int=1) -> None:
+def iprint(text:str="", num_indents:int=1,line_end:str="\n") -> None:
     """Print the text, indented."""
-    print(f"{cfg.INDENT * x}{text}")
+    print(f"{cfg.INDENT * num_indents}{text}",end=line_end)
 
 def read_tags() -> bool:
     """Fetch tag data from file.
@@ -604,9 +604,20 @@ def audit_report(as_of_when=None) -> None:
             oversize_in += 1
             if tag in check_outs_to_now:
                 oversize_out += 1
+    # Sums
     sum_in = normal_in + oversize_in
     sum_out = normal_out + oversize_out
     sum_total = sum_in - sum_out
+    # Tags broken down by prefix (for tags matrix)
+    prefixes_on_hand = tags_by_prefix(bikes_on_hand)
+    prefixes_returned_out = tags_by_prefix(check_outs_to_now)
+    returns_by_colour = {}
+    for prefix,numbers in prefixes_returned_out.items():
+        colour_code = prefix[:-1]   # prefix without the tag_letter
+        if colour_code not in returns_by_colour:
+            returns_by_colour[colour_code] = len(numbers)
+        else:
+            returns_by_colour[colour_code] += len(numbers)
 
     # Audit report header.
     print()
@@ -620,7 +631,6 @@ def audit_report(as_of_when=None) -> None:
 
     # Audit summary section.
     iprint( "Summary             Regular Oversize Total")
-    #iprint( "-------             ------- -------- -----")
     iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}"
            f"    {sum_in:4d}")
     iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}"
@@ -631,10 +641,11 @@ def audit_report(as_of_when=None) -> None:
         iprint( "** Totals mismatch, expected total "
                f"{num_bikes_on_hand} != {sum_total} **")
 
+    # Tags matrixes
     no_item_str = "  "  # what to show when there's no tag
     print()
+    # Bikes returned out -- tags matrix.
     iprint( "Tags on bikes in valet:")
-    prefixes_on_hand = tags_by_prefix(bikes_on_hand)
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix.upper():3>} "
@@ -645,20 +656,15 @@ def audit_report(as_of_when=None) -> None:
     if not prefixes_on_hand:
         iprint( "-no bikes-")
     print()
-    prefixes_returned_out = tags_by_prefix(check_outs_to_now)
-    returns_by_colour = {}
-    for prefix,numbers in prefixes_returned_out.items():
-        colour_code = prefix[:-1]   # prefix without the tag_letter
-        if colour_code not in returns_by_colour:
-            returns_by_colour[colour_code] = len(numbers)
-        else:
-            returns_by_colour[colour_code] += len(numbers)
-    bin_str = "Bikes returned out ("
+
+    # Bikes returned out -- tags matrix.
+    bikes_out_title = "Bikes returned out ("
     for colour_code in sorted(returns_by_colour.keys()):
         num = returns_by_colour[colour_code]
-        bin_str = f"{bin_str}{num} {cfg.colour_letters[colour_code].title()}, "
-    bin_str = f"{bin_str}{sum_out} Total)"
-    iprint(bin_str)
+        bikes_out_title = (f"{bikes_out_title}{num} "
+                f"{cfg.colour_letters[colour_code].title()}, ")
+    bikes_out_title = f"{bikes_out_title}{sum_out} Total)"
+    iprint(bikes_out_title)
     for prefix in sorted(prefixes_returned_out.keys()):
         numbers = prefixes_returned_out[prefix]
         line = f"{prefix.upper():3>} "
