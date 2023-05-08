@@ -98,6 +98,82 @@ def read_tags() -> bool:
     #FIXME: Refactor
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
     try: # read saved stuff into dicts
+        logfilename = LOG_FILEPATH
+        check_inout = None
+        section = None
+        with open(logfilename, 'r') as f:
+            for line_num, line in enumerate(f, start=1):
+                # ignore blank or # lines
+                line = re.sub(r"\s*#.*","", line)
+                line = line.strip()
+                if not line:
+                    continue
+                # Look for section headers
+                if (re.match(r"^Bike.*check in.*:",line)):
+                    check_inout = check_ins
+                    section = "in"
+                    continue
+                elif (re.match(r"^Bike.*check out.*:", line)):
+                    check_inout = check_outs
+                    section = "out"
+                    continue
+                # Can do nothing unless we know what section we're in
+                if section is None:
+                    print( f"weirdness in line {line_num} of {logfilename}")
+                    return False
+                # Break into putative tag and text, looking for errors
+                cells = line.rstrip().split(',')
+                if len(cells) != 2:
+                    print(f"Bad line in file {logfilename} line {line_num}.")
+                    return False
+                if not (this_tag := parse_tag(cells[0],test_availability=True)):
+                    print("Poorly formed or unrecognized tag in file"
+                          f" {logfilename} line {line_num}.")
+                    return False
+                if not (this_time := fix_hhmm(cells[1])):
+                    print("Time value poorly formed in file"
+                          f" {logfilename} line {line_num}.")
+                    return False
+                # Maybe add to check_ins or check_outs structures.
+                if section == "in":
+                    # Maybe add to check_in structure
+                    if this_tag in check_ins:
+                        print(f"Duplicate {this_tag} check-in found at "
+                              f"line {line_num}")
+                        return False
+                    if this_tag in check_outs and check_outs[this_tag] < this_time:
+                        print(f"Tag {this_tag} check out before check-in"
+                              f" in file {logfilename}")
+                    check_ins[this_tag] = this_time
+                elif section == "out":
+                    if this_tag in check_outs:
+                        print(f"Duplicate {this_tag} check-out found at "
+                              f"line {line_num}")
+                        return False
+                    if this_tag in check_ins and check_ins[this_tag] > this_time:
+                        print(f"Tag {this_tag} check out before check-in"
+                              f" in file {logfilename}")
+                        return False
+                    check_outs[this_tag] = this_time
+                else:
+                    print( "should not reach this code spot 876238746")
+        print('Previous log for today successfully loaded')
+    except FileNotFoundError: # if no file, don't read it lol
+        print('No previous log for today found. Starting fresh...')
+    return True
+
+def read_tags_OLD() -> bool:
+    """Fetch tag data from file.
+
+    Read data from a pre-existing log file, if one exists
+    check for .txt file for today's date in folder called 'logs'
+    e.g. "logs/2023-04-20.txt"
+    if exists, read for ins and outs
+    if none exists, make one.
+    """
+    #FIXME: Refactor
+    pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
+    try: # read saved stuff into dicts
         filedir = LOG_FILEPATH
         with open(filedir, 'r') as f:
             line = f.readline() # read check ins header
