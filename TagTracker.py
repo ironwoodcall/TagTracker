@@ -899,7 +899,7 @@ def main():
                 query_tag( args )
             case "stats":
                 show_stats()
-            case cfg.NO_COMMAND:
+            case cfg.BAD_COMMAND:
                 iprint( "Unrecognized tag or command.")
                 iprint( "Enter 'h' for help.")
             case _:
