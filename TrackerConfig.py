@@ -24,16 +24,15 @@ INDENT = '  '
 CURSOR = '>>> '
 
 # Command keys and aliases.
-COMMANDS = {
-    "audit": ['audit','a','aud'],
-    "delete": ['del','delete','d'],
-    "edit": ['edit','e','ed'],
-    "exit": ['quit','exit','stop','x','bye'],
-    "help": ['help','h'],
-    "query": ['query','q','?','/'],
-    "stats": ['s','stat','stats','sum','summary']
-}
-BAD_COMMAND = -1 # special value to mean unrecognized command
+COMMANDS = {}
+COMMANDS[ CMD_AUDIT := "audit" ] = ['audit','a','aud']
+COMMANDS[ CMD_DELETE := "delete" ] = ['del','delete','d']
+COMMANDS[ CMD_EDIT := "edit" ] = ['edit','e','ed']
+COMMANDS[ CMD_EXIT :="exit" ] = ['quit','exit','stop','x','bye']
+COMMANDS[ CMD_HELP :="help" ] = ['help','h']
+COMMANDS[ CMD_QUERY :="query" ] = ['query','q','?','/']
+COMMANDS[ CMD_STATS :="stats" ] = ['s','stat','stats','sum','summary']
+CMD_UNKNOWN = -1 # special value to mean unrecognized command
 '''
 # FIXME: these are no longer needed.
 # keywords for day end statistics

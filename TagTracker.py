@@ -867,7 +867,7 @@ def parse_command( user_input:str ) -> list[str]:
             break
     # Is this an unrecognized command?
     if not command:
-        return [cfg.BAD_COMMAND]
+        return [cfg.CMD_UNKNOWN]
     # We have a recognized command, return it with its args.
     input_tokens[0] = command
     return input_tokens
@@ -884,26 +884,26 @@ def main():
         # Dispatcher
         data_dirty = False
         match cmd:
-            case "edit":
+            case cfg.CMD_EDIT:
                 edit_entry( args )
                 data_dirty = True
-            case "audit":
+            case cfg.CMD_AUDIT:
                 audit_report( args )
-            case "delete":
+            case cfg.CMD_DELETE:
                 delete_entry( args )
                 data_dirty = True
-            case "edit":
+            case cfg.CMD_EDIT:
                 edit_entry( args )
                 data_dirty = True
-            case "exit":
+            case cfg.CMD_EXIT:
                 done = True
-            case "help":
+            case cfg.CMD_HELP:
                 print(cfg.help_message)
-            case "query":
+            case cfg.CMD_QUERY:
                 query_tag( args )
-            case "stats":
+            case cfg.CMD_STATS:
                 show_stats()
-            case cfg.BAD_COMMAND:
+            case cfg.CMD_UNKNOWN:
                 iprint( "Unrecognized tag or command.")
                 iprint( "Enter 'h' for help.")
             case _:
