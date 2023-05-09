@@ -23,24 +23,31 @@ CHECK_OUT_CONFIRM_TIME = 30 # mins
 INDENT = '  '
 CURSOR = '>>> '
 
+# Command keys and aliases.
+COMMANDS = {
+    "audit": ['audit','a','aud'],
+    "delete": ['del','delete','d'],
+    "edit": ['edit','e','ed'],
+    "exit": ['quit','exit','stop','x','bye'],
+    "help": ['help','h'],
+    "query": ['query','q','?','/'],
+    "stats": ['s','stat','stats','sum','summary']
+}
+NO_COMMAND = -1 # special value to mean unrecognized command
+
+# FIXME: these are no longer needed.
 # keywords for day end statistics
 statistics_kws = ['s','stat','stats','sum','summary']
-
 # keywords for audit of logged tags
 audit_kws = ['audit','a','aud']
-
 # keywords to quit the program
 quit_kws = ['quit','exit','stop','x','bye']
-
 # keywords to delete a tag entry
 del_kws = ['del','delete','d']
-
 # keywords to query a tag
 query_kws = ['query','q','?','/']
-
 # editing
 edit_kws = ['edit','e','ed']
-
 # help message
 help_kws = ['help','h']
 
@@ -51,8 +58,8 @@ help_message = f"""{INDENT}List these commands     :   help  /  h
 {INDENT}Edit a time for a tag   :   edit  / e
 {INDENT}Delete a check in/out   :   del   / d
 {INDENT}End of day statistics   :   stat  / s
-{INDENT}Shutdown*               :   stop  / exit / quit / x
-{INDENT}*using this isn't important; data is autosaved"""
+{INDENT}Exit                    :   stop  / exit / quit / x
+"""
 
 # assemble list of normal tags
 def build_tags_config(filename:str) -> list[str]:

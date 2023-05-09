@@ -24,10 +24,12 @@ def get_time() -> str:
     now = time.asctime(time.localtime())[11:16]
     return now
 
+'''
 def valid_time(inp:str) -> bool:
     """Check whether inp is a valid HH:MM string."""
     # FIXME: remove all calls to valid_time(), use fix_hhmm() instead.
     return bool(fix_hhmm(inp))
+'''
 
 def fix_hhmm(inp:str) -> str:
     """Convert a string that might be a time to HH:MM (or to "").
@@ -45,7 +47,7 @@ def fix_hhmm(inp:str) -> str:
     # Return 5-digit time string
     return f"{h:02d}:{m:02d}"
 
-def parse_tag( maybe_tag:str, test_availability=False ) -> list[str]:
+def parse_tag( maybe_tag:str, must_be_available=False ) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -53,7 +55,7 @@ def parse_tag( maybe_tag:str, test_availability=False ) -> list[str]:
         [tag_id, colour, tag_letter, tag_number]
     If tag is not valid, then the return list is empty []
 
-    If test_availability flag is True then will check whether this
+    If must_be_available flag is True then will check whether this
     tag is in the list of all available tags (all_tags), and if
     not in the list, will return the empty list.
 
@@ -72,19 +74,27 @@ def parse_tag( maybe_tag:str, test_availability=False ) -> list[str]:
     tag_number = r.group(3)
     tag_id = f"{tag_colour}{tag_letter}{tag_number}"
 
-    if test_availability and tag_id not in cfg.all_tags:
+    if must_be_available and tag_id not in cfg.all_tags:
         return []
 
     return [tag_id,tag_colour,tag_letter,tag_number]
 
-def fix_tag( maybe_tag:str, must_be_available=False ) -> str:
-    """Turn 'str' into a canonical tag name."""
-    bits = parse_tag(maybe_tag,test_availability=must_be_available)
+def fix_tag( maybe_tag:str, **kwargs ) -> str:
+    """Turn 'str' into a canonical tag name.
+
+    Keyword must_be_available, if set True, will force
+    this to only allow tags that are set as usable in config files.
+    """
+    bits = parse_tag(maybe_tag,
+            must_be_available=kwargs.get("must_be_available"))
     return bits[0] if bits else ""
 
-def iprint(text:str="", num_indents:int=1,line_end:str="\n") -> None:
-    """Print the text, indented."""
-    print(f"{cfg.INDENT * num_indents}{text}",end=line_end)
+def iprint(text:str="", num_indents:int=1,**kwargs) -> None:
+    """Print the text, indented num_indents times.
+
+    Recognizes the 'end=' keyword for the print() statement.
+    """
+    print(f"{cfg.INDENT * num_indents}{text}",end=kwargs.get("end"))
 
 def read_tags() -> bool:
     """Fetch tag data from file.
@@ -158,7 +168,7 @@ def read_tags() -> bool:
                 print( "should not reach this code spot 876238746")
     print('Previous log for today successfully loaded')
     return True
-
+'''
 def read_tags_OLD() -> bool:
     """Fetch tag data from file.
 
@@ -178,7 +188,7 @@ def read_tags_OLD() -> bool:
             line_counter = 2 # track line number
 
             # FIXME: rather than checking for in all_tags, maybe check
-            # the potential with parse_tag(cell[0],test_availability=True)
+            # the potential with parse_tag(cell[0],must_be_available=True)
             # rather than the first character not being 'B'
             while line[0] != 'B': # if first char isn't the start of the header
                 cells = line.rstrip().split(',')
@@ -213,6 +223,7 @@ def read_tags_OLD() -> bool:
     except FileNotFoundError: # if no file, don't read it lol
         print('No previous log for today found. Starting fresh...')
     return True
+'''
 
 def rotate_log() -> None:
     """Rename the current log to <itself>.bak."""
@@ -404,8 +415,14 @@ def show_stats():
         iprint("No bikes returned out, can't calculate statistics. "
                f"({tot_in} bikes currently checked in.)")
 
-def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
+def delete_entry(args:list[str]) -> None:
     """Perform tag entry deletion dialogue."""
+    args = args + [None,None,None]
+    (target,which_to_del,confirm) = args[:3]
+    if target:
+        target = fix_tag(target,must_be_available=False)
+    if not target:
+        target = False
     del_syntax_message = ("Syntax: d <tag> <both or check-out only"
             " (b/o)> <optional pre-confirm (y)>")
     if not(target in [False] + cfg.all_tags or which_to_del in [False,'b','o']
@@ -478,7 +495,10 @@ def delete_entry(target = False, which_to_del=False, confirm = False) -> None:
             iprint(f"{target} has only a check-in ({time_in_temp}) recorded; "
                    "can't delete a nonexistent check-out.")
 
-def query_tag(target = False) -> str:
+def query_tag(args:list[str]) -> None:
+    args = args + [None]
+    target = args[0]
+
     """Query the check in/out times of a specific tag."""
     if not target: # only do dialog if no target passed
         iprint("Which tag would you like to query?")
@@ -509,16 +529,16 @@ def prompt_for_time(inp = False) -> bool or str:
         inp = input(f"(HH:MM) {cfg.CURSOR}").lower()
     if inp == 'now':
         return get_time()
-    elif valid_time(inp):
-        HH = inp[:2]
-        MM = inp[-2:]
-        HHMM = f"{HH}:{MM}"
-    else:
-        return False # cancel time
+    HHMM = fix_hhmm(inp)
+    if not HHMM:
+        return False
     return HHMM
 
-def edit_entry(target = False, in_or_out = False, new_time = False):
+def edit_entry(args:list[str]):
     """Perform Dialog to correct a tag's check in/out time."""
+    args = args + [None,None,None]
+    (target, in_or_out, new_time) = args[:3]
+
     edit_syntax_message = ("Syntax: e <bike's tag> <in or out (i/o)> "
             "<new time or 'now'>")
     if not target:
@@ -615,7 +635,7 @@ def tags_by_prefix(tags_dict:dict) -> dict:
     prefixes = {}
     for tag in tags_dict:
         #(prefix,t_number) = cfg.PARSE_TAG_PREFIX_RE.match(tag).groups()
-        (t_colour,t_letter,t_number) = parse_tag(tag,test_availability=False)[1:4]
+        (t_colour,t_letter,t_number) = parse_tag(tag,must_be_available=False)[1:4]
         prefix = f"{t_colour}{t_letter}"
         if prefix not in prefixes:
             prefixes[prefix] = []
@@ -624,8 +644,11 @@ def tags_by_prefix(tags_dict:dict) -> dict:
         numbers.sort()
     return prefixes
 
-def audit_report(as_of_when=None) -> None:
+def audit_report(args:list[str]) -> None:
     """Create & display audit report as at a particular time.
+
+    On entry: as_of_when_args is a list that can optionally
+    have a first element that's a time at which to make this for.
 
     This is smart about any checkouts that are alter than as_of_when.
     If as_of_when is missing, then counts as of current time.
@@ -638,17 +661,15 @@ def audit_report(as_of_when=None) -> None:
         cfg.oversize_tags
     """
     # FIXME: this is long and could get broken up with helper functions
-
     rightnow = get_time()
+    args = args + [rightnow]
+    as_of_when = args[0]
+
     # What time will this audit report reflect?
-    if as_of_when is None:
-        as_of_when = rightnow
-    elif isinstance(as_of_when, int):
-        as_of_when = minutes_to_time_str(as_of_when)
-    elif not isinstance(as_of_when, str):
-        print( "INTERNAL: audit_report passed bad value")
-        return
     as_of_when = fix_hhmm(as_of_when)
+    if not as_of_when:
+        iprint( f"Unrecognized time passed to audit ({args[0]})")
+        return False
 
     # Get rid of any check-ins or -outs later than the requested time.
     # (Yes I know there's a slicker way to do this but this is nice and clear.)
@@ -802,8 +823,7 @@ def tag_check(tag:str) -> None:
                        f"current time ({get_time()})? (y/N)")
                 sure = input(f"(y/N) {cfg.CURSOR}") == 'y'
                 if sure:
-                    edit_entry(target = tag, in_or_out = 'o',
-                            new_time = get_time())
+                    edit_entry([tag, 'o', get_time()])
                 else:
                     iprint("Cancelled")
             else:# checked in only
@@ -826,7 +846,94 @@ def tag_check(tag:str) -> None:
             check_ins[tag] = get_time()# check it in
             iprint(f"{tag} checked IN")
 
-def process_prompt(prompt:str) -> None:
+def parse_command( user_input:str ) -> list[str]:
+    """Parse user's input into list of [tag] or [command, command args].
+
+      Returns [] if not unrecognized command.
+      """
+    input_tokens = user_input.lower().strip().split()
+    if not input_tokens:
+        return []
+    # Is this a tag?  If so, return it.
+    command = fix_tag( input_tokens[0], must_be_available=True)
+    if command:
+        return [command]    # A tag
+    # cfg.command_aliases is dict of lists of aliases keyed by canonical command name (e.g. {"edit":["ed","e","edi"], etc})
+    command = None
+    for c, aliases in cfg.COMMANDS.items():
+        if input_tokens[0] in aliases:
+            command = c
+            break
+    # Is this an unrecognized command or tag?
+    if not command:
+        return [cfg.NO_COMMAND]
+    # We have a recognized command, return it with its args.
+    input_tokens[0] = command
+    return input_tokens
+
+def main():
+    """Run main program loop and dispatcher."""
+    done = False
+    while not done:
+        user_str = input(f"\nBike tag or command {cfg.CURSOR}")
+        tokens = parse_command( user_str )
+        if not tokens:
+            continue        # No input, ignore
+        (cmd, *args) = tokens
+        # Dispatcher
+        data_dirty = False
+        match cmd:
+            case "edit":
+                edit_entry( args )
+                data_dirty = True
+            case "audit":
+                audit_report( args )
+            case "delete":
+                delete_entry( args )
+                data_dirty = True
+            case "edit":
+                edit_entry( args )
+                data_dirty = True
+            case "exit":
+                done = True
+            case "help":
+                print(cfg.help_message)
+            case "query":
+                query_tag( args )
+            case "stats":
+                show_stats()
+            case cfg.NO_COMMAND:
+                iprint( "Unrecognized tag or command.")
+                iprint( "Enter 'h' for help.")
+            case _:
+                # This is a tag
+                tag_check( cmd )
+                data_dirty = True
+        # Save if anything has changed
+        if data_dirty:
+            rotate_log()
+            write_tags()
+            data_dirty = False
+
+'''
+def do_edit( args:list[str] ):
+    # Action is identified as 'edit'
+    tag = get_token( arg[0],optional=False,prompt="Edit what tag?" )
+    if not (tag := fix_tag( tag, must_be_available=True)):
+        ...error...
+        return
+    in_out = get_token( arg[1],optional=False,prompt="Change (i)n or (o)ut time?")
+    if not (in_out useful):
+        ...error...
+        return
+    newtime = get_token( arg[2], optional=False, prompt="Change to what time (blank for now):",default="")
+    if not (newtime := fix_hhmm(newtime)):
+        ...error...
+        return
+    confirm = get_token( arg[3], optional=False,prompt="Change (Y/n):",default="y')
+   (etc)
+
+def process_prompt__OLD(prompt:str) -> None:
     """Process one user-input command.
 
     This is the logic for main loop
@@ -856,8 +963,7 @@ def process_prompt(prompt:str) -> None:
             in_or_out = cells[2]
         if args > 2:
             new_time = cells[3]
-        edit_entry(target = target, in_or_out = in_or_out,
-                new_time = new_time)
+        edit_entry([target, in_or_out, new_time])
 
     elif kwd in cfg.del_kws:
         args = len(cells) - 1 # number of arguments passed
@@ -868,14 +974,13 @@ def process_prompt(prompt:str) -> None:
             which_to_del = cells[2]
         if args > 2:
             pre_confirm = cells[3]
-        delete_entry(target = target, which_to_del = which_to_del,
-                confirm = pre_confirm)
+        delete_entry([target, which_to_del,pre_confirm])
 
     elif kwd in cfg.query_kws:
         try:
-            query_tag(target = cells[1]) # query the tag that follows cmd
+            query_tag([cells[1]]) # query the tag that follows cmd
         except IndexError:
-            query_tag() # if no tag passed run the dialog
+            query_tag([]) # if no tag passed run the dialog
     elif kwd in cfg.quit_kws:
         exit() # quit program
     elif (a_tag := fix_tag(kwd,must_be_available=True)) and a_tag:
@@ -884,7 +989,7 @@ def process_prompt(prompt:str) -> None:
         iprint(f"'{prompt}' isn't a recognized tag or command "
                 "(type 'help' for a list of these).")
 
-def main() -> None:
+def main_OLD() -> None:
     """Run main program loop."""
     while True:
         #show_audit() # show all bikes currently in
@@ -892,7 +997,7 @@ def main() -> None:
         process_prompt(prompt)
         rotate_log()
         write_tags() # save before input regardless
-
+'''
 # STARTUP
 if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
     check_ins = {}
