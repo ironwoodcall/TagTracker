@@ -417,8 +417,7 @@ def show_stats():
 
 def delete_entry(args:list[str]) -> None:
     """Perform tag entry deletion dialogue."""
-    args = args + [None,None,None]
-    (target,which_to_del,confirm) = args[:3]
+    (target,which_to_del,confirm) = (args + [None,None,None])[:3]
     if target:
         target = fix_tag(target,must_be_available=False)
     if not target:
@@ -496,8 +495,7 @@ def delete_entry(args:list[str]) -> None:
                    "can't delete a nonexistent check-out.")
 
 def query_tag(args:list[str]) -> None:
-    args = args + [None]
-    target = args[0]
+    target = (args + [None])[0]
 
     """Query the check in/out times of a specific tag."""
     if not target: # only do dialog if no target passed
@@ -536,8 +534,7 @@ def prompt_for_time(inp = False) -> bool or str:
 
 def edit_entry(args:list[str]):
     """Perform Dialog to correct a tag's check in/out time."""
-    args = args + [None,None,None]
-    (target, in_or_out, new_time) = args[:3]
+    (target, in_or_out, new_time) = (args + [None,None,None])[:3]
 
     edit_syntax_message = ("Syntax: e <bike's tag> <in or out (i/o)> "
             "<new time or 'now'>")
@@ -662,8 +659,7 @@ def audit_report(args:list[str]) -> None:
     """
     # FIXME: this is long and could get broken up with helper functions
     rightnow = get_time()
-    args = args + [rightnow]
-    as_of_when = args[0]
+    as_of_when = (args + [rightnow])[0]
 
     # What time will this audit report reflect?
     as_of_when = fix_hhmm(as_of_when)
@@ -849,7 +845,7 @@ def tag_check(tag:str) -> None:
 def parse_command( user_input:str ) -> list[str]:
     """Parse user's input into list of [tag] or [command, command args].
 
-      Returns [] if not unrecognized command.
+      Returns [] if not a recognized tag or command.
       """
     input_tokens = user_input.lower().strip().split()
     if not input_tokens:
@@ -858,15 +854,16 @@ def parse_command( user_input:str ) -> list[str]:
     command = fix_tag( input_tokens[0], must_be_available=True)
     if command:
         return [command]    # A tag
-    # cfg.command_aliases is dict of lists of aliases keyed by canonical command name (e.g. {"edit":["ed","e","edi"], etc})
+    # cfg.command_aliases is dict of lists of aliases keyed by
+    # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
     command = None
     for c, aliases in cfg.COMMANDS.items():
         if input_tokens[0] in aliases:
             command = c
             break
-    # Is this an unrecognized command or tag?
+    # Is this an unrecognized command?
     if not command:
-        return [cfg.NO_COMMAND]
+        return [cfg.BAD_COMMAND]
     # We have a recognized command, return it with its args.
     input_tokens[0] = command
     return input_tokens
@@ -916,7 +913,11 @@ def main():
             data_dirty = False
 
 '''
+# This is a model for a potential way to structure do_stuff commands,
+# particularly ones that might prompt for missing args
 def do_edit( args:list[str] ):
+    (target, in_or_out, new_time) = (args + [None,None,None])[:3]
+
     # Action is identified as 'edit'
     tag = get_token( arg[0],optional=False,prompt="Edit what tag?" )
     if not (tag := fix_tag( tag, must_be_available=True)):
@@ -932,7 +933,9 @@ def do_edit( args:list[str] ):
         return
     confirm = get_token( arg[3], optional=False,prompt="Change (Y/n):",default="y')
    (etc)
+'''
 
+'''
 def process_prompt__OLD(prompt:str) -> None:
     """Process one user-input command.
 

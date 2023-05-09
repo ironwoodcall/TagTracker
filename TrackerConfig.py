@@ -33,7 +33,7 @@ COMMANDS = {
     "query": ['query','q','?','/'],
     "stats": ['s','stat','stats','sum','summary']
 }
-NO_COMMAND = -1 # special value to mean unrecognized command
+BAD_COMMAND = -1 # special value to mean unrecognized command
 '''
 # FIXME: these are no longer needed.
 # keywords for day end statistics
