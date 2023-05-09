@@ -34,7 +34,7 @@ COMMANDS = {
     "stats": ['s','stat','stats','sum','summary']
 }
 NO_COMMAND = -1 # special value to mean unrecognized command
-
+'''
 # FIXME: these are no longer needed.
 # keywords for day end statistics
 statistics_kws = ['s','stat','stats','sum','summary']
@@ -50,6 +50,7 @@ query_kws = ['query','q','?','/']
 edit_kws = ['edit','e','ed']
 # help message
 help_kws = ['help','h']
+'''
 
 help_message = f"""{INDENT}List these commands     :   help  /  h
 {INDENT}Check in or out         :   <tag name> (eg “wa3”)
