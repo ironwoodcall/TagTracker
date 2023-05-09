@@ -845,15 +845,19 @@ def tag_check(tag:str) -> None:
 def parse_command( user_input:str ) -> list[str]:
     """Parse user's input into list of [tag] or [command, command args].
 
-      Returns [] if not a recognized tag or command.
-      """
-    input_tokens = user_input.lower().strip().split()
-    if not input_tokens:
+    Returns [] if not a recognized tag or command.
+    """
+    if not (user_input := user_input.lower().strip()):
         return []
-    # Is this a tag?  If so, return it.
+    # Special case - if user input starts with '/' or '?' add a space.
+    if user_input[0] in ["/","?"]:
+        user_input = user_input[0] + " " + user_input[1:]
+    # Split to list, test to see if tag.
+    input_tokens = user_input.split()
     command = fix_tag( input_tokens[0], must_be_available=True)
     if command:
         return [command]    # A tag
+    # See if it is a recognized command.
     # cfg.command_aliases is dict of lists of aliases keyed by
     # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
     command = None
