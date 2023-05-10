@@ -697,6 +697,7 @@ def dataform_report() -> None:
     """
     print()
     iprint(f"All available daily tracking form data for {get_date()}")
+
     all_blocks = Block.calc_blocks()
     for which in [cfg.BIKE_IN,cfg.BIKE_OUT]:
         titlebit = "checked IN" if which == cfg.BIKE_IN else "returned OUT"
