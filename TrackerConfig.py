@@ -32,32 +32,40 @@ COMMANDS[CMD_AUDIT := "audit"] = ['audit','a','aud']
 COMMANDS[CMD_DELETE := "delete"] = ['del','delete','d']
 COMMANDS[CMD_EDIT := "edit"] = ['edit','e','ed']
 COMMANDS[CMD_EXIT :="exit"] = ['quit','exit','stop','x','bye']
-COMMANDS[CMD_FORM := "form"] = ['form','f']
+COMMANDS[CMD_BLOCK := "block"] = ['blocks','block','b', 'form', 'f']
 COMMANDS[CMD_HELP :="help"] = ['help','h']
 COMMANDS[CMD_LOOKBACK := "lookback"] = ['lookback',
-        'look', 'l', 'log', 'recent']
+        'look', 'l', 'log', 'recent', 'r']
 COMMANDS[CMD_QUERY :="query"] = ['query','q','?','/']
 COMMANDS[CMD_STATS :="stats"] = ['s','stat','stats','sum','summary']
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
-help_message = f"""{INDENT}List these commands     :   help  /  h
-{INDENT}Check in or out         :   <tag name> (eg “wa3”)
-{INDENT}Audit of logged tags    :   audit / a
-{INDENT}Lookup times for a tag  :   query / q / ?
-{INDENT}Edit a time for a tag   :   edit  / e
-{INDENT}Delete a check in/out   :   del   / d
-{INDENT}End of day statistics   :   stat  / s
-{INDENT}Exit                    :   stop  / exit / quit / x
+help_message = f"""
+{INDENT}This list of commands      :   help  /  h
+{INDENT}Check bike in or out       :   <tag name> (eg “wa3”)
+{INDENT}Edit a check in/out time   :   edit  / e
+{INDENT}Delete a check in/out      :   del   / d
+{INDENT}Show info about one tag    :   query / q / ?
+{INDENT}Show end of day summary    :   stat  / s / summary
+{INDENT}Show accouting audit info  :   audit / a
+{INDENT}Show recent logged events  :   log / lookback / l / recent
+{INDENT}Show ins/outs by time block:   blocks / b / form / f
+{INDENT}Exit                       :   x / stop / exit / quit / bye
 """
 
 # These constants are to avoid usinng strings for things like dictionary
 # keys.  E.g. rather than something[this_time]["tag"] = a_tag,
 # would be instead something[this_time][TAG_KEY] = a_tag.
 # The values of these constants aren't important as long as they're unique.
-TAG_KEY = "tag_key"
+# By using these rather than string values, the lint checker in the
+# editor can pick up missing or misspelled items, as can Python itself.
+TAG = "tag"
 BIKE_IN = "bike_in"
 BIKE_OUT = "bike_out"
-INOUT_KEY = "inout_key"
+INOUT = "inout"
+REGULAR = "regular"
+OVERSIZE = "oversize"
+TOTAL = "total"
 
 # assemble list of normal tags
 def build_tags_config(filename:str) -> list[str]:

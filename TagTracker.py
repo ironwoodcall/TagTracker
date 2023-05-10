@@ -82,6 +82,16 @@ def fix_tag(maybe_tag:str, **kwargs) -> str:
             must_be_available=kwargs.get("must_be_available"))
     return bits[0] if bits else ""
 
+def sort_tags( unsorted:list[str]) -> list[str]:
+    """Sorts a list of tags (smart eg about wa12 > wa7)."""
+    newlist = []
+    for tag in unsorted:
+        bits = parse_tag(tag,must_be_available=False)
+        newlist.append(f"{bits[1]}{bits[2]}{int(bits[3]):04d}")
+    newlist.sort()
+    newlist = [fix_tag(t) for t in newlist]
+    return newlist
+
 def iprint(text:str="", num_indents:int=1,**kwargs) -> None:
     """Print the text, indented num_indents times.
 
@@ -588,7 +598,7 @@ class Block():
         if isinstance(start_time,str):
             self.start = fix_hhmm(start_time)
         else:
-            self.start = minutes_to_time_str(start_time)
+            self.start = fix_hhmm(minutes_to_time_str(start_time))
         self.ins_list = []      # Tags of bikes that came in.
         self.outs_list = []     # Tags of bikes returned out.
         self.num_ins = 0        # Number of bikes that came in.
@@ -609,21 +619,23 @@ class Block():
         block_start_min = (time // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
         if as_number:
             return block_start_min
-        return minutes_to_time_str(block_start_min)
+        return fix_hhmm(minutes_to_time_str(block_start_min))
 
     @staticmethod
     def calc_blocks() -> dict:
-        """Create a dictionary of Blocks that have values for the whole day."""
+        """Create a dictionary of Blocks {start:Block} for whole day."""
         blocks = {}
         # Find earliest and latest block of the day
         min_block_min = Block.block_start(
-                min(check_ins.values() + check_outs.values()),as_number=True)
+                min(list(check_ins.values()) + list(check_outs.values())),
+                as_number=True)
         max_block_min = Block.block_start(
-                max(check_ins.values() + check_outs.values()),as_number=True)
+                max(list(check_ins.values()) + list(check_outs.values())),
+                as_number=True)
         # Create blocks for the the whole day.
         for t in range(min_block_min, max_block_min+cfg.BLOCK_DURATION,
                 cfg.BLOCK_DURATION): #FIXME: check logic
-            blocks[minutes_to_time_str(t)] = Block(t)
+            blocks[fix_hhmm(minutes_to_time_str(t))] = Block(t)
         for tag, time in check_ins.items():
             bstart = Block.block_start(time)
             blocks[bstart].ins_list += [tag]
@@ -634,7 +646,7 @@ class Block():
         for btime,blk in blocks.items():
             blk.num_ins = len(blk.ins_list)
             blk.num_outs = len(blk.outs_list)
-            here_set = here_set + set(blk.ins_list) - set(blk.outs_list)
+            here_set = (here_set | set(blk.ins_list)) - set(blk.outs_list)
             blk.here_list = here_set
             blk.num_here = len(here_set)
         return blocks
@@ -683,8 +695,18 @@ def dataform_report() -> None:
 
        This is to match the (paper/google) data tracking sheets.
        """
-    iprint("Placeholder for dataform report.")
-
+    all_blocks = Block.calc_blocks()
+    for which in [cfg.BIKE_IN,cfg.BIKE_OUT]:
+        titlebit = "checked IN" if which == cfg.BIKE_IN else "returned OUT"
+        title = f"Bikes {titlebit}:"
+        iprint(title)
+        iprint("-" * len(title))
+        for start,block in all_blocks.items():
+            inouts = (block.ins_list if which == cfg.BIKE_IN
+                    else block.outs_list)
+            endtime = fix_hhmm(minutes_to_time_str(
+                    time_str_to_minutes(start)+cfg.BLOCK_DURATION))
+            iprint(f"{start}-{endtime}  {' '.join(sort_tags(inouts))}")
 
 def audit_report(args:list[str]) -> None:
     """Create & display audit report as at a particular time.
@@ -909,7 +931,7 @@ def main():
                 data_dirty = True
             case cfg.CMD_EXIT:
                 done = True
-            case cfg.CMD_FORM:
+            case cfg.CMD_BLOCK:
                 dataform_report()
             case cfg.CMD_HELP:
                 print(cfg.help_message)
@@ -978,47 +1000,6 @@ else:
 
 """Possible data structures for reports.
 
-- want a better name for "in or out".
-    in_out.  cfg.KEY_INOUT
-    vector?
-    maybe just in_or_out
-
-"""
-X="""
---------------------------
-Recent activity. (Lookback or Log)
-
-Logged activity from 13:36 to 14:36
-
-Time    Bike In  Bike Out
-13:40    we9
-13:41    we10
-13:41            ba15
-13:45    pa6
-13:47    we11
-13:47            we11
-14:03            wa0
-14:30    bd7
-
-one tag per line.  Ins listed before outs if at same time.
-
-parameter: lookback_start, lookback_end --> HHMM
-    if lookback_start is missing, uses rightnow - 1 hr
-    if lookback_end is missing, uses rightnow
-
-Want to look up tags in check_ins and check_outs that have
-event_time >= lookback_start
-
-dict: tags_by_time{}
-    key = time, since will need to sort by time
-    value = dict
-        cfg.KEY_TAG, cfg.KEY_INOUT
-        key = "tag": value = one tag
-        key = "in_out" : value = "in"|"out" (or do as bool)
-
-                    cfg.BIKE_IN, cfg.BIKE_OUT
-"""
-X="""
 --------------------------
 Queue-like or stack-like.
 
@@ -1056,7 +1037,7 @@ block_fullness{}    # for histogram
 
 X="""
 ------------------------
-Busiest time of day (most events in a time block)
+Busiest times of day (most events in a time block)
 
     block_activity{} dict as per data entry report,
     To find maximums, walk the dict looking at things like
