@@ -10,7 +10,7 @@ LOG_BASENAME = "cityhall_"
 BLOCK_DURATION=30
 
 # Regular expression for parsing tags -- here & in main program.
-PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
+PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
 
 # time cutoffs for stays under x time and over y time
 T_UNDER = 1.5*60 # minutes
@@ -28,31 +28,17 @@ CURSOR = '>>> '
 
 # Command keys and aliases.
 COMMANDS = {}
-COMMANDS[ CMD_AUDIT := "audit" ] = ['audit','a','aud']
-COMMANDS[ CMD_DELETE := "delete" ] = ['del','delete','d']
-COMMANDS[ CMD_EDIT := "edit" ] = ['edit','e','ed']
-COMMANDS[ CMD_EXIT :="exit" ] = ['quit','exit','stop','x','bye']
-COMMANDS[ CMD_HELP :="help" ] = ['help','h']
-COMMANDS[ CMD_QUERY :="query" ] = ['query','q','?','/']
-COMMANDS[ CMD_STATS :="stats" ] = ['s','stat','stats','sum','summary']
+COMMANDS[CMD_AUDIT := "audit"] = ['audit','a','aud']
+COMMANDS[CMD_DELETE := "delete"] = ['del','delete','d']
+COMMANDS[CMD_EDIT := "edit"] = ['edit','e','ed']
+COMMANDS[CMD_EXIT :="exit"] = ['quit','exit','stop','x','bye']
+COMMANDS[CMD_FORM := "form"] = ['form','f']
+COMMANDS[CMD_HELP :="help"] = ['help','h']
+COMMANDS[CMD_LOOKBACK := "lookback"] = ['lookback',
+        'look', 'l', 'log', 'recent']
+COMMANDS[CMD_QUERY :="query"] = ['query','q','?','/']
+COMMANDS[CMD_STATS :="stats"] = ['s','stat','stats','sum','summary']
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
-'''
-# FIXME: these are no longer needed.
-# keywords for day end statistics
-statistics_kws = ['s','stat','stats','sum','summary']
-# keywords for audit of logged tags
-audit_kws = ['audit','a','aud']
-# keywords to quit the program
-quit_kws = ['quit','exit','stop','x','bye']
-# keywords to delete a tag entry
-del_kws = ['del','delete','d']
-# keywords to query a tag
-query_kws = ['query','q','?','/']
-# editing
-edit_kws = ['edit','e','ed']
-# help message
-help_kws = ['help','h']
-'''
 
 help_message = f"""{INDENT}List these commands     :   help  /  h
 {INDENT}Check in or out         :   <tag name> (eg “wa3”)
@@ -63,6 +49,15 @@ help_message = f"""{INDENT}List these commands     :   help  /  h
 {INDENT}End of day statistics   :   stat  / s
 {INDENT}Exit                    :   stop  / exit / quit / x
 """
+
+# These constants are to avoid usinng strings for things like dictionary
+# keys.  E.g. rather than something[this_time]["tag"] = a_tag,
+# would be instead something[this_time][TAG_KEY] = a_tag.
+# The values of these constants aren't important as long as they're unique.
+TAG_KEY = "tag_key"
+BIKE_IN = "bike_in"
+BIKE_OUT = "bike_out"
+INOUT_KEY = "inout_key"
 
 # assemble list of normal tags
 def build_tags_config(filename:str) -> list[str]:
