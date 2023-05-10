@@ -2,41 +2,13 @@ These are possible report mockups for tag tracker.
 2023-05-03	Todd
 
 A: audit
-L: log (printout in tracking-sheet style)
+B: blocks (printout in data form style)
 R: recent activity (tags in order, last hour)
 Z: zany stats (fun stuff)
 
-=====================================================
-Audit (YYYY-MM-DD HH:MM)
-
-Summary             Regular Oversize  Total
--------             ------- --------  -----
-Bikes checked in:       12      10       22
-Bikes returned out:      7       9       16
-Bikes at valet now:      5       1 	      6
-
-Bikes returned out (tags are back with us):
--------------------------------------------
-WA       02    04    06 07 08 09 10       13
-WB 00 01 02 03 04 05 06 07 08 09 10 11 12 13
-WC          03
-BE                         08 09       12
-BF    01 02 03
-
-
-Bikes remaining at valet (tags still out):
-------------------------------------------
-WA 00 01    03    05                11 12
-WB    01       04       07 08    10 11 12 13
-WC 00 01 02    04 05 06 07 08 09 10
-BE 00 01 02 03 04 05 06 07       10 11    13
-BF 00          04 05 06 07 08
-
-
-
 
 ================================================
-Log of checkin/checkout activity
+Activity by time block:
 
 Bikes IN:
 ---------
@@ -51,23 +23,67 @@ Bikes RETURNED OUT:
 08:30-09:00  WA2 BE5
 09:30-10:00  WA4 WA5 BE2
 
-=====================================================
-Recent activity (last hour):
-
-Time    Tag    Bike activity
-----	  ---	   -------------
-14:31   WA1    IN
-14:32   BE13   RETURNED OUT
-14:40   WB2    RETURNED OUT
-14:45   WA5    IN
-14:45   BA1    RETURNED OUT
-14:50   BE12   IN
-14:51   BE13   IN
 
 =====================================================
-Statistics (YYYY-MM-DD HH:MM)
-[Based on 111 of 114 tags]
 
+Summary statistics at HH:MM (2 bike(s) still at valet):
+
+Bike check-ins:      Stays:
+  Total:   107         < 1.5h:     26
+  AM:       49         1.5-5.0h:   51
+  PM:       58         > 5.0h:     30
+  Regular:  64         Max:     11:13 [tag(s) wb3]
+  Oversize: 43         Min:     00:01 [tag(s) wc10, we13, we12]
+                       Median:  02:33
+                       Mode:    02:00 (by 2 bikes, 30 minute blocks)
+
+Most bikes on hand at valet:
+                Regular  Oversize  Total  Time
+Most regular:      60       20       80    10:15,14:30
+Most oversize:     42       31       73    13:11
+Most combined:     55       29       84    13:55
+
+Most bike transactions:
+            CheckedIn  Out   Total
+09:30-10:00      45      0      45
+16:00-16:30       5     39      44
+08:00-08:30      37      0      37
+
+Stays were 47% queue-like, 53% stack-like
+
+-----or-----
+
+
+
+Total bikes:    107
+AM bikes:        49
+PM bikes:        58
+Regular:         64
+Oversize:        43
+
+Stays < 1.5h:    26
+Stays 1.5-5.0h:  51
+Stays > 5.0h:    30
+
+Max stay:     11:13   [tag(s) wb3]
+Min stay:      0:01   [tag(s) wc10, we13, we12]
+Mean stay:     3:31
+Median stay:   2:33
+Mode stay:     2:00 by 2 bike(s)  [30 minute blocks]
+
+Most bikes on hand at valet:
+                Regular  Oversize  Total  Time
+Most regular:      60       20       80    10:15,14:30
+Most oversize:     42       31       73    13:11
+Most combined:     55       29       84    13:55
+
+Most bike transactions:
+               BikesIn    BikesOut  Total
+09:30-10:00       45           0      45
+16:00-16:30        5          39      44
+08:00-08:30       37           0      37
+
+Stays were 47% queue-like, 53% stack-like
 
 
 

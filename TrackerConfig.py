@@ -6,8 +6,11 @@ import re
 # Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
 LOG_BASENAME = "cityhall_"
 
+# Duration (minutes) for roll-up blocks (e.g. for datasheet report)
+BLOCK_DURATION=30
+
 # Regular expression for parsing tags -- here & in main program.
-PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
+PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
 
 # time cutoffs for stays under x time and over y time
 T_UNDER = 1.5*60 # minutes
@@ -25,41 +28,44 @@ CURSOR = '>>> '
 
 # Command keys and aliases.
 COMMANDS = {}
-COMMANDS[ CMD_AUDIT := "audit" ] = ['audit','a','aud']
-COMMANDS[ CMD_DELETE := "delete" ] = ['del','delete','d']
-COMMANDS[ CMD_EDIT := "edit" ] = ['edit','e','ed']
-COMMANDS[ CMD_EXIT :="exit" ] = ['quit','exit','stop','x','bye']
-COMMANDS[ CMD_HELP :="help" ] = ['help','h']
-COMMANDS[ CMD_QUERY :="query" ] = ['query','q','?','/']
-COMMANDS[ CMD_STATS :="stats" ] = ['s','stat','stats','sum','summary']
+COMMANDS[CMD_AUDIT := "audit"] = ['audit','a','aud']
+COMMANDS[CMD_DELETE := "delete"] = ['del','delete','d']
+COMMANDS[CMD_EDIT := "edit"] = ['edit','e','ed']
+COMMANDS[CMD_EXIT :="exit"] = ['quit','exit','stop','x','bye']
+COMMANDS[CMD_BLOCK := "block"] = ['blocks','block','b', 'form', 'f']
+COMMANDS[CMD_HELP :="help"] = ['help','h']
+COMMANDS[CMD_LOOKBACK := "lookback"] = ['lookback',
+        'look', 'l', 'log', 'recent', 'r']
+COMMANDS[CMD_QUERY :="query"] = ['query','q','?','/']
+COMMANDS[CMD_STATS :="stats"] = ['s','stat','stats','sum','summary']
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
-'''
-# FIXME: these are no longer needed.
-# keywords for day end statistics
-statistics_kws = ['s','stat','stats','sum','summary']
-# keywords for audit of logged tags
-audit_kws = ['audit','a','aud']
-# keywords to quit the program
-quit_kws = ['quit','exit','stop','x','bye']
-# keywords to delete a tag entry
-del_kws = ['del','delete','d']
-# keywords to query a tag
-query_kws = ['query','q','?','/']
-# editing
-edit_kws = ['edit','e','ed']
-# help message
-help_kws = ['help','h']
-'''
 
-help_message = f"""{INDENT}List these commands     :   help  /  h
-{INDENT}Check in or out         :   <tag name> (eg “wa3”)
-{INDENT}Audit of logged tags    :   audit / a
-{INDENT}Lookup times for a tag  :   query / q / ?
-{INDENT}Edit a time for a tag   :   edit  / e
-{INDENT}Delete a check in/out   :   del   / d
-{INDENT}End of day statistics   :   stat  / s
-{INDENT}Exit                    :   stop  / exit / quit / x
+help_message = f"""
+{INDENT}This list of commands      :   help  /  h
+{INDENT}Check bike in or out       :   <tag name> (eg “wa3”)
+{INDENT}Edit a check in/out time   :   edit  / e
+{INDENT}Delete a check in/out      :   del   / d
+{INDENT}Show info about one tag    :   query / q / ?
+{INDENT}Show end of day summary    :   stat  / s / summary
+{INDENT}Show accouting audit info  :   audit / a
+{INDENT}Show recent logged events  :   log / lookback / l / recent
+{INDENT}Show ins/outs by time block:   blocks / b / form / f
+{INDENT}Exit                       :   x / stop / exit / quit / bye
 """
+
+# These constants are to avoid usinng strings for things like dictionary
+# keys.  E.g. rather than something[this_time]["tag"] = a_tag,
+# would be instead something[this_time][TAG_KEY] = a_tag.
+# The values of these constants aren't important as long as they're unique.
+# By using these rather than string values, the lint checker in the
+# editor can pick up missing or misspelled items, as can Python itself.
+TAG = "tag"
+BIKE_IN = "bike_in"
+BIKE_OUT = "bike_out"
+INOUT = "inout"
+REGULAR = "regular"
+OVERSIZE = "oversize"
+TOTAL = "total"
 
 # assemble list of normal tags
 def build_tags_config(filename:str) -> list[str]:

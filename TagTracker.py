@@ -4,7 +4,7 @@ import os
 import time
 import re
 import pathlib
-from typing import Tuple
+from typing import Tuple,Union
 
 import TrackerConfig as cfg
 
@@ -24,13 +24,6 @@ def get_time() -> str:
     now = time.asctime(time.localtime())[11:16]
     return now
 
-'''
-def valid_time(inp:str) -> bool:
-    """Check whether inp is a valid HH:MM string."""
-    # FIXME: remove all calls to valid_time(), use fix_hhmm() instead.
-    return bool(fix_hhmm(inp))
-'''
-
 def fix_hhmm(inp:str) -> str:
     """Convert a string that might be a time to HH:MM (or to "").
 
@@ -47,7 +40,7 @@ def fix_hhmm(inp:str) -> str:
     # Return 5-digit time string
     return f"{h:02d}:{m:02d}"
 
-def parse_tag( maybe_tag:str, must_be_available=False ) -> list[str]:
+def parse_tag(maybe_tag:str, must_be_available=False) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -79,7 +72,7 @@ def parse_tag( maybe_tag:str, must_be_available=False ) -> list[str]:
 
     return [tag_id,tag_colour,tag_letter,tag_number]
 
-def fix_tag( maybe_tag:str, **kwargs ) -> str:
+def fix_tag(maybe_tag:str, **kwargs) -> str:
     """Turn 'str' into a canonical tag name.
 
     Keyword must_be_available, if set True, will force
@@ -88,6 +81,16 @@ def fix_tag( maybe_tag:str, **kwargs ) -> str:
     bits = parse_tag(maybe_tag,
             must_be_available=kwargs.get("must_be_available"))
     return bits[0] if bits else ""
+
+def sort_tags( unsorted:list[str]) -> list[str]:
+    """Sorts a list of tags (smart eg about wa12 > wa7)."""
+    newlist = []
+    for tag in unsorted:
+        bits = parse_tag(tag,must_be_available=False)
+        newlist.append(f"{bits[1]}{bits[2]}{int(bits[3]):04d}")
+    newlist.sort()
+    newlist = [fix_tag(t) for t in newlist]
+    return newlist
 
 def iprint(text:str="", num_indents:int=1,**kwargs) -> None:
     """Print the text, indented num_indents times.
@@ -128,7 +131,7 @@ def read_tags() -> bool:
                 continue
             # Can do nothing unless we know what section we're in
             if section is None:
-                print( f"weirdness in line {line_num} of {logfilename}")
+                print(f"weirdness in line {line_num} of {logfilename}")
                 return False
             # Break into putative tag and text, looking for errors
             cells = line.rstrip().split(',')
@@ -165,65 +168,9 @@ def read_tags() -> bool:
                     return False
                 check_outs[this_tag] = this_time
             else:
-                print( "should not reach this code spot 876238746")
+                print("should not reach this code spot 876238746")
     print('Previous log for today successfully loaded')
     return True
-'''
-def read_tags_OLD() -> bool:
-    """Fetch tag data from file.
-
-    Read data from a pre-existing log file, if one exists
-    check for .txt file for today's date in folder called 'logs'
-    e.g. "logs/2023-04-20.txt"
-    if exists, read for ins and outs
-    if none exists, make one.
-    """
-    #FIXME: Refactor
-    pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
-    try: # read saved stuff into dicts
-        filedir = LOG_FILEPATH
-        with open(filedir, 'r') as f:
-            line = f.readline() # read check ins header
-            line = f.readline() # read first tag entry if exists
-            line_counter = 2 # track line number
-
-            # FIXME: rather than checking for in all_tags, maybe check
-            # the potential with parse_tag(cell[0],must_be_available=True)
-            # rather than the first character not being 'B'
-            while line[0] != 'B': # if first char isn't the start of the header
-                cells = line.rstrip().split(',')
-                # if either a tag or time is invalid...
-                if not cells[0] in cfg.all_tags or not valid_time(cells[1]):
-                    print(f"Problem while reading {filedir} -- check-ins, "
-                          f"line {line_counter}.")
-                    return False
-                elif cells[0] in check_ins:
-                    print(f"Duplicate {cells[0]} check-in found at "
-                          f"line {line_counter}")
-                    return False
-                check_ins[cells[0]] = cells[1]
-                line = f.readline() # final will load the check outs header
-                line_counter += 1 # increment line counter
-            line = f.readline()
-            line_counter += 1
-            while line != '':
-                cells = line.rstrip().split(',')
-                if not cells[0] in cfg.all_tags or not valid_time(cells[1]):
-                    print(f"Problem while reading {filedir} -- check-outs, "
-                          f"line {line_counter}.")
-                    return False
-                elif cells[0] in check_outs:
-                    print(f"Duplicate {cells[0]} check-out found at "
-                          f"line {line_counter}")
-                    return False
-                check_outs[cells[0]] = cells[1]
-                line = f.readline() # final will load trailing empty line
-                line_counter += 1 # increment line counter
-        print('Previous log for today successfully loaded')
-    except FileNotFoundError: # if no file, don't read it lol
-        print('No previous log for today found. Starting fresh...')
-    return True
-'''
 
 def rotate_log() -> None:
     """Rename the current log to <itself>.bak."""
@@ -495,9 +442,8 @@ def delete_entry(args:list[str]) -> None:
                    "can't delete a nonexistent check-out.")
 
 def query_tag(args:list[str]) -> None:
-    target = (args + [None])[0]
-
     """Query the check in/out times of a specific tag."""
+    target = (args + [None])[0]
     if not target: # only do dialog if no target passed
         iprint("Which tag would you like to query?")
         target = input(f"(tag name) {cfg.CURSOR}").lower()
@@ -641,6 +587,127 @@ def tags_by_prefix(tags_dict:dict) -> dict:
         numbers.sort()
     return prefixes
 
+class Block():
+    """Class to help with reporting.
+
+    Each instance is a timeblock of duration cfg.BLOCK_DURATION.
+    """
+
+    def __init__(self, start_time:Union[str,int]) -> None:
+        """Initialize. Assumes that start_time is valid."""
+        if isinstance(start_time,str):
+            self.start = fix_hhmm(start_time)
+        else:
+            self.start = fix_hhmm(minutes_to_time_str(start_time))
+        self.ins_list = []      # Tags of bikes that came in.
+        self.outs_list = []     # Tags of bikes returned out.
+        self.num_ins = 0        # Number of bikes that came in.
+        self.num_outs = 0       # Number of bikes that went out.
+        self.here_list = []     # Tags of bikes in valet at end of block.
+        self.num_here = 0       # Number of bikes in valet at end of block.
+
+    @staticmethod
+    def block_start(time:Union[int,str], as_number:bool=False) -> Union[str,int]:
+        """Return the start time of the block that contains time 'time'.
+
+        'time' can be minutes since midnight or HHMM.
+        Returns HHMM unless as_number is True, in which case returns int.
+        """
+        # Get time in minutes
+        time = time_str_to_minutes(time) if isinstance(time,str) else time
+        # which block of time does it fall in?
+        block_start_min = (time // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
+        if as_number:
+            return block_start_min
+        return fix_hhmm(minutes_to_time_str(block_start_min))
+
+    @staticmethod
+    def calc_blocks() -> dict:
+        """Create a dictionary of Blocks {start:Block} for whole day."""
+        blocks = {}
+        # Find earliest and latest block of the day
+        min_block_min = Block.block_start(
+                min(list(check_ins.values()) + list(check_outs.values())),
+                as_number=True)
+        max_block_min = Block.block_start(
+                max(list(check_ins.values()) + list(check_outs.values())),
+                as_number=True)
+        # Create blocks for the the whole day.
+        for t in range(min_block_min, max_block_min+cfg.BLOCK_DURATION,
+                cfg.BLOCK_DURATION): #FIXME: check logic
+            blocks[fix_hhmm(minutes_to_time_str(t))] = Block(t)
+        for tag, time in check_ins.items():
+            bstart = Block.block_start(time)
+            blocks[bstart].ins_list += [tag]
+        for tag, time in check_outs.items():
+            bstart = Block.block_start(time)
+            blocks[bstart].outs_list += [tag]
+        here_set = set()
+        for btime,blk in blocks.items():
+            blk.num_ins = len(blk.ins_list)
+            blk.num_outs = len(blk.outs_list)
+            here_set = (here_set | set(blk.ins_list)) - set(blk.outs_list)
+            blk.here_list = here_set
+            blk.num_here = len(here_set)
+        return blocks
+
+def lookback(args:list[str]) -> None:
+    """Display a look back at recent activity.
+
+    Args are both optional, start_time and end_time.
+    If end_time is missing, runs to current time.
+    If start_time is missing, starts one hour before end_time.
+    """
+    def format_one( time:str, tag:str, check_in:bool) -> str:
+        """Format one line of output."""
+        in_tag = tag if check_in else ""
+        out_tag = "" if check_in else tag
+        #inout = "bike IN" if check_in else "returned OUT"
+        return f"{time}   {in_tag:<5s} {out_tag:<5s}"
+
+    (start_time, end_time) = (args + [None,None])[:2]
+    if not end_time:
+        end_time = get_time()
+    if not start_time:
+        start_time = minutes_to_time_str(time_str_to_minutes(end_time)-60)
+    start_time = fix_hhmm(start_time)
+    end_time = fix_hhmm(end_time)
+    if not start_time or not end_time or start_time >= end_time:
+        iprint("Can not make sense of the given start/end times")
+        return
+    # Collect any bike-in/bike-out events that are in the time period.
+    events = []
+    for tag, time in check_ins.items():
+        if start_time <= time <= end_time:
+            events.append( format_one(time, tag, True))
+    for tag, time in check_outs.items():
+        if start_time <= time <= end_time:
+            events.append( format_one(time, tag, False))
+    # Print
+    iprint()
+    iprint(f"Log of events from {start_time} to {end_time}:\n")
+    iprint("Time  BikeIn BikeOut")
+    for line in sorted(events):
+        iprint(line)
+
+def dataform_report() -> None:
+    """Print days activity in timeblocks.
+
+       This is to match the (paper/google) data tracking sheets.
+       """
+    all_blocks = Block.calc_blocks()
+    for which in [cfg.BIKE_IN,cfg.BIKE_OUT]:
+        titlebit = "checked IN" if which == cfg.BIKE_IN else "returned OUT"
+        title = f"Bikes {titlebit}:"
+        iprint(title)
+        iprint("-" * len(title))
+        for start,block in all_blocks.items():
+            inouts = (block.ins_list if which == cfg.BIKE_IN
+                    else block.outs_list)
+            endtime = fix_hhmm(minutes_to_time_str(
+                    time_str_to_minutes(start)+cfg.BLOCK_DURATION))
+            iprint(f"{start}-{endtime}  {' '.join(sort_tags(inouts))}")
+
 def audit_report(args:list[str]) -> None:
     """Create & display audit report as at a particular time.
 
@@ -664,7 +731,7 @@ def audit_report(args:list[str]) -> None:
     # What time will this audit report reflect?
     as_of_when = fix_hhmm(as_of_when)
     if not as_of_when:
-        iprint( f"Unrecognized time passed to audit ({args[0]})")
+        iprint(f"Unrecognized time passed to audit ({args[0]})")
         return False
 
     # Get rid of any check-ins or -outs later than the requested time.
@@ -716,7 +783,7 @@ def audit_report(args:list[str]) -> None:
     # Audit report header.
     print()
     if as_of_when == rightnow:
-        iprint( f"Audit report as at current time ({rightnow})")
+        iprint(f"Audit report as at current time ({rightnow})")
     elif as_of_when > rightnow:
         iprint(f"Audit report guessing at future state (as at {as_of_when})")
     else:
@@ -724,7 +791,7 @@ def audit_report(args:list[str]) -> None:
     print()
 
     # Audit summary section.
-    iprint( "Summary             Regular Oversize Total")
+    iprint("Summary             Regular Oversize Total")
     iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}"
            f"    {sum_in:4d}")
     iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}"
@@ -732,14 +799,14 @@ def audit_report(args:list[str]) -> None:
     iprint(f"Bikes in valet:       {(normal_in-normal_out):4d}"
            f"    {(oversize_in-oversize_out):4d}    {sum_total:4d}")
     if (sum_total != num_bikes_on_hand):
-        iprint( "** Totals mismatch, expected total "
+        iprint("** Totals mismatch, expected total "
                f"{num_bikes_on_hand} != {sum_total} **")
 
     # Tags matrixes
     no_item_str = "  "  # what to show when there's no tag
     print()
     # Bikes returned out -- tags matrix.
-    iprint( "Tags on bikes in valet:")
+    iprint("Tags on bikes in valet:")
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix.upper():3>} "
@@ -748,7 +815,7 @@ def audit_report(args:list[str]) -> None:
             line = f"{line} {s}"
         iprint(line)
     if not prefixes_on_hand:
-        iprint( "-no bikes-")
+        iprint("-no bikes-")
     print()
 
     # Bikes returned out -- tags matrix.
@@ -767,42 +834,9 @@ def audit_report(args:list[str]) -> None:
             line = f"{line} {s}"
         iprint(line)
     if not prefixes_returned_out:
-        iprint( "-no bikes-")
+        iprint("-no bikes-")
 
     return
-
-def show_audit() -> None:
-    """Perform audit function.
-
-    Prints a list of all tags that should be in the corral
-    and bikes that should be on hand.  Format to be easy to use
-    during mid-day reconciliations.
-    """
-    # FIXME: can delete this function once happy with new audit
-    if len(check_ins) - len(check_outs) > 0: # if bikes are in
-        corral = []
-        for tag in check_ins:
-            if not tag in check_outs: # tags that are still checked in
-                corral.append(tag)
-        corral = sorted(corral) # alphabetize!
-        corral_str = '  '.join(map(str,corral)) # stringify
-        iprint('Bikes currently checked in...')
-        iprint(f"by colour:     {count_colours(corral)}", 2)
-        iprint(f"individually:  {corral_str}\n", 2)
-    else:
-        iprint('No bikes currently checked in.')
-
-    if len(check_outs) > 0:
-        basket = []
-        for tag in check_outs: # put checked out tags into list
-            basket.append(tag)
-        basket = sorted(basket) # alphabetize
-        basket_str = '  '.join(map(str,basket)) # stringify
-        iprint( "Tags that should be in the return basket:")
-        iprint(f"by colour:     {count_colours(basket)}", 2)
-        iprint(f"individually:  {basket_str}", 2)
-    else:
-        iprint('No tags should be in the basket.')
 
 def tag_check(tag:str) -> None:
     """Check a tag in or out.
@@ -842,7 +876,7 @@ def tag_check(tag:str) -> None:
             check_ins[tag] = get_time()# check it in
             iprint(f"{tag} checked IN")
 
-def parse_command( user_input:str ) -> list[str]:
+def parse_command(user_input:str) -> list[str]:
     """Parse user's input into list of [tag] or [command, command args].
 
     Returns [] if not a recognized tag or command.
@@ -854,7 +888,7 @@ def parse_command( user_input:str ) -> list[str]:
         user_input = user_input[0] + " " + user_input[1:]
     # Split to list, test to see if tag.
     input_tokens = user_input.split()
-    command = fix_tag( input_tokens[0], must_be_available=True)
+    command = fix_tag(input_tokens[0], must_be_available=True)
     if command:
         return [command]    # A tag
     # See if it is a recognized command.
@@ -877,7 +911,7 @@ def main():
     done = False
     while not done:
         user_str = input(f"\nBike tag or command {cfg.CURSOR}")
-        tokens = parse_command( user_str )
+        tokens = parse_command(user_str)
         if not tokens:
             continue        # No input, ignore
         (cmd, *args) = tokens
@@ -885,30 +919,34 @@ def main():
         data_dirty = False
         match cmd:
             case cfg.CMD_EDIT:
-                edit_entry( args )
+                edit_entry(args)
                 data_dirty = True
             case cfg.CMD_AUDIT:
-                audit_report( args )
+                audit_report(args)
             case cfg.CMD_DELETE:
-                delete_entry( args )
+                delete_entry(args)
                 data_dirty = True
             case cfg.CMD_EDIT:
-                edit_entry( args )
+                edit_entry(args)
                 data_dirty = True
             case cfg.CMD_EXIT:
                 done = True
+            case cfg.CMD_BLOCK:
+                dataform_report()
             case cfg.CMD_HELP:
                 print(cfg.help_message)
+            case cfg.CMD_LOOKBACK:
+                lookback(args)
             case cfg.CMD_QUERY:
-                query_tag( args )
+                query_tag(args)
             case cfg.CMD_STATS:
                 show_stats()
             case cfg.CMD_UNKNOWN:
-                iprint( "Unrecognized tag or command.")
-                iprint( "Enter 'h' for help.")
+                iprint("Unrecognized tag or command.")
+                iprint("Enter 'h' for help.")
             case _:
                 # This is a tag
-                tag_check( cmd )
+                tag_check(cmd)
                 data_dirty = True
         # Save if anything has changed
         if data_dirty:
@@ -919,92 +957,26 @@ def main():
 '''
 # This is a model for a potential way to structure do_stuff commands,
 # particularly ones that might prompt for missing args
-def do_edit( args:list[str] ):
+def do_edit(args:list[str]):
     (target, in_or_out, new_time) = (args + [None,None,None])[:3]
 
     # Action is identified as 'edit'
-    tag = get_token( arg[0],optional=False,prompt="Edit what tag?" )
-    if not (tag := fix_tag( tag, must_be_available=True)):
+    tag = get_token(arg[0],optional=False,prompt="Edit what tag?")
+    if not (tag := fix_tag(tag, must_be_available=True)):
         ...error...
         return
-    in_out = get_token( arg[1],optional=False,prompt="Change (i)n or (o)ut time?")
+    in_out = get_token(arg[1],optional=False,prompt="Change (i)n or (o)ut time?")
     if not (in_out useful):
         ...error...
         return
-    newtime = get_token( arg[2], optional=False, prompt="Change to what time (blank for now):",default="")
+    newtime = get_token(arg[2], optional=False, prompt="Change to what time (blank for now):",default="")
     if not (newtime := fix_hhmm(newtime)):
         ...error...
         return
-    confirm = get_token( arg[3], optional=False,prompt="Change (Y/n):",default="y')
+    confirm = get_token(arg[3], optional=False,prompt="Change (Y/n):",default="y')
    (etc)
 '''
 
-'''
-def process_prompt__OLD(prompt:str) -> None:
-    """Process one user-input command.
-
-    This is the logic for main loop
-    """
-    cells = prompt.strip().split() # break into each phrase -- already .lower()
-    if not cells:
-        return False
-
-    kwd = cells[0] # take first phrase as fn to call
-    if cells[0][0] in ['?', '/'] and len(cells[0])>1:
-    # take non-letter query prompts without space
-        query_tag(cells[0][1:])
-    elif kwd in cfg.statistics_kws:
-        show_stats()
-    elif kwd in cfg.help_kws:
-        print(cfg.help_message)
-    elif kwd in cfg.audit_kws:
-        # Audit report takes an optional timestamp.
-        audit_report( None if len(cells) == 1 else cells[1])
-        ## show_audit()
-    elif kwd in cfg.edit_kws:
-        args = len(cells) - 1 # number of arguments passed
-        target, in_or_out, new_time = None, None, None # initialize all
-        if args > 0:
-            target = cells[1]
-        if args > 1:
-            in_or_out = cells[2]
-        if args > 2:
-            new_time = cells[3]
-        edit_entry([target, in_or_out, new_time])
-
-    elif kwd in cfg.del_kws:
-        args = len(cells) - 1 # number of arguments passed
-        target, which_to_del, pre_confirm = False, False, False
-        if args > 0:
-            target = cells[1]
-        if args > 1:
-            which_to_del = cells[2]
-        if args > 2:
-            pre_confirm = cells[3]
-        delete_entry([target, which_to_del,pre_confirm])
-
-    elif kwd in cfg.query_kws:
-        try:
-            query_tag([cells[1]]) # query the tag that follows cmd
-        except IndexError:
-            query_tag([]) # if no tag passed run the dialog
-    elif kwd in cfg.quit_kws:
-        exit() # quit program
-    elif (a_tag := fix_tag(kwd,must_be_available=True)) and a_tag:
-        tag_check(a_tag)
-    else: # not anything recognized so...
-        iprint(f"'{prompt}' isn't a recognized tag or command "
-                "(type 'help' for a list of these).")
-
-def main_OLD() -> None:
-    """Run main program loop."""
-    while True:
-        #show_audit() # show all bikes currently in
-        prompt = input(f"\nEnter a tag or command {cfg.CURSOR}").lower()
-        process_prompt(prompt)
-        rotate_log()
-        write_tags() # save before input regardless
-'''
 # STARTUP
 if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
     check_ins = {}
@@ -1022,3 +994,101 @@ if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
 else:
     print(f"\n{cfg.INDENT}Closing automatically in 30 seconds...")
     time.sleep(30)
+#==========================================
+
+# possible data structures for (new) reports
+
+"""Possible data structures for reports.
+
+--------------------------
+Queue-like or stack-like.
+
+Want to know all visits with their start time and end time
+    dict visits_by_tag{}
+        key = tag
+        value = dict
+            key = "time_in"|"time_out"
+            value = event's time - could be hhmm or num
+    ** check how compatible this is with calc_stays() structure
+    ** could also be a Tag object
+"""
+X="""
+-----------------------
+Summary statistics (day-end)
+
+
+
+
+
+"""
+X="""
+-----------------------
+Time of day with most bikes on hand
+
+fullness{}
+dict of event times with num bikes on hand
+    key = time
+    value = num_bikes
+
+block_fullness{}    # for histogram
+    key = block_start
+    value = num bikes
+"""
+
+X="""
+------------------------
+Busiest times of day (most events in a time block)
+
+    block_activity{} dict as per data entry report,
+    To find maximums, walk the dict looking at things like
+
+        how_busy = {}
+        for block, activities in block_activity.items():
+            ins = len(activities[cfg.BIKE_IN])
+            outs = len(activities[cfg.BIKE_OUT])
+            ttl = ins + outs
+            if ttl not in how_busy:
+                how_busy[ttl] = []
+            how_busy[ttl] += [block]
+
+        iprint("Busiest timeblock(s) of the day:")
+        most = max(how_busy.keys())
+        for block in sorted(how_busy[most]):
+            iprint(f"{block}: {most} ins & outs ({block_activity[block][BIKE_IN]} in, {block_activity[block][BIKE_IN]} out)")
+"""
+
+X="""
+---------------------------------
+Data Entry report (events listed by time block)
+
+    block_ins[block_start] = [list of tags]
+    block_outs[block_start] = [list of tags]
+
+    block_activity{}
+        key = block start HHMM
+        value = dict{}
+            cfg.BIKE_IN: [list of tags]
+            cfg.BIKE_OUT: [list of tags]
+
+"""
+
+class Visit():
+    def __init__(self, tag:str) -> None:
+        self.tag = tag
+        self.time_in = ""
+        self.time_out = ""
+        self.duration = 0
+
+class Tag():
+    def __init__(self, tag:str) -> None:
+        self.tag = ""
+        self.letter = ""
+        self.number = 0
+        self.type = ""  # cfg.BIKE_REGULAR or cfg.BIKE_OVERSIZE
+        self.state = None   # Unused, BIKE_IN, BIKE_OUT, Retired
+
+class Action():
+    def __init__(self) -> None:
+        pass
+
+
