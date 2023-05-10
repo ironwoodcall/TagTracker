@@ -4,7 +4,7 @@ import os
 import time
 import re
 import pathlib
-from typing import Tuple
+from typing import Tuple,Union
 
 import TrackerConfig as cfg
 
@@ -1022,3 +1022,195 @@ if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
 else:
     print(f"\n{cfg.INDENT}Closing automatically in 30 seconds...")
     time.sleep(30)
+#==========================================
+#==================================
+# possible data structures for (new) reports
+
+"""Possible data structures for reports.
+
+- want a better name for "in or out".
+    in_out.  cfg.KEY_INOUT
+    vector?
+    maybe just in_or_out
+
+"""
+X="""
+--------------------------
+Recent activity. (Lookback or Log)
+
+Logged activity from 13:36 to 14:36
+
+Time    Bike In  Bike Out
+13:40    we9
+13:41    we10
+13:41            ba15
+13:45    pa6
+13:47    we11
+13:47            we11
+14:03            wa0
+14:30    bd7
+
+one tag per line.  Ins listed before outs if at same time.
+
+parameter: lookback_start, lookback_end --> HHMM
+    if lookback_start is missing, uses rightnow - 1 hr
+    if lookback_end is missing, uses rightnow
+
+Want to look up tags in check_ins and check_outs that have
+event_time >= lookback_start
+
+dict: tags_by_time{}
+    key = time, since will need to sort by time
+    value = dict
+        cfg.KEY_TAG, cfg.KEY_INOUT
+        key = "tag": value = one tag
+        key = "in_out" : value = "in"|"out" (or do as bool)
+
+                    cfg.BIKE_IN, cfg.BIKE_OUT
+"""
+X="""
+--------------------------
+Queue-like or stack-like.
+
+Want to know all visits with their start time and end time
+    dict visits_by_tag{}
+        key = tag
+        value = dict
+            key = "time_in"|"time_out"
+            value = event's time - could be hhmm or num
+    ** check how compatible this is with calc_stays() structure
+    ** could also be a Tag object
+"""
+X="""
+-----------------------
+Summary statistics (day-end)
+
+
+
+
+
+"""
+X="""
+-----------------------
+Time of day with most bikes on hand
+
+fullness{}
+dict of event times with num bikes on hand
+    key = time
+    value = num_bikes
+
+block_fullness{}    # for histogram
+    key = block_start
+    value = num bikes
+"""
+
+X="""
+------------------------
+Busiest time of day (most events in a time block)
+
+    block_activity{} dict as per data entry report,
+    To find maximums, walk the dict looking at things like
+
+        how_busy = {}
+        for block, activities in block_activity.items():
+            ins = len(activities[cfg.BIKE_IN])
+            outs = len(activities[cfg.BIKE_OUT])
+            ttl = ins + outs
+            if ttl not in how_busy:
+                how_busy[ttl] = []
+            how_busy[ttl] += [block]
+
+        iprint( "Busiest timeblock(s) of the day:" )
+        most = max(how_busy.keys())
+        for block in sorted(how_busy[most]):
+            iprint( f"{block}: {most} ins & outs ({block_activity[block][BIKE_IN]} in, {block_activity[block][BIKE_IN]} out)")
+"""
+
+X="""
+---------------------------------
+Data Entry report (events listed by time block )
+
+    block_ins[block_start] = [list of tags]
+    block_outs[block_start] = [list of tags]
+
+    block_activity{}
+        key = block start HHMM
+        value = dict{}
+            cfg.BIKE_IN: [list of tags]
+            cfg.BIKE_OUT: [list of tags]
+
+"""
+
+class Block():
+    def __init__(self, start_time:Union(str,int)) -> None:
+        if isinstance(start_time,str):
+            self.start = fix_hhmm(start_time)
+        else:
+            self.start = minutes_to_time_str(start_time)
+        self.ins_list = []      # Tags of bikes that came in.
+        self.outs_list = []     # Tags of bikes returned out.
+        self.num_ins = 0        # Number of bikes that came in.
+        self.num_outs = 0       # Number of bikes that went out.
+        self.here_list = []     # Tags of bikes in valet at end of block.
+        self.num_here = 0       # Number of bikes in valet at end of block.
+
+    @staticmethod
+    def block_start(time:Union(int,str), as_number:bool=False ) -> Union(str,int):
+        """Find the start time of the block that contains time 'time'.
+
+        'time' can be minutes since midnight or HHMM.
+        Returns HHMM unless as_number is True, in which case returns int.
+        """
+        # Get time in minutes
+        time = time_str_to_minutes(time) if isinstance(time,str) else time
+        # which block of time does it fall in?
+        block_start_min = (time // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
+        if as_number:
+            return block_start_min
+        return minutes_to_time_str(block_start_min)
+
+    @staticmethod
+    def calc_blocks() -> dict:
+        """Create a dictionary of Blocks that have values for the whole day."""
+        blocks = {}
+        # Find earliest and latest block of the day
+        min_block_min = Block.block_start(min(check_ins.values() + check_outs.values()),as_number=True)
+        max_block_min = Block.block_start(max(check_ins.values() + check_outs.values()),as_number=True)
+        # Create blocks for the the whole day.
+        for t in range(min_block_min,max_block_min+cfg.BLOCK_DURATION,cfg.BLOCK_DURATION): #FIXME: check logic
+            blocks[minutes_to_time_str(t)] = Block(t)
+        for tag, time in check_ins.items():
+            bstart = Block.block_start(time)
+            blocks[bstart].ins_list += [tag]
+        for tag, time in check_outs.items():
+            bstart = Block.block_start(time)
+            blocks[bstart].outs_list += [tag]
+        here_set = set()
+        for btime,blk in blocks.items():
+            blk.num_ins = len(blk.ins_list)
+            blk.num_outs = len(blk.outs_list)
+            here_set = here_set + set(blk.ins_list) - set(blk.outs_list)
+            blk.here_list = here_set
+            blk.num_here = len(here_set)
+        return blocks
+
+class Visit():
+    def __init__(self, tag:str) -> None:
+        self.tag = tag
+        self.time_in = ""
+        self.time_out = ""
+        self.duration = 0
+
+class Tag():
+    def __init__(self, tag:str) -> None:
+        self.tag = ""
+        self.letter = ""
+        self.number = 0
+        self.type = ""  # cfg.BIKE_REGULAR or cfg.BIKE_OVERSIZE
+        self.state = None   # Unused, BIKE_IN, BIKE_OUT, Retired
+
+class Action():
+    def __init__(self) -> None:
+        pass
+
+

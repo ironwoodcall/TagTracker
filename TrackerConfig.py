@@ -6,6 +6,9 @@ import re
 # Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
 LOG_BASENAME = "cityhall_"
 
+# Duration (minutes) for roll-up blocks (e.g. for datasheet report)
+BLOCK_DURATION=30
+
 # Regular expression for parsing tags -- here & in main program.
 PARSE_TAG_RE = re.compile( r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
 
