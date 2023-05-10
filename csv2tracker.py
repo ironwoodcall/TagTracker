@@ -2,6 +2,9 @@
 
 This is a standalone script to convert one csv file into one
 tagracker *.log file.
+
+This rejects any check-ins without check-outs... which makes it weird if
+converting a partial-day's data.  Need to think about that.
 """
 
 import datetime
