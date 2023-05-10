@@ -187,8 +187,8 @@ def clean(file:str, check_ins:dict, check_outs:dict) -> None:
     bad_tags = []
     for tag in check_ins:
         if tag not in check_outs:
-            message( file,f"Unmatched bike check-in {tag} (discarded) ", WARNING_MSG)
-            bad_tags.append(tag)
+            message( file,f"Unmatched bike check-in {tag} (retained) ", WARNING_MSG)
+            #bad_tags.append(tag)
     for tag in bad_tags:
         check_ins.pop(tag)
     # Same again for check_outs
