@@ -12,6 +12,21 @@ import re
 BIKE_IN = "bike_in"
 BIKE_OUT = "bike_out"
 PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
+WARNING_MSG = "Warning"
+ERROR_MSG = "Error"
+INFO_MSG = "Info"
+
+messages = {}   # key=filename, value = list of messages
+
+def message( filename:str, msg_text:str, severity:str=INFO_MSG ) -> None:
+    """Print (& save) warning for given filename."""
+    global messages
+    if filename not in messages:
+        messages[filename] = []
+    full_msg = f"# {severity}: {msg_text} in file {filename}"
+    print(full_msg)
+    if severity in [WARNING_MSG,ERROR_MSG]:
+        messages[filename].append(full_msg)
 
 def isadate( maybe:str ) -> str:
     """Return maybe as a YYYY-MM-DD date string if it looks like a date."""
@@ -55,7 +70,7 @@ in_files = sys.argv[1:]
 for file in in_files:
     # File there?
     if not pathlib.Path.exists(file):
-        print(f"File {file} not found.")
+        message(file, "not found", ERROR_MSG)
         continue
     # Read one file.
     inout = ""
@@ -87,6 +102,6 @@ for file in in_files:
             if not chunks:
                 continue
             if not isatime(chunks[0]):
-                print(f"warning: ignoring line {lnum} '{line}")
+                message( file, f"ignoring line {lnum}: '{line}", WARNING_MSG)
                 continue
             # Looks like a legit line.
