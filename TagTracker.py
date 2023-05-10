@@ -47,7 +47,7 @@ def fix_hhmm(inp:str) -> str:
     # Return 5-digit time string
     return f"{h:02d}:{m:02d}"
 
-def parse_tag( maybe_tag:str, must_be_available=False ) -> list[str]:
+def parse_tag(maybe_tag:str, must_be_available=False) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -79,7 +79,7 @@ def parse_tag( maybe_tag:str, must_be_available=False ) -> list[str]:
 
     return [tag_id,tag_colour,tag_letter,tag_number]
 
-def fix_tag( maybe_tag:str, **kwargs ) -> str:
+def fix_tag(maybe_tag:str, **kwargs) -> str:
     """Turn 'str' into a canonical tag name.
 
     Keyword must_be_available, if set True, will force
@@ -114,7 +114,7 @@ def read_tags() -> bool:
     section = None
     with open(logfilename, 'r') as f:
         for line_num, line in enumerate(f, start=1):
-            # ignore blank or # lines
+            # ignore blank or # comment lines
             line = re.sub(r"\s*#.*","", line)
             line = line.strip()
             if not line:
@@ -128,10 +128,10 @@ def read_tags() -> bool:
                 continue
             # Can do nothing unless we know what section we're in
             if section is None:
-                print( f"weirdness in line {line_num} of {logfilename}")
+                print(f"weirdness in line {line_num} of {logfilename}")
                 return False
             # Break into putative tag and text, looking for errors
-            cells = line.rstrip().split(',')
+            cells = line.split(',')
             if len(cells) != 2:
                 print(f"Bad line in file {logfilename} line {line_num}.")
                 return False
@@ -165,7 +165,7 @@ def read_tags() -> bool:
                     return False
                 check_outs[this_tag] = this_time
             else:
-                print( "should not reach this code spot 876238746")
+                print("should not reach this code spot 876238746")
     print('Previous log for today successfully loaded')
     return True
 '''
@@ -877,7 +877,7 @@ def main():
     done = False
     while not done:
         user_str = input(f"\nBike tag or command {cfg.CURSOR}")
-        tokens = parse_command( user_str )
+        tokens = parse_command(user_str)
         if not tokens:
             continue        # No input, ignore
         (cmd, *args) = tokens
@@ -885,30 +885,30 @@ def main():
         data_dirty = False
         match cmd:
             case cfg.CMD_EDIT:
-                edit_entry( args )
+                edit_entry(args)
                 data_dirty = True
             case cfg.CMD_AUDIT:
-                audit_report( args )
+                audit_report(args)
             case cfg.CMD_DELETE:
-                delete_entry( args )
+                delete_entry(args)
                 data_dirty = True
             case cfg.CMD_EDIT:
-                edit_entry( args )
+                edit_entry(args)
                 data_dirty = True
             case cfg.CMD_EXIT:
                 done = True
             case cfg.CMD_HELP:
                 print(cfg.help_message)
             case cfg.CMD_QUERY:
-                query_tag( args )
+                query_tag(args)
             case cfg.CMD_STATS:
                 show_stats()
             case cfg.CMD_UNKNOWN:
-                iprint( "Unrecognized tag or command.")
-                iprint( "Enter 'h' for help.")
+                iprint("Unrecognized tag or command.")
+                iprint("Enter 'h' for help.")
             case _:
                 # This is a tag
-                tag_check( cmd )
+                tag_check(cmd)
                 data_dirty = True
         # Save if anything has changed
         if data_dirty:
