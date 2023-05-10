@@ -693,12 +693,16 @@ def lookback(args:list[str]) -> None:
 def dataform_report() -> None:
     """Print days activity in timeblocks.
 
-       This is to match the (paper/google) data tracking sheets.
-       """
+    This is to match the (paper/google) data tracking sheets.
+    """
+    print()
+    iprint(f"All available daily tracking form data for {get_date()}")
+
     all_blocks = Block.calc_blocks()
     for which in [cfg.BIKE_IN,cfg.BIKE_OUT]:
         titlebit = "checked IN" if which == cfg.BIKE_IN else "returned OUT"
         title = f"Bikes {titlebit}:"
+        print()
         iprint(title)
         iprint("-" * len(title))
         for start,block in all_blocks.items():
