@@ -117,7 +117,7 @@ def read_tags() -> bool:
     section = None
     with open(logfilename, 'r') as f:
         for line_num, line in enumerate(f, start=1):
-            # ignore blank or # lines
+            # ignore blank or # comment lines
             line = re.sub(r"\s*#.*","", line)
             line = line.strip()
             if not line:
@@ -134,7 +134,7 @@ def read_tags() -> bool:
                 print(f"weirdness in line {line_num} of {logfilename}")
                 return False
             # Break into putative tag and text, looking for errors
-            cells = line.rstrip().split(',')
+            cells = line.split(',')
             if len(cells) != 2:
                 print(f"Bad line in file {logfilename} line {line_num}.")
                 return False
@@ -693,12 +693,16 @@ def lookback(args:list[str]) -> None:
 def dataform_report() -> None:
     """Print days activity in timeblocks.
 
-       This is to match the (paper/google) data tracking sheets.
-       """
+    This is to match the (paper/google) data tracking sheets.
+    """
+    print()
+    iprint(f"All available daily tracking form data for {get_date()}")
+
     all_blocks = Block.calc_blocks()
     for which in [cfg.BIKE_IN,cfg.BIKE_OUT]:
         titlebit = "checked IN" if which == cfg.BIKE_IN else "returned OUT"
         title = f"Bikes {titlebit}:"
+        print()
         iprint(title)
         iprint("-" * len(title))
         for start,block in all_blocks.items():
