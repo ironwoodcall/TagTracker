@@ -4,6 +4,7 @@ import os
 import time
 import re
 import pathlib
+import colorama
 from typing import Tuple,Union
 
 import TrackerConfig as cfg
@@ -92,12 +93,23 @@ def sort_tags( unsorted:list[str]) -> list[str]:
     newlist = [fix_tag(t) for t in newlist]
     return newlist
 
-def iprint(text:str="", num_indents:int=1,**kwargs) -> None:
+def text_style(text:str, style=None) -> str:
+    """Return text with style 'style' applied."""
+    if not style:
+        style = cfg.NORMAL_STYLE
+    if style not in cfg.STYLE:
+        print(f"*** PROGRAM ERROR: Unknown style '{style}' ***")
+        return "!!!???"
+    return f"{cfg.STYLE[style]}{text}{cfg.STYLE[cfg.RESET_STYLE]}"
+
+def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
     """Print the text, indented num_indents times.
 
     Recognizes the 'end=' keyword for the print() statement.
     """
-    print(f"{cfg.INDENT * num_indents}{text}",end=kwargs.get("end"))
+    if style:
+        text = text_style(text,style=style)
+    print(f"{cfg.INDENT * num_indents}{text}",end=end)
 
 def read_tags() -> bool:
     """Fetch tag data from file.
@@ -136,15 +148,15 @@ def read_tags() -> bool:
             # Break into putative tag and text, looking for errors
             cells = line.split(',')
             if len(cells) != 2:
-                print(f"Bad line in file {logfilename} line {line_num}.")
+                print(f"Bad line in file {logfilename} line {line_num}")
                 return False
             if not (this_tag := fix_tag(cells[0],must_be_available=True)):
                 print("Poorly formed or unrecognized tag in file"
-                        f" {logfilename} line {line_num}.")
+                        f" {logfilename} line {line_num}")
                 return False
             if not (this_time := fix_hhmm(cells[1])):
                 print("Time value poorly formed in file"
-                        f" {logfilename} line {line_num}.")
+                        f" {logfilename} line {line_num}")
                 return False
             # Maybe add to check_ins or check_outs structures.
             if section == "in":
@@ -197,9 +209,9 @@ def write_tags() -> None:
             f.write(line)
             f.write('\n')
 
-def time_str_to_minutes(HHMM:str) -> int:
+def time_str_to_minutes(hhmm:str) -> int:
     """Convert time string HH:MM to number of minutes."""
-    cells = HHMM.split(':')
+    cells = hhmm.split(':')
     hrs = int(cells[0])
     mins = int(cells[1])
     mins += hrs * 60
@@ -376,12 +388,13 @@ def delete_entry(args:list[str]) -> None:
         iprint(del_syntax_message) # remind of syntax if invalid input
         return None # interrupt
     if not target: # get target if unspecified
-        iprint("Which tag's entry would you like to remove?")
+        iprint("Which tag's entry would you like to remove? ",end="")
         target = input(f"(tag name) {cfg.CURSOR}").lower()
     checked_in = target in check_ins
     checked_out = target in check_outs
     if not checked_in and not checked_out:
-        iprint(f"'{target}' isn't in today's records (Cancelled deletion).")
+        iprint(f"'{target}' isn't in today's records (delete cancelled)",
+               style=cfg.WARN_STYLE)
     elif checked_out: # both events recorded
         time_in_temp = check_ins[target]
         time_out_temp = check_outs[target]
@@ -389,22 +402,23 @@ def delete_entry(args:list[str]) -> None:
             iprint(f"This tag has both a check-in ({time_in_temp}) and "
                    f"a check-out ({time_out_temp}) recorded.")
             iprint("Do you want to delete (b)oth events, "
-                   "or just the check-(o)ut?")
+                   "or just the check-(o)ut?  ",end="")
             which_to_del = input(f"(b/o) {cfg.CURSOR}").lower()
         if which_to_del == 'b':
             if confirm == 'y': # pre-confirmation
                 sure = True
             else:
                 iprint("Are you sure you want to delete both events "
-                       f"for {target}? (y/N)")
+                       f"for {target}? ",end="")
                 sure = input(f"(y/N) {cfg.CURSOR}").lower() == 'y'
             if sure:
                 check_ins.pop(target)
                 check_outs.pop(target)
                 iprint(f"Deleted all records today for {target} "
-                       f"(in at {time_in_temp}, out at {time_out_temp}).")
+                       f"(in at {time_in_temp}, out at {time_out_temp})",
+                       style=cfg.TITLE_STYLE)
             else:
-                iprint("Cancelled deletion.")
+                iprint("Delete cancelled",style=cfg.WARN_STYLE)
 
         elif which_to_del == 'o': # selected to delete
             if confirm == 'y':
@@ -417,11 +431,12 @@ def delete_entry(args:list[str]) -> None:
             if sure:
                 time_temp = check_outs[target]
                 check_outs.pop(target)
-                iprint(f"Deleted today's {time_temp} check-out for {target}.")
+                iprint(f"Deleted today's {time_temp} check-out for {target}",
+                       style=cfg.TITLE_STYLE)
             else:
-                iprint("Cancelled deletion.")
+                iprint("Delete cancelled",style=cfg.WARN_STYLE)
         else:
-            iprint("Cancelled deletion.")
+            iprint("Delete cancelled",style=cfg.WARN_STYLE)
     else: # checked in only
         time_in_temp = check_ins[target]
         if which_to_del in ['b', False]:
@@ -429,36 +444,42 @@ def delete_entry(args:list[str]) -> None:
                 sure = True
             else: # check
                 iprint("This tag has only a check-in recorded. "
-                       "Are you sure you want to delete it? (y/N)")
+                       "Are you sure you want to delete it? ",end="")
                 sure = input(f"(y/N) {cfg.CURSOR}").lower() == 'y'
             if sure:
                 time_temp = check_ins[target]
                 check_ins.pop(target)
-                iprint(f"Deleted today's {time_temp} check-in for {target}.")
+                iprint(f"Deleted {time_temp} check-in for {target}",
+                       style=cfg.TITLE_STYLE)
             else:
-                iprint("Cancelled deletion.")
+                iprint("Delete cancelled",style=cfg.WARN_STYLE)
         else:#  which_to_del == 'o':
             iprint(f"{target} has only a check-in ({time_in_temp}) recorded; "
-                   "can't delete a nonexistent check-out.")
+                   "can't delete a nonexistent check-out",
+                   style=cfg.WARN_STYLE)
 
 def query_tag(args:list[str]) -> None:
     """Query the check in/out times of a specific tag."""
     target = (args + [None])[0]
     if not target: # only do dialog if no target passed
-        iprint("Which tag would you like to query?")
+        iprint("Which tag would you like to query? ",end="")
         target = input(f"(tag name) {cfg.CURSOR}").lower()
     fixed_target = fix_tag(target,must_be_available=True)
+    print()
     if not fixed_target:
-        iprint(f"Tag {target} is not available (retired, does not exist, etc).")
+        iprint(f"Tag {target} is not available (retired, does not exist, etc)",
+               style=cfg.WARN_STYLE)
         return
     elif fixed_target not in check_ins:
-        iprint(f"'{fixed_target}' isn't in today's records.")
+        iprint(f"Tag '{fixed_target}' not used yet today",style=cfg.WARN_STYLE)
         return
-    iprint(f"{fixed_target} checked IN at {check_ins[fixed_target]}")
+    iprint(f"{check_ins[fixed_target]}  {fixed_target} checked  IN",
+           style=cfg.TITLE_STYLE)
     if fixed_target in check_outs:
-        iprint(f"{fixed_target} returned OUT at {check_outs[fixed_target]}")
+        iprint(f"{check_outs[fixed_target]}  {fixed_target} returned OUT",
+               style=cfg.TITLE_STYLE)
     else:
-        iprint(f"{target} not returned out and is still on hand.")
+        iprint(f"(now)  {target} still at valet", style=cfg.TITLE_STYLE)
 
 def prompt_for_time(inp = False) -> bool or str:
     """Prompt for a time input if needed.
@@ -467,25 +488,25 @@ def prompt_for_time(inp = False) -> bool or str:
     24h time input from the user and return an HH:MM string.
     """
     if not inp:
-        iprint("What is the correct time for this event?")
-        iprint("Use 24-hour format, or 'now' to use "
-               f"the current time ({get_time()})")
-        inp = input(f"(HH:MM) {cfg.CURSOR}").lower()
-    if inp == 'now':
+        iprint("What is the correct time for this event? ", end="")
+        #iprint("Use 24-hour format, or 'now' to use "
+        #       f"the current time ({get_time()}) ",end="")
+        inp = input(f"(HHMM or 'now') {cfg.CURSOR}")
+    if inp.lower() == 'now':
         return get_time()
-    HHMM = fix_hhmm(inp)
-    if not HHMM:
+    hhmm = fix_hhmm(inp)
+    if not hhmm:
         return False
-    return HHMM
+    return hhmm
 
 def edit_entry(args:list[str]):
     """Perform Dialog to correct a tag's check in/out time."""
     (target, in_or_out, new_time) = (args + [None,None,None])[:3]
 
-    edit_syntax_message = ("Syntax: e <bike's tag> <in or out (i/o)> "
-            "<new time or 'now'>")
+    edit_syntax_message = text_style("Syntax: e <bike's tag> <in or out (i/o)> "
+            "<new time or 'now'>",cfg.WARN_STYLE)
     if not target:
-        iprint("Which bike's record do you want to edit?")
+        iprint("Which bike's record do you want to edit? ",end="")
         target = input(f"(tag ID) {cfg.CURSOR}").lower()
     elif not target in cfg.all_tags:
         iprint(edit_syntax_message)
@@ -494,42 +515,50 @@ def edit_entry(args:list[str]):
         if target in check_ins:
             if not in_or_out:
                 iprint("Do you want to change this bike's "
-                       "check-(i)n or check-(o)ut time?")
+                       "check-(i)n or check-(o)ut time? ",end="")
                 in_or_out = input(f"(i/o) {cfg.CURSOR}").lower()
                 if not in_or_out in ['i','o']:
                     iprint(f"'{in_or_out}' needs to be 'i' or 'o' "
-                           "(cancelled edit).")
+                           "(edit cancelled)", style=cfg.WARN_STYLE)
                     return False
             if not in_or_out in ['i','o']:
                 iprint(edit_syntax_message)
             else:
                 new_time = prompt_for_time(new_time)
-                if new_time == False:
-                    iprint('Invalid time entered (cancelled edit).')
+                if not new_time:
+                    iprint('Invalid time entered (edit cancelled)',
+                           style=cfg.WARN_STYLE)
                 elif in_or_out == 'i':
                     if (target in check_outs and
                             (time_str_to_minutes(new_time) >
                             time_str_to_minutes(check_outs[target]))):
-                        iprint("Can't set a check-IN later than a check-OUT;")
-                        iprint(f"{target} returned OUT at {check_outs[target]}")
+                        iprint("Can't set a check-IN later than a check-OUT;",
+                               style=cfg.WARN_STYLE)
+                        iprint(f"{target} was returned OUT at {check_outs[target]}",
+                               style=cfg.WARN_STYLE)
                     else:
                         iprint(f"Check-IN time for {target} "
-                               f"changed to {new_time}.")
+                               f"changed to {new_time}",style=cfg.TITLE_STYLE)
                         check_ins[target] = new_time
                 elif in_or_out == 'o':
                     if (time_str_to_minutes(new_time) <
                             time_str_to_minutes(check_ins[target])):
                         # don't check a tag out earlier than it checked in
-                        iprint("Can't set a check-OUT earlier than check-IN;")
-                        iprint(f"{target} checked IN at {check_ins[target]}")
+                        iprint("Can't set a check-OUT earlier than check-IN;",
+                               style=cfg.WARN_STYLE)
+                        iprint(f"{target} was checked IN at {check_ins[target]}",
+                               style=cfg.WARN_STYLE)
                     else:
                         iprint(f"Check-OUT time for {target} "
-                               f"changed to {new_time}.")
+                               f"changed to {new_time}",
+                               style=cfg.TITLE_STYLE)
                         check_outs[target] = new_time
         else:
-            iprint(f"{target} isn't in today's records (cancelled edit).")
+            iprint(f"{target} isn't in today's records (edit cancelled)",
+                   style=cfg.WARN_STYLE)
     else:
-        iprint(f"'{target}' isn't a valid tag (cancelled edit).")
+        iprint(f"'{target}' isn't a valid tag (edit cancelled)",
+               style=cfg.WARN_STYLE)
 
 def count_colours(inv:list[str]) -> str:
     """Return a string describing number of tags by colour.
@@ -573,7 +602,7 @@ def count_colours(inv:list[str]) -> str:
     return colour_count_str
 
 def tags_by_prefix(tags_dict:dict) -> dict:
-    """Rtn tag prefixes with list of associated tag numbers."""
+    """Rtn tag prefixes with list of associated tag numbers"""
 
     prefixes = {}
     for tag in tags_dict:
@@ -594,7 +623,7 @@ class Block():
     """
 
     def __init__(self, start_time:Union[str,int]) -> None:
-        """Initialize. Assumes that start_time is valid."""
+        """Initialize. Assumes that start_time is valid"""
         if isinstance(start_time,str):
             self.start = fix_hhmm(start_time)
         else:
@@ -623,7 +652,7 @@ class Block():
 
     @staticmethod
     def calc_blocks() -> dict:
-        """Create a dictionary of Blocks {start:Block} for whole day."""
+        """Create a dictionary of Blocks {start:Block} for whole day"""
         blocks = {}
         # Find earliest and latest block of the day
         min_block_min = Block.block_start(
@@ -659,7 +688,7 @@ def lookback(args:list[str]) -> None:
     If start_time is missing, starts one hour before end_time.
     """
     def format_one( time:str, tag:str, check_in:bool) -> str:
-        """Format one line of output."""
+        """Format one line of output"""
         in_tag = tag if check_in else ""
         out_tag = "" if check_in else tag
         #inout = "bike IN" if check_in else "returned OUT"
@@ -685,8 +714,10 @@ def lookback(args:list[str]) -> None:
             events.append( format_one(time, tag, False))
     # Print
     iprint()
-    iprint(f"Log of events from {start_time} to {end_time}:\n")
-    iprint("Time  BikeIn BikeOut")
+    iprint(f"Log of events from {start_time} to {end_time}:",
+            style=cfg.TITLE_STYLE)
+    print()
+    iprint("Time  BikeIn BikeOut",style=cfg.HIGHLIGHT_STYLE)
     for line in sorted(events):
         iprint(line)
 
@@ -787,15 +818,17 @@ def audit_report(args:list[str]) -> None:
     # Audit report header.
     print()
     if as_of_when == rightnow:
-        iprint(f"Audit report as at current time ({rightnow})")
+        title = f"Audit report as at current time ({rightnow})"
     elif as_of_when > rightnow:
-        iprint(f"Audit report guessing at future state (as at {as_of_when})")
+        title = f"Audit report guessing at future state (as at {as_of_when})"
     else:
-        iprint(f"Audit report for past state (as at {as_of_when})")
+        title = f"Audit report for past state (as at {as_of_when})"
+    iprint(text_style(title,style=cfg.TITLE_STYLE))
     print()
 
     # Audit summary section.
-    iprint("Summary             Regular Oversize Total")
+    iprint(text_style("Summary             Regular Oversize Total",
+           cfg.HIGHLIGHT_STYLE))
     iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}"
            f"    {sum_in:4d}")
     iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}"
@@ -810,7 +843,7 @@ def audit_report(args:list[str]) -> None:
     no_item_str = "  "  # what to show when there's no tag
     print()
     # Bikes returned out -- tags matrix.
-    iprint("Tags on bikes in valet:")
+    iprint(text_style(f"Bikes in valet at {as_of_when}:",cfg.HIGHLIGHT_STYLE))
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix.upper():3>} "
@@ -829,7 +862,7 @@ def audit_report(args:list[str]) -> None:
         bikes_out_title = (f"{bikes_out_title}{num} "
                 f"{cfg.colour_letters[colour_code].title()}, ")
     bikes_out_title = f"{bikes_out_title}{sum_out} Total)"
-    iprint(bikes_out_title)
+    iprint(text_style(bikes_out_title,cfg.HIGHLIGHT_STYLE))
     for prefix in sorted(prefixes_returned_out.keys()):
         numbers = prefixes_returned_out[prefix]
         line = f"{prefix.upper():3>} "
@@ -852,33 +885,33 @@ def tag_check(tag:str) -> None:
     else: # must not be retired so handle as normal
         if tag in check_ins:
             if tag in check_outs:# if tag has checked in & out
-                query_tag(tag)
+                query_tag([tag])
                 iprint(f"Overwrite {check_outs[tag]} check-out with "
-                       f"current time ({get_time()})? (y/N)")
+                       f"current time ({get_time()})? ",end="")
                 sure = input(f"(y/N) {cfg.CURSOR}") == 'y'
                 if sure:
                     edit_entry([tag, 'o', get_time()])
                 else:
-                    iprint("Cancelled")
+                    iprint("Cancelled",style=cfg.WARN_STYLE)
             else:# checked in only
                 now_mins = time_str_to_minutes(get_time())
                 check_in_mins = time_str_to_minutes(check_ins[tag])
                 time_diff_mins = now_mins - check_in_mins
                 if time_diff_mins < cfg.CHECK_OUT_CONFIRM_TIME: # if < 1/2 hr
                     iprint("This bike checked in at "
-                           f"{check_ins[tag]} ({time_diff_mins} mins ago).")
-                    iprint("Do you want to check it out? (Y/n)")
+                           f"{check_ins[tag]} ({time_diff_mins} mins ago)")
+                    iprint("Do you want to check it out? ",end="")
                     sure = input(f"(Y/n) {cfg.CURSOR}").lower() in ['', 'y']
                 else: # don't check for long stays
                     sure = True
                 if sure:
                     check_outs[tag] = get_time()# check it out
-                    iprint(f"**{tag} returned OUT**")
+                    iprint(f"{tag} returned OUT",style=cfg.TITLE_STYLE)
                 else:
-                    iprint("Cancelled return bike out")
+                    iprint("Cancelled return bike out",style=cfg.WARN_STYLE)
         else:# if string is in neither dict
             check_ins[tag] = get_time()# check it in
-            iprint(f"{tag} checked IN")
+            iprint(f"{tag} checked IN",style=cfg.TITLE_STYLE)
 
 def parse_command(user_input:str) -> list[str]:
     """Parse user's input into list of [tag] or [command, command args].
@@ -914,7 +947,7 @@ def main():
     """Run main program loop and dispatcher."""
     done = False
     while not done:
-        user_str = input(f"\nBike tag or command {cfg.CURSOR}")
+        user_str = input(text_style(f"\nBike tag or command {cfg.CURSOR}",cfg.PROMPT_STYLE))
         tokens = parse_command(user_str)
         if not tokens:
             continue        # No input, ignore
@@ -946,8 +979,8 @@ def main():
             case cfg.CMD_STATS:
                 show_stats()
             case cfg.CMD_UNKNOWN:
-                iprint("Unrecognized tag or command.")
-                iprint("Enter 'h' for help.")
+                iprint("Unrecognized tag or command")
+                iprint("Enter 'h' for help")
             case _:
                 # This is a tag
                 tag_check(cmd)
@@ -983,6 +1016,10 @@ def do_edit(args:list[str]):
 
 # STARTUP
 if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
+
+    # Make colours reset after every print statement
+    colorama.init(autoreset=True)
+
     check_ins = {}
     check_outs = {}
 
@@ -993,10 +1030,10 @@ if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
     if read_tags(): # only run main() if tags read successfully
         main()
     else: # if read_tags() problem
-        print(f"\n{cfg.INDENT}Closing automatically in 30 seconds...")
+        print(f"\n{cfg.INDENT}Closing automatically in 30 seconds..")
         time.sleep(30)
 else:
-    print(f"\n{cfg.INDENT}Closing automatically in 30 seconds...")
+    print(f"\n{cfg.INDENT}Closing automatically in 30 seconds..")
     time.sleep(30)
 #==========================================
 

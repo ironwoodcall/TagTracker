@@ -2,6 +2,7 @@
 
 import os
 import re
+import colorama
 
 # Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
 LOG_BASENAME = "cityhall_"
@@ -24,7 +25,16 @@ CHECK_OUT_CONFIRM_TIME = 30 # mins
 
 # Style preferences
 INDENT = '  '
-CURSOR = '>>> '
+CURSOR = ">>> "
+# Styles related to colour
+STYLE={}
+STYLE[PROMPT_STYLE := "prompt_style"] = f"{colorama.Style.BRIGHT}{colorama.Fore.GREEN}{colorama.Back.BLACK}"
+STYLE[TITLE_STYLE := "title_style"] = f"{colorama.Style.NORMAL}{colorama.Fore.WHITE}{colorama.Back.BLUE}"
+STYLE[NORMAL_STYLE := "normal_style"] = f"{colorama.Style.RESET_ALL}"
+STYLE[RESET_STYLE := "reset_style"] = f"{colorama.Style.RESET_ALL}"
+STYLE[HIGHLIGHT_STYLE := "highlight_style"] = (
+        f"{colorama.Style.BRIGHT}{colorama.Fore.CYAN}{colorama.Back.BLACK}")
+STYLE[WARN_STYLE := "warn_style"] = f"{colorama.Style.BRIGHT}{colorama.Fore.RED}{colorama.Back.BLACK}"
 
 # Command keys and aliases.
 COMMANDS = {}
