@@ -28,13 +28,26 @@ INDENT = '  '
 CURSOR = ">>> "
 # Styles related to colour
 STYLE={}
-STYLE[PROMPT_STYLE := "prompt_style"] = f"{colorama.Style.BRIGHT}{colorama.Fore.GREEN}{colorama.Back.BLACK}"
-STYLE[TITLE_STYLE := "title_style"] = f"{colorama.Style.NORMAL}{colorama.Fore.WHITE}{colorama.Back.BLUE}"
-STYLE[NORMAL_STYLE := "normal_style"] = f"{colorama.Style.RESET_ALL}"
-STYLE[RESET_STYLE := "reset_style"] = f"{colorama.Style.RESET_ALL}"
+STYLE[PROMPT_STYLE := "prompt_style"] = (
+        f"{colorama.Style.BRIGHT}{colorama.Fore.GREEN}{colorama.Back.BLACK}")
+STYLE[SUBPROMPT_STYLE := "subprompt_style"] = (
+        f"{colorama.Style.NORMAL}{colorama.Fore.GREEN}{colorama.Back.BLACK}")
+STYLE[ANSWER_STYLE := "answer_style"] = (
+        f"{colorama.Style.NORMAL}{colorama.Fore.WHITE}{colorama.Back.BLUE}")
+STYLE[TITLE_STYLE := "title_style"] = (
+        f"{colorama.Style.BRIGHT}{colorama.Fore.WHITE}{colorama.Back.BLUE}")
+STYLE[SUBTITLE_STYLE := "subtitle_style"] = (
+        f"{colorama.Style.NORMAL}{colorama.Fore.WHITE}{colorama.Back.BLUE}")
+STYLE[NORMAL_STYLE := "normal_style"] = (
+        f"{colorama.Style.RESET_ALL}")
+STYLE[RESET_STYLE := "reset_style"] = (
+        f"{colorama.Style.RESET_ALL}")
 STYLE[HIGHLIGHT_STYLE := "highlight_style"] = (
         f"{colorama.Style.BRIGHT}{colorama.Fore.CYAN}{colorama.Back.BLACK}")
-STYLE[WARN_STYLE := "warn_style"] = f"{colorama.Style.BRIGHT}{colorama.Fore.RED}{colorama.Back.BLACK}"
+STYLE[WARN_STYLE := "warn_style"] = (
+        f"{colorama.Style.BRIGHT}{colorama.Fore.RED}{colorama.Back.BLACK}")
+STYLE[ERROR_STYLE := "error_style"] = (
+        f"{colorama.Style.BRIGHT}{colorama.Fore.WHITE}{colorama.Back.RED}")
 
 # Command keys and aliases.
 COMMANDS = {}

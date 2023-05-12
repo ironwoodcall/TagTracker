@@ -4,9 +4,8 @@ import os
 import time
 import re
 import pathlib
-import colorama
 from typing import Tuple,Union
-
+import colorama
 import TrackerConfig as cfg
 
 def get_date() -> str:
@@ -98,7 +97,8 @@ def text_style(text:str, style=None) -> str:
     if not style:
         style = cfg.NORMAL_STYLE
     if style not in cfg.STYLE:
-        print(f"*** PROGRAM ERROR: Unknown style '{style}' ***")
+        iprint(f"*** PROGRAM ERROR: Unknown style '{style}' ***",
+               style=cfg.ERROR_STYLE)
         return "!!!???"
     return f"{cfg.STYLE[style]}{text}{cfg.STYLE[cfg.RESET_STYLE]}"
 
@@ -1014,12 +1014,21 @@ def do_edit(args:list[str]):
    (etc)
 '''
 
+def error_exit() -> None:
+    """If an error has occurred, give a message and shut down.
+
+    Any specific info about the error should already have been printed."""
+    print()
+    iprint("Closing in 30 seconds",style=cfg.ERROR_STYLE)
+    time.sleep(30)
+    exit()
+
 # STARTUP
 if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
 
-    # Make colours reset after every print statement
-    colorama.init(autoreset=True)
-
+    # These are the master dictionaries for tag status.
+    #   key = canonical tag id (e.g. "wf4")
+    #   value = ISO8601 event time (e.g. "08:43" as str)
     check_ins = {}
     check_outs = {}
 
@@ -1030,11 +1039,9 @@ if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
     if read_tags(): # only run main() if tags read successfully
         main()
     else: # if read_tags() problem
-        print(f"\n{cfg.INDENT}Closing automatically in 30 seconds..")
-        time.sleep(30)
+        error_exit()
 else:
-    print(f"\n{cfg.INDENT}Closing automatically in 30 seconds..")
-    time.sleep(30)
+    error_exit()
 #==========================================
 
 # possible data structures for (new) reports
