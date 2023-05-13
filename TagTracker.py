@@ -4,6 +4,7 @@ import os
 import time
 import re
 import pathlib
+import statistics
 from typing import Tuple,Union
 import TrackerConfig as cfg
 
@@ -23,7 +24,7 @@ def get_time() -> str:
     now = time.asctime(time.localtime())[11:16]
     return now
 
-def time_as_int(maybe_time:Union[str,int]) -> Union[int,None]:
+def time_as_int(maybe_time:Union[str,int,float,None]) -> Union[int,None]:
     """Return maybe_time (str or int) to number of minutes since midnight or "".
 
         Input can be int (minutes since midnight) or a string
@@ -37,6 +38,8 @@ def time_as_int(maybe_time:Union[str,int]) -> Union[int,None]:
     might be a legitimate time, test for the type of the return or
     test whether "is None".
     """
+    if isinstance(maybe_time,float):
+        maybe_time = round(maybe_time)
     if isinstance(maybe_time,str):
         if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)):
             return None
@@ -51,12 +54,14 @@ def time_as_int(maybe_time:Union[str,int]) -> Union[int,None]:
         if not (0 <= maybe_time <= 1440):
             return None
         return maybe_time
-    # Not an int, not a str.
+    if maybe_time is None:
+        return None
+    # Not an int, not a str, not None.
     print(text_style(f"PROGRAM ERROR: called time_as_int({maybe_time=})",
             style=cfg.ERROR_STYLE))
     return None
 
-def time_as_str(maybe_time:Union[int,str]) -> str:
+def time_as_str(maybe_time:Union[int,str,float,None]) -> str:
     """Return inp (wich is str or int) to HH:MM, or "".
 
     Input can be int (minutes since midnight) or a string
@@ -65,6 +70,8 @@ def time_as_str(maybe_time:Union[int,str]) -> str:
     Return is either "" (doesn't look like a valid time) or
     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
     """
+    if isinstance(maybe_time,float):
+        maybe_time = round(maybe_time)
     if isinstance(maybe_time,str):
         if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)):
             return ""
@@ -73,6 +80,8 @@ def time_as_str(maybe_time:Union[int,str]) -> str:
         # Test for an impossible time
         if h > 24 or m > 59 or (h * 60 + m) > 1440:
             return ""
+    elif maybe_time is None:
+        return ""
     elif not isinstance(maybe_time,int):
         print(text_style(f"PROGRAM ERROR: called time_as_str({maybe_time=})",
                 style=cfg.ERROR_STYLE))
@@ -158,6 +167,37 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
     if style:
         text = text_style(text,style=style)
     print(f"{cfg.INDENT * num_indents}{text}",end=end)
+
+def earliest_event() -> str:
+    """Return the earliest event of the day as HH:MM (or "" if none)."""
+        # Find earliest and latest block of the day
+    all_events = list(check_ins.keys()) + list(check_outs.keys())
+    if not all_events:
+        return ""
+    return min(all_events)
+
+def latest_event( as_of_when:Union[str,int,None]=None ) -> str:
+    """Return the latest event of the day at or before as_of_when.
+
+    If no events in the time period, return "".
+    If as_of_when is blank or None, then this will use the whole day.
+    FIXME: check that this is the right choice. Would it be better to
+    go only up to the current moment?
+    """
+    if not as_of_when:
+        as_of_when = "24:00"
+    elif not (as_of_when := time_as_str(as_of_when)):
+        return ""
+
+    events = [x for x in
+            (list(check_ins.values()) + list(check_outs.values()))
+            if x <= as_of_when]
+    # Anything?
+    if not events:
+        return ""
+    # Find earliest and latest block of the day
+    latest = max(events)
+    return latest
 
 def read_tags() -> bool:
     """Fetch tag data from file.
@@ -285,6 +325,186 @@ def write_tags() -> None:
         for line in lines:
             f.write(line)
             f.write('\n')
+
+class Visit():
+    def __init__(self, tag:str) -> None:
+        self.tag = tag      # canonical
+        self.time_in = ""   # HH:MM
+        self.time_out = ""  # HH:MM
+        self.duration = 0   # minutes
+        self.type = None    # cfg.REGULAR, cfg.OVERSIZE
+        self.still_here = None  # True or False
+
+    @staticmethod
+    def calc_visits( as_of_when:Union[int,str]=None ) -> dict:
+        """Create a dict of visits keyed by tag as of as_of_when.
+
+        If as_of_when is not given, then this will choose the latest
+        check-out time of the day as its time.
+
+        As a special case, this will also accept the word "now" to
+        mean the current time.
+        """
+        if isinstance(as_of_when,str) and as_of_when.lower() == "now":
+            as_of_when = get_time()
+        elif as_of_when is None:
+            # Set as_of_when to be the time of the latest checkout of the day.
+            if check_ins:
+                as_of_when = min(list(check_ins.values()))
+            else:
+                as_of_when = get_time()
+        as_of_when = time_as_str(as_of_when)
+        visits = {}
+        for tag,time_in in check_ins.items():
+            if time_in > as_of_when:
+                continue
+            this_visit = Visit(tag)
+            this_visit.time_in = time_in
+            if tag in check_outs and check_outs[tag] <= as_of_when:
+                this_visit.time_out = check_outs[tag]
+                this_visit.still_here = False
+            else:
+                this_visit.time_out = as_of_when
+                this_visit.still_here = False
+            this_visit.duration = max(1,
+                    (time_as_int(this_visit.time_out) -
+                    time_as_int(this_visit.time_in)))
+            if tag in cfg.normal_tags:
+                this_visit.type = cfg.REGULAR
+            else:
+                this_visit.type = cfg.OVERSIZE
+            visits[tag] = this_visit
+        return visits
+
+def bike_check_ins_report( as_of_when:str ) -> None:
+    """Print the check-ins count part of the summary statistics.
+
+    as_of_when is HH:MM time, assumed to be a correct time.
+    """
+    # Find the subset of check-ins at or before our cutoff time.
+    these_check_ins = {}
+    for tag,time in check_ins.items():
+        if time <= as_of_when:
+            these_check_ins[tag] = time
+    # Summary stats
+    num_still_here = len(set(these_check_ins.keys()) -
+        set([x for x in check_outs if check_outs[x] <= as_of_when]))
+    num_bikes_ttl = len(these_check_ins)
+    these_checkins_am = [x for x in these_check_ins if these_check_ins[x] < "12:00"]
+    num_bikes_am = len(these_checkins_am)
+    num_bikes_regular = len(
+            [x for x in these_check_ins if x in cfg.normal_tags])
+    num_bikes_oversize = len(
+            [x for x in these_check_ins if x in cfg.oversize_tags])
+
+    print()
+    iprint(f"Total bikes in:  {num_bikes_ttl:4d}")
+    iprint(f"AM bikes in:     {num_bikes_am:4d}")
+    iprint(f"PM bikes in:     {(num_bikes_ttl - num_bikes_am):4d}")
+    iprint(f"Regular in:      {num_bikes_regular:4d}")
+    iprint(f"Oversize in:     {num_bikes_oversize:4d}")
+    iprint(f"Bikes still here:{num_still_here:4d}")
+
+def visit_lengths_by_category_report(visits:dict) -> None:
+    """Report number of visits in different length categories."""
+
+    def one_range(lower:float=None, upper:float=None) -> None:
+        """Calculate and print visits in range lower:upper.
+
+        If lower is missing, uses anything below upper
+        If upper is missing, uses anything above lower
+        """
+        noun = cfg.VISIT_NOUN.title()
+        if not lower and not upper:
+            iprint(f"PROGRAM ERROR: called one_range(lower='{lower}',"
+                   f"upper='{upper}')",style=cfg.ERROR_STYLE)
+            return None
+        if not lower:
+            header = f"{noun}s < {upper:3.1f}h:"
+            lower = 0
+        elif not upper:
+            header = f"{noun}s >= {lower:3.1f}h:"
+            upper = 999
+        else:
+            header = f"{noun}s {lower:3.1f}-{upper:3.1f}h:"
+        # Count visits in this time range.
+        num = 0
+        for v in visits.values():
+            if v.duration >= lower*60 and v.duration < upper*60:
+                num += 1
+        iprint(f"{header:17s}{num:4d}")
+
+    print()
+    prev_boundary = None
+    for boundary in cfg.VISIT_CATEGORIES:
+        one_range(lower=prev_boundary,upper=boundary)
+        prev_boundary = boundary
+    one_range(lower=prev_boundary,upper=None)
+
+def visit_statistics_report(visits:dict) -> None:
+    """Max, min, mean, median, mode of visits."""
+    noun = cfg.VISIT_NOUN.lower()
+
+    def one_line( key:str, value:str ) -> None:
+        """Print one line."""
+        iprint(f"{key:16s}{value}", style=cfg.NORMAL_STYLE)
+
+    def visits_mode(durations_list:list[int]) -> None:
+        """Prints the mode info."""
+        # Find the mode value(s), with visit durations rounded
+        # to nearest ROUND_TO_NEAREST time.
+
+        rounded = [round(x/cfg.MODE_ROUND_TO_NEAREST)*cfg.MODE_ROUND_TO_NEAREST
+                for x in durations_list]
+        modes_str = ",".join([time_as_str(x) for x in statistics.multimode( rounded )])
+        modes_str = (f"{modes_str}  ({cfg.VISIT_NOUN.lower()}s "
+                f"rounded to {cfg.MODE_ROUND_TO_NEAREST} minute blocks)")
+        one_line(f"Mode {cfg.VISIT_NOUN}:", modes_str)
+
+    # Make a dict of stay-lengths with list tags (for longest/shortest).
+    duration_tags = {}
+    for tag,v in visits.items():
+        dur = v.duration
+        if dur not in duration_tags:
+            duration_tags[dur] = []
+        duration_tags[dur].append(tag)
+    if not duration_tags:
+        return  # No durations
+    print()
+    longest = max(list(duration_tags.keys()))
+    long_tags = ",".join(duration_tags[longest])
+    one_line(f"Longest {noun}:", f"{time_as_str(longest)}  (tag(s): {long_tags})")
+    shortest = min(list(duration_tags.keys()))
+    short_tags = ",".join(duration_tags[shortest])
+    # Make a list of stay-lengths (for mean, median, mode)
+    durations_list = [x.duration for x in visits.values()]
+    one_line(f"Shortest {noun}:", f"{time_as_str(shortest)}  (tag(s): {short_tags})")
+    one_line( f"Mean {noun}:", time_as_str(statistics.mean(durations_list)))
+    one_line( f"Median {noun}:", time_as_str(statistics.median(list(duration_tags.keys()))))
+    visits_mode(durations_list)
+
+def day_end_report( args:list ) -> None:
+    """Reports summary statistics about visits, up to the given time.
+
+    If not time given, calculates as of latest checkin/out of the day.
+    """
+    as_of_when = (args + [None])[0]
+    if not as_of_when:
+        as_of_when = latest_event(as_of_when)
+    elif not (as_of_when := time_as_str(as_of_when)):
+        iprint(f"Unrecognized time passed to visits summary ({args[0]})",
+               style=cfg.WARNING_STYLE)
+        return
+    print()
+    iprint(f"Summary statistics as at {as_of_when}",style=cfg.TITLE_STYLE)
+    # Bikes in, in various categories.
+    bike_check_ins_report(as_of_when)
+    # Stats that use visits (stays)
+    visits = Visit.calc_visits(as_of_when)
+    visit_lengths_by_category_report(visits)
+    visit_statistics_report(visits)
+
+    print()
 
 def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
     """Make dict of tags with their stay duration in minutes.
@@ -980,7 +1200,7 @@ def audit_report(args:list[str]) -> None:
     no_item_str = "  "  # what to show when there's no tag
     print()
     # Bikes returned out -- tags matrix.
-    iprint(f"Bikes in valet at {as_of_when}:",style=cfg.SUBTITLE_STYLE)
+    iprint(f"Bikes still in valet at {as_of_when}:",style=cfg.SUBTITLE_STYLE)
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix.upper():3>} "
@@ -1120,6 +1340,8 @@ def main():
                 query_tag(args)
             case cfg.CMD_STATS:
                 show_stats()
+            case cfg.CMD_NEW_STATS:
+                day_end_report(args)
             case cfg.CMD_UNKNOWN:
                 print()
                 iprint("Unrecognized tag or command, enter 'h' for help",
@@ -1265,55 +1487,4 @@ Data Entry report (events listed by time block)
             cfg.BIKE_OUT: [list of tags]
 
 """
-
-class Visit():
-    def __init__(self, tag:str) -> None:
-        self.tag = tag      # canonical
-        self.time_in = ""   # HH:MM
-        self.time_out = ""  # HH:MM
-        self.duration = 0   # minutes
-        self.type = None    # cfg.REGULAR, cfg.OVERSIZE
-        self.still_here = None  # True or False
-
-    @staticmethod
-    def count_visits( as_of_when:Union[int,str]=None ) -> dict:
-        """Create a dict of visits keyed by tag as of as_of_when.
-
-        If as_of_when is not given, then this will choose the latest
-        check-out time of the day as its time.
-
-        As a special case, this will also accept the word "now" to
-        mean the current time.
-        """
-        if isinstance(as_of_when,str) and as_of_when.lower() == "now":
-            as_of_when = get_time()
-        elif as_of_when is None:
-            # Set as_of_when to be the time of the latest checkout of the day.
-            if check_ins:
-                as_of_when = min(list(check_ins.values()))
-            else:
-                as_of_when = get_time()
-        as_of_when = time_as_str(as_of_when)
-        visits = {}
-        for tag,time_in in check_ins.items():
-            if time_in > as_of_when:
-                continue
-            this_visit = Visit(tag)
-            this_visit.time_in = time_in
-            if tag in check_outs and check_outs[tag] <= as_of_when:
-                this_visit.time_out = check_outs[tag]
-                this_visit.still_here = False
-            else:
-                this_visit.time_out = as_of_when
-                this_visit.still_here = False
-            this_visit.duration = (time_as_int(this_visit.time_out) -
-                    time_as_int(this_visit.time_in))
-            if tag in cfg.normal_tags:
-                this_visit.type = cfg.REGULAR
-            else:
-                this_visit.type = cfg.OVERSIZE
-            visits[tag] = this_visit
-        return visits
-
-# FIXME: here's where I am in editing. - tevpg
 
