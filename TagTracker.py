@@ -4,6 +4,7 @@ import os
 import time
 import re
 import pathlib
+import colorama
 from typing import Tuple,Union
 import TrackerConfig as cfg
 
@@ -876,8 +877,8 @@ def audit_report(args:list[str]) -> None:
     print()
 
     # Audit summary section.
-    iprint(text_style("Summary             Regular Oversize Total",
-           cfg.SUBTITLE_STYLE))
+    iprint("Summary             Regular Oversize Total",
+           style=cfg.SUBTITLE_STYLE)
     iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}"
            f"    {sum_in:4d}")
     iprint(f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}"
@@ -893,7 +894,7 @@ def audit_report(args:list[str]) -> None:
     no_item_str = "  "  # what to show when there's no tag
     print()
     # Bikes returned out -- tags matrix.
-    iprint(f"Bikes in valet at {as_of_when}:",cfg.SUBTITLE_STYLE)
+    iprint(f"Bikes in valet at {as_of_when}:",style=cfg.SUBTITLE_STYLE)
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix.upper():3>} "
@@ -912,7 +913,7 @@ def audit_report(args:list[str]) -> None:
         bikes_out_title = (f"{bikes_out_title}{num} "
                 f"{cfg.colour_letters[colour_code].title()}, ")
     bikes_out_title = f"{bikes_out_title}{sum_out} Total)"
-    iprint(bikes_out_title,cfg.SUBTITLE_STYLE)
+    iprint(bikes_out_title,style=cfg.SUBTITLE_STYLE)
     for prefix in sorted(prefixes_returned_out.keys()):
         numbers = prefixes_returned_out[prefix]
         line = f"{prefix.upper():3>} "

@@ -2,6 +2,7 @@
 
 import os
 import re
+import colorama
 
 # Use colour in the program?
 USE_COLOUR = True
