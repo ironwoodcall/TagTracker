@@ -4,7 +4,6 @@ import os
 import time
 import re
 import pathlib
-import colorama
 from typing import Tuple,Union
 import TrackerConfig as cfg
 
@@ -24,19 +23,66 @@ def get_time() -> str:
     now = time.asctime(time.localtime())[11:16]
     return now
 
-def fix_hhmm(inp:str) -> str:
-    """Convert a string that might be a time to HH:MM (or to "").
+def time_as_int(maybe_time:Union[str,int]) -> int:
+    """Return maybe_time (str or int) to number of minutes since midnight or "".
+
+        Input can be int (minutes since midnight) or a string
+    that might be a time in HH:MM.
+
+    Return is either None (doesn't look like a valid time) or
+    will be an integer between 0 and 1440.
+
+    Warning: edge case: if given "00:00" or 0, this will return 0,
+    which can test as False in a boolean argument.  In cases where 0
+    might be a legitimate time, test for the type of the return or
+    test whether "is None".
+    """
+    if isinstance(maybe_time,str):
+        if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)):
+            return None
+        h = int(r.group(1))
+        m = int(r.group(2))
+        # Test for an impossible time
+        if h > 24 or m > 59 or (h * 60 + m) > 1440:
+            return None
+        return h * 60 + m
+    if isinstance(maybe_time,int):
+        # Test for impossible time.
+        if not (0 <= maybe_time <= 1440):
+            return None
+        return maybe_time
+    # Not an int, not a str.
+    print(text_style(f"PROGRAM ERROR: called time_as_int({maybe_time=})",
+            style=cfg.ERROR_STYLE))
+    return None
+
+def time_as_str(maybe_time:Union[int,str]) -> str:
+    """Return inp (wich is str or int) to HH:MM, or ""
+
+    Input can be int (minutes since midnight) or a string
+    that might be a time in HH:MM.
 
     Return is either "" (doesn't look like a valid time) or
     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
     """
-    if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", inp)):
+    if isinstance(maybe_time,str):
+        if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)):
+            return ""
+        h = int(r.group(1))
+        m = int(r.group(2))
+        # Test for an impossible time
+        if h > 24 or m > 59 or (h * 60 + m) > 1440:
+            return ""
+    elif not isinstance(maybe_time,int):
+        print(text_style(f"PROGRAM ERROR: called time_as_str({maybe_time=})",
+                style=cfg.ERROR_STYLE))
         return ""
-    h = int(r.group(1))
-    m = int(r.group(2))
-    # Test for a possible time
-    if h > 23 or m > 59:
-        return ""
+    elif isinstance(maybe_time,int):
+        # Test for impossible time.
+        if not (0 <= maybe_time <= 1440):
+            return ""
+        h = maybe_time // 60
+        m = maybe_time % 60
     # Return 5-digit time string
     return f"{h:02d}:{m:02d}"
 
@@ -165,7 +211,7 @@ def read_tags() -> bool:
                         style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
-            if not (this_time := fix_hhmm(cells[1])):
+            if not (this_time := time_as_str(cells[1])):
                 iprint("Time value poorly formed in file"
                         f" {logfilename} line {line_num}",
                         style=cfg.ERROR_STYLE)
@@ -240,21 +286,6 @@ def write_tags() -> None:
             f.write(line)
             f.write('\n')
 
-def time_str_to_minutes(hhmm:str) -> int:
-    """Convert time string HH:MM to number of minutes."""
-    cells = hhmm.split(':')
-    hrs = int(cells[0])
-    mins = int(cells[1])
-    mins += hrs * 60
-    return mins
-
-def minutes_to_time_str(time_in_minutes:int) -> str:
-    """Convert a time in minutes to a HH:MM string."""
-    hours_portion = time_in_minutes // 60
-    minutes_portion = time_in_minutes - 60*hours_portion
-    time_as_text = f"{hours_portion}:{minutes_portion:02d}"
-    return time_as_text
-
 def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
     """Make dict of tags with their stay duration in minutes.
 
@@ -262,12 +293,12 @@ def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
     but not returned out.  If False, only bikes returned out.
     """
 
-    timenow = time_str_to_minutes(get_time())
+    timenow = time_as_int(get_time())
     tag_durations = {}
     for tag,in_str in check_ins.items():
-        in_minutes = time_str_to_minutes(in_str)
+        in_minutes = time_as_int(in_str)
         if tag in check_outs:
-            out_minutes = time_str_to_minutes(check_outs[tag])
+            out_minutes = time_as_int(check_outs[tag])
             tag_durations[tag] = out_minutes-in_minutes
         elif include_bikes_on_hand:
             tag_durations[tag] = timenow - in_minutes
@@ -290,11 +321,11 @@ def calc_stays() -> list[int]:
     stays = []
     tags = []
     for tag in check_ins:
-        time_in = time_str_to_minutes(check_ins[tag])
+        time_in = time_as_int(check_ins[tag])
         if tag in check_outs:
-            time_out = time_str_to_minutes(check_outs[tag])
+            time_out = time_as_int(check_outs[tag])
         else:
-            time_out = time_str_to_minutes(get_time())
+            time_out = time_as_int(get_time())
         stay = max(time_out - time_in,1)    # If zero just call it one minute.
         stays.append(stay)
         tags.append(tag) # add to list of tags in same order for next step
@@ -393,13 +424,13 @@ def show_stats():
         iprint(f"Stays {hrs_under}-{hrs_over}h: {medium_stays:3d}")
         iprint(f"Stays > {hrs_over}h:   {long_stays:3d}")
         print()
-        iprint(f"Max stay:     {minutes_to_time_str(max_stay):>5}   "
+        iprint(f"Max stay:     {time_as_str(max_stay):>5}   "
                f"[tag(s) {longest_stay_tags_str}]")
-        iprint(f"Min stay:     {minutes_to_time_str(min_stay):>5}   "
+        iprint(f"Min stay:     {time_as_str(min_stay):>5}   "
                f"[tag(s) {shortest_stay_tags_str}]")
-        iprint(f"Mean stay:    {minutes_to_time_str(mean):>5}")
-        iprint(f"Median stay:  {minutes_to_time_str(median):>5}")
-        iprint(f"Mode stay:    {minutes_to_time_str(mode):>5} "
+        iprint(f"Mean stay:    {time_as_str(mean):>5}")
+        iprint(f"Median stay:  {time_as_str(median):>5}")
+        iprint(f"Mode stay:    {time_as_str(mode):>5} "
                f"by {count} bike(s)  [{cfg.MODE_ROUND_TO_NEAREST} minute "
                "blocks]")
 
@@ -453,8 +484,8 @@ def delete_entry(args:list[str]) -> None:
             if sure:
                 check_ins.pop(target)
                 check_outs.pop(target)
-                iprint(f"Deleted all records today for {target} "
-                       f"(in at {time_in_temp}, out at {time_out_temp})",
+                iprint(f"Deleted {target} from today's records "
+                       f"(was in at {time_in_temp}, out at {time_out_temp})",
                        style=cfg.ANSWER_STYLE)
             else:
                 iprint("Delete cancelled",style=cfg.WARNING_STYLE)
@@ -465,7 +496,7 @@ def delete_entry(args:list[str]) -> None:
             else:
                 iprint("Are you sure you want to delete the "
                        f"check-out record for {target}? (y/N) {cfg.CURSOR}",
-                       style=cfg.SUBPROMPT_STYLE )
+                       style=cfg.SUBPROMPT_STYLE, end="" )
                 sure = input().lower() == 'y'
 
             if sure:
@@ -539,7 +570,7 @@ def prompt_for_time(inp = False) -> bool or str:
         inp = input()
     if inp.lower() == 'now':
         return get_time()
-    hhmm = fix_hhmm(inp)
+    hhmm = time_as_str(inp)
     if not hhmm:
         return False
     return hhmm
@@ -577,19 +608,19 @@ def edit_entry(args:list[str]):
                            style=cfg.WARNING_STYLE)
                 elif in_or_out == 'i':
                     if (target in check_outs and
-                            (time_str_to_minutes(new_time) >
-                            time_str_to_minutes(check_outs[target]))):
+                            (time_as_int(new_time) >
+                            time_as_int(check_outs[target]))):
                         iprint("Can't set a check-IN later than a check-OUT;",
                                style=cfg.WARNING_STYLE)
                         iprint(f"{target} was returned OUT at {check_outs[target]}",
                                style=cfg.WARNING_STYLE)
                     else:
                         iprint(f"Check-IN time for {target} "
-                               f"changed to {new_time}",style=cfg.ANSWER_STYLE)
+                               f"set to {new_time}",style=cfg.ANSWER_STYLE)
                         check_ins[target] = new_time
                 elif in_or_out == 'o':
-                    if (time_str_to_minutes(new_time) <
-                            time_str_to_minutes(check_ins[target])):
+                    if (time_as_int(new_time) <
+                            time_as_int(check_ins[target])):
                         # don't check a tag out earlier than it checked in
                         iprint("Can't set a check-OUT earlier than check-IN;",
                                style=cfg.WARNING_STYLE)
@@ -597,7 +628,7 @@ def edit_entry(args:list[str]):
                                style=cfg.WARNING_STYLE)
                     else:
                         iprint(f"Check-OUT time for {target} "
-                               f"changed to {new_time}",
+                               f"set to {new_time}",
                                style=cfg.ANSWER_STYLE)
                         check_outs[target] = new_time
         else:
@@ -668,13 +699,12 @@ class Block():
 
     Each instance is a timeblock of duration cfg.BLOCK_DURATION.
     """
-
     def __init__(self, start_time:Union[str,int]) -> None:
         """Initialize. Assumes that start_time is valid"""
         if isinstance(start_time,str):
-            self.start = fix_hhmm(start_time)
+            self.start = time_as_str(start_time)
         else:
-            self.start = fix_hhmm(minutes_to_time_str(start_time))
+            self.start = time_as_str(start_time)
         self.ins_list = []      # Tags of bikes that came in.
         self.outs_list = []     # Tags of bikes returned out.
         self.num_ins = 0        # Number of bikes that came in.
@@ -690,32 +720,74 @@ class Block():
         Returns HHMM unless as_number is True, in which case returns int.
         """
         # Get time in minutes
-        time = time_str_to_minutes(time) if isinstance(time,str) else time
+        time = time_as_int(time) if isinstance(time,str) else time
         # which block of time does it fall in?
         block_start_min = (time // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
         if as_number:
             return block_start_min
-        return fix_hhmm(minutes_to_time_str(block_start_min))
+        return time_as_str(block_start_min)
 
     @staticmethod
-    def calc_blocks() -> dict:
-        """Create a dictionary of Blocks {start:Block} for whole day"""
-        blocks = {}
+    def block_end(time:Union[int,str], as_number:bool=False) -> Union[str,int]:
+        """Return the last minute of the timeblock that contains time 'time'.
+
+        'time' can be minutes since midnight or HHMM.
+        Returns HHMM unless as_number is True, in which case returns int.
+        """
+        # Get block start
+        start = Block.block_start(time, as_number=True)
+        # Calculate block end
+        end = start + cfg.BLOCK_DURATION - 1
+        # Return as minutes or HHMM
+        if as_number:
+            return end
+        return time_as_str(end)
+
+    @staticmethod
+    def timeblock_list( as_of_when:str=None ) -> list[str]:
+        """Build a list of timeblocks from beg of day until as_of_when.
+
+        Latest block of the day will be the latest timeblock that
+        had any transactions at or before as_of_when.
+        """
+        as_of_when = as_of_when if as_of_when else get_time()
+        # Make list of transactions <= as_of_when
+        transx = [x for x in
+                (list(check_ins.values()) + list(check_outs.values()))
+                if x <= as_of_when]
+        # Anything?
+        if not transx:
+            return []
         # Find earliest and latest block of the day
-        min_block_min = Block.block_start(
-                min(list(check_ins.values()) + list(check_outs.values())),
-                as_number=True)
-        max_block_min = Block.block_start(
-                max(list(check_ins.values()) + list(check_outs.values())),
-                as_number=True)
-        # Create blocks for the the whole day.
+        min_block_min = Block.block_start(min(transx), as_number=True)
+        max_block_min = Block.block_start(max(transx), as_number=True)
+        # Create list of timeblocks for the the whole day.
+        timeblocks = []
         for t in range(min_block_min, max_block_min+cfg.BLOCK_DURATION,
-                cfg.BLOCK_DURATION): #FIXME: check logic
-            blocks[fix_hhmm(minutes_to_time_str(t))] = Block(t)
+                cfg.BLOCK_DURATION):
+            timeblocks.append(time_as_str(t))
+        return timeblocks
+
+    @staticmethod
+    def calc_blocks(as_of_when:str=None) -> dict:
+        """Create a dictionary of Blocks {start:Block} for whole day"""
+        as_of_when = as_of_when if as_of_when else "18:00"
+        # Create dict with all the bloctimes as keys (None as values)
+        blocktimes = Block.timeblock_list(as_of_when=as_of_when)
+        if not blocktimes:
+            return {}
+        blocks = {}
+        for t in Block.timeblock_list(as_of_when=as_of_when):
+            blocks[t] = Block(t)
+        latest_time = Block.block_end(t,as_number=False)
         for tag, time in check_ins.items():
+            if time > latest_time:
+                continue
             bstart = Block.block_start(time)
             blocks[bstart].ins_list += [tag]
         for tag, time in check_outs.items():
+            if time > latest_time:
+                continue
             bstart = Block.block_start(time)
             blocks[bstart].outs_list += [tag]
         here_set = set()
@@ -745,10 +817,10 @@ def lookback(args:list[str]) -> None:
     if not end_time:
         end_time = get_time()
     if not start_time:
-        start_time = minutes_to_time_str(time_str_to_minutes(end_time)-60)
-    start_time = fix_hhmm(start_time)
-    end_time = fix_hhmm(end_time)
-    if not start_time or not end_time or start_time >= end_time:
+        start_time = time_as_str(time_as_int(end_time)-60)
+    start_time = time_as_str(start_time)
+    end_time = time_as_str(end_time)
+    if not start_time or not end_time or start_time > end_time:
         iprint("Can not make sense of the given start/end times",
                style=cfg.WARNING_STYLE)
         return
@@ -769,16 +841,32 @@ def lookback(args:list[str]) -> None:
     for line in sorted(events):
         iprint(line)
 
-def dataform_report() -> None:
+def dataform_report(args:list[str]) -> None:
     """Print days activity in timeblocks.
 
     This is to match the (paper/google) data tracking sheets.
+    Single args are both optional, end_time.
+    If end_time is missing, runs to current time.
+    If start_time is missing, starts one hour before end_time.
     """
-    print()
-    iprint(f"All available daily tracking form data for {get_date()}",
-           style=cfg.TITLE_STYLE)
+    end_time = (args + [None])[0]
+    if not end_time:
+        end_time = get_time()
+    if not (end_time := time_as_str(end_time)):
+        print()
+        iprint(f"Unrecognized time {args[0]}",style=cfg.WARNING_STYLE)
+        return
 
-    all_blocks = Block.calc_blocks()
+    print()
+    iprint(f"Tracking form data from start of day until {end_time}",
+           style=cfg.TITLE_STYLE)
+    all_blocks = Block.calc_blocks(end_time)
+    if not all_blocks:
+        earliest = min(list(check_ins.values()) + list(check_outs.values()))
+        iprint(f"No bikes came in before {end_time} "
+               f"(earliest came in at {earliest})",
+               style=cfg.HIGHLIGHT_STYLE)
+        return
     for which in [cfg.BIKE_IN,cfg.BIKE_OUT]:
         titlebit = "checked IN" if which == cfg.BIKE_IN else "returned OUT"
         title = f"Bikes {titlebit}:"
@@ -788,8 +876,7 @@ def dataform_report() -> None:
         for start,block in all_blocks.items():
             inouts = (block.ins_list if which == cfg.BIKE_IN
                     else block.outs_list)
-            endtime = fix_hhmm(minutes_to_time_str(
-                    time_str_to_minutes(start)+cfg.BLOCK_DURATION))
+            endtime = time_as_str(time_as_int(start)+cfg.BLOCK_DURATION)
             iprint(f"{start}-{endtime}  {' '.join(sort_tags(inouts))}")
 
 def audit_report(args:list[str]) -> None:
@@ -813,7 +900,7 @@ def audit_report(args:list[str]) -> None:
     as_of_when = (args + [rightnow])[0]
 
     # What time will this audit report reflect?
-    as_of_when = fix_hhmm(as_of_when)
+    as_of_when = time_as_str(as_of_when)
     if not as_of_when:
         iprint(f"Unrecognized time passed to audit ({args[0]})",
                style=cfg.WARNING_STYLE)
@@ -947,8 +1034,8 @@ def tag_check(tag:str) -> None:
                 else:
                     iprint("Cancelled",style=cfg.WARNING_STYLE)
             else:# checked in only
-                now_mins = time_str_to_minutes(get_time())
-                check_in_mins = time_str_to_minutes(check_ins[tag])
+                now_mins = time_as_int(get_time())
+                check_in_mins = time_as_int(check_ins[tag])
                 time_diff_mins = now_mins - check_in_mins
                 if time_diff_mins < cfg.CHECK_OUT_CONFIRM_TIME: # if < 1/2 hr
                     iprint("This bike checked in at "
@@ -1025,7 +1112,7 @@ def main():
             case cfg.CMD_EXIT:
                 done = True
             case cfg.CMD_BLOCK:
-                dataform_report()
+                dataform_report(args)
             case cfg.CMD_HELP:
                 print(cfg.help_message)
             case cfg.CMD_LOOKBACK:
@@ -1064,7 +1151,7 @@ def do_edit(args:list[str]):
         ...error...
         return
     newtime = get_token(arg[2], optional=False, prompt="Change to what time (blank for now):",default="")
-    if not (newtime := fix_hhmm(newtime)):
+    if not (newtime := time_as_str(newtime)):
         ...error...
         return
     confirm = get_token(arg[3], optional=False,prompt="Change (Y/n):",default="y')
@@ -1182,10 +1269,38 @@ Data Entry report (events listed by time block)
 
 class Visit():
     def __init__(self, tag:str) -> None:
-        self.tag = tag
-        self.time_in = ""
-        self.time_out = ""
-        self.duration = 0
+        self.tag = tag      # canonical
+        self.time_in = ""   # HH:MM
+        self.time_out = ""  # HH:MM
+        self.duration = 0   # minutes
+        self.type = None    # cfg.REGULAR, cfg.OVERSIZE
+        self.still_here = None  # True or False
+
+    @staticmethod
+    def count_visits( as_of_when:Union[int,str]=None ) -> dict:
+        """Create a dict of visits keyed by tag as of as_of_when."""
+        rightnow = get_time()
+        visits = {}
+        for tag,time_in in check_ins.items():
+            this_visit = Visit(tag)
+            this_visit.time_in = time_in
+            if tag in check_outs:
+                this_visit.time_out = check_outs[tag]
+                this_visit.still_here = False
+            else:
+                this_visit.time_out = rightnow
+                this_visit.still_here = False
+            this_visit.duration = (time_as_int(this_visit.time_out) -
+                    time_as_int(this_visit.time_in))
+            if tag in cfg.normal_tags:
+                this_visit.type = cfg.REGULAR
+            else:
+                this_visit.type = cfg.OVERSIZE
+            visits[tag] = this_visit
+        return visits
+
+
+
 
 class Tag():
     def __init__(self, tag:str) -> None:
