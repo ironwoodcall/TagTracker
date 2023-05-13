@@ -23,7 +23,7 @@ def get_time() -> str:
     now = time.asctime(time.localtime())[11:16]
     return now
 
-def time_as_int(maybe_time:Union[str,int]) -> int:
+def time_as_int(maybe_time:Union[str,int]) -> Union[int,None]:
     """Return maybe_time (str or int) to number of minutes since midnight or "".
 
         Input can be int (minutes since midnight) or a string
@@ -57,7 +57,7 @@ def time_as_int(maybe_time:Union[str,int]) -> int:
     return None
 
 def time_as_str(maybe_time:Union[int,str]) -> str:
-    """Return inp (wich is str or int) to HH:MM, or ""
+    """Return inp (wich is str or int) to HH:MM, or "".
 
     Input can be int (minutes since midnight) or a string
     that might be a time in HH:MM.
@@ -292,7 +292,6 @@ def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
     If include_bikes_on_hand, this will include checked in
     but not returned out.  If False, only bikes returned out.
     """
-
     timenow = time_as_int(get_time())
     tag_durations = {}
     for tag,in_str in check_ins.items():
@@ -637,7 +636,7 @@ def edit_entry(args:list[str]):
     else:
         iprint(f"'{target}' isn't a valid tag (edit cancelled)",
                style=cfg.WARNING_STYLE)
-
+'''
 def count_colours(inv:list[str]) -> str:
     """Return a string describing number of tags by colour.
 
@@ -678,10 +677,9 @@ def count_colours(inv:list[str]) -> str:
     colour_count_str = colour_count_str[3:] # cut off leading comma
 
     return colour_count_str
-
+'''
 def tags_by_prefix(tags_dict:dict) -> dict:
-    """Rtn tag prefixes with list of associated tag numbers"""
-
+    """Return a dict of tag prefixes with lists of associated tag numbers."""
     prefixes = {}
     for tag in tags_dict:
         #(prefix,t_number) = cfg.PARSE_TAG_PREFIX_RE.match(tag).groups()
@@ -699,8 +697,9 @@ class Block():
 
     Each instance is a timeblock of duration cfg.BLOCK_DURATION.
     """
+
     def __init__(self, start_time:Union[str,int]) -> None:
-        """Initialize. Assumes that start_time is valid"""
+        """Initialize. Assumes that start_time is valid."""
         if isinstance(start_time,str):
             self.start = time_as_str(start_time)
         else:
@@ -770,7 +769,7 @@ class Block():
 
     @staticmethod
     def calc_blocks(as_of_when:str=None) -> dict:
-        """Create a dictionary of Blocks {start:Block} for whole day"""
+        """Create a dictionary of Blocks {start:Block} for whole day."""
         as_of_when = as_of_when if as_of_when else "18:00"
         # Create dict with all the bloctimes as keys (None as values)
         blocktimes = Block.timeblock_list(as_of_when=as_of_when)
@@ -807,7 +806,7 @@ def lookback(args:list[str]) -> None:
     If start_time is missing, starts one hour before end_time.
     """
     def format_one( time:str, tag:str, check_in:bool) -> str:
-        """Format one line of output"""
+        """Format one line of output."""
         in_tag = tag if check_in else ""
         out_tag = "" if check_in else tag
         #inout = "bike IN" if check_in else "returned OUT"
@@ -1278,17 +1277,34 @@ class Visit():
 
     @staticmethod
     def count_visits( as_of_when:Union[int,str]=None ) -> dict:
-        """Create a dict of visits keyed by tag as of as_of_when."""
-        rightnow = get_time()
+        """Create a dict of visits keyed by tag as of as_of_when.
+
+        If as_of_when is not given, then this will choose the latest
+        check-out time of the day as its time.
+
+        As a special case, this will also accept the word "now" to
+        mean the current time.
+        """
+        if isinstance(as_of_when,str) and as_of_when.lower() == "now":
+            as_of_when = get_time()
+        elif as_of_when is None:
+            # Set as_of_when to be the time of the latest checkout of the day.
+            if check_ins:
+                as_of_when = min(list(check_ins.values()))
+            else:
+                as_of_when = get_time()
+        as_of_when = time_as_str(as_of_when)
         visits = {}
         for tag,time_in in check_ins.items():
+            if time_in > as_of_when:
+                continue
             this_visit = Visit(tag)
             this_visit.time_in = time_in
-            if tag in check_outs:
+            if tag in check_outs and check_outs[tag] <= as_of_when:
                 this_visit.time_out = check_outs[tag]
                 this_visit.still_here = False
             else:
-                this_visit.time_out = rightnow
+                this_visit.time_out = as_of_when
                 this_visit.still_here = False
             this_visit.duration = (time_as_int(this_visit.time_out) -
                     time_as_int(this_visit.time_in))
@@ -1299,19 +1315,5 @@ class Visit():
             visits[tag] = this_visit
         return visits
 
-
-
-
-class Tag():
-    def __init__(self, tag:str) -> None:
-        self.tag = ""
-        self.letter = ""
-        self.number = 0
-        self.type = ""  # cfg.BIKE_REGULAR or cfg.BIKE_OVERSIZE
-        self.state = None   # Unused, BIKE_IN, BIKE_OUT, Retired
-
-class Action():
-    def __init__(self) -> None:
-        pass
-
+# FIXME: here's where I am in editing. - tevpg
 
