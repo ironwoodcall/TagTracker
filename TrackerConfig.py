@@ -24,8 +24,14 @@ BLOCK_DURATION=30
 PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
 
 # time cutoffs for stays under x time and over y time
+# FIXME - these will become superseded by VISIT_CATEGORIES
 T_UNDER = 1.5*60 # minutes
 T_OVER = 5*60
+
+# Time ranges for categorizing stay-lengths, in hours.
+# First category will always be 0 - [0], last will always be > [-1]
+VISIT_CATEGORIES = [1.5,5]
+VISIT_NOUN = "stay"    # Probably either "stay" or "visit"
 
 # size of 'buckets' for calculating the mode stay time
 MODE_ROUND_TO_NEAREST = 30 # mins
@@ -83,6 +89,7 @@ COMMANDS[CMD_LOOKBACK := "lookback"] = ['lookback',
         'look', 'l', 'log', 'recent', 'r']
 COMMANDS[CMD_QUERY :="query"] = ['query','q','?','/']
 COMMANDS[CMD_STATS :="stats"] = ['s','stat','stats','sum','summary']
+COMMANDS[CMD_NEW_STATS := "new_stats"] = ['z', 'z', 'new']
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
