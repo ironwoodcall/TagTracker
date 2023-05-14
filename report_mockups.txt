@@ -1,28 +1,6 @@
 These are possible report mockups for tag tracker.
 2023-05-03	Todd
 
-A: audit
-B: blocks (printout in data form style)
-R: recent activity (tags in order, last hour)
-Z: zany stats (fun stuff)
-
-
-================================================
-Activity by time block:
-
-Bikes IN:
----------
-07:00-07:30  WA1 WA0 WA2 BE4 BE5 BE2
-07:30-08:00  WA3 WA4 WA5 BE1 BE3
-08:30-09:00  WA6 WA7 WA8
-09:00-09:30  WA9 BE6
-09:30-10:00  WA10 WA11 WA12
-
-Bikes RETURNED OUT:
--------------------
-08:30-09:00  WA2 BE5
-09:30-10:00  WA4 WA5 BE2
-
 
 =====================================================
 
@@ -38,12 +16,14 @@ Bike check-ins:      Stays:
                        Mode:    02:00 (by 2 bikes, 30 minute blocks)
 
 Most bikes on hand at valet:
-                Regular  Oversize  Total  Time
-Most regular:      60       20       80    10:15,14:30
-Most oversize:     42       31       73    13:11
-Most combined:     55       29       84    13:55
+                Bikes   WhenAcheived
+Most regular:    1234     10:15
+                 1234
+123456789^123456
+Most oversize:     31     13:11
+Most combined:     84     13:55
 
-Most bike transactions:
+Busiest times of day:
             CheckedIn  Out   Total
 09:30-10:00      45      0      45
 16:00-16:30       5     39      44
@@ -65,19 +45,19 @@ Stays < 1.5h:    26
 Stays 1.5-5.0h:  51
 Stays > 5.0h:    30
 
-Max stay:     11:13   [tag(s) wb3]
-Min stay:      0:01   [tag(s) wc10, we13, we12]
+Longest stay:  11:13   [tag(s) wb3]
+Shortest stay: 00:01   [tag(s) wc10, we13, we12]
 Mean stay:     3:31
 Median stay:   2:33
 Mode stay:     2:00 by 2 bike(s)  [30 minute blocks]
 
-Most bikes on hand at valet:
+Most bikes in valet at once:
                 Regular  Oversize  Total  Time
 Most regular:      60       20       80    10:15,14:30
 Most oversize:     42       31       73    13:11
-Most combined:     55       29       84    13:55
+Most overall:      55       29       84    13:55
 
-Most bike transactions:
+Busiest times of day were:
                BikesIn    BikesOut  Total
 09:30-10:00       45           0      45
 16:00-16:30        5          39      44
@@ -88,15 +68,7 @@ Stays were 47% queue-like, 53% stack-like
 
 
 ======================================================
-Zany stats (YYYY-MM-DD HH:MM)
-[Based on 111 of 114 tags]]
-
-Queue-like or Stack-like?
--------------------------
-  Of the 111 completed bike valetions:
-   32 were queue-like (xx%)
-   80 were stack-like (xx%)
-
+Busy-ness (YYYY-MM-DD HH:MM)
 
 Max bikes on hand through the day
 ---------------------------------
@@ -117,6 +89,15 @@ Hr Ttl(Rg/Ov)   Histogram
 20
 21
 22
+
+Most ins & outs through the day
+-------------------------------
+07:30  iiiiiiiiiiiii
+08:00  iiiiiiiiiiiiiiio
+08:30  iiiiiiiiiioo
+09:00  iiiiiiiiiio
+(etc)
+
 
 
 
