@@ -1,4 +1,19 @@
-"""Config for TagTracker by Julias Hocking."""
+"""Config for TagTracker by Julias Hocking
+Copyright (C) 2023 Julias Hocking
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 
 import os
 import re
@@ -34,6 +49,9 @@ VISIT_NOUN = "stay"    # Probably either "stay" or "visit"
 
 # size of 'buckets' for calculating the mode stay time
 MODE_ROUND_TO_NEAREST = 30 # mins
+
+# List ow many ranked busiest times of day in report?
+BUSIEST_RANKS = 3
 
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30 # mins

@@ -1,4 +1,19 @@
-"""TagTracker by Julias Hocking."""
+"""TagTracker by Julias Hocking
+Copyright (C) 2023 Julias Hocking
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 
 import os
 import time
@@ -94,6 +109,16 @@ def time_str(maybe_time:Union[int,str,float,None]) -> str:
         m = maybe_time % 60
     # Return 5-digit time string
     return f"{h:02d}:{m:02d}"
+
+def pretty_time(time:Union[int,str,float], trim:bool=False ) -> str:
+    """Replace lead 0 in HH:MM with blank (or remove, if 'trim' )."""
+    time = time_str(time)
+    if not time:
+        return ""
+    replace_with = "" if trim else " "
+    if time[0] == "0":
+        time = f"{replace_with}{time[1:]}"
+    return time
 
 def parse_tag(maybe_tag:str, must_be_available=False) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
@@ -459,9 +484,9 @@ def visit_statistics_report(visits:dict) -> None:
 
         rounded = [round(x/cfg.MODE_ROUND_TO_NEAREST)*cfg.MODE_ROUND_TO_NEAREST
                 for x in durations_list]
-        modes_str = ",".join([time_str(x) for x in statistics.multimode( rounded )])
-        modes_str = (f"{modes_str}  ({cfg.VISIT_NOUN.lower()}s "
-                f"rounded to {cfg.MODE_ROUND_TO_NEAREST} minute blocks)")
+        modes_str = ",".join([pretty_time(x) for x in statistics.multimode( rounded )])
+        modes_str = (f"{modes_str}  (times "
+                f"rounded to {cfg.MODE_ROUND_TO_NEAREST} minutes)")
         one_line(f"Mode {cfg.VISIT_NOUN}:", modes_str)
 
     # Make a dict of stay-lengths with list tags (for longest/shortest).
@@ -478,14 +503,14 @@ def visit_statistics_report(visits:dict) -> None:
            style=cfg.SUBTITLE_STYLE)
     longest = max(list(duration_tags.keys()))
     long_tags = ",".join(duration_tags[longest])
-    one_line(f"Longest {noun}:", f"{time_str(longest)}  (tag(s): {long_tags})")
+    one_line(f"Longest {noun}:", f"{pretty_time((longest))}  (tag(s): {long_tags})")
     shortest = min(list(duration_tags.keys()))
     short_tags = ",".join(duration_tags[shortest])
+    one_line(f"Shortest {noun}:", f"{pretty_time((shortest))}  (tag(s): {short_tags})")
     # Make a list of stay-lengths (for mean, median, mode)
     durations_list = [x.duration for x in visits.values()]
-    one_line(f"Shortest {noun}:", f"{time_str(shortest)}  (tag(s): {short_tags})")
-    one_line( f"Mean {noun}:", time_str(statistics.mean(durations_list)))
-    one_line( f"Median {noun}:", time_str(statistics.median(list(duration_tags.keys()))))
+    one_line( f"Mean {noun}:", pretty_time(statistics.mean(durations_list)))
+    one_line( f"Median {noun}:", pretty_time(statistics.median(list(duration_tags.keys()))))
     visits_mode(durations_list)
 
 class Event():
@@ -497,8 +522,8 @@ class Event():
         self.num_here_oversize = None
         self.bikes_in = []   # List of canonical tag ids.
         self.bikes_out = []
-        self.num_in = 0     # This is just len(self.bikes_in).
-        self.num_out = 0    # This is just len(self.bikes_out).
+        self.num_ins = 0     # This is just len(self.bikes_in).
+        self.num_outs = 0    # This is just len(self.bikes_out).
 
     @staticmethod
     def calc_events(as_of_when:Union[int,str]=None ) -> dict:
@@ -538,8 +563,8 @@ class Event():
         num_oversize = 0
         for time in sorted(events.keys()):
             vx = events[time]
-            vx.num_in = len(vx.bikes_in)
-            vx.num_out = len(vx.bikes_out)
+            vx.num_ins = len(vx.bikes_in)
+            vx.num_outs = len(vx.bikes_out)
             # How many regular & oversize bikes have we added or lost?
             diff_normal = (
                 len([x for x in vx.bikes_in if x in cfg.normal_tags]) -
@@ -552,8 +577,8 @@ class Event():
             vx.num_here_regular = num_regular
             vx.num_here_oversize = num_oversize
             vx.num_here_total = num_regular + num_oversize
-            vx.num_in = len(vx.bikes_in)
-            vx.num_out = len(vx.bikes_out)
+            vx.num_ins = len(vx.bikes_in)
+            vx.num_outs = len(vx.bikes_out)
         return events
 
 def highwater_report(events:dict) -> None:
@@ -600,6 +625,45 @@ def highwater_report(events:dict) -> None:
     one_line("Most oversize:", events, max_oversize_time, 1)
     one_line("Most combined:", events, max_total_time, 2)
 
+def busy_report(events:dict, as_of_when) -> None:
+    """Report the busiest time(s) of day."""
+    def one_line(rank:int, num_events:int, times:list[str]) -> None:
+        """Format and print one line of busyness report."""
+        iprint(f"{rank:2d}     {num_events:3d}      ",end="")
+        for time_num,start_time in enumerate(sorted(times),start=1):
+            end_time=time_str(time_int(start_time)+cfg.BLOCK_DURATION)
+            print(f"{pretty_time(start_time,trim=True)}-"
+                  f"{pretty_time(end_time,trim=True)}", end="")
+            if time_num < len(times):
+                print(", ",end="")
+        print()
+
+    # Make an empty dict of busyness of timeblocks.
+    blocks = dict(zip(
+        Block.timeblock_list(as_of_when),
+        [0 for _ in range(0,100)]))
+    # Count actions in each timeblock
+    for time, ev in events.items():
+        start = Block.block_start(time) # Which block?
+        blocks[start] = ev.num_ins + ev.num_outs
+    # Make a dict of busynesses with list of timeblocks for each.
+    busy_times = {}
+    for time, activity in blocks.items():
+        if activity not in busy_times:
+            busy_times[activity] = []
+        busy_times[activity].append(time)
+    # Report the results.
+    print()
+    iprint("Busiest times of day:",style=cfg.SUBTITLE_STYLE)
+    iprint("Rank  Ins&Outs  When")
+    for rank, activity in enumerate(sorted(busy_times.keys(),reverse=True), start=1):
+        if rank > cfg.BUSIEST_RANKS:
+            break
+        one_line(rank, activity, busy_times[activity])
+
+        # FIXME: tevpg got this far
+
+
 def day_end_report( args:list ) -> None:
     """Reports summary statistics about visits, up to the given time.
 
@@ -631,6 +695,8 @@ def day_end_report( args:list ) -> None:
     # Dict of time (events)
     events = Event.calc_events(as_of_when)
     highwater_report( events )
+    # Busiest times of day
+    busy_report(events,as_of_when)
 
 def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
     """Make dict of tags with their stay duration in minutes.
@@ -1558,15 +1624,6 @@ Want to know all visits with their start time and end time
             value = event's time - could be hhmm or num
     ** check how compatible this is with calc_stays() structure
     ** could also be a Tag object
-"""
-X="""
------------------------
-Summary statistics (day-end)
-
-
-
-
-
 """
 X="""
 -----------------------
