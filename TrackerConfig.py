@@ -50,6 +50,9 @@ VISIT_NOUN = "stay"    # Probably either "stay" or "visit"
 # size of 'buckets' for calculating the mode stay time
 MODE_ROUND_TO_NEAREST = 30 # mins
 
+# List ow many ranked busiest times of day in report?
+BUSIEST_RANKS = 3
+
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30 # mins
 
