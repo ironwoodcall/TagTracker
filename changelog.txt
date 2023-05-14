@@ -1,5 +1,13 @@
 TagTracker by Julias Hocking
 
+0.7.3:
+~ many changes throughout since 0.7.2 related to style, fn names, etc
++ colours
++ additional items in summary stats report
++ accounting report
++ recent items (log) report
++ dataform report
+
 0.7.2:
 ~ clarified edit messages styling
 + strip leading AND trailing spaces from prompts
