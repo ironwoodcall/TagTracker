@@ -137,6 +137,7 @@ OVERSIZE = "oversize"
 TOTAL = "total"
 COUNT = "count"
 TIME = "time"
+IGNORE = "ignore"
 
 # assemble list of normal tags
 def build_tags_config(filename:str) -> list[str]:

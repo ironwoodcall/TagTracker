@@ -252,16 +252,26 @@ def read_tags() -> bool:
                 continue
             # Look for section headers
             if (re.match(r"^Bikes checked in.*:",line)):
-                section = "in"
+                section = cfg.BIKE_IN
                 continue
             elif (re.match(r"^Bikes checked out.*:", line)):
-                section = "out"
+                section = cfg.BIKE_OUT
+                continue
+            # Look for headers for oversize & regular bikes, ignore them.
+            elif (re.match(r"^Regular-bike tags.*:",line)):
+                section = cfg.IGNORE
+                continue
+            elif (re.match(r"^Oversize-bike tags.*:",line)):
+                section = cfg.IGNORE
                 continue
             # Can do nothing unless we know what section we're in
             if section is None:
                 iprint(f"weirdness in line {line_num} of {logfilename}",
                        style=cfg.ERROR_STYLE)
                 errors += 1
+                continue
+            if section == cfg.IGNORE:
+                # Things to ignore
                 continue
             # Break into putative tag and text, looking for errors
             cells = line.split(',')
@@ -283,7 +293,7 @@ def read_tags() -> bool:
                 errors += 1
                 continue
             # Maybe add to check_ins or check_outs structures.
-            if section == "in":
+            if section == cfg.BIKE_IN:
                 # Maybe add to check_in structure
                 if this_tag in check_ins:
                     iprint(f"Duplicate {this_tag} check-in found at "
@@ -298,7 +308,7 @@ def read_tags() -> bool:
                     errors += 1
                     continue
                 check_ins[this_tag] = this_time
-            elif section == "out":
+            elif section == cfg.BIKE_OUT:
                 if this_tag in check_outs:
                     iprint(f"Duplicate {this_tag} check-out found at "
                             f"line {line_num}",
@@ -338,18 +348,29 @@ def rotate_log() -> None:
 def write_tags() -> None:
     """Write current data to today's log file."""
     lines = []
-    lines.append('Bikes checked in / tags out:')
-    for tag in check_ins: # for each bike checked in
-        lines.append(f'{tag},{check_ins[tag]}') # add a line "tag,time"
-
-    lines.append('Bikes checked out / tags in:')
-    for tag in check_outs: # for each  checked
-        lines.append(f'{tag},{check_outs[tag]}') # add a line "tag,time"
-
+    lines.append("# TagTracker logfile (data file) created on "
+            f"{get_date()} {get_time()}")
+    lines.append("Bikes checked in / tags out:")
+    for tag, time in check_ins.items(): # for each bike checked in
+        lines.append(f"{tag},{time}") # add a line "tag,time"
+    lines.append("Bikes checked out / tags in:")
+    for tag,time in check_outs.items(): # for each  checked
+        lines.append(f"{tag},{time}") # add a line "tag,time"
+    # Also write tag info of which bikes are oversize, which are regular.
+    # This is for logfile aggregator.
+    lines.append( "# The following sections are for logfile aggregator")
+    lines.append("Regular-bike tags:")
+    for tag in cfg.normal_tags:
+        lines.append(tag)
+    lines.append("Oversize-bike tags:")
+    for tag in cfg.oversize_tags:
+        lines.append(tag)
+    lines.append(f"# Normal end of file")
+    # Write the data to the file.
     with open(LOG_FILEPATH, 'w') as f: # write stored lines to file
         for line in lines:
             f.write(line)
-            f.write('\n')
+            f.write("\n")
 
 class Visit():
     def __init__(self, tag:str) -> None:
