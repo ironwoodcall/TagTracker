@@ -15,11 +15,13 @@ Bike check-ins:      Stays:
                        Median:  02:33
                        Mode:    02:00 (by 2 bikes, 30 minute blocks)
 
-Max bikes on hand at valet:
-                Bikes    Time
-Max regular:      60     10:15,14:30
-Max oversize:     31     13:11
-Max combined:     84     13:55
+Most bikes on hand at valet:
+                Bikes   WhenAcheived
+Most regular:    1234     10:15
+                 1234
+123456789^123456
+Most oversize:     31     13:11
+Most combined:     84     13:55
 
 Busiest times of day:
             CheckedIn  Out   Total

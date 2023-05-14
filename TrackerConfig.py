@@ -2,7 +2,6 @@
 
 import os
 import re
-import colorama
 
 # Use colour in the program?
 USE_COLOUR = True
@@ -36,10 +35,10 @@ VISIT_NOUN = "stay"    # Probably either "stay" or "visit"
 # size of 'buckets' for calculating the mode stay time
 MODE_ROUND_TO_NEAREST = 30 # mins
 
-# how long of a stay to confirm check-outs for?
+# Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30 # mins
 
-# Style preferences
+# Format preferences
 INDENT = '  '
 CURSOR = ">>> "
 # Styles related to colour
@@ -54,7 +53,7 @@ RESET_STYLE = "reset_style"
 HIGHLIGHT_STYLE = "highlight_style"
 WARNING_STYLE = "warn_style"
 ERROR_STYLE = "error_style"
-
+# These are assigned in 'if' in case could not import colorame.
 if USE_COLOUR:
     STYLE[PROMPT_STYLE] = (
             f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
@@ -89,7 +88,7 @@ COMMANDS[CMD_LOOKBACK := "lookback"] = ['lookback',
         'look', 'l', 'log', 'recent', 'r']
 COMMANDS[CMD_QUERY :="query"] = ['query','q','?','/']
 COMMANDS[CMD_STATS :="stats"] = ['s','stat','stats','sum','summary']
-COMMANDS[CMD_NEW_STATS := "new_stats"] = ['z', 'z', 'new']
+#COMMANDS[CMD_NEW_STATS := "new_stats"] = ['z', 'z', 'new']
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
@@ -118,6 +117,8 @@ INOUT = "inout"
 REGULAR = "regular"
 OVERSIZE = "oversize"
 TOTAL = "total"
+COUNT = "count"
+TIME = "time"
 
 # assemble list of normal tags
 def build_tags_config(filename:str) -> list[str]:
