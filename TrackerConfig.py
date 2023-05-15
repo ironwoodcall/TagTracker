@@ -95,6 +95,17 @@ if USE_COLOUR:
             f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}")
 
 # Command keys and aliases.
+CMD_AUDIT = "audit"
+CMD_DELETE = "delete"
+CMD_EDIT = "edit"
+CMD_EXIT ="exit"
+CMD_BLOCK = "block"
+CMD_HELP ="help"
+CMD_LOOKBACK = "lookback"
+CMD_QUERY ="query"
+CMD_STATS ="stats"
+CMD_MORE_STATS = "more stats"
+
 COMMANDS = {}
 COMMANDS[CMD_AUDIT := "audit"] = ['audit','a','aud']
 COMMANDS[CMD_DELETE := "delete"] = ['del','delete','d']
