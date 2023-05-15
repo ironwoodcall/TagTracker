@@ -104,20 +104,20 @@ CMD_HELP ="help"
 CMD_LOOKBACK = "lookback"
 CMD_QUERY ="query"
 CMD_STATS ="stats"
-CMD_MORE_STATS = "more stats"
+CMD_MORE_STATS = "more_stats"
 
 COMMANDS = {}
-COMMANDS[CMD_AUDIT := "audit"] = ['audit','a','aud']
-COMMANDS[CMD_DELETE := "delete"] = ['del','delete','d']
-COMMANDS[CMD_EDIT := "edit"] = ['edit','e','ed']
-COMMANDS[CMD_EXIT :="exit"] = ['quit','exit','stop','x','bye']
-COMMANDS[CMD_BLOCK := "block"] = ['blocks','block','b', 'form', 'f']
-COMMANDS[CMD_HELP :="help"] = ['help','h']
-COMMANDS[CMD_LOOKBACK := "lookback"] = ['lookback',
+COMMANDS[CMD_AUDIT] = ['audit','a','aud']
+COMMANDS[CMD_DELETE] = ['del','delete','d']
+COMMANDS[CMD_EDIT] = ['edit','e','ed']
+COMMANDS[CMD_EXIT] = ['quit','exit','stop','x','bye']
+COMMANDS[CMD_BLOCK] = ['blocks','block','b', 'form', 'f']
+COMMANDS[CMD_HELP] = ['help','h']
+COMMANDS[CMD_LOOKBACK] = ['lookback',
         'look', 'l', 'log', 'recent', 'r']
-COMMANDS[CMD_QUERY :="query"] = ['query','q','?','/']
-COMMANDS[CMD_STATS :="stats"] = ['s','stat','stats','sum','summary']
-COMMANDS[CMD_MORE_STATS := "more stats"] = ["m", "more"]
+COMMANDS[CMD_QUERY] = ['query','q','?','/']
+COMMANDS[CMD_STATS] = ['s','stat','stats','sum','summary']
+COMMANDS[CMD_MORE_STATS] = ["m", "more"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
