@@ -1,4 +1,5 @@
-"""TagTracker by Julias Hocking
+"""TagTracker by Julias Hocking.
+
 Copyright (C) 2023 Julias Hocking
 
     This program is free software: you can redistribute it and/or modify
@@ -20,7 +21,7 @@ import time
 import re
 import pathlib
 import statistics
-from typing import Tuple,Union,Dict
+from typing import Union    # This is for type hints instead of (eg) int|str
 import TrackerConfig as cfg
 
 def get_date() -> str:
@@ -681,8 +682,6 @@ def busy_report(events:dict[str:Event], as_of_when) -> None:
             break
         one_line(rank, activity, busy_times[activity])
 
-        # FIXME: tevpg got this far
-
 def qstack_report( visits:dict[str:Visit] ) -> None:
     """Report whether visits are more queue-like or more stack-like."""
     # Make a list of tuples: start_time, end_time for all visits.
@@ -692,7 +691,6 @@ def qstack_report( visits:dict[str:Visit] ) -> None:
     queueish = 0
     stackish = 0
     neutralish = 0
-    ttl_visits = 0
     visit_compares = 0
 
     for (time_in,time_out) in visit_times:
@@ -1001,48 +999,7 @@ def edit_entry(args:list[str]):
     else:
         iprint(f"'{target}' isn't a valid tag (edit cancelled)",
                style=cfg.WARNING_STYLE)
-'''
-def count_colours(inv:list[str]) -> str:
-    """Return a string describing number of tags by colour.
 
-    Count the number of tags corresponding to each config'd colour abbreviation
-    in a given list, and return results as a str. Probably avoid calling
-    this on empty lists
-    """
-    # FIXME: this function no longer required, replaced by audit_report()
-    just_colour_abbreviations = []
-    for tag in inv: # shorten tags to just their colours
-        shortened = ''
-        for char in tag: # add every letter character to start
-            if not char.isdigit():
-                shortened += char
-        # cut off last, non-colour letter and add to list of abbrevs
-        if shortened in cfg.colour_letters:
-            just_colour_abbreviations.append(shortened)
-        else:
-            for x in range(10):
-                cutoff_by_x = shortened[:-x]
-                if cutoff_by_x in cfg.colour_letters:
-                    just_colour_abbreviations.append(cutoff_by_x)
-
-    colour_count = {} # build the count dictionary
-    for abbrev in cfg.colour_letters.keys():
-        # for each valid colour, check all tags
-        if abbrev in just_colour_abbreviations:
-            this_colour_count = 0
-            for tag in just_colour_abbreviations:
-                if tag == abbrev:
-                    this_colour_count += 1
-            colour_name = cfg.colour_letters[abbrev]
-            colour_count[colour_name] = this_colour_count
-
-    colour_count_str = '' # convert count dict to string
-    for colour in colour_count:
-        colour_count_str += f",  {colour} x {colour_count[colour]}"
-    colour_count_str = colour_count_str[3:] # cut off leading comma
-
-    return colour_count_str
-'''
 def tags_by_prefix(tags_dict:dict) -> dict:
     """Return a dict of tag prefixes with lists of associated tag numbers."""
     prefixes = {}
