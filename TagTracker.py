@@ -20,7 +20,7 @@ import time
 import re
 import pathlib
 import statistics
-from typing import Tuple,Union
+from typing import Tuple,Union,Dict
 import TrackerConfig as cfg
 
 def get_date() -> str:
@@ -381,46 +381,112 @@ class Visit():
         self.type = None    # cfg.REGULAR, cfg.OVERSIZE
         self.still_here = None  # True or False
 
-    @staticmethod
-    def calc_visits( as_of_when:Union[int,str]=None ) -> dict:
-        """Create a dict of visits keyed by tag as of as_of_when.
+def calc_visits( as_of_when:Union[int,str]=None ) -> dict[str:Visit]:
+    """Create a dict of visits keyed by tag as of as_of_when.
 
-        If as_of_when is not given, then this will choose the latest
-        check-out time of the day as its time.
+    If as_of_when is not given, then this will choose the latest
+    check-out time of the day as its time.
 
-        As a special case, this will also accept the word "now" to
-        mean the current time.
-        """
-        if isinstance(as_of_when,str) and as_of_when.lower() == "now":
+    As a special case, this will also accept the word "now" to
+    mean the current time.
+    """
+    if isinstance(as_of_when,str) and as_of_when.lower() == "now":
+        as_of_when = get_time()
+    elif as_of_when is None:
+        # Set as_of_when to be the time of the latest checkout of the day.
+        if check_ins:
+            as_of_when = min(list(check_ins.values()))
+        else:
             as_of_when = get_time()
-        elif as_of_when is None:
-            # Set as_of_when to be the time of the latest checkout of the day.
-            if check_ins:
-                as_of_when = min(list(check_ins.values()))
-            else:
-                as_of_when = get_time()
-        as_of_when = time_str(as_of_when)
-        visits = {}
-        for tag,time_in in check_ins.items():
-            if time_in > as_of_when:
-                continue
-            this_visit = Visit(tag)
-            this_visit.time_in = time_in
-            if tag in check_outs and check_outs[tag] <= as_of_when:
-                this_visit.time_out = check_outs[tag]
-                this_visit.still_here = False
-            else:
-                this_visit.time_out = as_of_when
-                this_visit.still_here = False
-            this_visit.duration = max(1,
-                    (time_int(this_visit.time_out) -
-                    time_int(this_visit.time_in)))
-            if tag in cfg.normal_tags:
-                this_visit.type = cfg.REGULAR
-            else:
-                this_visit.type = cfg.OVERSIZE
-            visits[tag] = this_visit
-        return visits
+    as_of_when = time_str(as_of_when)
+    visits = {}
+    for tag,time_in in check_ins.items():
+        if time_in > as_of_when:
+            continue
+        this_visit = Visit(tag)
+        this_visit.time_in = time_in
+        if tag in check_outs and check_outs[tag] <= as_of_when:
+            this_visit.time_out = check_outs[tag]
+            this_visit.still_here = False
+        else:
+            this_visit.time_out = as_of_when
+            this_visit.still_here = False
+        this_visit.duration = max(1,
+                (time_int(this_visit.time_out) -
+                time_int(this_visit.time_in)))
+        if tag in cfg.normal_tags:
+            this_visit.type = cfg.REGULAR
+        else:
+            this_visit.type = cfg.OVERSIZE
+        visits[tag] = this_visit
+    return visits
+
+class Event():
+    """What happened at each discrete time of day (that something happened)."""
+
+    def __init__(self, time:str ) -> None:
+        self.num_here_total = None  # will be int
+        self.num_here_regular = None
+        self.num_here_oversize = None
+        self.bikes_in = []   # List of canonical tag ids.
+        self.bikes_out = []
+        self.num_ins = 0     # This is just len(self.bikes_in).
+        self.num_outs = 0    # This is just len(self.bikes_out).
+
+def calc_events(as_of_when:Union[int,str]=None ) -> dict[str:Event]:
+    """Create a dict of events keyed by HH:MM time.
+
+    If as_of_when is not given, then this will choose the latest
+    check-out time of the day as its time.
+
+    As a special case, this will also accept the word "now" to
+    mean the current time.
+    """
+    if isinstance(as_of_when,str) and as_of_when.lower() == "now":
+        as_of_when = get_time()
+    elif as_of_when is None:
+        # Set as_of_when to be the time of the latest checkout of the day.
+        if check_ins:
+            as_of_when = min(list(check_ins.values()))
+        else:
+            as_of_when = get_time()
+    as_of_when = time_str(as_of_when)
+    # First pass, create all the Events and list their tags in & out.
+    events = {}
+    for tag,time in check_ins.items():
+        if time > as_of_when:
+            continue
+        if time not in events:
+            events[time] = Event(time)
+        events[time].bikes_in.append(tag)
+    for tag,time in check_outs.items():
+        if time > as_of_when:
+            continue
+        if time not in events:
+            events[time] = Event(time)
+        events[time].bikes_out.append(tag)
+    # Second pass, calculate other attributes of Events.
+    num_regular = 0     # Running balance of regular & oversize bikes.
+    num_oversize = 0
+    for time in sorted(events.keys()):
+        vx = events[time]
+        vx.num_ins = len(vx.bikes_in)
+        vx.num_outs = len(vx.bikes_out)
+        # How many regular & oversize bikes have we added or lost?
+        diff_normal = (
+            len([x for x in vx.bikes_in if x in cfg.normal_tags]) -
+            len([x for x in vx.bikes_out if x in cfg.normal_tags]))
+        diff_oversize = (
+            len([x for x in vx.bikes_in if x in cfg.oversize_tags]) -
+            len([x for x in vx.bikes_out if x in cfg.oversize_tags]))
+        num_regular += diff_normal
+        num_oversize += diff_oversize
+        vx.num_here_regular = num_regular
+        vx.num_here_oversize = num_oversize
+        vx.num_here_total = num_regular + num_oversize
+        vx.num_ins = len(vx.bikes_in)
+        vx.num_outs = len(vx.bikes_out)
+    return events
 
 def bike_check_ins_report( as_of_when:str ) -> None:
     """Print the check-ins count part of the summary statistics.
@@ -534,73 +600,6 @@ def visit_statistics_report(visits:dict) -> None:
     one_line( f"Median {noun}:", pretty_time(statistics.median(list(duration_tags.keys()))))
     visits_mode(durations_list)
 
-class Event():
-    """What happened at each discrete time of day (that something happened)."""
-
-    def __init__(self, time:str ) -> None:
-        self.num_here_total = None  # will be int
-        self.num_here_regular = None
-        self.num_here_oversize = None
-        self.bikes_in = []   # List of canonical tag ids.
-        self.bikes_out = []
-        self.num_ins = 0     # This is just len(self.bikes_in).
-        self.num_outs = 0    # This is just len(self.bikes_out).
-
-    @staticmethod
-    def calc_events(as_of_when:Union[int,str]=None ) -> dict:
-        """Create a dict of events keyed by HH:MM time.
-
-        If as_of_when is not given, then this will choose the latest
-        check-out time of the day as its time.
-
-        As a special case, this will also accept the word "now" to
-        mean the current time.
-        """
-        if isinstance(as_of_when,str) and as_of_when.lower() == "now":
-            as_of_when = get_time()
-        elif as_of_when is None:
-            # Set as_of_when to be the time of the latest checkout of the day.
-            if check_ins:
-                as_of_when = min(list(check_ins.values()))
-            else:
-                as_of_when = get_time()
-        as_of_when = time_str(as_of_when)
-        # First pass, create all the Events and list their tags in & out.
-        events = {}
-        for tag,time in check_ins.items():
-            if time > as_of_when:
-                continue
-            if time not in events:
-                events[time] = Event(time)
-            events[time].bikes_in.append(tag)
-        for tag,time in check_outs.items():
-            if time > as_of_when:
-                continue
-            if time not in events:
-                events[time] = Event(time)
-            events[time].bikes_out.append(tag)
-        # Second pass, calculate other attributes of Events.
-        num_regular = 0     # Running balance of regular & oversize bikes.
-        num_oversize = 0
-        for time in sorted(events.keys()):
-            vx = events[time]
-            vx.num_ins = len(vx.bikes_in)
-            vx.num_outs = len(vx.bikes_out)
-            # How many regular & oversize bikes have we added or lost?
-            diff_normal = (
-                len([x for x in vx.bikes_in if x in cfg.normal_tags]) -
-                len([x for x in vx.bikes_out if x in cfg.normal_tags]))
-            diff_oversize = (
-                len([x for x in vx.bikes_in if x in cfg.oversize_tags]) -
-                len([x for x in vx.bikes_out if x in cfg.oversize_tags]))
-            num_regular += diff_normal
-            num_oversize += diff_oversize
-            vx.num_here_regular = num_regular
-            vx.num_here_oversize = num_oversize
-            vx.num_here_total = num_regular + num_oversize
-            vx.num_ins = len(vx.bikes_in)
-            vx.num_outs = len(vx.bikes_out)
-        return events
 
 def highwater_report(events:dict) -> None:
     """Make a highwater table as at as_of_when"""
@@ -646,7 +645,7 @@ def highwater_report(events:dict) -> None:
     one_line("Most oversize:", events, max_oversize_time, 1)
     one_line("Most combined:", events, max_total_time, 2)
 
-def busy_report(events:dict, as_of_when) -> None:
+def busy_report(events:dict[str:Event], as_of_when) -> None:
     """Report the busiest time(s) of day."""
     def one_line(rank:int, num_events:int, times:list[str]) -> None:
         """Format and print one line of busyness report."""
@@ -675,7 +674,7 @@ def busy_report(events:dict, as_of_when) -> None:
         busy_times[activity].append(time)
     # Report the results.
     print()
-    iprint("Busiest times of day:",style=cfg.SUBTITLE_STYLE)
+    iprint("Busiest times of day",style=cfg.SUBTITLE_STYLE)
     iprint("Rank  Ins&Outs  When")
     for rank, activity in enumerate(sorted(busy_times.keys(),reverse=True), start=1):
         if rank > cfg.BUSIEST_RANKS:
@@ -684,6 +683,43 @@ def busy_report(events:dict, as_of_when) -> None:
 
         # FIXME: tevpg got this far
 
+def qstack_report( visits:dict[str:Visit] ) -> None:
+    """Report whether visits are more queue-like or more stack-like."""
+    # Make a list of tuples: start_time, end_time for all visits.
+    visit_times = list(zip( [vis.time_in for vis in visits.values()],
+        [vis.time_out for vis in visits.values()]))
+    ##print(text_style(f"DEBUG:{list(visit_times)=}",style=cfg.WARNING_STYLE))
+    queueish = 0
+    stackish = 0
+    neutralish = 0
+    ttl_visits = 0
+    visit_compares = 0
+
+    for (time_in,time_out) in visit_times:
+        earlier_visits = [(tin,tout) for (tin,tout) in visit_times
+                if tin < time_in and tout > time_in]
+        visit_compares += len(earlier_visits)
+        for earlier_out in [v[1] for v in earlier_visits]:
+            if earlier_out < time_out:
+                queueish += 1
+            elif earlier_out > time_out:
+                stackish += 1
+            else:
+                neutralish += 1
+
+    print("")
+    iprint(f"Were today's {cfg.VISIT_NOUN.lower()}s "
+           "more queue-like or stack-like?", style=cfg.SUBTITLE_STYLE)
+    if not queueish and not stackish:
+        iprint("Unable to determine.")
+        return
+    queue_proportion = queueish / (queueish + stackish + neutralish)
+    stack_proportion = stackish / (queueish + stackish + neutralish)
+    iprint(f"Based on {visit_compares} compares of {len(visits)} "
+           f"{cfg.VISIT_NOUN.lower()}s, today's {cfg.VISIT_NOUN.lower()}s are:")
+    iprint(f"{round(queue_proportion*100):3d}% queue-like (overlapping)",num_indents=2)
+    iprint(f"{round(stack_proportion*100):3d}% stack-like (nested)",num_indents=2)
+    iprint(f"{round((1 - stack_proportion - queue_proportion)*100):3d}% neither",num_indents=2)
 
 def day_end_report( args:list ) -> None:
     """Reports summary statistics about visits, up to the given time.
@@ -710,14 +746,41 @@ def day_end_report( args:list ) -> None:
     # Bikes in, in various categories.
     bike_check_ins_report(as_of_when)
     # Stats that use visits (stays)
-    visits = Visit.calc_visits(as_of_when)
+    visits = calc_visits(as_of_when)
     visit_lengths_by_category_report(visits)
     visit_statistics_report(visits)
+
+def more_stats_report( args:list ) -> None:
+    """Reports more summary statistics about visits, up to the given time.
+
+    If not time given, calculates as of latest checkin/out of the day.
+    """
+    rightnow = get_time()
+    as_of_when = (args + [None])[0]
+    if not as_of_when:
+        as_of_when = rightnow
+    elif not (as_of_when := time_str(as_of_when)):
+        iprint(f"Unrecognized time passed to visits summary ({args[0]})",
+               style=cfg.WARNING_STYLE)
+        return
+    print()
+    iprint(f"More summary statistics as at {as_of_when}",style=cfg.TITLE_STYLE)
+    if as_of_when > rightnow:
+        iprint( "(Summary shows a time in the future)",
+               style=cfg.HIGHLIGHT_STYLE )
+    if not latest_event(as_of_when):
+        iprint(f"No bikes checked in by {as_of_when}",
+               style=cfg.SUBTITLE_STYLE)
+        return
+    # Stats that use visits (stays)
+    visits = calc_visits(as_of_when)
     # Dict of time (events)
-    events = Event.calc_events(as_of_when)
+    events = calc_events(as_of_when)
     highwater_report( events )
     # Busiest times of day
     busy_report(events,as_of_when)
+    # Queue-like vs stack-like
+    qstack_report(visits)
 
 def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
     """Make dict of tags with their stay duration in minutes.
@@ -739,142 +802,6 @@ def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
         if duration < 1:
             tag_durations[tag] = 1
     return tag_durations
-
-def calc_stays() -> list[int]:
-    """Calculate how long each tag has stayed in the bikevalet.
-
-    (Leftovers aren't counted as stays for these purposes)
-    """
-    #FIXME: Refactor (see issue #11)
-    # FIXME: this function no longer used or needed
-    global shortest_stay_tags_str
-    global longest_stay_tags_str
-    global min_stay
-    global max_stay
-    stays = []
-    tags = []
-    for tag in check_ins:
-        time_in = time_int(check_ins[tag])
-        if tag in check_outs:
-            time_out = time_int(check_outs[tag])
-        else:
-            time_out = time_int(get_time())
-        stay = max(time_out - time_in,1)    # If zero just call it one minute.
-        stays.append(stay)
-        tags.append(tag) # add to list of tags in same order for next step
-    min_stay = min(stays)
-    max_stay = max(stays)
-    shortest_stay_tags = [tags[i] for i in range(len(stays))
-            if stays[i] == min_stay]
-    longest_stay_tags = [tags[i] for i in range(len(stays))
-            if stays[i] == max_stay]
-    shortest_stay_tags_str = ', '.join(shortest_stay_tags)
-    longest_stay_tags_str = ', '.join(longest_stay_tags)
-    return stays
-
-def median_stay(stays:list) -> int:
-    """Compute the median of a list of stay lengths."""
-    # FIXME: this function no longer used or needed
-    stays = sorted(stays) # order by length
-    quantity = len(stays)
-    if quantity % 2 == 0: # even number of stays
-        halfway = int(quantity/2)
-        mid_1 = stays[halfway - 1]
-        mid_2 = stays[halfway]
-        median = (mid_1 + mid_2)/2
-    else: # odd number of stays
-        median = stays[quantity//2]
-    return median
-
-def mode_stay(stays:list) -> Tuple[int,int]:
-    """Compute the mode for a list of stay lengths.
-    (rounds stays)
-    """
-    # FIXME: this function no longer used or needed
-
-    round_stays = []
-    for stay in stays:
-        remainder = stay % cfg.MODE_ROUND_TO_NEAREST
-        mult = stay // cfg.MODE_ROUND_TO_NEAREST
-        if remainder > 4:
-            mult += 1
-        rounded = mult * cfg.MODE_ROUND_TO_NEAREST
-        round_stays.append(rounded)
-    mode = max(set(round_stays), key=round_stays.count)
-    count = stays.count(mode)
-    return mode, count
-
-def show_stats():
-    """Show # of bikes currently in, and statistics for day end form."""
-    # FIXME: this function no longer used or needed
-
-    norm = 0 # counting bikes by type
-    over = 0
-    for tag in check_ins:
-        if tag in cfg.normal_tags:
-            norm += 1
-        elif tag in cfg.oversize_tags:
-            over += 1
-    tot_in = norm + over
-
-    if len(check_outs) > 0: # if any bikes have completed their stay, do stats
-        AM_ins = 0
-        PM_ins = 0
-        for tag in check_ins:
-            hour = int(check_ins[tag][:2]) # first 2 characters of time string
-            if hour >= 12: # if bike checked in after noon (inclusive)
-                PM_ins += 1
-            else:
-                AM_ins += 1
-        # calculate stats
-        all_stays = calc_stays()
-        mean = round(sum(all_stays)/len(all_stays))
-        median = round(median_stay(all_stays))
-        mode, count = mode_stay(all_stays)
-
-        # Find num of stays between various time values.
-        short_stays = 0
-        medium_stays = 0
-        long_stays = 0
-        for stay in all_stays: # count stays over/under x time
-            if stay < cfg.T_UNDER:
-                short_stays += 1
-            elif stay <= cfg.T_OVER: # middle bracket contains the edge cases
-                medium_stays += 1
-            else:
-                long_stays += 1
-        hrs_under = f"{(cfg.T_UNDER / 60):3.1f}" # in hours for print clarity
-        hrs_over = f"{(cfg.T_OVER / 60):3.1f}"
-
-        print()
-        iprint("Summary statistics "
-               f"({len(check_ins)-len(check_outs)} bikes still on hand):",
-               style=cfg.TITLE_STYLE)
-        print()
-        iprint(f"Total bikes:    {tot_in:3d}")
-        iprint(f"AM bikes:       {AM_ins:3d}")
-        iprint(f"PM bikes:       {PM_ins:3d}")
-        iprint(f"Regular:        {norm:3d}")
-        iprint(f"Oversize:       {over:3d}")
-        print()
-        iprint(f"Stays < {hrs_under}h:   {short_stays:3d}")
-        iprint(f"Stays {hrs_under}-{hrs_over}h: {medium_stays:3d}")
-        iprint(f"Stays > {hrs_over}h:   {long_stays:3d}")
-        print()
-        iprint(f"Max stay:     {time_str(max_stay):>5}   "
-               f"[tag(s) {longest_stay_tags_str}]")
-        iprint(f"Min stay:     {time_str(min_stay):>5}   "
-               f"[tag(s) {shortest_stay_tags_str}]")
-        iprint(f"Mean stay:    {time_str(mean):>5}")
-        iprint(f"Median stay:  {time_str(median):>5}")
-        iprint(f"Mode stay:    {time_str(mode):>5} "
-               f"by {count} bike(s)  [{cfg.MODE_ROUND_TO_NEAREST} minute "
-               "blocks]")
-
-    else: # don't try to calculate stats on nothing
-        iprint("No bikes returned out, can't calculate statistics. "
-               f"({tot_in} bikes currently checked in.)",
-               style=cfg.WARNING_STYLE)
 
 def delete_entry(args:list[str]) -> None:
     """Perform tag entry deletion dialogue."""
@@ -1556,10 +1483,10 @@ def main():
                 lookback(args)
             case cfg.CMD_QUERY:
                 query_tag(args)
-            #case cfg.CMD_STATS:
-            #    show_stats()
             case cfg.CMD_STATS:
                 day_end_report(args)
+            case cfg.CMD_MORE_STATS:
+                more_stats_report(args)
             case cfg.CMD_UNKNOWN:
                 print()
                 iprint("Unrecognized tag or command, enter 'h' for help",
