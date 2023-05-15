@@ -106,7 +106,7 @@ COMMANDS[CMD_LOOKBACK := "lookback"] = ['lookback',
         'look', 'l', 'log', 'recent', 'r']
 COMMANDS[CMD_QUERY :="query"] = ['query','q','?','/']
 COMMANDS[CMD_STATS :="stats"] = ['s','stat','stats','sum','summary']
-#COMMANDS[CMD_NEW_STATS := "new_stats"] = ['z', 'z', 'new']
+COMMANDS[CMD_MORE_STATS := "more stats"] = ["m", "more"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
