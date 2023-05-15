@@ -1199,7 +1199,7 @@ def dataform_report(args:list[str]) -> None:
     if not end_time:
         end_time = get_time()
     end_time = time_str(end_time)
-    if not ():
+    if not (end_time):
         print()
         iprint(f"Unrecognized time {args[0]}",style=cfg.WARNING_STYLE)
         return
