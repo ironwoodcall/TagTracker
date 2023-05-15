@@ -17,6 +17,7 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import os
+import sys
 import time
 import re
 import pathlib
@@ -194,6 +195,22 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
         text = text_style(text,style=style)
     print(f"{cfg.INDENT * num_indents}{text}",end=end)
 
+def future_warning(when:str="") -> None:
+    """Give a reminder that requested report time is in the future.
+
+    If called with when same as current time or in the past, does nothing.
+    """
+    if when:
+        rightnow = get_time()
+        if rightnow >= when:
+            return
+        msg = ("(Reporting a time "
+                f"{pretty_time(time_int(when)-time_int(rightnow),trim=True)}"
+                " in the future)")
+    else:
+        msg = "(Reporting a time in the future)"
+    iprint(msg,style=cfg.HIGHLIGHT_STYLE)
+
 def earliest_event() -> str:
     """Return the earliest event of the day as HH:MM (or "" if none)."""
         # Find earliest and latest block of the day
@@ -281,9 +298,15 @@ def read_tags() -> bool:
                        style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
-            if not (this_tag := fix_tag(cells[0],must_be_available=True)):
-                iprint("Poorly formed or unrecognized tag in file"
-                        f" {logfilename} line {line_num}",
+            if not (this_tag := fix_tag(cells[0],must_be_available=False)):
+                iprint("String does not appear to ba a tag (file"
+                        f" {logfilename} line {line_num})",
+                        style=cfg.ERROR_STYLE)
+                errors += 1
+                continue
+            if this_tag not in cfg.all_tags:
+                iprint(f"Tag '{this_tag}' not in use (file"
+                        f" {logfilename} line {line_num})",
                         style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
@@ -735,8 +758,7 @@ def day_end_report( args:list ) -> None:
     print()
     iprint(f"Summary statistics as at {as_of_when}",style=cfg.TITLE_STYLE)
     if as_of_when > rightnow:
-        iprint( "(Summary shows a time in the future)",
-               style=cfg.HIGHLIGHT_STYLE )
+        future_warning(as_of_when)
     if not latest_event(as_of_when):
         iprint(f"No bikes checked in by {as_of_when}",
                style=cfg.SUBTITLE_STYLE)
@@ -764,8 +786,7 @@ def more_stats_report( args:list ) -> None:
     print()
     iprint(f"More summary statistics as at {as_of_when}",style=cfg.TITLE_STYLE)
     if as_of_when > rightnow:
-        iprint( "(Summary shows a time in the future)",
-               style=cfg.HIGHLIGHT_STYLE )
+        future_warning(as_of_when)
     if not latest_event(as_of_when):
         iprint(f"No bikes checked in by {as_of_when}",
                style=cfg.SUBTITLE_STYLE)
@@ -1275,16 +1296,12 @@ def audit_report(args:list[str]) -> None:
 
     # Audit report header.
     print()
-    if as_of_when == rightnow:
-        title = f"Audit report as at current time ({rightnow})"
-    elif as_of_when > rightnow:
-        title = f"Audit report guessing at future state (as at {as_of_when})"
-    else:
-        title = f"Audit report as was at {as_of_when}"
-    iprint(text_style(title,style=cfg.TITLE_STYLE))
-    print()
+
+    iprint(f"Audit report as at {as_of_when}", style=cfg.TITLE_STYLE)
+    future_warning(as_of_when)
 
     # Audit summary section.
+    print()
     iprint("Summary             Regular Oversize Total",
            style=cfg.SUBTITLE_STYLE)
     iprint(f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}"
@@ -1467,6 +1484,23 @@ def error_exit() -> None:
     time.sleep(30)
     exit()
 
+def datafile_name() -> str:
+    """Return the name of the data file (logfile) to read/write."""
+
+    if len(sys.argv) <= 1:
+        # Use default filename
+        return f"logs/{cfg.LOG_BASENAME}{DATE}.log"
+
+    # Custom logfile name or location
+    file = sys.argv[1]
+    # File there?
+    if not os.path.exists(file):
+        iprint(f"Error: File {file} not found",style=cfg.ERROR_STYLE)
+        error_exit()
+
+    # This is the custom logfile & it exists
+    return file
+
 # STARTUP
 if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
 
@@ -1481,7 +1515,7 @@ if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
             style=cfg.ANSWER_STYLE))
     print()
     DATE = get_date()
-    LOG_FILEPATH = f"logs/{cfg.LOG_BASENAME}{DATE}.log"
+    LOG_FILEPATH = datafile_name()
 
     if read_tags(): # only run main() if tags read successfully
         main()
