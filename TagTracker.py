@@ -1428,40 +1428,39 @@ def main():
         (cmd, *args) = tokens
         # Dispatcher
         data_dirty = False
-        match cmd:
-            case cfg.CMD_EDIT:
-                edit_entry(args)
-                data_dirty = True
-            case cfg.CMD_AUDIT:
-                audit_report(args)
-            case cfg.CMD_DELETE:
-                delete_entry(args)
-                data_dirty = True
-            case cfg.CMD_EDIT:
-                edit_entry(args)
-                data_dirty = True
-            case cfg.CMD_EXIT:
-                done = True
-            case cfg.CMD_BLOCK:
-                dataform_report(args)
-            case cfg.CMD_HELP:
-                print(cfg.help_message)
-            case cfg.CMD_LOOKBACK:
-                lookback(args)
-            case cfg.CMD_QUERY:
-                query_tag(args)
-            case cfg.CMD_STATS:
-                day_end_report(args)
-            case cfg.CMD_MORE_STATS:
-                more_stats_report(args)
-            case cfg.CMD_UNKNOWN:
-                print()
-                iprint("Unrecognized tag or command, enter 'h' for help",
-                       style=cfg.WARNING_STYLE)
-            case _:
-                # This is a tag
-                tag_check(cmd)
-                data_dirty = True
+        if cmd == cfg.CMD_EDIT:
+            edit_entry(args)
+            data_dirty = True
+        elif cmd == cfg.CMD_AUDIT:
+            audit_report(args)
+        elif cmd == cfg.CMD_DELETE:
+            delete_entry(args)
+            data_dirty = True
+        elif cmd == cfg.CMD_EDIT:
+            edit_entry(args)
+            data_dirty = True
+        elif cmd == cfg.CMD_EXIT:
+            done = True
+        elif cmd == cfg.CMD_BLOCK:
+            dataform_report(args)
+        elif cmd == cfg.CMD_HELP:
+            print(cfg.help_message)
+        elif cmd == cfg.CMD_LOOKBACK:
+            lookback(args)
+        elif cmd == cfg.CMD_QUERY:
+            query_tag(args)
+        elif cmd == cfg.CMD_STATS:
+            day_end_report(args)
+        elif cmd == cfg.CMD_MORE_STATS:
+            more_stats_report(args)
+        elif cmd == cfg.CMD_UNKNOWN:
+            print()
+            iprint("Unrecognized tag or command, enter 'h' for help",
+                    style=cfg.WARNING_STYLE)
+        else:
+            # This is a tag
+            tag_check(cmd)
+            data_dirty = True
         # Save if anything has changed
         if data_dirty:
             rotate_log()
