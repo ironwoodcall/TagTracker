@@ -1458,29 +1458,6 @@ def main():
             write_tags()
             data_dirty = False
 
-'''
-# This is a model for a potential way to structure do_stuff commands,
-# particularly ones that might prompt for missing args
-def do_edit(args:list[str]):
-    (target, in_or_out, new_time) = (args + [None,None,None])[:3]
-
-    # Action is identified as 'edit'
-    tag = get_token(arg[0],optional=False,prompt="Edit what tag?")
-    if not (tag := fix_tag(tag, must_be_available=True)):
-        ...error...
-        return
-    in_out = get_token(arg[1],optional=False,prompt="Change (i)n or (o)ut time?")
-    if not (in_out useful):
-        ...error...
-        return
-    newtime = get_token(arg[2], optional=False, prompt="Change to what time (blank for now):",default="")
-    if not (newtime := time_str(newtime)):
-        ...error...
-        return
-    confirm = get_token(arg[3], optional=False,prompt="Change (Y/n):",default="y')
-   (etc)
-'''
-
 def error_exit() -> None:
     """If an error has occurred, give a message and shut down.
 
@@ -1513,71 +1490,4 @@ if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
 else:
     error_exit()
 #==========================================
-
-# possible data structures for (new) reports
-
-"""Possible data structures for reports.
-
---------------------------
-Queue-like or stack-like.
-
-Want to know all visits with their start time and end time
-    dict visits_by_tag{}
-        key = tag
-        value = dict
-            key = "time_in"|"time_out"
-            value = event's time - could be hhmm or num
-    ** check how compatible this is with calc_stays() structure
-    ** could also be a Tag object
-"""
-X="""
------------------------
-Time of day with most bikes on hand
-
-fullness{}
-dict of event times with num bikes on hand
-    key = time
-    value = num_bikes
-
-block_fullness{}    # for histogram
-    key = block_start
-    value = num bikes
-"""
-
-X="""
-------------------------
-Busiest times of day (most events in a time block)
-
-    block_activity{} dict as per data entry report,
-    To find maximums, walk the dict looking at things like
-
-        how_busy = {}
-        for block, activities in block_activity.items():
-            ins = len(activities[cfg.BIKE_IN])
-            outs = len(activities[cfg.BIKE_OUT])
-            ttl = ins + outs
-            if ttl not in how_busy:
-                how_busy[ttl] = []
-            how_busy[ttl] += [block]
-
-        iprint("Busiest timeblock(s) of the day:")
-        most = max(how_busy.keys())
-        for block in sorted(how_busy[most]):
-            iprint(f"{block}: {most} ins & outs ({block_activity[block][BIKE_IN]} in, {block_activity[block][BIKE_IN]} out)")
-"""
-
-X="""
----------------------------------
-Data Entry report (events listed by time block)
-
-    block_ins[block_start] = [list of tags]
-    block_outs[block_start] = [list of tags]
-
-    block_activity{}
-        key = block start HHMM
-        value = dict{}
-            cfg.BIKE_IN: [list of tags]
-            cfg.BIKE_OUT: [list of tags]
-
-"""
 
