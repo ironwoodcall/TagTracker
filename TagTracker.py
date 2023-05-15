@@ -19,6 +19,7 @@ Copyright (C) 2023 Julias Hocking
 import os
 import sys
 import time
+from datetime import datetime
 import re
 import pathlib
 import statistics
@@ -27,19 +28,11 @@ import TrackerConfig as cfg
 
 def get_date() -> str:
     """Return current date as string: YYYY-MM-DD."""
-    localtime = time.localtime()
-    year = str(localtime.tm_year)
-    month = str(localtime.tm_mon)
-    day = str(localtime.tm_mday)
-    month = ('0'+month)[-2:] # ensure leading zeroes
-    day = ('0'+day)[-2:]
-    date = f"{year}-{month}-{day}"
-    return date
+    return datetime.today().strftime("%Y-%m-%d")
 
 def get_time() -> str:
     """Return current time as string: HH:MM."""
-    now = time.asctime(time.localtime())[11:16]
-    return now
+    return datetime.today().strftime("%H:%M")
 
 def time_int(maybe_time:Union[str,int,float,None]) -> Union[int,None]:
     """Return maybe_time (str or int) to number of minutes since midnight or "".
@@ -206,7 +199,7 @@ def future_warning(when:str="") -> None:
             return
         msg = ("(Reporting a time "
                 f"{pretty_time(time_int(when)-time_int(rightnow),trim=True)}"
-                " in the future)")
+                "h later than now)")
     else:
         msg = "(Reporting a time in the future)"
     iprint(msg,style=cfg.HIGHLIGHT_STYLE)
