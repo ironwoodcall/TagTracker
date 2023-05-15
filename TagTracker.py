@@ -51,7 +51,8 @@ def time_int(maybe_time:Union[str,int,float,None]) -> Union[int,None]:
     if isinstance(maybe_time,float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time,str):
-        if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)):
+        r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
+        if not (r):
             return None
         h = int(r.group(1))
         m = int(r.group(2))
@@ -83,7 +84,8 @@ def time_str(maybe_time:Union[int,str,float,None]) -> str:
     if isinstance(maybe_time,float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time,str):
-        if not (r := re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)):
+        r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
+        if not (r):
             return ""
         h = int(r.group(1))
         m = int(r.group(2))
@@ -134,7 +136,8 @@ def parse_tag(maybe_tag:str, must_be_available=False) -> list[str]:
         tag_number: a sequence number, without lead zeroes.
     """
     maybe_tag = maybe_tag.lower()
-    if not bool(r := cfg.PARSE_TAG_RE.match(maybe_tag)):
+    r = cfg.PARSE_TAG_RE.match(maybe_tag)
+    if not bool(r):
         return []
 
     tag_colour = r.group(1)
@@ -222,8 +225,10 @@ def latest_event( as_of_when:Union[str,int,None]=None ) -> str:
     """
     if not as_of_when:
         as_of_when = "24:00"
-    elif not (as_of_when := time_str(as_of_when)):
-        return ""
+    else:
+        as_of_when = time_str(as_of_when)
+        if not (as_of_when):
+            return ""
 
     events = [x for x in
             (list(check_ins.values()) + list(check_outs.values()))
@@ -291,7 +296,8 @@ def read_tags() -> bool:
                        style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
-            if not (this_tag := fix_tag(cells[0],must_be_available=False)):
+            this_tag = fix_tag(cells[0],must_be_available=False)
+            if not (this_tag):
                 iprint("String does not appear to ba a tag (file"
                         f" {logfilename} line {line_num})",
                         style=cfg.ERROR_STYLE)
@@ -303,7 +309,8 @@ def read_tags() -> bool:
                         style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
-            if not (this_time := time_str(cells[1])):
+            this_time = time_str(cells[1])
+            if not (this_time):
                 iprint("Time value poorly formed in file"
                         f" {logfilename} line {line_num}",
                         style=cfg.ERROR_STYLE)
@@ -744,10 +751,12 @@ def day_end_report( args:list ) -> None:
     as_of_when = (args + [None])[0]
     if not as_of_when:
         as_of_when = rightnow
-    elif not (as_of_when := time_str(as_of_when)):
-        iprint(f"Unrecognized time passed to visits summary ({args[0]})",
-               style=cfg.WARNING_STYLE)
-        return
+    else:
+        as_of_when = time_str(as_of_when)
+        if not (as_of_when):
+            iprint(f"Unrecognized time passed to visits summary ({args[0]})",
+                style=cfg.WARNING_STYLE)
+            return
     print()
     iprint(f"Summary statistics as at {as_of_when}",style=cfg.TITLE_STYLE)
     if as_of_when > rightnow:
@@ -772,10 +781,12 @@ def more_stats_report( args:list ) -> None:
     as_of_when = (args + [None])[0]
     if not as_of_when:
         as_of_when = rightnow
-    elif not (as_of_when := time_str(as_of_when)):
-        iprint(f"Unrecognized time passed to visits summary ({args[0]})",
-               style=cfg.WARNING_STYLE)
-        return
+    else:
+        as_of_when = time_str(as_of_when)
+        if not (as_of_when):
+            iprint(f"Unrecognized time passed to visits summary ({args[0]})",
+                style=cfg.WARNING_STYLE)
+            return
     print()
     iprint(f"More summary statistics as at {as_of_when}",style=cfg.TITLE_STYLE)
     if as_of_when > rightnow:
@@ -1187,7 +1198,8 @@ def dataform_report(args:list[str]) -> None:
     end_time = (args + [None])[0]
     if not end_time:
         end_time = get_time()
-    if not (end_time := time_str(end_time)):
+    end_time = time_str(end_time)
+    if not ():
         print()
         iprint(f"Unrecognized time {args[0]}",style=cfg.WARNING_STYLE)
         return
@@ -1392,7 +1404,8 @@ def parse_command(user_input:str) -> list[str]:
 
     Returns [] if not a recognized tag or command.
     """
-    if not (user_input := user_input.lower().strip()):
+    user_input = user_input.lower().strip()
+    if not (user_input):
         return []
     # Special case - if user input starts with '/' or '?' add a space.
     if user_input[0] in ["/","?"]:
