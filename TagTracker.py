@@ -467,7 +467,9 @@ def calc_visits( as_of_when:Union[int,str]=None ) -> dict[str:Visit]:
 class Event():
     """What happened at each discrete atime of day (that something happened)."""
 
-    def __init__(self, atime:str ) -> None:
+    def __init__(self,event_time:str) -> None:
+        """Create empty Event, attributes initialized to type."""
+        self.event_time = event_time
         self.num_here_total = None  # will be int
         self.num_here_regular = None
         self.num_here_oversize = None
@@ -760,7 +762,7 @@ def qstack_report( visits:dict[str:Visit] ) -> None:
     iprint(f"{round(queue_proportion*100):3d}% queue-like (overlapping)",num_indents=2)
     iprint(f"{round(stack_proportion*100):3d}% stack-like (nested)",num_indents=2)
     iprint(f"{round((1 - stack_proportion - queue_proportion)*100):3d}% "
-           "neither (disjunct or same check-in/out)",num_indents=2)
+           "neither (disjunct, or share a check-in or -out time)",num_indents=2)
 
 def day_end_report( args:list ) -> None:
     """Reports summary statistics about visits, up to the given time.
@@ -954,10 +956,12 @@ def query_tag(args:list[str]) -> None:
         iprint(f"Tag '{fixed_target}' not used yet today",
                style=cfg.WARNING_STYLE)
         return
-    iprint(f"{check_ins[fixed_target]}  {fixed_target} checked  IN",
+    iprint(f"{pretty_time(check_ins[fixed_target])}  "
+           f"{fixed_target} checked  IN",
            style=cfg.ANSWER_STYLE)
     if fixed_target in check_outs:
-        iprint(f"{check_outs[fixed_target]}  {fixed_target} returned OUT",
+        iprint(f"{pretty_time(check_outs[fixed_target])}  "
+               f"{fixed_target} returned OUT",
                style=cfg.ANSWER_STYLE)
     else:
         iprint(f"(now)  {target} still at valet", style=cfg.ANSWER_STYLE)
@@ -1381,15 +1385,14 @@ def tag_check(tag:str) -> None:
 
     This processes a prompt that's just a tag ID.
     """
-
     def print_inout(tag:str, inout:str) -> None:
         """Pretty-print a tag-in or tag-out message."""
         if inout == cfg.BIKE_IN:
-            msg1 = f"Bike {tag} checked IN"
+            msg1 = f"Bike {tag} checked IN "
             msg2 = f"bike #{len(check_ins)}"
             ##msg2 = f"bike #{len(check_ins)}; {num_bikes_at_valet()} bikes at valet"
         elif inout == cfg.BIKE_OUT:
-            msg1 = f"Bike {tag} returned OUT"
+            msg1 = f"Bike {tag} checked OUT"
             duration = pretty_time(
                     time_int(check_outs[tag]) - time_int(check_ins[tag]),
                     trim=True)
