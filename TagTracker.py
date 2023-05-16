@@ -24,7 +24,16 @@ import re
 import pathlib
 import statistics
 from typing import Union    # This is for type hints instead of (eg) int|str
+from inspect import currentframe, getframeinfo
+
 import TrackerConfig as cfg
+
+def debug( whatever="" ) -> None:
+    """Print whatever with file & linenumber in front of it."""
+    cf = currentframe()
+    filename = os.path.basename(getframeinfo(cf).filename)
+    lineno = cf.f_back.f_lineno
+    print(text_style(f"{filename}:{lineno}: {whatever}",style=cfg.ERROR_STYLE))
 
 def get_date() -> str:
     """Return current date as string: YYYY-MM-DD."""
@@ -107,15 +116,15 @@ def time_str(maybe_time:Union[int,str,float,None]) -> str:
     # Return 5-digit time string
     return f"{h:02d}:{m:02d}"
 
-def pretty_time(time:Union[int,str,float], trim:bool=False ) -> str:
+def pretty_time(atime:Union[int,str,float], trim:bool=False ) -> str:
     """Replace lead 0 in HH:MM with blank (or remove, if 'trim' )."""
-    time = time_str(time)
-    if not time:
+    atime = time_str(atime)
+    if not atime:
         return ""
     replace_with = "" if trim else " "
-    if time[0] == "0":
-        time = f"{replace_with}{time[1:]}"
-    return time
+    if atime[0] == "0":
+        atime = f"{replace_with}{atime[1:]}"
+    return atime
 
 def parse_tag(maybe_tag:str, must_be_available=False) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
@@ -169,6 +178,16 @@ def sort_tags( unsorted:list[str]) -> list[str]:
     newlist.sort()
     newlist = [fix_tag(t) for t in newlist]
     return newlist
+
+def num_bikes_at_valet( as_of_when:Union[str,int]=None ) -> int:
+    """Return count of bikes at the valet as of as_of_when."""
+    as_of_when = time_str(as_of_when)
+    if not as_of_when:
+        as_of_when = get_time()
+    # Count bikes that came in & by the given time, and the diff
+    num_in = len([t for t in check_ins.values() if t <= as_of_when])
+    num_out = len([t for t in check_outs.values() if t <= as_of_when])
+    return max(0, num_in - num_out)
 
 def text_style(text:str, style=None) -> str:
     """Return text with style 'style' applied."""
@@ -243,23 +262,23 @@ def latest_event( as_of_when:Union[str,int,None]=None ) -> str:
 def read_tags() -> bool:
     """Fetch tag data from file.
 
-    Read data from a pre-existing log file, if one exists
+    Read data from a pre-existing data file, if one exists
     check for .txt file for today's date in folder called 'logs'
     e.g. "logs/2023-04-20.txt"
     if exists, read for ins and outs
     if none exists, who cares -- one will get made.
     """
-    logfilename = LOG_FILEPATH
+    datafilename = LOG_FILEPATH
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
-    if not os.path.exists(logfilename):
-        iprint('No existing log for today found. Creating new log.',
+    if not os.path.exists(datafilename):
+        iprint('No existing data for today found. Creating new data.',
                style=cfg.SUBTITLE_STYLE)
         return True
-    iprint(f"Loading data from existing log file {logfilename}...",
+    iprint(f"Loading data from existing data file {datafilename}...",
            style=cfg.SUBTITLE_STYLE)
-    errors = 0  # How many errors found reading logfile?
+    errors = 0  # How many errors found reading datafile?
     section = None
-    with open(logfilename, 'r') as f:
+    with open(datafilename, 'r') as f:
         for line_num, line in enumerate(f, start=1):
             # ignore blank or # comment lines
             line = re.sub(r"\s*#.*","", line)
@@ -282,7 +301,7 @@ def read_tags() -> bool:
                 continue
             # Can do nothing unless we know what section we're in
             if section is None:
-                iprint(f"weirdness in line {line_num} of {logfilename}",
+                iprint(f"weirdness in line {line_num} of {datafilename}",
                        style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
@@ -292,27 +311,27 @@ def read_tags() -> bool:
             # Break into putative tag and text, looking for errors
             cells = line.split(',')
             if len(cells) != 2:
-                iprint(f"Bad line in file {logfilename} line {line_num}",
+                iprint(f"Bad line in file {datafilename} line {line_num}",
                        style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
             this_tag = fix_tag(cells[0],must_be_available=False)
             if not (this_tag):
                 iprint("String does not appear to ba a tag (file"
-                        f" {logfilename} line {line_num})",
+                        f" {datafilename} line {line_num})",
                         style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
             if this_tag not in cfg.all_tags:
                 iprint(f"Tag '{this_tag}' not in use (file"
-                        f" {logfilename} line {line_num})",
+                        f" {datafilename} line {line_num})",
                         style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
             this_time = time_str(cells[1])
             if not (this_time):
                 iprint("Time value poorly formed in file"
-                        f" {logfilename} line {line_num}",
+                        f" {datafilename} line {line_num}",
                         style=cfg.ERROR_STYLE)
                 errors += 1
                 continue
@@ -327,7 +346,7 @@ def read_tags() -> bool:
                     continue
                 if this_tag in check_outs and check_outs[this_tag] < this_time:
                     iprint(f"Tag {this_tag} check out before check-in"
-                            f" in file {logfilename}",
+                            f" in file {datafilename}",
                             style=cfg.ERROR_STYLE)
                     errors += 1
                     continue
@@ -341,7 +360,7 @@ def read_tags() -> bool:
                     continue
                 if this_tag in check_ins and check_ins[this_tag] > this_time:
                     iprint(f"Tag {this_tag} check out before check-in"
-                            f" in file {logfilename}",
+                            f" in file {datafilename}",
                             style=cfg.ERROR_STYLE)
                     errors += 1
                     continue
@@ -353,15 +372,15 @@ def read_tags() -> bool:
                 continue
 
     if errors:
-        iprint(f"Found {errors} errors in logfile {logfilename}",
+        iprint(f"Found {errors} errors in datafile {datafilename}",
                style=cfg.ERROR_STYLE)
     else:
-        iprint('Existing log for today successfully loaded',
+        iprint('Existing data for today successfully loaded',
                style=cfg.SUBTITLE_STYLE)
     return not bool(errors)
 
 def rotate_log() -> None:
-    """Rename the current log to <itself>.bak."""
+    """Rename the current logfile to <itself>.bak."""
     backuppath = f"{LOG_FILEPATH}.bak"
     if os.path.exists(backuppath):
         os.unlink(backuppath)
@@ -370,19 +389,19 @@ def rotate_log() -> None:
     return None
 
 def write_tags() -> None:
-    """Write current data to today's log file."""
+    """Write current data to today's data file."""
     lines = []
-    lines.append("# TagTracker logfile (data file) created on "
+    lines.append("# TagTracker datafile (data file) created on "
             f"{get_date()} {get_time()}")
     lines.append("Bikes checked in / tags out:")
-    for tag, time in check_ins.items(): # for each bike checked in
-        lines.append(f"{tag},{time}") # add a line "tag,time"
+    for tag, atime in check_ins.items(): # for each bike checked in
+        lines.append(f"{tag},{atime}") # add a line "tag,time"
     lines.append("Bikes checked out / tags in:")
-    for tag,time in check_outs.items(): # for each  checked
-        lines.append(f"{tag},{time}") # add a line "tag,time"
+    for tag,atime in check_outs.items(): # for each  checked
+        lines.append(f"{tag},{atime}") # add a line "tag,time"
     # Also write tag info of which bikes are oversize, which are regular.
-    # This is for logfile aggregator.
-    lines.append( "# The following sections are for logfile aggregator")
+    # This is for datafile aggregator.
+    lines.append( "# The following sections are for datafile aggregator")
     lines.append("Regular-bike tags:")
     for tag in cfg.normal_tags:
         lines.append(tag)
@@ -446,9 +465,9 @@ def calc_visits( as_of_when:Union[int,str]=None ) -> dict[str:Visit]:
     return visits
 
 class Event():
-    """What happened at each discrete time of day (that something happened)."""
+    """What happened at each discrete atime of day (that something happened)."""
 
-    def __init__(self, time:str ) -> None:
+    def __init__(self, atime:str ) -> None:
         self.num_here_total = None  # will be int
         self.num_here_regular = None
         self.num_here_oversize = None
@@ -477,23 +496,23 @@ def calc_events(as_of_when:Union[int,str]=None ) -> dict[str:Event]:
     as_of_when = time_str(as_of_when)
     # First pass, create all the Events and list their tags in & out.
     events = {}
-    for tag,time in check_ins.items():
-        if time > as_of_when:
+    for tag,atime in check_ins.items():
+        if atime > as_of_when:
             continue
-        if time not in events:
-            events[time] = Event(time)
-        events[time].bikes_in.append(tag)
-    for tag,time in check_outs.items():
-        if time > as_of_when:
+        if atime not in events:
+            events[atime] = Event(atime)
+        events[atime].bikes_in.append(tag)
+    for tag,atime in check_outs.items():
+        if atime > as_of_when:
             continue
-        if time not in events:
-            events[time] = Event(time)
-        events[time].bikes_out.append(tag)
+        if atime not in events:
+            events[atime] = Event(atime)
+        events[atime].bikes_out.append(tag)
     # Second pass, calculate other attributes of Events.
     num_regular = 0     # Running balance of regular & oversize bikes.
     num_oversize = 0
-    for time in sorted(events.keys()):
-        vx = events[time]
+    for atime in sorted(events.keys()):
+        vx = events[atime]
         vx.num_ins = len(vx.bikes_in)
         vx.num_outs = len(vx.bikes_out)
         # How many regular & oversize bikes have we added or lost?
@@ -519,9 +538,9 @@ def bike_check_ins_report( as_of_when:str ) -> None:
     """
     # Find the subset of check-ins at or before our cutoff time.
     these_check_ins = {}
-    for tag,time in check_ins.items():
-        if time <= as_of_when:
-            these_check_ins[tag] = time
+    for tag,atime in check_ins.items():
+        if atime <= as_of_when:
+            these_check_ins[tag] = atime
     # Summary stats
     num_still_here = len(set(these_check_ins.keys()) -
         set([x for x in check_outs if check_outs[x] <= as_of_when]))
@@ -628,18 +647,18 @@ def visit_statistics_report(visits:dict) -> None:
 def highwater_report(events:dict) -> None:
     """Make a highwater table as at as_of_when"""
     # High-water mark for bikes in valet at any one time
-    def one_line( header:str, events:dict, time:str, highlight_field:int ) -> None:
+    def one_line( header:str, events:dict, atime:str, highlight_field:int ) -> None:
         """Print one line for highwater_report."""
-        values = [events[time].num_here_regular,
-                  events[time].num_here_oversize,
-                  events[time].num_here_total]
+        values = [events[atime].num_here_regular,
+                  events[atime].num_here_oversize,
+                  events[atime].num_here_total]
         line = f"{header:15s}"
         for num,val in enumerate(values):
             bit = f"{val:3d}"
             if num == highlight_field:
                 bit = text_style(bit,style=cfg.HIGHLIGHT_STYLE)
             line = f"{line}   {bit}"
-        iprint(f"{line}    {time}")
+        iprint(f"{line}    {atime}")
     # Table header
     print()
     iprint("Most bikes at valet at any one time", style=cfg.SUBTITLE_STYLE)
@@ -654,16 +673,16 @@ def highwater_report(events:dict) -> None:
     max_oversize_time = None
     max_total_time = None
     # Find the first time at which these took place
-    for time in sorted(events.keys()):
-        if (events[time].num_here_regular >= max_regular_num
+    for atime in sorted(events.keys()):
+        if (events[atime].num_here_regular >= max_regular_num
                 and not max_regular_time):
-            max_regular_time = time
-        if (events[time].num_here_oversize >= max_oversize_num
+            max_regular_time = atime
+        if (events[atime].num_here_oversize >= max_oversize_num
                 and not max_oversize_time):
-            max_oversize_time = time
-        if (events[time].num_here_total >= max_total_num
+            max_oversize_time = atime
+        if (events[atime].num_here_total >= max_total_num
                 and not max_total_time):
-            max_total_time = time
+            max_total_time = atime
     iprint("                 Reglr OvrSz Total WhenAchieved")
     one_line("Most regular:", events, max_regular_time, 0)
     one_line("Most oversize:", events, max_oversize_time, 1)
@@ -687,15 +706,15 @@ def busy_report(events:dict[str:Event], as_of_when) -> None:
         Block.timeblock_list(as_of_when),
         [0 for _ in range(0,100)]))
     # Count actions in each timeblock
-    for time, ev in events.items():
-        start = Block.block_start(time) # Which block?
-        blocks[start] = ev.num_ins + ev.num_outs
+    for atime, ev in events.items():
+        start = Block.block_start(atime) # Which block?
+        blocks[start] += ev.num_ins + ev.num_outs
     # Make a dict of busynesses with list of timeblocks for each.
     busy_times = {}
-    for time, activity in blocks.items():
+    for atime, activity in blocks.items():
         if activity not in busy_times:
             busy_times[activity] = []
-        busy_times[activity].append(time)
+        busy_times[activity].append(atime)
     # Report the results.
     print()
     iprint("Busiest times of day",style=cfg.SUBTITLE_STYLE)
@@ -740,7 +759,8 @@ def qstack_report( visits:dict[str:Visit] ) -> None:
            f"{cfg.VISIT_NOUN.lower()}s, today's {cfg.VISIT_NOUN.lower()}s are:")
     iprint(f"{round(queue_proportion*100):3d}% queue-like (overlapping)",num_indents=2)
     iprint(f"{round(stack_proportion*100):3d}% stack-like (nested)",num_indents=2)
-    iprint(f"{round((1 - stack_proportion - queue_proportion)*100):3d}% neither",num_indents=2)
+    iprint(f"{round((1 - stack_proportion - queue_proportion)*100):3d}% "
+           "neither (disjunct or same check-in/out)",num_indents=2)
 
 def day_end_report( args:list ) -> None:
     """Reports summary statistics about visits, up to the given time.
@@ -829,14 +849,15 @@ def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
 def delete_entry(args:list[str]) -> None:
     """Perform tag entry deletion dialogue."""
     (target,which_to_del,confirm) = (args + [None,None,None])[:3]
+
     if target:
         target = fix_tag(target,must_be_available=False)
     if not target:
-        target = False
+        target = None
     del_syntax_message = text_style("Syntax: d <tag> <both or check-out only"
             " (b/o)> <optional pre-confirm (y)>",style=cfg.SUBPROMPT_STYLE)
-    if not(target in [False] + cfg.all_tags or which_to_del in [False,'b','o']
-           or confirm in [False, 'y']):
+    if not(target in [None] + cfg.all_tags or which_to_del in [None,'b','o']
+           or confirm in [None, 'y']):
         iprint(del_syntax_message) # remind of syntax if invalid input
         return None # interrupt
     if not target: # get target if unspecified
@@ -847,32 +868,32 @@ def delete_entry(args:list[str]) -> None:
     checked_in = target in check_ins
     checked_out = target in check_outs
     if not checked_in and not checked_out:
-        iprint(f"'{target}' isn't in today's records (delete cancelled)",
+        iprint(f"'{target}' not used yet today (delete cancelled)",
                style=cfg.WARNING_STYLE)
     elif checked_out: # both events recorded
         time_in_temp = check_ins[target]
         time_out_temp = check_outs[target]
         if not which_to_del: # ask which to del if not specified
-            iprint(f"This tag has both a check-in ({time_in_temp}) and "
-                   f"a check-out ({time_out_temp}) recorded.",
+            iprint(f"Bike {target} checked in at "
+                   f"{pretty_time(time_in_temp,trim=True)} and "
+                   f"out at {pretty_time(time_out_temp,trim=True)}.",
                    style=cfg.SUBPROMPT_STYLE)
-            iprint("Do you want to delete (b)oth events, "
-                   "for just the check-(o)ut?  (b/o) {cfg.CURSOR}",
+            iprint("Delete (b)oth events, "
+                   f"or just the check-(o)ut?  (b/o) {cfg.CURSOR}",
                    style=cfg.SUBPROMPT_STYLE,end="")
             which_to_del = input().lower()
         if which_to_del == 'b':
             if confirm == 'y': # pre-confirmation
                 sure = True
             else:
-                iprint("Are you sure you want to delete both events "
-                       f"for {target}? (y/N) {cfg.CURSOR}",
+                iprint("Delete {target} check-in and check-out "
+                       f"(y/N) {cfg.CURSOR}",
                        style=cfg.SUBPROMPT_STYLE, end="")
                 sure = input().lower() == 'y'
             if sure:
                 check_ins.pop(target)
                 check_outs.pop(target)
-                iprint(f"Deleted {target} from today's records "
-                       f"(was in at {time_in_temp}, out at {time_out_temp})",
+                iprint(f"Deleted {target} check-in and check-out",
                        style=cfg.ANSWER_STYLE)
             else:
                 iprint("Delete cancelled",style=cfg.WARNING_STYLE)
@@ -881,28 +902,27 @@ def delete_entry(args:list[str]) -> None:
             if confirm == 'y':
                 sure = True
             else:
-                iprint("Are you sure you want to delete the "
-                       f"check-out record for {target}? (y/N) {cfg.CURSOR}",
+                iprint("Delete {target} check-out? (y/N) {cfg.CURSOR}",
                        style=cfg.SUBPROMPT_STYLE, end="" )
                 sure = input().lower() == 'y'
 
             if sure:
                 time_temp = check_outs[target]
                 check_outs.pop(target)
-                iprint(f"Deleted today's {time_temp} check-out for {target}",
-                       style=cfg.ANSWER_STYLE)
+                iprint(f"Deleted {target} check-out", style=cfg.ANSWER_STYLE)
             else:
                 iprint("Delete cancelled",style=cfg.WARNING_STYLE)
         else:
             iprint("Delete cancelled",style=cfg.WARNING_STYLE)
     else: # checked in only
         time_in_temp = check_ins[target]
-        if which_to_del in ['b', False]:
+        if which_to_del in ['b', None]:
             if confirm == 'y':
                 sure = True
             else: # check
-                iprint("This tag has only a check-in recorded. "
-                       f"Are you sure you want to delete it? (y/N) {cfg.CURSOR}",
+                iprint(f"Bike {target} checked in at "
+                       f"{pretty_time(time_in_temp,trim=True)}. "
+                       f"Delete check-in? (y/N) {cfg.CURSOR}",
                        style=cfg.SUBPROMPT_STYLE, end="")
                 sure = input().lower() == 'y'
             if sure:
@@ -1059,29 +1079,29 @@ class Block():
         self.num_here = 0       # Number of bikes in valet at end of block.
 
     @staticmethod
-    def block_start(time:Union[int,str], as_number:bool=False) -> Union[str,int]:
-        """Return the start time of the block that contains time 'time'.
+    def block_start(atime:Union[int,str], as_number:bool=False) -> Union[str,int]:
+        """Return the start time of the block that contains time 'atime'.
 
-        'time' can be minutes since midnight or HHMM.
+        'atime' can be minutes since midnight or HHMM.
         Returns HHMM unless as_number is True, in which case returns int.
         """
         # Get time in minutes
-        time = time_int(time) if isinstance(time,str) else time
+        atime = time_int(atime) if isinstance(atime,str) else atime
         # which block of time does it fall in?
-        block_start_min = (time // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
+        block_start_min = (atime // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
         if as_number:
             return block_start_min
         return time_str(block_start_min)
 
     @staticmethod
-    def block_end(time:Union[int,str], as_number:bool=False) -> Union[str,int]:
-        """Return the last minute of the timeblock that contains time 'time'.
+    def block_end(atime:Union[int,str], as_number:bool=False) -> Union[str,int]:
+        """Return the last minute of the timeblock that contains time 'atime'.
 
-        'time' can be minutes since midnight or HHMM.
+        'atime' can be minutes since midnight or HHMM.
         Returns HHMM unless as_number is True, in which case returns int.
         """
         # Get block start
-        start = Block.block_start(time, as_number=True)
+        start = Block.block_start(atime, as_number=True)
         # Calculate block end
         end = start + cfg.BLOCK_DURATION - 1
         # Return as minutes or HHMM
@@ -1126,15 +1146,15 @@ class Block():
         for t in Block.timeblock_list(as_of_when=as_of_when):
             blocks[t] = Block(t)
         latest_time = Block.block_end(t,as_number=False)
-        for tag, time in check_ins.items():
-            if time > latest_time:
+        for tag, atime in check_ins.items():
+            if atime > latest_time:
                 continue
-            bstart = Block.block_start(time)
+            bstart = Block.block_start(atime)
             blocks[bstart].ins_list += [tag]
-        for tag, time in check_outs.items():
-            if time > latest_time:
+        for tag, atime in check_outs.items():
+            if atime > latest_time:
                 continue
-            bstart = Block.block_start(time)
+            bstart = Block.block_start(atime)
             blocks[bstart].outs_list += [tag]
         here_set = set()
         for btime,blk in blocks.items():
@@ -1152,12 +1172,12 @@ def lookback(args:list[str]) -> None:
     If end_time is missing, runs to current time.
     If start_time is missing, starts one hour before end_time.
     """
-    def format_one( time:str, tag:str, check_in:bool) -> str:
+    def format_one( atime:str, tag:str, check_in:bool) -> str:
         """Format one line of output."""
         in_tag = tag if check_in else ""
         out_tag = "" if check_in else tag
         #inout = "bike IN" if check_in else "returned OUT"
-        return f"{time}   {in_tag:<5s} {out_tag:<5s}"
+        return f"{atime}   {in_tag:<5s} {out_tag:<5s}"
 
     (start_time, end_time) = (args + [None,None])[:2]
     if not end_time:
@@ -1172,12 +1192,12 @@ def lookback(args:list[str]) -> None:
         return
     # Collect any bike-in/bike-out events that are in the time period.
     events = []
-    for tag, time in check_ins.items():
-        if start_time <= time <= end_time:
-            events.append( format_one(time, tag, True))
-    for tag, time in check_outs.items():
-        if start_time <= time <= end_time:
-            events.append( format_one(time, tag, False))
+    for tag, atime in check_ins.items():
+        if start_time <= atime <= end_time:
+            events.append( format_one(atime, tag, True))
+    for tag, atime in check_outs.items():
+        if start_time <= atime <= end_time:
+            events.append( format_one(atime, tag, False))
     # Print
     iprint()
     iprint(f"Log of events from {start_time} to {end_time}:",
@@ -1361,6 +1381,28 @@ def tag_check(tag:str) -> None:
 
     This processes a prompt that's just a tag ID.
     """
+
+    def print_inout(tag:str, inout:str) -> None:
+        """Pretty-print a tag-in or tag-out message."""
+        if inout == cfg.BIKE_IN:
+            msg1 = f"Bike {tag} checked IN"
+            msg2 = f"bike #{len(check_ins)}"
+            ##msg2 = f"bike #{len(check_ins)}; {num_bikes_at_valet()} bikes at valet"
+        elif inout == cfg.BIKE_OUT:
+            msg1 = f"Bike {tag} returned OUT"
+            duration = pretty_time(
+                    time_int(check_outs[tag]) - time_int(check_ins[tag]),
+                    trim=True)
+            msg2 = f"at valet for {duration}h"
+        else:
+            iprint(f"PROGRAM ERROR: called print_inout({tag}, {inout})",
+                   style=cfg.ERROR_STYLE)
+            return
+        # Print
+        msg1 = text_style(f"  {msg1}  ",style=cfg.ANSWER_STYLE)
+        msg2 = text_style(msg2,style=cfg.NORMAL_STYLE)
+        iprint( f"{pretty_time(get_time(),trim=False)} {msg1} ({msg2})")
+
     if tag in cfg.retired_tags: # if retired print specific retirement message
         iprint(f"{tag} is retired", style=cfg.WARNING_STYLE)
     else: # must not be retired so handle as normal
@@ -1392,12 +1434,14 @@ def tag_check(tag:str) -> None:
                     sure = True
                 if sure:
                     check_outs[tag] = get_time()# check it out
-                    iprint(f"{tag} returned OUT",style=cfg.ANSWER_STYLE)
+                    print_inout(tag,inout=cfg.BIKE_OUT)
+                    ##iprint(f"{tag} returned OUT",style=cfg.ANSWER_STYLE)
                 else:
                     iprint("Cancelled return bike out",style=cfg.WARNING_STYLE)
         else:# if string is in neither dict
             check_ins[tag] = get_time()# check it in
-            iprint(f"{tag} checked IN",style=cfg.ANSWER_STYLE)
+            print_inout(tag,cfg.BIKE_IN)
+            ##iprint(f"{tag} checked IN",style=cfg.ANSWER_STYLE)
 
 def parse_command(user_input:str) -> list[str]:
     """Parse user's input into list of [tag] or [command, command args].
@@ -1434,7 +1478,12 @@ def main():
     """Run main program loop and dispatcher."""
     done = False
     while not done:
-        user_str = input(text_style(f"\nBike tag or command {cfg.CURSOR}",cfg.PROMPT_STYLE))
+        prompt_str = text_style(f"Bike tag or command {cfg.CURSOR}",
+                cfg.PROMPT_STYLE)
+        if cfg.INCLUDE_TIME_IN_PROMPT:
+            prompt_str = f"{pretty_time(get_time())}: {prompt_str}"
+        print()
+        user_str = input(prompt_str)
         tokens = parse_command(user_str)
         if not tokens:
             continue        # No input, ignore
@@ -1490,20 +1539,20 @@ def error_exit() -> None:
     exit()
 
 def datafile_name() -> str:
-    """Return the name of the data file (logfile) to read/write."""
+    """Return the name of the data file (datafile) to read/write."""
 
     if len(sys.argv) <= 1:
         # Use default filename
         return f"logs/{cfg.LOG_BASENAME}{DATE}.log"
 
-    # Custom logfile name or location
+    # Custom datafile name or location
     file = sys.argv[1]
     # File there?
     if not os.path.exists(file):
         iprint(f"Error: File {file} not found",style=cfg.ERROR_STYLE)
         error_exit()
 
-    # This is the custom logfile & it exists
+    # This is the custom datafile & it exists
     return file
 
 # STARTUP
