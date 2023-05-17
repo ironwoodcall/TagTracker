@@ -110,6 +110,7 @@ CMD_QUERY ="query"
 CMD_STATS ="stats"
 CMD_MORE_STATS = "more_stats"
 CMD_VALET_HOURS = "valet_hours"
+CMD_CSV = "csv"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -123,6 +124,7 @@ COMMANDS[CMD_QUERY] = ['query','q','?','/']
 COMMANDS[CMD_STATS] = ['s','stat','stats','statistics']
 COMMANDS[CMD_MORE_STATS] = ["m", "more"]
 COMMANDS[CMD_VALET_HOURS] = ["v","valet"]
+COMMANDS[CMD_CSV] = ["csv"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
@@ -137,6 +139,7 @@ help_message = f"""
 {INDENT}Show accouting audit info  :   audit / a
 {INDENT}Show recent logged events  :   recent / r
 {INDENT}Show dataform log          :   log / l / form / f
+{INDENT}Dump CSV records to file   :   csv
 {INDENT}Exit                       :   x / stop / exit / quit / bye
 """
 

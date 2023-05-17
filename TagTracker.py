@@ -380,7 +380,7 @@ def read_tags(datafilename:str) -> bool:
                 continue
             this_tag = fix_tag(cells[0],must_be_available=False)
             if not (this_tag):
-                errors = data_read_error("String dopes not appear to be a tag",
+                errors = data_read_error("String does not appear to be a tag",
                         errs=errors, fname=datafilename, fline=line_num)
                 continue
             if this_tag not in cfg.all_tags:
@@ -1426,7 +1426,6 @@ def audit_report(args:list[str]) -> None:
 
     # Audit report header.
     print()
-
     iprint(f"Audit report as at {pretty_time(as_of_when,trim=True)}",
            style=cfg.TITLE_STYLE)
     future_warning(as_of_when)
@@ -1481,6 +1480,64 @@ def audit_report(args:list[str]) -> None:
         iprint("-no bikes-")
 
     return
+
+def csv_dump(args) -> None:
+    filename = (args + [None])[0]
+    if not filename:
+        ##iprint("usage: csv <filename>",style=cfg.WARNING_STYLE)
+        iprint("Printing to screen.",style=cfg.WARNING_STYLE)
+
+    def time_hrs(atime) -> str:
+        """Returns atime (str or int) as a string of decimal hours."""
+        hrs = time_int(atime) / 60
+        return f"{hrs:0.3}"
+    as_of_when = "24:00"
+
+    events = calc_events(as_of_when)
+    # detailed fullness
+    print()
+    print("Time, Regular, Oversize, Total")
+    for atime in sorted(events.keys()):
+        ev = events[atime]
+        print(f"{time_hrs(atime)},{ev.num_here_regular},"
+              f"{ev.num_here_oversize},{ev.num_here_total}")
+
+    # block, ins, outs, num_bikes_here
+    blocks_ins = dict(zip(
+        Block.timeblock_list(as_of_when),
+        [0 for _ in range(0,100)]))
+    blocks_outs = blocks_ins.copy()
+    blocks_heres = blocks_ins.copy()
+    for atime, ev in events.items():
+        start = Block.block_start(atime) # Which block?
+        blocks_ins[start] += ev.num_ins
+        blocks_outs[start] += ev.num_outs
+    prev_here = 0
+    for atime in sorted(blocks_heres.keys()):
+        blocks_heres[atime] = prev_here + blocks_ins[atime] - blocks_outs[atime]
+        prev_here = blocks_heres[atime]
+    print()
+    print("Time period,Incoming,Outgoing,At Valet")
+    for atime in sorted(blocks_ins.keys()):
+        print( f"{atime},{blocks_ins[atime]},{blocks_outs[atime]},{blocks_heres[atime]}")
+    print()
+
+    # stay_start(hrs),duration(hrs),stay_end(hrs)
+    visits = calc_visits(as_of_when)    # keyed by tag
+    # make list of stays keyed by start time
+    visits_by_start = {}
+    for v in visits.values():
+        start = v.time_in
+        if start not in visits_by_start:
+            visits_by_start[start] = []
+        visits_by_start[start] = v
+    print()
+    print("Start time, Length of stay")
+    for atime in sorted(visits_by_start.keys()):
+        print(f"{time_hrs(visits_by_start[atime].time_in)},"
+              f"{time_hrs(visits_by_start[atime].duration)}")
+
+
 
 def tag_check(tag:str) -> None:
     """Check a tag in or out.
@@ -1620,6 +1677,8 @@ def main():
             day_end_report(args)
         elif cmd == cfg.CMD_MORE_STATS:
             more_stats_report(args)
+        elif cmd == cfg.CMD_CSV:
+            csv_dump(args)
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
