@@ -179,6 +179,34 @@ def sort_tags( unsorted:list[str]) -> list[str]:
     newlist = [fix_tag(t) for t in newlist]
     return newlist
 
+def simplified_taglist(tags:Union[list[str],str]) -> str:
+    """Make a simplified str of tag names from a list of tags.
+
+    E.g. "wa1,2,3,4,9 wb1,9,10 be4"
+    The tags list can be a string separated by whitespace or comma.
+    or it can be a list of tags.
+    """
+    if isinstance(tags,str):
+        # Break the tags down into a list.  First split comma.
+        tags = tags.split(",")
+        # Split on whitespace.  This makes a list of lists.
+        tags = [item.split() for item in tags]
+        # Flatten the list of lists into a single list.
+        tags = [item for sublist in tags for item in sublist]
+    # Make dict of [prefix]:list of tag_numbers_as_int
+    tag_prefixes = tags_by_prefix(tags)
+    simplified_list = []
+    for prefix in sorted(tag_prefixes.keys()):
+        # A list of the tag numbers for this prefix
+        simplified_list.append(f"{prefix}" +
+                (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
+    # Return all of these joined together
+    return (" ".join(simplified_list))
+
+
+
+
+
 def num_bikes_at_valet( as_of_when:Union[str,int]=None ) -> int:
     """Return count of bikes at the valet as of as_of_when."""
     as_of_when = time_str(as_of_when)
@@ -268,14 +296,33 @@ def read_tags() -> bool:
     if exists, read for ins and outs
     if none exists, who cares -- one will get made.
     """
+    def data_read_error( text:str, errs:int=0, fname:str="", fline:int=None) -> int:
+        """Print a datafile read error, increments error counter.
+
+        This returns the incremented error counter.  Ugh.
+        Also, if this is the first error (errors_before is None or 0)
+        then this makes an initial print() on the assumptino that the
+        immediately preceding print() statement had end="".
+        """
+        if not errs:
+            print()
+        msg = text
+        if fline:
+            msg = f"{fline:} {text}"
+        if fname:
+            msg = f"{fname:} {text}"
+
+        iprint(msg, style=cfg.ERROR_STYLE)
+        return errs + 1
+
     datafilename = LOG_FILEPATH
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
     if not os.path.exists(datafilename):
-        iprint('No existing data for today found. Creating new data.',
+        iprint(f'No datafile {datafilename} for today found. Will create new datafile.',
                style=cfg.SUBTITLE_STYLE)
         return True
-    iprint(f"Loading data from existing data file {datafilename}...",
-           style=cfg.SUBTITLE_STYLE)
+    iprint(f"Reading data from {datafilename}...",
+           end="", style=cfg.SUBTITLE_STYLE)
     errors = 0  # How many errors found reading datafile?
     section = None
     with open(datafilename, 'r') as f:
@@ -301,9 +348,8 @@ def read_tags() -> bool:
                 continue
             # Can do nothing unless we know what section we're in
             if section is None:
-                iprint(f"weirdness in line {line_num} of {datafilename}",
-                       style=cfg.ERROR_STYLE)
-                errors += 1
+                errors = data_read_error("Unexpected unintelligibility in line",
+                        errs=errors, fname=datafile_name, fline=line_num)
                 continue
             if section == cfg.IGNORE:
                 # Things to ignore
@@ -311,24 +357,20 @@ def read_tags() -> bool:
             # Break into putative tag and text, looking for errors
             cells = line.split(',')
             if len(cells) != 2:
-                iprint(f"Bad line in file {datafilename} line {line_num}",
-                       style=cfg.ERROR_STYLE)
-                errors += 1
+                errors = data_read_error("Bad line in file",
+                        errs=errors, fname=datafile_name, fline=line_num)
                 continue
             this_tag = fix_tag(cells[0],must_be_available=False)
             if not (this_tag):
-                iprint("String does not appear to ba a tag (file"
-                        f" {datafilename} line {line_num})",
-                        style=cfg.ERROR_STYLE)
-                errors += 1
+                errors = data_read_error("String dopes not appear to be a tag",
+                        errs=errors, fname=datafile_name, fline=line_num)
                 continue
             if this_tag not in cfg.all_tags:
-                iprint(f"Tag '{this_tag}' not in use (file"
-                        f" {datafilename} line {line_num})",
-                        style=cfg.ERROR_STYLE)
-                errors += 1
+                errors = data_read_error(f"Tag '{this_tag}' not in use",
+                        errs=errors, fname=datafile_name, fline=line_num)
                 continue
             this_time = time_str(cells[1])
+            # FIXME: tevpg got this far
             if not (this_time):
                 iprint("Time value poorly formed in file"
                         f" {datafilename} line {line_num}",
@@ -375,8 +417,7 @@ def read_tags() -> bool:
         iprint(f"Found {errors} errors in datafile {datafilename}",
                style=cfg.ERROR_STYLE)
     else:
-        iprint('Existing data for today successfully loaded',
-               style=cfg.SUBTITLE_STYLE)
+        iprint('done.', num_indents=0, style=cfg.SUBTITLE_STYLE)
     return not bool(errors)
 
 def rotate_log() -> None:
@@ -613,13 +654,20 @@ def visit_statistics_report(visits:dict) -> None:
         """Prints the mode info."""
         # Find the mode value(s), with visit durations rounded
         # to nearest ROUND_TO_NEAREST time.
-
         rounded = [round(x/cfg.MODE_ROUND_TO_NEAREST)*cfg.MODE_ROUND_TO_NEAREST
                 for x in durations_list]
-        modes_str = ",".join([pretty_time(x) for x in statistics.multimode( rounded )])
+        modes_str = ",".join([pretty_time(x,trim=True) for x in statistics.multimode( rounded )])
         modes_str = (f"{modes_str}  (times "
                 f"rounded to {cfg.MODE_ROUND_TO_NEAREST} minutes)")
         one_line(f"Mode {cfg.VISIT_NOUN}:", modes_str)
+
+    def make_tags_str(tags:list[str]) -> str:
+        """Makes a 'list of tags' string that is sure not to be too long."""
+        tagstr = "tag: " if len(tags) == 1 else "tags: "
+        tagstr = (tagstr + ",".join(tags))
+        if len(tagstr) > 30:
+            tagstr = f"{len(tags)} tags"
+        return tagstr
 
     # Make a dict of stay-lengths with list tags (for longest/shortest).
     duration_tags = {}
@@ -634,11 +682,11 @@ def visit_statistics_report(visits:dict) -> None:
     iprint(f"{cfg.VISIT_NOUN.title()} length statistics",
            style=cfg.SUBTITLE_STYLE)
     longest = max(list(duration_tags.keys()))
-    long_tags = ",".join(duration_tags[longest])
-    one_line(f"Longest {noun}:", f"{pretty_time((longest))}  (tag(s): {long_tags})")
+    long_tags = make_tags_str(duration_tags[longest])
     shortest = min(list(duration_tags.keys()))
-    short_tags = ",".join(duration_tags[shortest])
-    one_line(f"Shortest {noun}:", f"{pretty_time((shortest))}  (tag(s): {short_tags})")
+    short_tags = make_tags_str(duration_tags[shortest])
+    one_line(f"Longest {noun}:", f"{pretty_time((longest))}  ({long_tags})")
+    one_line(f"Shortest {noun}:", f"{pretty_time((shortest))}  ({short_tags})")
     # Make a list of stay-lengths (for mean, median, mode)
     durations_list = [x.duration for x in visits.values()]
     one_line( f"Mean {noun}:", pretty_time(statistics.mean(durations_list)))
@@ -859,7 +907,7 @@ def delete_entry(args:list[str]) -> None:
     del_syntax_message = text_style("Syntax: d <tag> <both or check-out only"
             " (b/o)> <optional pre-confirm (y)>",style=cfg.SUBPROMPT_STYLE)
     if not(target in [None] + cfg.all_tags or which_to_del in [None,'b','o']
-           or confirm in [None, 'y']):
+           or confirm in [None, "y","yes"]):
         iprint(del_syntax_message) # remind of syntax if invalid input
         return None # interrupt
     if not target: # get target if unspecified
@@ -884,14 +932,14 @@ def delete_entry(args:list[str]) -> None:
                    f"or just the check-(o)ut?  (b/o) {cfg.CURSOR}",
                    style=cfg.SUBPROMPT_STYLE,end="")
             which_to_del = input().lower()
-        if which_to_del == 'b':
-            if confirm == 'y': # pre-confirmation
+        if which_to_del in ["b","both"]:
+            if confirm in ["y","yes"]: # pre-confirmation
                 sure = True
             else:
-                iprint("Delete {target} check-in and check-out "
+                iprint(f"Delete {target} check-in and check-out "
                        f"(y/N) {cfg.CURSOR}",
                        style=cfg.SUBPROMPT_STYLE, end="")
-                sure = input().lower() == 'y'
+                sure = input().lower() in ["y","yes"]
             if sure:
                 check_ins.pop(target)
                 check_outs.pop(target)
@@ -900,13 +948,13 @@ def delete_entry(args:list[str]) -> None:
             else:
                 iprint("Delete cancelled",style=cfg.WARNING_STYLE)
 
-        elif which_to_del == 'o': # selected to delete
-            if confirm == 'y':
+        elif which_to_del in ["o","out"]: # selected to delete
+            if confirm in ["y","yes"]:
                 sure = True
             else:
-                iprint("Delete {target} check-out? (y/N) {cfg.CURSOR}",
+                iprint(f"Delete {target} check-out? (y/N) {cfg.CURSOR}",
                        style=cfg.SUBPROMPT_STYLE, end="" )
-                sure = input().lower() == 'y'
+                sure = input().lower() in ["y","yes"]
 
             if sure:
                 time_temp = check_outs[target]
@@ -918,15 +966,15 @@ def delete_entry(args:list[str]) -> None:
             iprint("Delete cancelled",style=cfg.WARNING_STYLE)
     else: # checked in only
         time_in_temp = check_ins[target]
-        if which_to_del in ['b', None]:
-            if confirm == 'y':
+        if which_to_del in ["b", "both", None]:
+            if confirm in ["y","yes"]:
                 sure = True
             else: # check
                 iprint(f"Bike {target} checked in at "
                        f"{pretty_time(time_in_temp,trim=True)}. "
                        f"Delete check-in? (y/N) {cfg.CURSOR}",
                        style=cfg.SUBPROMPT_STYLE, end="")
-                sure = input().lower() == 'y'
+                sure = input().lower() in ["y","yes"]
             if sure:
                 time_temp = check_ins[target]
                 check_ins.pop(target)
@@ -934,7 +982,7 @@ def delete_entry(args:list[str]) -> None:
                        style=cfg.ANSWER_STYLE)
             else:
                 iprint("Delete cancelled",style=cfg.WARNING_STYLE)
-        else:#  which_to_del == 'o':
+        else:#  which_to_del in ["o","out"]:
             iprint(f"{target} has only a check-in ({time_in_temp}) recorded; "
                    "can't delete a nonexistent check-out",
                    style=cfg.WARNING_STYLE)
@@ -1006,18 +1054,18 @@ def edit_entry(args:list[str]):
                        f"check-(i)n or check-(o)ut time? (i/o) {cfg.CURSOR}",
                        style=cfg.SUBPROMPT_STYLE, end="")
                 in_or_out = input().lower()
-                if not in_or_out in ['i','o']:
-                    iprint(f"'{in_or_out}' needs to be 'i' or 'o' "
+                if not in_or_out in ["i","in","o","out"]:
+                    iprint(f"Unrecognized answer '{in_or_out}' needs to be 'i' or 'o' "
                            "(edit cancelled)", style=cfg.WARNING_STYLE)
                     return False
-            if not in_or_out in ['i','o']:
+            if not in_or_out in ["i","in","o","out"]:
                 iprint(edit_syntax_message)
             else:
                 new_time = prompt_for_time(new_time)
                 if not new_time:
                     iprint('Invalid time entered (edit cancelled)',
                            style=cfg.WARNING_STYLE)
-                elif in_or_out == 'i':
+                elif in_or_out in ["i","in"]:
                     if (target in check_outs and
                             (time_int(new_time) >
                             time_int(check_outs[target]))):
@@ -1029,7 +1077,7 @@ def edit_entry(args:list[str]):
                         iprint(f"Check-IN time for {target} "
                                f"set to {new_time}",style=cfg.ANSWER_STYLE)
                         check_ins[target] = new_time
-                elif in_or_out == 'o':
+                elif in_or_out in ["o","out"]:
                     if (time_int(new_time) <
                             time_int(check_ins[target])):
                         # don't check a tag out earlier than it checked in
@@ -1049,10 +1097,10 @@ def edit_entry(args:list[str]):
         iprint(f"'{target}' isn't a valid tag (edit cancelled)",
                style=cfg.WARNING_STYLE)
 
-def tags_by_prefix(tags_dict:dict) -> dict:
+def tags_by_prefix(tags:list[str]) -> dict:
     """Return a dict of tag prefixes with lists of associated tag numbers."""
     prefixes = {}
-    for tag in tags_dict:
+    for tag in tags:
         #(prefix,t_number) = cfg.PARSE_TAG_PREFIX_RE.match(tag).groups()
         (t_colour,t_letter,t_number) = parse_tag(tag,must_be_available=False)[1:4]
         prefix = f"{t_colour}{t_letter}"
@@ -1248,7 +1296,8 @@ def dataform_report(args:list[str]) -> None:
             inouts = (block.ins_list if which == cfg.BIKE_IN
                     else block.outs_list)
             endtime = time_str(time_int(start)+cfg.BLOCK_DURATION)
-            iprint(f"{start}-{endtime}  {' '.join(sort_tags(inouts))}")
+            iprint(f"{start}-{endtime}  {simplified_taglist(inouts)}")
+            ##iprint(f"{start}-{endtime}  {' '.join(sort_tags(inouts))}")
 
 def audit_report(args:list[str]) -> None:
     """Create & display audit report as at a particular time.
@@ -1313,8 +1362,8 @@ def audit_report(args:list[str]) -> None:
     sum_out = normal_out + oversize_out
     sum_total = sum_in - sum_out
     # Tags broken down by prefix (for tags matrix)
-    prefixes_on_hand = tags_by_prefix(bikes_on_hand)
-    prefixes_returned_out = tags_by_prefix(check_outs_to_now)
+    prefixes_on_hand = tags_by_prefix(bikes_on_hand.keys())
+    prefixes_returned_out = tags_by_prefix(check_outs_to_now.keys())
     returns_by_colour = {}
     for prefix,numbers in prefixes_returned_out.items():
         colour_code = prefix[:-1]   # prefix without the tag_letter
@@ -1416,7 +1465,7 @@ def tag_check(tag:str) -> None:
                        f"current time ({get_time()})? "
                        f"(y/N) {cfg.CURSOR}",
                        style=cfg.SUBPROMPT_STYLE, end="")
-                sure = input() == 'y'
+                sure = input() in ["y","yes"]
                 if sure:
                     edit_entry([tag, 'o', get_time()])
                 else:
@@ -1484,7 +1533,7 @@ def main():
         prompt_str = text_style(f"Bike tag or command {cfg.CURSOR}",
                 cfg.PROMPT_STYLE)
         if cfg.INCLUDE_TIME_IN_PROMPT:
-            prompt_str = f"{pretty_time(get_time())}: {prompt_str}"
+            prompt_str = f"{pretty_time(get_time(),trim=True)}  {prompt_str}"
         print()
         user_str = input(prompt_str)
         tokens = parse_command(user_str)
