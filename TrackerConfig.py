@@ -51,7 +51,7 @@ VISIT_NOUN = "stay"    # Probably either "stay" or "visit"
 MODE_ROUND_TO_NEAREST = 30 # mins
 
 # List ow many ranked busiest times of day in report?
-BUSIEST_RANKS = 3
+BUSIEST_RANKS = 4
 
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30 # mins
@@ -59,6 +59,7 @@ CHECK_OUT_CONFIRM_TIME = 30 # mins
 # Format preferences
 INDENT = '  '
 CURSOR = ">>> "
+INCLUDE_TIME_IN_PROMPT = True
 # Styles related to colour
 STYLE={}
 PROMPT_STYLE = "prompt_style"
@@ -69,6 +70,7 @@ SUBTITLE_STYLE = "subtitle_style"
 NORMAL_STYLE = "normal_style"
 RESET_STYLE = "reset_style"
 HIGHLIGHT_STYLE = "highlight_style"
+QUIET_STYLE = "quiet_style"
 WARNING_STYLE = "warn_style"
 ERROR_STYLE = "error_style"
 # These are assigned in 'if' in case could not import colorame.
@@ -76,7 +78,7 @@ if USE_COLOUR:
     STYLE[PROMPT_STYLE] = (
             f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
     STYLE[SUBPROMPT_STYLE] = (
-            f"{Style.NORMAL}{Fore.GREEN}{Back.BLACK}")
+            f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
     STYLE[ANSWER_STYLE] = (
             f"{Style.NORMAL}{Fore.WHITE}{Back.BLUE}")
     STYLE[TITLE_STYLE] = (
@@ -89,6 +91,8 @@ if USE_COLOUR:
             f"{Style.RESET_ALL}")
     STYLE[HIGHLIGHT_STYLE] = (
             f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}")
+    STYLE[QUIET_STYLE] = (
+            f"{Style.RESET_ALL}{Fore.BLUE}")
     STYLE[WARNING_STYLE] = (
             f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}")
     STYLE[ERROR_STYLE] = (
@@ -105,19 +109,22 @@ CMD_LOOKBACK = "lookback"
 CMD_QUERY ="query"
 CMD_STATS ="stats"
 CMD_MORE_STATS = "more_stats"
+CMD_VALET_HOURS = "valet_hours"
+CMD_CSV = "csv"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
 COMMANDS[CMD_DELETE] = ['del','delete','d']
 COMMANDS[CMD_EDIT] = ['edit','e','ed']
 COMMANDS[CMD_EXIT] = ['quit','exit','stop','x','bye']
-COMMANDS[CMD_BLOCK] = ['blocks','block','b', 'form', 'f']
+COMMANDS[CMD_BLOCK] = ['log', 'l', 'form', 'f']
 COMMANDS[CMD_HELP] = ['help','h']
-COMMANDS[CMD_LOOKBACK] = ['lookback',
-        'look', 'l', 'log', 'recent', 'r']
+COMMANDS[CMD_LOOKBACK] = ['recent', 'r']
 COMMANDS[CMD_QUERY] = ['query','q','?','/']
-COMMANDS[CMD_STATS] = ['s','stat','stats','sum','summary']
+COMMANDS[CMD_STATS] = ['s','stat','stats','statistics']
 COMMANDS[CMD_MORE_STATS] = ["m", "more"]
+COMMANDS[CMD_VALET_HOURS] = ["v","valet"]
+COMMANDS[CMD_CSV] = ["csv"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
@@ -125,11 +132,14 @@ help_message = f"""
 {INDENT}Check bike in or out       :   <tag name> (eg “wa3”)
 {INDENT}Edit a check in/out time   :   edit  / e
 {INDENT}Delete a check in/out      :   del   / d
+{INDENT}Valet opening/closing hours:   valet / v
 {INDENT}Show info about one tag    :   query / q / ?
-{INDENT}Show end of day summary    :   stat  / s / summary
+{INDENT}Show summary statistics    :   stat  / s
+{INDENT}Show more statistics       :   more / m
 {INDENT}Show accouting audit info  :   audit / a
-{INDENT}Show recent logged events  :   log / lookback / l / recent
-{INDENT}Show ins/outs by time block:   blocks / b / form / f
+{INDENT}Show recent logged events  :   recent / r
+{INDENT}Show dataform log          :   log / l / form / f
+{INDENT}Dump CSV records to file   :   csv
 {INDENT}Exit                       :   x / stop / exit / quit / bye
 """
 
@@ -213,3 +223,4 @@ with open('changelog.txt', 'r') as f:
     f.readline()
     f.readline() # skip empty lines
     VERSION = f.readline()[:-2] # cut off ':\n'
+
