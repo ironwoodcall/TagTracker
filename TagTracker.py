@@ -291,7 +291,7 @@ def latest_event( as_of_when:Union[str,int,None]=None ) -> str:
     latest = max(events)
     return latest
 
-def read_tags() -> bool:
+def read_tags(datafilename:str) -> bool:
     """Fetch tag data from file.
 
     Read data from a pre-existing data file, if one exists
@@ -318,7 +318,6 @@ def read_tags() -> bool:
         iprint(text, style=cfg.ERROR_STYLE)
         return errs + 1
 
-    datafilename = LOG_FILEPATH
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
     if not os.path.exists(datafilename):
         iprint("No datafile for today found. Will create new datafile"
@@ -675,7 +674,7 @@ def visit_statistics_report(visits:dict) -> None:
         # to nearest ROUND_TO_NEAREST time.
         rounded = [round(x/cfg.MODE_ROUND_TO_NEAREST)*cfg.MODE_ROUND_TO_NEAREST
                 for x in durations_list]
-        modes_str = ",".join([pretty_time(x,trim=True) for x in statistics.multimode( rounded )])
+        modes_str = ",".join([pretty_time(x,trim=False) for x in statistics.multimode( rounded )])
         modes_str = (f"{modes_str}  (times "
                 f"rounded to {cfg.MODE_ROUND_TO_NEAREST} minutes)")
         one_line(f"Mode {cfg.VISIT_NOUN}:", modes_str)
@@ -847,7 +846,8 @@ def day_end_report( args:list ) -> None:
                 style=cfg.WARNING_STYLE)
             return
     print()
-    iprint(f"Summary statistics as at {as_of_when}",style=cfg.TITLE_STYLE)
+    iprint(f"Summary statistics as at {pretty_time(as_of_when,trim=True)}",
+           style=cfg.TITLE_STYLE)
     if as_of_when > rightnow:
         future_warning(as_of_when)
     if not latest_event(as_of_when):
@@ -877,7 +877,8 @@ def more_stats_report( args:list ) -> None:
                 style=cfg.WARNING_STYLE)
             return
     print()
-    iprint(f"More summary statistics as at {as_of_when}",style=cfg.TITLE_STYLE)
+    iprint(f"More summary statistics as at {pretty_time(as_of_when,trim=True)}",
+           style=cfg.TITLE_STYLE)
     if as_of_when > rightnow:
         future_warning(as_of_when)
     if not latest_event(as_of_when):
@@ -1279,13 +1280,13 @@ def lookback(args:list[str]) -> None:
         in_tag = tag if check_in else ""
         out_tag = "" if check_in else tag
         #inout = "bike IN" if check_in else "returned OUT"
-        return f"{atime}   {in_tag:<5s} {out_tag:<5s}"
+        return f"{pretty_time(atime,trim=False)}   {in_tag:<5s} {out_tag:<5s}"
 
     (start_time, end_time) = (args + [None,None])[:2]
     if not end_time:
         end_time = get_time()
     if not start_time:
-        start_time = time_str(time_int(end_time)-60)
+        start_time = time_str(time_int(end_time)-30)
     start_time = time_str(start_time)
     end_time = time_str(end_time)
     if not start_time or not end_time or start_time > end_time:
@@ -1302,7 +1303,8 @@ def lookback(args:list[str]) -> None:
             events.append( format_one(atime, tag, False))
     # Print
     iprint()
-    iprint(f"Log of events from {start_time} to {end_time}:",
+    iprint(f"Recent activity (from {pretty_time(start_time,trim=True)} "
+           f"to {pretty_time(end_time,trim=True)})",
             style=cfg.TITLE_STYLE)
     print()
     iprint("Time  BikeIn BikeOut",style=cfg.SUBTITLE_STYLE)
@@ -1425,7 +1427,8 @@ def audit_report(args:list[str]) -> None:
     # Audit report header.
     print()
 
-    iprint(f"Audit report as at {as_of_when}", style=cfg.TITLE_STYLE)
+    iprint(f"Audit report as at {pretty_time(as_of_when,trim=True)}",
+           style=cfg.TITLE_STYLE)
     future_warning(as_of_when)
 
     # Audit summary section.
@@ -1676,8 +1679,7 @@ print(text_style(f"TagTracker {cfg.VERSION} by Julias Hocking",
 print()
 DATE = get_date()
 LOG_FILEPATH = datafile_name()
-
-if not read_tags(): # only run main() if tags read successfully
+if not read_tags(LOG_FILEPATH): # only run main() if tags read successfully
     error_exit()
 if not valet_opens or not valet_closes:
     set_valet_hours( [valet_opens,valet_closes])

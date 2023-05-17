@@ -11,7 +11,17 @@ import datetime
 import sys
 import os
 import re
+import random
 from typing import Union
+
+# If set, RANDOMIZE_TIMES will randomize times within their block.
+# To keep things crazy simple, this assumes blocks are 30 minutes.
+# This will also then make a second pass and arbitrarily make any
+# stays that are therefore 0-length or longer to a random length between
+# 10 - 30 minutes.
+RANDOMIZE_TIMES = True
+if RANDOMIZE_TIMES:
+    print( "WARNING: this is bogifying times slightly for demo purposes")
 
 BIKE_IN = "bike_in"
 BIKE_OUT = "bike_out"
@@ -164,16 +174,17 @@ def readafile( file:str ) -> list[str, dict,dict]:
                             WARNING_MSG)
                     continue
                 # A legit tag at a legit time.
-                if inout == BIKE_IN:
+                if RANDOMIZE_TIMES:
+                    block_begin = convert_time(block_start,as_number=True)
+                    check_time = random.randint(block_begin,block_begin+29)
+                else:
+                    offset = BIKE_IN_OFFSET if inout == BIKE_IN else BIKE_OUT_OFFSET
                     check_time = (convert_time(block_start,as_number=True)
-                            + BIKE_IN_OFFSET)
-                    #print(f"{block_start=},{convert_time(block_start,as_number=True)}")
-                    #print(f"Check-in time for tag {tag} is {check_time}")
+                            + offset)
+                if inout == BIKE_IN:
                     check_ins[tag] = convert_time(check_time,
                             as_number=False)
                 elif inout == BIKE_OUT:
-                    check_time = (convert_time(block_start,as_number=True)
-                            + BIKE_OUT_OFFSET)
                     check_outs[tag] = convert_time(check_time,
                             as_number=False)
     return [this_date, dict(check_ins), dict(check_outs)]
@@ -184,14 +195,14 @@ def clean(file:str, check_ins:dict, check_outs:dict) -> None:
     Uses 'file' only as an arg to the messages function.
     """
     # Look for unmatched tags in check_ins
-    bad_tags = []
-    for tag in check_ins:
-        if tag not in check_outs:
-            message( file,f"Unmatched bike check-in {tag} (retained) ", WARNING_MSG)
-            #bad_tags.append(tag)
-    for tag in bad_tags:
-        check_ins.pop(tag)
-    # Same again for check_outs
+    ##bad_tags = []
+    ##for tag in check_ins:
+    ##    if tag not in check_outs:
+    ##        message( file,f"Unmatched bike check-in {tag} (retained) ", WARNING_MSG)
+    ##        #bad_tags.append(tag)
+    ##for tag in bad_tags:
+    ##    check_ins.pop(tag)
+    # Look for checkouts without checkins
     bad_tags = []
     for tag in check_outs:
         if tag not in check_ins:
@@ -200,6 +211,22 @@ def clean(file:str, check_ins:dict, check_outs:dict) -> None:
             bad_tags.append(tag)
     for tag in bad_tags:
         check_outs.pop(tag)
+    # Look for checkins later than checkouts
+    bad_tags = []
+    for tag in check_outs:
+        if RANDOMIZE_TIMES:
+            if check_outs[tag] <= check_ins[tag]:
+                check_outs[tag] = convert_time(
+                    convert_time(check_ins[tag],as_number=True)
+                    + random.randint(10,30),
+                    as_number=False)
+        elif check_outs[tag] < check_ins[tag]:
+            message( file,f"Check out before check in for {tag} (discarded) ",
+                    WARNING_MSG)
+            bad_tags.append(tag)
+    for tag in bad_tags:
+        check_outs.pop(tag)
+        check_ins.pop(tag)
 
 def write_file( oldfile:str, newfile:str, date:str,
         check_ins:dict, check_outs:dict ) ->None:
