@@ -28,6 +28,10 @@ from inspect import currentframe, getframeinfo
 
 import TrackerConfig as cfg
 
+# Initialize valet open/close globals
+valet_opens = ""
+valet_closes = ""
+
 def debug( whatever="" ) -> None:
     """Print whatever with file & linenumber in front of it."""
     cf = currentframe()
@@ -306,20 +310,19 @@ def read_tags() -> bool:
         """
         if not errs:
             print()
-        msg = text
+        text = f" {text}"
         if fline:
-            msg = f"{fline:} {text}"
+            text = f"{fline}:{text}"
         if fname:
-            msg = f"{fname:} {text}"
-
-        iprint(msg, style=cfg.ERROR_STYLE)
+            text = f"{fname}:{text}"
+        iprint(text, style=cfg.ERROR_STYLE)
         return errs + 1
 
     datafilename = LOG_FILEPATH
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
     if not os.path.exists(datafilename):
-        iprint(f'No datafile {datafilename} for today found. Will create new datafile.',
-               style=cfg.SUBTITLE_STYLE)
+        iprint("No datafile for today found. Will create new datafile"
+               f" {datafilename}.", style=cfg.SUBTITLE_STYLE)
         return True
     iprint(f"Reading data from {datafilename}...",
            end="", style=cfg.SUBTITLE_STYLE)
@@ -346,10 +349,26 @@ def read_tags() -> bool:
             elif (re.match(r"^Oversize-bike tags.*:",line)):
                 section = cfg.IGNORE
                 continue
+            elif (re.match(r"^Valet (opens|closes):",line)):
+                # This is either an open or a close time (probably)
+                section = cfg.IGNORE
+                global valet_opens, valet_closes
+                r = re.match(r"Valet (opens|closes): *(.+)",line)
+                maybetime = time_str(r.group(2))
+                if not maybetime:
+                    errors = data_read_error("Unable to read valet open/close time",
+                        errs=errors, fname=datafilename, fline=line_num)
+                    continue
+                if r.group(1) == "opens":
+                    valet_opens = maybetime
+                else:
+                    valet_closes = maybetime
+                continue
             # Can do nothing unless we know what section we're in
             if section is None:
-                errors = data_read_error("Unexpected unintelligibility in line",
-                        errs=errors, fname=datafile_name, fline=line_num)
+                errors = data_read_error(
+                        "Unexpected unintelligibility in line",
+                        errs=errors, fname=datafilename, fline=line_num)
                 continue
             if section == cfg.IGNORE:
                 # Things to ignore
@@ -358,58 +377,52 @@ def read_tags() -> bool:
             cells = line.split(',')
             if len(cells) != 2:
                 errors = data_read_error("Bad line in file",
-                        errs=errors, fname=datafile_name, fline=line_num)
+                        errs=errors, fname=datafilename, fline=line_num)
                 continue
             this_tag = fix_tag(cells[0],must_be_available=False)
             if not (this_tag):
                 errors = data_read_error("String dopes not appear to be a tag",
-                        errs=errors, fname=datafile_name, fline=line_num)
+                        errs=errors, fname=datafilename, fline=line_num)
                 continue
             if this_tag not in cfg.all_tags:
                 errors = data_read_error(f"Tag '{this_tag}' not in use",
-                        errs=errors, fname=datafile_name, fline=line_num)
+                        errs=errors, fname=datafilename, fline=line_num)
                 continue
             this_time = time_str(cells[1])
             # FIXME: tevpg got this far
             if not (this_time):
-                iprint("Time value poorly formed in file"
-                        f" {datafilename} line {line_num}",
-                        style=cfg.ERROR_STYLE)
-                errors += 1
+                errors = data_read_error(
+                        "Poorly formed time value",
+                        errs=errors, fname=datafilename, fline=line_num)
                 continue
             # Maybe add to check_ins or check_outs structures.
             if section == cfg.BIKE_IN:
                 # Maybe add to check_in structure
                 if this_tag in check_ins:
-                    iprint(f"Duplicate {this_tag} check-in found at "
-                            f"line {line_num}",
-                            style=cfg.ERROR_STYLE)
-                    errors += 1
+                    errors = data_read_error(
+                            f"Duplicate {this_tag} check-in",
+                            errs=errors, fname=datafilename, fline=line_num)
                     continue
                 if this_tag in check_outs and check_outs[this_tag] < this_time:
-                    iprint(f"Tag {this_tag} check out before check-in"
-                            f" in file {datafilename}",
-                            style=cfg.ERROR_STYLE)
-                    errors += 1
+                    errors = data_read_error(
+                            f"Tag {this_tag} check out before check-in",
+                            errs=errors, fname=datafilename, fline=line_num)
                     continue
                 check_ins[this_tag] = this_time
             elif section == cfg.BIKE_OUT:
                 if this_tag in check_outs:
-                    iprint(f"Duplicate {this_tag} check-out found at "
-                            f"line {line_num}",
-                            style=cfg.ERROR_STYLE)
-                    errors += 1
+                    errors = data_read_error(
+                            f"Duplicate {this_tag} check-out",
+                            errs=errors, fname=datafilename, fline=line_num)
                     continue
                 if this_tag in check_ins and check_ins[this_tag] > this_time:
-                    iprint(f"Tag {this_tag} check out before check-in"
-                            f" in file {datafilename}",
-                            style=cfg.ERROR_STYLE)
-                    errors += 1
+                    errors = data_read_error(
+                            f"Tag {this_tag} check out before check-in",
+                            errs=errors, fname=datafilename, fline=line_num)
                     continue
                 check_outs[this_tag] = this_time
             else:
-                iprint("PROGRAM ERROR: should not reach this code spot 876246",
-                       style=cfg.ERROR_STYLE)
+                debug("PROGRAM ERROR: should not reach this code spot")
                 errors += 1
                 continue
 
@@ -434,6 +447,12 @@ def write_tags() -> None:
     lines = []
     lines.append("# TagTracker datafile (data file) created on "
             f"{get_date()} {get_time()}")
+        # Valet opening & closing hours
+    if valet_opens:
+        lines.append(f"Valet opens: {valet_opens}")
+    if valet_closes:
+        lines.append(f"Valet closes: {valet_closes}")
+
     lines.append("Bikes checked in / tags out:")
     for tag, atime in check_ins.items(): # for each bike checked in
         lines.append(f"{tag},{atime}") # add a line "tag,time"
@@ -1014,16 +1033,16 @@ def query_tag(args:list[str]) -> None:
     else:
         iprint(f"(now)  {target} still at valet", style=cfg.ANSWER_STYLE)
 
-def prompt_for_time(inp = False) -> bool or str:
+def prompt_for_time(inp = False, prompt:str=None) -> bool or str:
     """Prompt for a time input if needed.
 
     Helper for edit_entry(); if no time passed in, get a valid
     24h time input from the user and return an HH:MM string.
     """
     if not inp:
-        iprint("What is the correct time for this event? "
-               f"(HHMM or 'now') {cfg.CURSOR}",
-               style=cfg.SUBPROMPT_STYLE, end="")
+        if not prompt:
+            prompt = "What is the correct time for this event? (HHMM or 'now')"
+        iprint(f"{prompt} {cfg.CURSOR}", style=cfg.SUBPROMPT_STYLE, end="")
         #iprint("Use 24-hour format, or 'now' to use "
         #       f"the current time ({get_time()}) ",end="")
         inp = input()
@@ -1033,6 +1052,37 @@ def prompt_for_time(inp = False) -> bool or str:
     if not hhmm:
         return False
     return hhmm
+
+def set_valet_hours(args:list[str]) -> None:
+    """Sets the valet opening & closing hours."""
+
+    global valet_opens, valet_closes
+    (open_arg, close_arg) = (args+["",""])[:2]
+    print()
+    # Valet opening time
+    if valet_opens:
+        iprint(f"Valet opening time is currently set at: {valet_opens}",
+               style=cfg.PROMPT_STYLE)
+    maybe_open = prompt_for_time(open_arg,
+            prompt="Today's valet opening time")
+    if not maybe_open:
+        iprint(f"Input {open_arg} not recognized as a time.  Cancelled.",
+               style=cfg.WARNING_STYLE)
+        return
+    valet_opens = maybe_open
+    iprint(f"Opening time now set to {valet_opens}",style=cfg.ANSWER_STYLE)
+    # Valet closing time
+    if valet_closes:
+        iprint(f"Valet closing time is currently set at: {valet_closes}",
+               style=cfg.PROMPT_STYLE)
+    maybe_close = prompt_for_time(close_arg,
+            prompt="Enter today's valet closing time")
+    if not maybe_close:
+        iprint(f"Input {close_arg} not recognized as a time.  Cancelled.",
+               style=cfg.WARNING_STYLE)
+        return
+    valet_closes = maybe_close
+    iprint(f"Closing time now set to {valet_closes}",style=cfg.ANSWER_STYLE)
 
 def edit_entry(args:list[str]):
     """Perform Dialog to correct a tag's check in/out time."""
@@ -1567,6 +1617,9 @@ def main():
             day_end_report(args)
         elif cmd == cfg.CMD_MORE_STATS:
             more_stats_report(args)
+        elif cmd == cfg.CMD_VALET_HOURS:
+            set_valet_hours(args)
+            data_dirty = True
         elif cmd == cfg.CMD_UNKNOWN:
             print()
             iprint("Unrecognized tag or command, enter 'h' for help",
@@ -1608,26 +1661,28 @@ def datafile_name() -> str:
     return file
 
 # STARTUP
-if not cfg.SETUP_PROBLEM: # no issue flagged while reading config
-
-    # These are the master dictionaries for tag status.
-    #   key = canonical tag id (e.g. "wf4")
-    #   value = ISO8601 event time (e.g. "08:43" as str)
-    check_ins = {}
-    check_outs = {}
-
-    print()
-    print(text_style(f"TagTracker {cfg.VERSION} by Julias Hocking",
-            style=cfg.ANSWER_STYLE))
-    print()
-    DATE = get_date()
-    LOG_FILEPATH = datafile_name()
-
-    if read_tags(): # only run main() if tags read successfully
-        main()
-    else: # if read_tags() problem
-        error_exit()
-else:
+if cfg.SETUP_PROBLEM: # no issue flagged while reading config
     error_exit()
+
+# These are the master dictionaries for tag status.
+#   key = canonical tag id (e.g. "wf4")
+#   value = ISO8601 event time (e.g. "08:43" as str)
+check_ins = {}
+check_outs = {}
+
+print()
+print(text_style(f"TagTracker {cfg.VERSION} by Julias Hocking",
+        style=cfg.ANSWER_STYLE))
+print()
+DATE = get_date()
+LOG_FILEPATH = datafile_name()
+
+if not read_tags(): # only run main() if tags read successfully
+    error_exit()
+if not valet_opens or not valet_closes:
+    set_valet_hours( [valet_opens,valet_closes])
+main()
+
+
 #==========================================
 

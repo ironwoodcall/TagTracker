@@ -109,6 +109,7 @@ CMD_LOOKBACK = "lookback"
 CMD_QUERY ="query"
 CMD_STATS ="stats"
 CMD_MORE_STATS = "more_stats"
+CMD_VALET_HOURS = "valet_hours"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -121,6 +122,7 @@ COMMANDS[CMD_LOOKBACK] = ['recent', 'r']
 COMMANDS[CMD_QUERY] = ['query','q','?','/']
 COMMANDS[CMD_STATS] = ['s','stat','stats','statistics']
 COMMANDS[CMD_MORE_STATS] = ["m", "more"]
+COMMANDS[CMD_VALET_HOURS] = ["v","valet"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
@@ -128,6 +130,7 @@ help_message = f"""
 {INDENT}Check bike in or out       :   <tag name> (eg “wa3”)
 {INDENT}Edit a check in/out time   :   edit  / e
 {INDENT}Delete a check in/out      :   del   / d
+{INDENT}Valet opening/closing hours:   valet / v
 {INDENT}Show info about one tag    :   query / q / ?
 {INDENT}Show summary statistics    :   stat  / s
 {INDENT}Show more statistics       :   more / m
@@ -217,3 +220,4 @@ with open('changelog.txt', 'r') as f:
     f.readline()
     f.readline() # skip empty lines
     VERSION = f.readline()[:-2] # cut off ':\n'
+
