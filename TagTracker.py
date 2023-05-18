@@ -1530,14 +1530,15 @@ def csv_dump(args) -> None:
         start = v.time_in
         if start not in visits_by_start:
             visits_by_start[start] = []
-        visits_by_start[start] = v
+        visits_by_start[start].append(v)
     print()
-    print("Start time, Length of stay")
+    print("Seqence, Start time, Length of stay")
+    seq = 1
     for atime in sorted(visits_by_start.keys()):
-        print(f"{time_hrs(visits_by_start[atime].time_in)},"
-              f"{time_hrs(visits_by_start[atime].duration)}")
-
-
+        for v in visits_by_start[atime]:
+            print(f"{seq},{time_hrs(v.time_in)},"
+                  f"{time_hrs(v.duration)}")
+            seq += 1
 
 def tag_check(tag:str) -> None:
     """Check a tag in or out.
