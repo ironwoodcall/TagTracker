@@ -486,21 +486,27 @@ class Visit():
 def calc_visits( as_of_when:Union[int,str]=None ) -> dict[str:Visit]:
     """Create a dict of visits keyed by tag as of as_of_when.
 
-    If as_of_when is not given, then this will choose the latest
-    check-out time of the day as its time.
+    If as_of_when is not given, then this will use the current time.
+
+    If there are bikes that are not checked out, then this will
+    consider their check-out time to be:
+        earlier of:
+            current time
+            closing time if there is one, else time of latest event of the day.
 
     As a special case, this will also accept the word "now" to
     mean the current time.
     """
-    if isinstance(as_of_when,str) and as_of_when.lower() == "now":
+    if (not as_of_when or
+            (isinstance(as_of_when,str) and as_of_when.lower() == "now")):
         as_of_when = get_time()
-    elif as_of_when is None:
-        # Set as_of_when to be the time of the latest checkout of the day.
-        if check_ins:
-            as_of_when = min(list(check_ins.values()))
-        else:
-            as_of_when = get_time()
     as_of_when = time_str(as_of_when)
+
+    # If a bike isn't checked out or its checkout is after the requested
+    # time, then use what as its checkout time?
+    latest_time = valet_opens if valet_opens else latest_event()
+    missing_checkout_time = min([latest_time,as_of_when])
+
     visits = {}
     for tag,time_in in check_ins.items():
         if time_in > as_of_when:
@@ -511,8 +517,8 @@ def calc_visits( as_of_when:Union[int,str]=None ) -> dict[str:Visit]:
             this_visit.time_out = check_outs[tag]
             this_visit.still_here = False
         else:
-            this_visit.time_out = as_of_when
-            this_visit.still_here = False
+            this_visit.time_out = missing_checkout_time
+            this_visit.still_here = True
         this_visit.duration = max(1,
                 (time_int(this_visit.time_out) -
                 time_int(this_visit.time_in)))
