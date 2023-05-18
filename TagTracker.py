@@ -916,6 +916,68 @@ def find_tag_durations(include_bikes_on_hand=True) -> dict[str,int]:
             tag_durations[tag] = 1
     return tag_durations
 
+def new_delete_entry(args:list[str]) -> None:
+    """Perform tag entry deletion dialogue."""
+
+    def arg_prompt(maybe:str, prompt:str, optional:bool=False) -> str:
+        """Prompt for one command argument (token)."""
+        if optional or maybe:
+            maybe = "" if maybe is None else f"{maybe}".strip().lower()
+            return maybe
+        prompt = text_style(f"{prompt} {cfg.CURSOR}",style=cfg.PROMPT_STYLE)
+        return input(prompt).strip().lower()
+
+    def nogood(msg:str="",syntax:bool=True) -> None:
+        """Print the nogood msg + syntax msg."""
+        if msg:
+            iprint(msg, style=cfg.WARNING_STYLE)
+        if syntax:
+            iprint("syntax: delete <tag> <in|out|both> <y|n|!>",
+                    style=cfg.WARNING_STYLE)
+
+    (maybe_target,maybe_what,maybe_confirm) = (args + ["","",""])[:3]
+    # What tag are we to delete parts of?
+    maybe_target = arg_prompt(maybe_target,"Delete entries for what tag?")
+    if not maybe_target:
+        nogood()
+        return
+    target = fix_tag(maybe_target, must_be_available=True)
+    if not target:
+        nogood(f"'{maybe_target}' is not a tag or not a tag in use.")
+        return
+    if target not in check_ins:
+        nogood(f"Tag {target} not checked in or out, nothing to do.",
+               syntax=False)
+        return
+    # Special case: "!" after what without a space
+    if maybe_what and maybe_what[-1] == "!" and not maybe_confirm:
+        maybe_what = maybe_what[:-1]
+        maybe_confirm = "!"
+    # Find out what kind of checkin/out we are to delete
+    what = arg_prompt(maybe_what, "Delete check-IN, check-OUT or BOTH (i/o/b)?")
+    if not what:
+        nogood()
+        return
+    if what not in ["i","in","o","out","b","both"]:
+        nogood("Must indicate in, out or both")
+        return
+    if what in ["i","in"] and target in check_outs:
+        nogood(f"Bike {target} checked out.  Can't delete check-in for a returned bike without check-out too",
+               syntax=False)
+        return
+    # Get a confirmation
+    confirm = arg_prompt(maybe_confirm,"Are you sure (y/n)?")
+    if confirm not in ["y","yes", "!"]:
+        nogood("Delete cancelled",syntax=False)
+        return
+    # Perform the delete
+    if what in ["b","both","o","out"] and target in check_outs:
+        check_outs.pop(target)
+    if what in ["b","both","i","in"] and target in check_ins:
+        check_ins.pop(target)
+    iprint("Deleted.",style=cfg.ANSWER_STYLE)
+
+
 def delete_entry(args:list[str]) -> None:
     """Perform tag entry deletion dialogue."""
     (target,which_to_del,confirm) = (args + [None,None,None])[:3]
@@ -1549,22 +1611,22 @@ def tag_check(tag:str) -> None:
         """Pretty-print a tag-in or tag-out message."""
         if inout == cfg.BIKE_IN:
             msg1 = f"Bike {tag} checked IN "
-            msg2 = f"bike #{len(check_ins)}"
-            ##msg2 = f"bike #{len(check_ins)}; {num_bikes_at_valet()} bikes at valet"
+            msg2 = "" # f"bike #{len(check_ins)}"
         elif inout == cfg.BIKE_OUT:
-            msg1 = f"Bike {tag} checked OUT"
+            msg1 = f"Bike {tag} checked OUT                "
             duration = pretty_time(
                     time_int(check_outs[tag]) - time_int(check_ins[tag]),
                     trim=True)
-            msg2 = f"at valet for {duration}h"
+            msg2 = "" # f"at valet for {duration}h"
         else:
             iprint(f"PROGRAM ERROR: called print_inout({tag}, {inout})",
                    style=cfg.ERROR_STYLE)
             return
         # Print
         msg1 = text_style(f"  {msg1}  ",style=cfg.ANSWER_STYLE)
-        msg2 = text_style(msg2,style=cfg.NORMAL_STYLE)
-        iprint( f"{pretty_time(get_time(),trim=False)} {msg1} ({msg2})")
+        if msg2:
+            msg2 = text_style(f"(msg2)",style=cfg.NORMAL_STYLE)
+        iprint( f"{pretty_time(get_time(),trim=False)} {msg1} {msg2}")
 
     if tag in cfg.retired_tags: # if retired print specific retirement message
         iprint(f"{tag} is retired", style=cfg.WARNING_STYLE)
@@ -1659,7 +1721,7 @@ def main():
         elif cmd == cfg.CMD_AUDIT:
             audit_report(args)
         elif cmd == cfg.CMD_DELETE:
-            delete_entry(args)
+            new_delete_entry(args)
             data_dirty = True
         elif cmd == cfg.CMD_EDIT:
             edit_entry(args)
