@@ -258,6 +258,33 @@ def future_warning(when:str="") -> None:
         msg = "(Reporting a time in the future)"
     iprint(msg,style=cfg.HIGHLIGHT_STYLE)
 
+def valet_logo():
+    """Print a cute bike valet logo using unicode."""
+    UL = chr(0x256d)
+    VR = chr(0x2502)
+    HR = chr(0x2500)
+    UR = chr(0x256e)
+    LL = chr(0x2570)
+    LR = chr(0x256f)
+    BL = " "
+    LOCK00 = chr(0x1F512)
+    BIKE00 = chr(0x1f6b2)
+    SCOOTR = chr(0x1f6f4)
+
+    ln1 = f"{BL}{UL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{UR}"
+    ln2 = f"{BL}{VR}{BL}{BIKE00}{BIKE00}{SCOOTR}{BIKE00}{BL}{VR}"
+    ln3 = f"{LOCK00}{BL}{BIKE00}{BIKE00}{BIKE00}{SCOOTR}{BL}{VR}"
+    ln4 = f"{BL}{LL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{LR}"
+
+    WHATSTYLE=cfg.ANSWER_STYLE
+
+    print()
+    iprint(f"            {ln1}             ",style=WHATSTYLE)
+    iprint(f"   FREE     {ln2}     BIKE    ",style=WHATSTYLE)
+    iprint(f"   SAFE     {ln3}     VALET   ",style=WHATSTYLE)
+    iprint(f"            {ln4}             ",style=WHATSTYLE)
+    print()
+
 def earliest_event() -> str:
     """Return the earliest event of the day as HH:MM (or "" if none)."""
         # Find earliest and latest block of the day
@@ -1809,8 +1836,13 @@ DATE = get_date()
 LOG_FILEPATH = datafile_name()
 if not read_tags(LOG_FILEPATH): # only run main() if tags read successfully
     error_exit()
+
 if not valet_opens or not valet_closes:
+    print()
+    iprint("Please enter today's opening/closing times.",
+           style=cfg.ERROR_STYLE)
     set_valet_hours( [valet_opens,valet_closes])
+valet_logo()
 main()
 
 
