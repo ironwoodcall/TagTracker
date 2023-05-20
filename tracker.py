@@ -832,7 +832,8 @@ def qstack_report( visits:dict[str:Visit] ) -> None:
     # Make a list of tuples: start_time, end_time for all visits.
     visit_times = list(zip( [vis.time_in for vis in visits.values()],
         [vis.time_out for vis in visits.values()]))
-    ##print(text_style(f"DEBUG:{list(visit_times)=}",style=cfg.WARNING_STYLE))
+    ##debug( f"{len(list(visit_times))=}")
+    ##debug( f"{list(visit_times)=}")
     queueish = 0
     stackish = 0
     neutralish = 0
@@ -860,10 +861,10 @@ def qstack_report( visits:dict[str:Visit] ) -> None:
     stack_proportion = stackish / (queueish + stackish + neutralish)
     iprint(f"Based on {visit_compares} compares of {len(visits)} "
            f"{cfg.VISIT_NOUN.lower()}s, today's {cfg.VISIT_NOUN.lower()}s are:")
-    iprint(f"{round(queue_proportion*100):3d}% queue-like (overlapping)",num_indents=2)
-    iprint(f"{round(stack_proportion*100):3d}% stack-like (nested)",num_indents=2)
-    iprint(f"{round((1 - stack_proportion - queue_proportion)*100):3d}% "
-           "neither (disjunct, or share a check-in or -out time)",num_indents=2)
+    iprint(f"{(queue_proportion):0.3f} queue-like (overlapping)",num_indents=2)
+    iprint(f"{(stack_proportion):0.3f} stack-like (nested)",num_indents=2)
+    ##iprint(f"{((1 - stack_proportion - queue_proportion)):0.3f} "
+    ##       "neither (disjunct, or share a check-in or -out time)",num_indents=2)
 
 def day_end_report( args:list ) -> None:
     """Report summary statistics about visits, up to the given time.
