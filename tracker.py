@@ -26,7 +26,7 @@ import statistics
 from typing import Union    # This is for type hints instead of (eg) int|str
 from inspect import currentframe, getframeinfo
 
-import TrackerConfig as cfg
+import tagtracker_config as cfg
 
 # Initialize valet open/close globals
 valet_opens = ""
@@ -354,7 +354,7 @@ def read_tags(datafilename:str) -> bool:
            end="", style=cfg.SUBTITLE_STYLE)
     errors = 0  # How many errors found reading datafile?
     section = None
-    with open(datafilename, 'r') as f:
+    with open(datafilename, 'r',encoding='utf-8') as f:
         for line_num, line in enumerate(f, start=1):
             # ignore blank or # comment lines
             line = re.sub(r"\s*#.*","", line)
@@ -415,7 +415,6 @@ def read_tags(datafilename:str) -> bool:
                         errs=errors, fname=datafilename, fline=line_num)
                 continue
             this_time = time_str(cells[1])
-            # FIXME: tevpg got this far
             if not (this_time):
                 errors = data_read_error(
                         "Poorly formed time value",
@@ -494,15 +493,18 @@ def write_tags() -> None:
     lines.append("Oversize-bike tags:")
     for tag in cfg.oversize_tags:
         lines.append(tag)
-    lines.append(f"# Normal end of file")
+    lines.append("# Normal end of file")
     # Write the data to the file.
-    with open(LOG_FILEPATH, 'w') as f: # write stored lines to file
+    with open(LOG_FILEPATH, 'w',encoding='utf-8') as f: # write stored lines to file
         for line in lines:
             f.write(line)
             f.write("\n")
 
 class Visit():
+    """Just a data structure to keep track of bike visits."""
+
     def __init__(self, tag:str) -> None:
+        """Initialize blank."""
         self.tag = tag      # canonical
         self.time_in = ""   # HH:MM
         self.time_out = ""  # HH:MM
@@ -510,7 +512,7 @@ class Visit():
         self.type = None    # cfg.REGULAR, cfg.OVERSIZE
         self.still_here = None  # True or False
 
-def calc_visits( as_of_when:Union[int,str]=None ) -> dict[str:Visit]:
+def calc_visits( as_of_when:Union[int,str]=None ) -> dict[str,Visit]:
     """Create a dict of visits keyed by tag as of as_of_when.
 
     If as_of_when is not given, then this will use the current time.
@@ -570,7 +572,7 @@ class Event():
         self.num_ins = 0     # This is just len(self.bikes_in).
         self.num_outs = 0    # This is just len(self.bikes_out).
 
-def calc_events(as_of_when:Union[int,str]=None ) -> dict[str:Event]:
+def calc_events(as_of_when:Union[int,str]=None ) -> dict[str,Event]:
     """Create a dict of events keyed by HH:MM time.
 
     If as_of_when is not given, then this will choose the latest
@@ -702,7 +704,7 @@ def visit_statistics_report(visits:dict) -> None:
         iprint(f"{key:17s}{value}", style=cfg.NORMAL_STYLE)
 
     def visits_mode(durations_list:list[int]) -> None:
-        """Prints the mode info."""
+        """Calculat and print the mode info."""
         # Find the mode value(s), with visit durations rounded
         # to nearest ROUND_TO_NEAREST time.
         rounded = [round(x/cfg.MODE_ROUND_TO_NEAREST)*cfg.MODE_ROUND_TO_NEAREST
@@ -713,7 +715,7 @@ def visit_statistics_report(visits:dict) -> None:
         one_line(f"Mode {cfg.VISIT_NOUN}:", modes_str)
 
     def make_tags_str(tags:list[str]) -> str:
-        """Makes a 'list of tags' string that is sure not to be too long."""
+        """Make a 'list of tags' string that is sure not to be too long."""
         tagstr = "tag: " if len(tags) == 1 else "tags: "
         tagstr = (tagstr + ",".join(tags))
         if len(tagstr) > 30:
@@ -746,7 +748,7 @@ def visit_statistics_report(visits:dict) -> None:
 
 
 def highwater_report(events:dict) -> None:
-    """Make a highwater table as at as_of_when"""
+    """Make a highwater table as at as_of_when."""
     # High-water mark for bikes in valet at any one time
     def one_line( header:str, events:dict, atime:str, highlight_field:int ) -> None:
         """Print one line for highwater_report."""
@@ -830,7 +832,8 @@ def qstack_report( visits:dict[str:Visit] ) -> None:
     # Make a list of tuples: start_time, end_time for all visits.
     visit_times = list(zip( [vis.time_in for vis in visits.values()],
         [vis.time_out for vis in visits.values()]))
-    ##print(text_style(f"DEBUG:{list(visit_times)=}",style=cfg.WARNING_STYLE))
+    ##debug( f"{len(list(visit_times))=}")
+    ##debug( f"{list(visit_times)=}")
     queueish = 0
     stackish = 0
     neutralish = 0
@@ -858,13 +861,13 @@ def qstack_report( visits:dict[str:Visit] ) -> None:
     stack_proportion = stackish / (queueish + stackish + neutralish)
     iprint(f"Based on {visit_compares} compares of {len(visits)} "
            f"{cfg.VISIT_NOUN.lower()}s, today's {cfg.VISIT_NOUN.lower()}s are:")
-    iprint(f"{round(queue_proportion*100):3d}% queue-like (overlapping)",num_indents=2)
-    iprint(f"{round(stack_proportion*100):3d}% stack-like (nested)",num_indents=2)
-    iprint(f"{round((1 - stack_proportion - queue_proportion)*100):3d}% "
-           "neither (disjunct, or share a check-in or -out time)",num_indents=2)
+    iprint(f"{(queue_proportion):0.3f} queue-like (overlapping)",num_indents=2)
+    iprint(f"{(stack_proportion):0.3f} stack-like (nested)",num_indents=2)
+    ##iprint(f"{((1 - stack_proportion - queue_proportion)):0.3f} "
+    ##       "neither (disjunct, or share a check-in or -out time)",num_indents=2)
 
 def day_end_report( args:list ) -> None:
-    """Reports summary statistics about visits, up to the given time.
+    """Report summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
     """
@@ -895,7 +898,7 @@ def day_end_report( args:list ) -> None:
     visit_statistics_report(visits)
 
 def more_stats_report( args:list ) -> None:
-    """Reports more summary statistics about visits, up to the given time.
+    """Report more summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
     """
@@ -1150,8 +1153,7 @@ def prompt_for_time(inp = False, prompt:str=None) -> bool or str:
     return hhmm
 
 def set_valet_hours(args:list[str]) -> None:
-    """Sets the valet opening & closing hours."""
-
+    """Set the valet opening & closing hours."""
     global valet_opens, valet_closes
     (open_arg, close_arg) = (args+["",""])[:2]
     print()
@@ -1248,7 +1250,8 @@ def tags_by_prefix(tags:list[str]) -> dict:
     prefixes = {}
     for tag in tags:
         #(prefix,t_number) = cfg.PARSE_TAG_PREFIX_RE.match(tag).groups()
-        (t_colour,t_letter,t_number) = parse_tag(tag,must_be_available=False)[1:4]
+        (t_colour,t_letter,t_number) = (
+                parse_tag(tag,must_be_available=False)[1:4])
         prefix = f"{t_colour}{t_letter}"
         if prefix not in prefixes:
             prefixes[prefix] = []
@@ -1355,7 +1358,7 @@ class Block():
             bstart = Block.block_start(atime)
             blocks[bstart].outs_list += [tag]
         here_set = set()
-        for btime,blk in blocks.items():
+        for blk in blocks.values():
             blk.num_ins = len(blk.ins_list)
             blk.num_outs = len(blk.outs_list)
             here_set = (here_set | set(blk.ins_list)) - set(blk.outs_list)
@@ -1577,13 +1580,14 @@ def audit_report(args:list[str]) -> None:
     return
 
 def csv_dump(args) -> None:
+    """Dump a few stats into csv for pasting into spreadsheets."""
     filename = (args + [None])[0]
     if not filename:
         ##iprint("usage: csv <filename>",style=cfg.WARNING_STYLE)
         iprint("Printing to screen.",style=cfg.WARNING_STYLE)
 
     def time_hrs(atime) -> str:
-        """Returns atime (str or int) as a string of decimal hours."""
+        """Return atime (str or int) as a string of decimal hours."""
         hrs = time_int(atime) / 60
         return f"{hrs:0.3}"
     as_of_when = "24:00"
@@ -1647,10 +1651,11 @@ def tag_check(tag:str) -> None:
             msg2 = "" # f"bike #{len(check_ins)}"
         elif inout == cfg.BIKE_OUT:
             msg1 = f"Bike {tag} checked OUT                "
-            duration = pretty_time(
-                    time_int(check_outs[tag]) - time_int(check_ins[tag]),
-                    trim=True)
-            msg2 = "" # f"at valet for {duration}h"
+            msg2 = ""   # Saying duration might have been confusing
+            ##duration = pretty_time(
+            ##        time_int(check_outs[tag]) - time_int(check_ins[tag]),
+            ##        trim=True)
+            ##msg2 = f"at valet for {duration}h"
         else:
             iprint(f"PROGRAM ERROR: called print_inout({tag}, {inout})",
                    style=cfg.ERROR_STYLE)
@@ -1658,7 +1663,7 @@ def tag_check(tag:str) -> None:
         # Print
         msg1 = text_style(f"  {msg1}  ",style=cfg.ANSWER_STYLE)
         if msg2:
-            msg2 = text_style(f"(msg2)",style=cfg.NORMAL_STYLE)
+            msg2 = text_style(f"({msg2})",style=cfg.NORMAL_STYLE)
         iprint( f"{pretty_time(get_time(),trim=False)} {msg1} {msg2}")
 
     if tag in cfg.retired_tags: # if retired print specific retirement message
@@ -1795,7 +1800,8 @@ def main():
 def error_exit() -> None:
     """If an error has occurred, give a message and shut down.
 
-    Any specific info about the error should already have been printed."""
+    Any specific info about the error should already have been printed.
+    """
     print()
     iprint("Closing in 30 seconds",style=cfg.ERROR_STYLE)
     time.sleep(30)
@@ -1803,7 +1809,6 @@ def error_exit() -> None:
 
 def datafile_name() -> str:
     """Return the name of the data file (datafile) to read/write."""
-
     if len(sys.argv) <= 1:
         # Use default filename
         return f"logs/{cfg.LOG_BASENAME}{DATE}.log"

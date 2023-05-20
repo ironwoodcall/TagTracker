@@ -125,7 +125,7 @@ def readafile( file:str ) -> list[str, dict,dict]:
         message(file, "not found", ERROR_MSG)
         return ["",dict(), dict()]
     # Open & read the file.
-    with open(file,"r") as f:
+    with open(file,"r",encoding='utf-8') as f:
         for line in f:
             lnum += 1
             line = line.strip()
@@ -228,10 +228,10 @@ def clean(file:str, check_ins:dict, check_outs:dict) -> None:
         check_outs.pop(tag)
         check_ins.pop(tag)
 
-def write_file( oldfile:str, newfile:str, date:str,
+def write_file(oldfile:str, newfile:str, date:str,
         check_ins:dict, check_outs:dict ) ->None:
     """Write the records to a tagtracker-complians file."""
-    with open(newfile, 'w') as f: # write stored lines to file
+    with open(newfile, 'w',encoding='utf-8') as f: # write stored lines to file
         f.write(f"# {date}\n")
         timestamp = datetime.datetime.today().strftime("%Y-%m-%d %H:%M")
         f.write(f"# Converted from {oldfile} on {timestamp}\n")
