@@ -22,12 +22,9 @@ Copyright (C) 2023 Julias Hocking
 import os
 import sys
 import time
-##from datetime import datetime
-import re
 import pathlib
 import statistics
 from typing import Union    # This is for type hints instead of (eg) int|str
-##from inspect import currentframe, getframeinfo
 
 import tracker_util as ut
 import tagtracker_config as cfg
@@ -35,61 +32,9 @@ import tagtracker_config as cfg
 # Initialize valet open/close globals
 VALET_OPENS = ""
 VALET_CLOSES = ""
+VALET_DATE=""
 
-def parse_tag(maybe_tag:str, must_be_available=False) -> list[str]:
-    """Test maybe_tag as a tag, return it as tag and bits.
-
-    Tests maybe_tag by breaking it down into its constituent parts.
-    If looks like a valid tagname, returns a list of
-        [tag_id, colour, tag_letter, tag_number]
-    If tag is not valid, then the return list is empty []
-
-    If must_be_available flag is True then will check whether this
-    tag is in the list of all available tags (ALL_TAGS), and if
-    not in the list, will return the empty list.
-
-    Canonical tag id is a concatenation of
-        tag_colour: 1+ lc letters representing the tag's colour,
-                as defined in COLOUR_LETTERS
-        tag_letter: 1 lc letter, the first character on the tag
-        tag_number: a sequence number, without lead zeroes.
-    """
-    maybe_tag = maybe_tag.lower()
-    r = ut.PARSE_TAG_RE.match(maybe_tag)
-    if not bool(r):
-        return []
-
-    tag_colour = r.group(1)
-    tag_letter = r.group(2)
-    tag_number = r.group(3)
-    tag_id = f"{tag_colour}{tag_letter}{tag_number}"
-
-    if must_be_available and tag_id not in ALL_TAGS:
-        return []
-
-    return [tag_id,tag_colour,tag_letter,tag_number]
-
-def fix_tag(maybe_tag:str, **kwargs) -> ut.Tag:
-    """Turn 'str' into a canonical tag name.
-
-    Keyword must_be_available, if set True, will force
-    this to only allow tags that are set as usable in config files.
-    """
-    bits = parse_tag(maybe_tag,
-            must_be_available=kwargs.get("must_be_available"))
-    return bits[0] if bits else ""
-
-def sort_tags( unsorted:list[ut.Tag]) -> list[ut.Tag]:
-    """Sorts a list of tags (smart eg about wa12 > wa7)."""
-    newlist = []
-    for tag in unsorted:
-        bits = parse_tag(tag,must_be_available=False)
-        newlist.append(f"{bits[1]}{bits[2]}{int(bits[3]):04d}")
-    newlist.sort()
-    newlist = [fix_tag(t) for t in newlist]
-    return newlist
-
-def simplified_taglist(tags:Union[list[str],str]) -> str:
+def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     """Make a simplified str of tag names from a list of tags.
 
     E.g. "wa1,2,3,4,9 wb1,9,10 be4"
@@ -104,7 +49,7 @@ def simplified_taglist(tags:Union[list[str],str]) -> str:
         # Flatten the list of lists into a single list.
         tags = [item for sublist in tags for item in sublist]
     # Make dict of [prefix]:list of tag_numbers_as_int
-    tag_prefixes = tags_by_prefix(tags)
+    tag_prefixes = ut.tags_by_prefix(tags)
     simplified_list = []
     for prefix in sorted(tag_prefixes.keys()):
         # A list of the tag numbers for this prefix
@@ -220,154 +165,55 @@ def latest_event(as_of_when:Union[ut.Time,int,None]=None ) -> ut.Time:
     latest = max(events)
     return latest
 
-def read_tags(datafilename:str) -> bool:
-    """Fetch tag data from file.
+def deduce_valet_date(current_guess:str, filename:str) -> str:
+    """Guess what date the current data is for.
 
-    Read data from a pre-existing data file, if one exists
-    check for .txt file for today's date in folder called 'logs'
-    e.g. "logs/2023-04-20.txt"
-    if exists, read for ins and outs
-    if none exists, who cares -- one will get made.
+    Logic:
+        If current_guess is set (presumably read from the contents
+        of the datafile) then it is used.
+        Else if there appears to be a date embedded in the name of
+        the datafile, it is used.
+        Else today's date is used.
     """
-    def data_read_error( text:str, errs:int=0, fname:str="", fline:int=None) -> int:
-        """Print a datafile read error, increments error counter.
+    if current_guess:
+        return current_guess
+    r = ut.DATE_PART_RE.search(filename)
+    if r:
+        return (f"{int(r.group(2)):04d}-{int(r.group(3)):02d}-"
+                f"{int(r.group(4)):02d}")
+    return ut.get_date()
 
-        This returns the incremented error counter.  Ugh.
-        Also, if this is the first error (errors_before is None or 0)
-        then this makes an initial print() on the assumptino that the
-        immediately preceding print() statement had end="".
-        """
-        if not errs:
-            print()
-        text = f" {text}"
-        if fline:
-            text = f"{fline}:{text}"
-        if fname:
-            text = f"{fname}:{text}"
-        iprint(text, style=cfg.ERROR_STYLE)
-        return errs + 1
-
+def initialize_today() -> bool:
+    """Fetch today's data from file (if exists)."""
+    # Does the file even exist? (If not we will just create it later)
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
-    if not os.path.exists(datafilename):
+    if not os.path.exists(LOG_FILEPATH):
         iprint("No datafile for today found. Will create new datafile"
-               f" {datafilename}.", style=cfg.SUBTITLE_STYLE)
+               f" {LOG_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
         return True
-    iprint(f"Reading data from {datafilename}...",
+    # Fetch data from file; errors go into error_msgs
+    iprint(f"Reading data from {LOG_FILEPATH}...",
            end="", style=cfg.SUBTITLE_STYLE)
-    errors = 0  # How many errors found reading datafile?
-    section = None
-    with open(datafilename, 'r',encoding='utf-8') as f:
-        for line_num, line in enumerate(f, start=1):
-            # ignore blank or # comment lines
-            line = re.sub(r"\s*#.*","", line)
-            line = line.strip()
-            if not line:
-                continue
-            # Look for section headers
-            if (re.match(r"^Bikes checked in.*:",line)):
-                section = ut.BIKE_IN
-                continue
-            elif (re.match(r"^Bikes checked out.*:", line)):
-                section = ut.BIKE_OUT
-                continue
-            # Look for headers for oversize & regular bikes, ignore them.
-            elif (re.match(r"^Regular-bike tags.*:",line)):
-                section = ut.IGNORE
-                continue
-            elif (re.match(r"^Oversize-bike tags.*:",line)):
-                section = ut.IGNORE
-                continue
-            elif (re.match(r"^Valet (opens|closes):",line)):
-                # This is either an open or a close time (probably)
-                section = ut.IGNORE
-                global VALET_OPENS, VALET_CLOSES
-                r = re.match(r"Valet (opens|closes): *(.+)",line)
-                maybetime = ut.time_str(r.group(2))
-                if not maybetime:
-                    errors = data_read_error("Unable to read valet open/close time",
-                        errs=errors, fname=datafilename, fline=line_num)
-                    continue
-                if r.group(1) == "opens":
-                    VALET_OPENS = maybetime
-                else:
-                    VALET_CLOSES = maybetime
-                continue
-            # Can do nothing unless we know what section we're in
-            if section is None:
-                errors = data_read_error(
-                        "Unexpected unintelligibility in line",
-                        errs=errors, fname=datafilename, fline=line_num)
-                continue
-            if section == ut.IGNORE:
-                # Things to ignore
-                continue
-            # Break into putative tag and text, looking for errors
-            cells = line.split(',')
-            if len(cells) != 2:
-                errors = data_read_error("Bad line in file",
-                        errs=errors, fname=datafilename, fline=line_num)
-                continue
-            this_tag = fix_tag(cells[0],must_be_available=False)
-            if not (this_tag):
-                errors = data_read_error("String does not appear to be a tag",
-                        errs=errors, fname=datafilename, fline=line_num)
-                continue
-            if this_tag not in ALL_TAGS:
-                errors = data_read_error(f"Tag '{this_tag}' not in use",
-                        errs=errors, fname=datafilename, fline=line_num)
-                continue
-            this_time = ut.time_str(cells[1])
-            if not (this_time):
-                errors = data_read_error(
-                        "Poorly formed time value",
-                        errs=errors, fname=datafilename, fline=line_num)
-                continue
-            # Maybe add to check_ins or check_outs structures.
-            if section == ut.BIKE_IN:
-                # Maybe add to check_in structure
-                if this_tag in check_ins:
-                    errors = data_read_error(
-                            f"Duplicate {this_tag} check-in",
-                            errs=errors, fname=datafilename, fline=line_num)
-                    continue
-                if this_tag in check_outs and check_outs[this_tag] < this_time:
-                    errors = data_read_error(
-                            f"Tag {this_tag} check out before check-in",
-                            errs=errors, fname=datafilename, fline=line_num)
-                    continue
-                check_ins[this_tag] = this_time
-            elif section == ut.BIKE_OUT:
-                if this_tag in check_outs:
-                    errors = data_read_error(
-                            f"Duplicate {this_tag} check-out",
-                            errs=errors, fname=datafilename, fline=line_num)
-                    continue
-                if this_tag in check_ins and check_ins[this_tag] > this_time:
-                    errors = data_read_error(
-                            f"Tag {this_tag} check out before check-in",
-                            errs=errors, fname=datafilename, fline=line_num)
-                    continue
-                check_outs[this_tag] = this_time
-            else:
-                ut.squawk("PROGRAM ERROR: should not reach this code spot")
-                errors += 1
-                continue
+    error_msgs = []
+    today_data = ut.read_datafile(LOG_FILEPATH,error_msgs,ALL_TAGS)
+    if error_msgs:
+        print()
+        for text in error_msgs:
+            iprint(text, style=cfg.ERROR_STYLE)
+        return False
+    # On success, set today's working data
+    # pylint: disable=global-statement
+    global VALET_DATE, VALET_OPENS, VALET_CLOSES
+    global check_ins, check_outs
+    # pylint: enable=global-statement
+    VALET_DATE = today_data.date
+    VALET_OPENS = today_data.opening_time
+    VALET_CLOSES = today_data.closing_time
+    check_ins = today_data.bikes_in
+    check_outs = today_data.bikes_out
 
-    if errors:
-        iprint(f"Found {errors} errors in datafile {datafilename}",
-               style=cfg.ERROR_STYLE)
-    else:
-        iprint('done.', num_indents=0, style=cfg.SUBTITLE_STYLE)
-    return not bool(errors)
-
-def rotate_log() -> None:
-    """Rename the current logfile to <itself>.bak."""
-    backuppath = f"{LOG_FILEPATH}.bak"
-    if os.path.exists(backuppath):
-        os.unlink(backuppath)
-    if os.path.exists(LOG_FILEPATH):
-        os.rename(LOG_FILEPATH,backuppath)
-    return None
+    iprint('done.', num_indents=0, style=cfg.SUBTITLE_STYLE)
+    return True
 
 class Visit():
     """Just a data structure to keep track of bike visits."""
@@ -601,7 +447,7 @@ def visit_statistics_report(visits:dict) -> None:
     if not duration_tags:
         return  # No durations
     print()
-    iprint(f"{cfg.VISIT_NOUN.title()} length statistics",
+    iprint(f"{cfg.VISIT_NOUN.title()}-length statistics",
            style=cfg.SUBTITLE_STYLE)
     longest = max(list(duration_tags.keys()))
     long_tags = make_tags_str(duration_tags[longest])
@@ -827,7 +673,7 @@ def find_tag_durations(include_bikes_on_hand=True) -> ut.TagDict:
             tag_durations[tag] = 1
     return tag_durations
 
-def new_delete_entry(args:list[str]) -> None:
+def delete_entry(args:list[str]) -> None:
     """Perform tag entry deletion dialogue."""
 
     def arg_prompt(maybe:str, prompt:str, optional:bool=False) -> str:
@@ -852,7 +698,7 @@ def new_delete_entry(args:list[str]) -> None:
     if not maybe_target:
         nogood()
         return
-    target = fix_tag(maybe_target, must_be_available=True)
+    target = ut.fix_tag(maybe_target, must_be_in=ALL_TAGS)
     if not target:
         nogood(f"'{maybe_target}' is not a tag or not a tag in use.")
         return
@@ -873,7 +719,8 @@ def new_delete_entry(args:list[str]) -> None:
         nogood("Must indicate in, out or both")
         return
     if what in ["i","in"] and target in check_outs:
-        nogood(f"Bike {target} checked out.  Can't delete check-in for a returned bike without check-out too",
+        nogood(f"Bike {target} checked out.  Can't delete check-in "
+               "for a returned bike without check-out too",
                syntax=False)
         return
     # Get a confirmation
@@ -888,13 +735,15 @@ def new_delete_entry(args:list[str]) -> None:
         check_ins.pop(target)
     iprint("Deleted.",style=cfg.ANSWER_STYLE)
 
-def delete_entry(args:list[str]) -> None:
+# pylint: disable=pointless-string-statement
+'''
+def old_delete_entry(args:list[str]) -> None:
     """Perform tag entry deletion dialogue."""
     # FIXME: this is superseded
     (target,which_to_del,confirm) = (args + [None,None,None])[:3]
 
     if target:
-        target = fix_tag(target,must_be_available=False)
+        target = ut.fix_tag(target)
     if not target:
         target = None
     del_syntax_message = text_style("Syntax: d <tag> <both or check-out only"
@@ -979,6 +828,8 @@ def delete_entry(args:list[str]) -> None:
             iprint(f"{target} has only a check-in ({time_in_temp}) recorded; "
                    "can't delete a nonexistent check-out",
                    style=cfg.WARNING_STYLE)
+'''
+# pylint: enable=pointless-string-statement
 
 def query_tag(args:list[str]) -> None:
     """Query the check in/out times of a specific tag."""
@@ -987,7 +838,7 @@ def query_tag(args:list[str]) -> None:
         iprint(f"Which tag would you like to query? (tag name) {cfg.CURSOR}",
                style=cfg.SUBPROMPT_STYLE, end="")
         target = input().lower()
-    fixed_target = fix_tag(target,must_be_available=True)
+    fixed_target = ut.fix_tag(target,must_be_in=ALL_TAGS)
     print()
     if not fixed_target:
         iprint(f"Tag {target} is not available (retired, does not exist, etc)",
@@ -1029,7 +880,7 @@ def prompt_for_time(inp=False, prompt:str=None) -> bool or ut.Time:
 
 def set_valet_hours(args:list[str]) -> None:
     """Set the valet opening & closing hours."""
-    global VALET_OPENS, VALET_CLOSES
+    global VALET_OPENS, VALET_CLOSES # pylint: disable=global-statement
     (open_arg, close_arg) = (args+["",""])[:2]
     print()
     # Valet opening time
@@ -1120,21 +971,6 @@ def edit_entry(args:list[str]):
         iprint(f"'{target}' isn't a valid tag (edit cancelled)",
                style=cfg.WARNING_STYLE)
 
-def tags_by_prefix(tags:list[ut.Tag]) -> dict[str,list[ut.Tag]]:
-    """Return a dict of tag prefixes with lists of associated tag numbers."""
-    prefixes = {}
-    for tag in tags:
-        #(prefix,t_number) = cfg.PARSE_TAG_PREFIX_RE.match(tag).groups()
-        (t_colour,t_letter,t_number) = (
-                parse_tag(tag,must_be_available=False)[1:4])
-        prefix = f"{t_colour}{t_letter}"
-        if prefix not in prefixes:
-            prefixes[prefix] = []
-        prefixes[prefix].append(int(t_number))
-    for numbers in prefixes.values():
-        numbers.sort()
-    return prefixes
-
 class Block():
     """Class to help with reporting.
 
@@ -1216,14 +1052,16 @@ class Block():
     def calc_blocks(as_of_when:ut.Time=None) -> dict[ut.Time,object]:
         """Create a dictionary of Blocks {start:Block} for whole day."""
         as_of_when = as_of_when if as_of_when else "18:00"
-        # Create dict with all the bloctimes as keys (None as values)
+        # Create dict with all the blocktimes as keys (None as values)
         blocktimes = Block.timeblock_list(as_of_when=as_of_when)
         if not blocktimes:
             return {}
         blocks = {}
-        for t in Block.timeblock_list(as_of_when=as_of_when):
+        timeblock_list = Block.timeblock_list(as_of_when=as_of_when)
+        for t in timeblock_list:
             blocks[t] = Block(t)
-        latest_time = Block.block_end(t,as_number=False)
+        # latest_time is the end of the latest block that interests us
+        latest_time = Block.block_end(max(timeblock_list),as_number=False)
         for tag, atime in check_ins.items():
             if atime > latest_time:
                 continue
@@ -1243,7 +1081,7 @@ class Block():
             blk.num_here = len(here_set)
         return blocks
 
-def lookback(args:list[str]) -> None:
+def recent(args:list[str]) -> None:
     """Display a look back at recent activity.
 
     Args are both optional, start_time and end_time.
@@ -1254,7 +1092,6 @@ def lookback(args:list[str]) -> None:
         """Format one line of output."""
         in_tag = tag if check_in else ""
         out_tag = "" if check_in else tag
-        #inout = "bike IN" if check_in else "returned OUT"
         return f"{ut.pretty_time(atime,trim=False)}   {in_tag:<5s} {out_tag:<5s}"
 
     (start_time, end_time) = (args + [None,None])[:2]
@@ -1315,7 +1152,7 @@ def dataform_report(args:list[str]) -> None:
         return
     for which in [ut.BIKE_IN,ut.BIKE_OUT]:
         titlebit = "checked IN" if which == ut.BIKE_IN else "returned OUT"
-        title = f"Bikes {titlebit}:"
+        title = f"Bikes {titlebit}"
         print()
         iprint(title, style=cfg.SUBTITLE_STYLE)
         iprint("-" * len(title), style=cfg.SUBTITLE_STYLE)
@@ -1324,7 +1161,6 @@ def dataform_report(args:list[str]) -> None:
                     else block.outs_list)
             endtime = ut.time_str(ut.time_int(start)+cfg.BLOCK_DURATION)
             iprint(f"{start}-{endtime}  {simplified_taglist(inouts)}")
-            ##iprint(f"{start}-{endtime}  {' '.join(sort_tags(inouts))}")
 
 def audit_report(args:list[str]) -> None:
     """Create & display audit report as at a particular time.
@@ -1389,8 +1225,8 @@ def audit_report(args:list[str]) -> None:
     sum_out = normal_out + oversize_out
     sum_total = sum_in - sum_out
     # Tags broken down by prefix (for tags matrix)
-    prefixes_on_hand = tags_by_prefix(bikes_on_hand.keys())
-    prefixes_returned_out = tags_by_prefix(check_outs_to_now.keys())
+    prefixes_on_hand = ut.tags_by_prefix(bikes_on_hand.keys())
+    prefixes_returned_out = ut.tags_by_prefix(check_outs_to_now.keys())
     returns_by_colour = {}
     for prefix,numbers in prefixes_returned_out.items():
         colour_code = prefix[:-1]   # prefix without the tag_letter
@@ -1424,7 +1260,7 @@ def audit_report(args:list[str]) -> None:
     no_item_str = "  "  # what to show when there's no tag
     print()
     # Bikes returned out -- tags matrix.
-    iprint(f"Bikes still in valet at {as_of_when}:",style=cfg.SUBTITLE_STYLE)
+    iprint(f"Bikes still in valet at {as_of_when}",style=cfg.SUBTITLE_STYLE)
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix.upper():3>} "
@@ -1508,7 +1344,7 @@ def csv_dump(args) -> None:
             visits_by_start[start] = []
         visits_by_start[start].append(v)
     print()
-    print("Seqence, Start time, Length of stay")
+    print("Sequence, Start time, Length of stay")
     seq = 1
     for atime in sorted(visits_by_start.keys()):
         for v in visits_by_start[atime]:
@@ -1596,7 +1432,7 @@ def parse_command(user_input:str) -> list[str]:
         user_input = user_input[0] + " " + user_input[1:]
     # Split to list, test to see if tag.
     input_tokens = user_input.split()
-    command = fix_tag(input_tokens[0], must_be_available=True)
+    command = ut.fix_tag(input_tokens[0], must_be_in=ALL_TAGS)
     if command:
         return [command]    # A tag
     # See if it is a recognized command.
@@ -1636,7 +1472,7 @@ def main():
         elif cmd == cfg.CMD_AUDIT:
             audit_report(args)
         elif cmd == cfg.CMD_DELETE:
-            new_delete_entry(args)
+            delete_entry(args)
             data_dirty = True
         elif cmd == cfg.CMD_EDIT:
             edit_entry(args)
@@ -1648,7 +1484,7 @@ def main():
         elif cmd == cfg.CMD_HELP:
             print(cfg.help_message)
         elif cmd == cfg.CMD_LOOKBACK:
-            lookback(args)
+            recent(args)
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:
@@ -1670,12 +1506,21 @@ def main():
             data_dirty = True
         # Save if anything has changed
         if data_dirty:
-            rotate_log()
-            ut.write_datafile(LOG_FILEPATH,
-                VALET_OPENS, VALET_CLOSES,
-                check_ins,check_outs,
-                NORMAL_TAGS, OVERSIZE_TAGS)
+            save()
             data_dirty = False
+
+def save():
+    """Save today's data in the datafile."""
+    ut.rotate_log(LOG_FILEPATH)
+    day = ut.TrackerDay()
+    day.bikes_in = VALET_DATE
+    day.opening_time = VALET_OPENS
+    day.closing_time = VALET_CLOSES
+    day.bikes_in = check_ins
+    day.bikes_out = check_outs
+    day.regular = NORMAL_TAGS
+    day.oversize = OVERSIZE_TAGS
+    ut.write_datafile(LOG_FILEPATH, day)
 
 def error_exit() -> None:
     """If an error has occurred, give a message and shut down.
@@ -1717,6 +1562,7 @@ OVERSIZE_TAGS = ut.build_tags_config('oversize_tags.cfg')
 RETIRED_TAGS  = ut.build_tags_config('retired_tags.cfg')
 ALL_TAGS = NORMAL_TAGS + OVERSIZE_TAGS
 COLOUR_LETTERS = ut.build_colour_dict("tag_colour_abbreviations.cfg")
+LOG_FILEPATH = datafile_name()
 
 if __name__ == "__main__":
 
@@ -1724,9 +1570,12 @@ if __name__ == "__main__":
     print(text_style(f"TagTracker {ut.get_version()} by Julias Hocking",
             style=cfg.ANSWER_STYLE))
     print()
-    LOG_FILEPATH = datafile_name()
-    if not read_tags(LOG_FILEPATH): # only run main() if tags read successfully
+    # Configure check in- and out-lists and operating hours
+    if not initialize_today(): # only run main() if tags read successfully
         error_exit()
+
+    if not VALET_DATE:
+        VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)
 
     if not VALET_OPENS or not VALET_CLOSES:
         print()
