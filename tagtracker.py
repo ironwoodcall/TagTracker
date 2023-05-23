@@ -56,7 +56,9 @@ def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
         simplified_list.append(f"{prefix}" +
                 (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
     # Return all of these joined together
-    return (" ".join(simplified_list))
+    simple_str = " ".join(simplified_list)
+    simple_str = simple_str.upper() if UC_TAGS else simple_str.lower()
+    return simple_str
 
 def num_bikes_at_valet( as_of_when:Union[ut.Time,int]=None ) -> int:
     """Return count of bikes at the valet as of as_of_when."""
@@ -700,7 +702,7 @@ def delete_entry(args:list[str]) -> None:
     if not maybe_target:
         nogood()
         return
-    target = ut.fix_tag(maybe_target, must_be_in=ALL_TAGS)
+    target = ut.fix_tag(maybe_target, must_be_in=ALL_TAGS,uppercase=UC_TAGS)
     if not target:
         nogood(f"'{maybe_target}' is not a tag or not a tag in use.")
         return
@@ -840,7 +842,7 @@ def query_tag(args:list[str]) -> None:
         iprint(f"Which tag would you like to query? (tag name) {cfg.CURSOR}",
                style=cfg.SUBPROMPT_STYLE, end="")
         target = input().lower()
-    fixed_target = ut.fix_tag(target,must_be_in=ALL_TAGS)
+    fixed_target = ut.fix_tag(target,must_be_in=ALL_TAGS,uppercase=UC_TAGS)
     print()
     if not fixed_target:
         iprint(f"Tag {target} is not available (retired, does not exist, etc)",
@@ -1434,7 +1436,7 @@ def parse_command(user_input:str) -> list[str]:
         user_input = user_input[0] + " " + user_input[1:]
     # Split to list, test to see if tag.
     input_tokens = user_input.split()
-    command = ut.fix_tag(input_tokens[0], must_be_in=ALL_TAGS)
+    command = ut.fix_tag(input_tokens[0], must_be_in=ALL_TAGS,uppercase=UC_TAGS)
     if command:
         return [command]    # A tag
     # See if it is a recognized command.
@@ -1498,6 +1500,8 @@ def main():
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
+        elif cmd == cfg.CMD_UPPERCASE or cmd == cfg.CMD_LOWERCASE:
+            set_tag_case(cmd == cfg.CMD_UPPERCASE)
         elif cmd == cfg.CMD_UNKNOWN:
             print()
             iprint("Unrecognized tag or command, enter 'h' for help",
@@ -1550,7 +1554,40 @@ def datafile_name() -> str:
     # This is the custom datafile & it exists
     return file
 
+def fold_tags_case(uppercase:bool):
+    """Change main data structures to uppercase or lowercase."""
+    global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS # pylint: disable=global-statement
+    global ALL_TAGS, check_ins, check_outs # pylint: disable=global-statement
+    if uppercase:
+        NORMAL_TAGS = [t.upper() for t in NORMAL_TAGS]
+        OVERSIZE_TAGS = [t.upper() for t in OVERSIZE_TAGS]
+        RETIRED_TAGS = [t.upper() for t in RETIRED_TAGS]
+        ALL_TAGS = [t.upper() for t in ALL_TAGS]
+        check_ins = {k.upper(): v for k,v in check_ins.items()}
+        check_outs = {k.upper(): v for k,v in check_outs.items()}
+    else:
+        NORMAL_TAGS = [t.lower() for t in NORMAL_TAGS]
+        OVERSIZE_TAGS = [t.lower() for t in OVERSIZE_TAGS]
+        RETIRED_TAGS = [t.lower() for t in RETIRED_TAGS]
+        ALL_TAGS = [t.lower() for t in ALL_TAGS]
+        check_ins = {k.lower(): v for k,v in check_ins.items()}
+        check_outs = {k.lower(): v for k,v in check_outs.items()}
+
+def set_tag_case(want_uppercase:bool) -> None:
+    """Set tags to be uppercase or lowercase depending on 'command'."""
+    global UC_TAGS # pylint: disable=global-statement
+    case_str = "upper case" if want_uppercase else "lower case"
+    if UC_TAGS == want_uppercase:
+        iprint(f"Tags already {case_str}.",style=cfg.WARNING_STYLE)
+        return
+    UC_TAGS = want_uppercase
+    fold_tags_case(UC_TAGS)
+    iprint(f" Tags will now show in {case_str}. ", style=cfg.ANSWER_STYLE)
+
 # STARTUP
+
+# Tags uppercase or lowercase?
+UC_TAGS = cfg.TAGS_UPPERCASE_DEFAULT
 
 # These are the master dictionaries for tag status
 # and are read and written globally.
@@ -1562,6 +1599,7 @@ check_outs = {}
 NORMAL_TAGS   = ut.build_tags_config('normal_tags.cfg')
 OVERSIZE_TAGS = ut.build_tags_config('oversize_tags.cfg')
 RETIRED_TAGS  = ut.build_tags_config('retired_tags.cfg')
+
 ALL_TAGS = NORMAL_TAGS + OVERSIZE_TAGS
 COLOUR_LETTERS = ut.build_colour_dict("tag_colour_abbreviations.cfg")
 LOG_FILEPATH = datafile_name()
@@ -1575,6 +1613,9 @@ if __name__ == "__main__":
     # Configure check in- and out-lists and operating hours
     if not initialize_today(): # only run main() if tags read successfully
         error_exit()
+
+    # Flip everything uppercase (or lowercase)
+    fold_tags_case(UC_TAGS)
 
     if not VALET_DATE:
         VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)

@@ -160,7 +160,7 @@ def pretty_time(atime:Union[int,str,float], trim:bool=False ) -> str:
         atime = f"{replace_with}{atime[1:]}"
     return atime
 
-def parse_tag(maybe_tag:str, must_be_in=None) -> list[str]:
+def parse_tag(maybe_tag:str, must_be_in=None, uppercase:bool=False) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -171,6 +171,9 @@ def parse_tag(maybe_tag:str, must_be_in=None) -> list[str]:
     If must_be_in is notan empty list (or None) then will check whether
     this tag is in the list passed in, and if
     not in the list, will return an empty list.
+
+    If uppercase, this will return the tag & its bits in uppercase;
+    otherwise in lowercase.
 
     Canonical tag id is a concatenation of
         tag_colour: 1+ lc letters representing the tag's colour,
@@ -185,6 +188,8 @@ def parse_tag(maybe_tag:str, must_be_in=None) -> list[str]:
 
     tag_colour = r.group(1)
     tag_letter = r.group(2)
+    tag_colour = tag_colour.upper() if uppercase else tag_colour
+    tag_letter = tag_letter.upper() if uppercase else tag_letter
     tag_number = r.group(3)
     tag_id = f"{tag_colour}{tag_letter}{tag_number}"
 
@@ -193,13 +198,15 @@ def parse_tag(maybe_tag:str, must_be_in=None) -> list[str]:
 
     return [tag_id,tag_colour,tag_letter,tag_number]
 
-def fix_tag(maybe_tag:str, must_be_in:list=None) -> Tag:
+def fix_tag(maybe_tag:str, must_be_in:list=None,uppercase:bool=False) -> Tag:
     """Turn 'str' into a canonical tag name.
 
     If must_be_in is exists & not an empty list then, will force
     this to only allow tags that are in the list.
+
+    If uppercase then returns the tag in uppercase, else lowercase.
     """
-    bits = parse_tag(maybe_tag, must_be_in=must_be_in)
+    bits = parse_tag(maybe_tag, must_be_in=must_be_in,uppercase=uppercase)
     return bits[0] if bits else ""
 
 def sort_tags( unsorted:list[Tag]) -> list[Tag]:
@@ -429,19 +436,19 @@ def write_datafile(filename:str, data:TrackerDay, header_lines:list=None
 
     lines.append("Bikes checked in / tags out:")
     for tag, atime in data.bikes_in.items(): # for each bike checked in
-        lines.append(f"{tag},{atime}") # add a line "tag,time"
+        lines.append(f"{tag.lower()},{atime}") # add a line "tag,time"
     lines.append("Bikes checked out / tags in:")
     for tag,atime in data.bikes_out.items(): # for each  checked
-        lines.append(f"{tag},{atime}") # add a line "tag,time"
+        lines.append(f"{tag.lower()},{atime}") # add a line "tag,time"
     # Also write tag info of which bikes are oversize, which are regular.
     # This is for datafile aggregator.
     lines.append( "# The following sections are for datafile aggregator")
     lines.append("Regular-bike tags:")
     for tag in data.regular:
-        lines.append(tag)
+        lines.append(tag.lower())
     lines.append("Oversize-bike tags:")
     for tag in data.oversize:
-        lines.append(tag)
+        lines.append(tag.lower())
     lines.append("# Normal end of file")
     # Write the data to the file.
     with open(filename, 'w',encoding='utf-8') as f: # write stored lines to file
@@ -471,7 +478,7 @@ def build_tags_config(filename:str) -> list[Tag]:
             # (blank lines do nothing here anyway)
             line_words = line.rstrip().split() # split into each tag name
             for word in line_words: # check line for nonconforming tag names
-                if not PARSE_TAG_RE.match(word):
+                if not PARSE_TAG_RE.match(word.lower()):
                     print(f'Invalid tag "{word}" found '
                           f'in {filename} on line {line_counter}')
                     return [] # stop loading
