@@ -124,8 +124,8 @@ COMMANDS[CMD_STATS] = ['s','stat','stats','statistics']
 COMMANDS[CMD_MORE_STATS] = ["m", "more"]
 COMMANDS[CMD_VALET_HOURS] = ["v","valet"]
 COMMANDS[CMD_CSV] = ["csv"]
-COMMANDS[CMD_UPPERCASE] = ["uc","uppercase"]
-COMMANDS[CMD_LOWERCASE] = ["lc","lowercase"]
+COMMANDS[CMD_UPPERCASE] = ["uc","uppercase", "upper"]
+COMMANDS[CMD_LOWERCASE] = ["lc","lowercase", "lower"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
@@ -139,7 +139,9 @@ help_message = f"""
 {INDENT}Show more statistics       :   more / m
 {INDENT}Show accouting audit info  :   audit / a
 {INDENT}Show recent logged events  :   recent / r
-{INDENT}Show dataform log          :   log / l / form / f
+{INDENT}Show dataform log          :   form / f / log / l
+{INDENT}Display tags in UPPER CASE :   uppercase / uc
+{INDENT}Display tags in lower case :   lowercase / lc
 {INDENT}Dump CSV records to file   :   csv
 {INDENT}Exit                       :   x / stop / exit / quit / bye
 """
