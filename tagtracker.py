@@ -248,7 +248,7 @@ def calc_visits(as_of_when:Union[int,ut.Time]=None) -> dict[ut.Tag,Visit]:
 
     # If a bike isn't checked out or its checkout is after the requested
     # time, then use what as its checkout time?
-    latest_time = VALET_OPENS if VALET_OPENS else latest_event()
+    latest_time = VALET_CLOSES if VALET_CLOSES else latest_event()
     missing_checkout_time = min([latest_time,as_of_when])
 
     visits = {}
@@ -424,7 +424,9 @@ def visit_statistics_report(visits:dict) -> None:
         # to nearest ROUND_TO_NEAREST time.
         rounded = [round(x/cfg.MODE_ROUND_TO_NEAREST)*cfg.MODE_ROUND_TO_NEAREST
                 for x in durations_list]
-        modes_str = ",".join([ut.pretty_time(x,trim=False) for x in statistics.multimode( rounded )])
+        modes_str = ",".join(
+                [ut.pretty_time(x,trim=False)
+                 for x in statistics.multimode( rounded )])
         modes_str = (f"{modes_str}  (times "
                 f"rounded to {cfg.MODE_ROUND_TO_NEAREST} minutes)")
         one_line(f"Mode {cfg.VISIT_NOUN}:", modes_str)
