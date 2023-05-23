@@ -28,8 +28,12 @@ if USE_COLOUR:
         USE_COLOUR = False
         print("WARNING: No 'colorame' module, text will be in black & white.")
 
-# Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
-LOG_BASENAME = "cityhall_"
+# Datafiles/Logfiles
+LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
+LOG_FOLDER = "logs" # Folder to keep logfiles in
+# System occasionally puts a copy of log in a publish folder
+PUBLISH_FOLDER = r"c:\tmp"
+PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
 BLOCK_DURATION=30
