@@ -37,10 +37,41 @@ VALET_DATE=""
 def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     """Make a simplified str of tag names from a list of tags.
 
-    E.g. "wa1,2,3,4,9 wb1,9,10 be4"
+    E.g. "wa0,2-7,9 wb1,9,10 be4"
     The tags list can be a string separated by whitespace or comma.
     or it can be a list of tags.
     """
+    def hyphenize(nums:list[int]) -> str:
+        """Convert a list of ints into a hypenated list."""
+        # Warning: dark magic.
+        # Build lists of sequences from the sorted list.
+        # starts is list of starting values of sequences.
+        # ends is matching list of ending values.
+        # singles is list of ints that are not part of sequences.
+        nums_set = set(nums)
+        starts = [x for x in nums_set if x-1 not in nums_set and x+1 in nums_set]
+        startset = set(starts)
+        ends = [x for x in nums_set
+                if x-1 in nums_set and x+1 not in nums_set
+                and x not in startset]
+        singles = [x for x in nums_set
+                if x-1 not in nums_set and x+1 not in nums_set]
+        # Build start & end into dictionary, rejecting any sequences
+        # shorter than an arbitrary shortest length
+        min_len = 3
+        seqs = {}  # key = int start; value = str representing the sequence
+        for start,end in zip(starts, ends):
+            if (end - start) >= (min_len - 1):
+                seqs[start] = f"{start}-{end}"
+            else:
+                # Too short, convert to singles
+                singles = singles + list(range(start,end+1))
+        # Add the singles to the seqs dict
+        for num in singles:
+            seqs[num] = f"{num}"
+        # Return the whole thing as a comma-joined string
+        return ",".join([seqs[n] for n in sorted(seqs.keys())])
+
     if isinstance(tags,str):
         # Break the tags down into a list.  First split comma.
         tags = tags.split(",")
@@ -53,8 +84,9 @@ def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     simplified_list = []
     for prefix in sorted(tag_prefixes.keys()):
         # A list of the tag numbers for this prefix
-        simplified_list.append(f"{prefix}" +
-                (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
+        ##simplified_list.append(f"{prefix}" +
+        ##        (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
+        simplified_list.append(f"{prefix}{hyphenize(tag_prefixes[prefix])}")
     # Return all of these joined together
     simple_str = " ".join(simplified_list)
     simple_str = simple_str.upper() if UC_TAGS else simple_str.lower()
@@ -846,20 +878,37 @@ def old_delete_entry(args:list[str]) -> None:
 '''
 # pylint: enable=pointless-string-statement
 
+def retired_report() -> None:
+    """List retired tags."""
+    print()
+    iprint("Retired tags",style=cfg.SUBTITLE_STYLE)
+    if not RETIRED_TAGS:
+        iprint("--no retired tags--")
+        return
+    for tag in RETIRED_TAGS:
+        iprint(tag,num_indents=2)
+
 def query_tag(args:list[str]) -> None:
     """Query the check in/out times of a specific tag."""
     target = (args + [None])[0]
     if not target: # only do dialog if no target passed
-        iprint(f"Which tag would you like to query? (tag name) {cfg.CURSOR}",
+        iprint(f"Query which tag? (tag name) {cfg.CURSOR}",
                style=cfg.SUBPROMPT_STYLE, end="")
         target = input().lower()
-    fixed_target = ut.fix_tag(target,must_be_in=ALL_TAGS,uppercase=UC_TAGS)
     print()
+    fixed_target = ut.fix_tag(target,uppercase=UC_TAGS)
     if not fixed_target:
-        iprint(f"Tag {target} is not available (retired, does not exist, etc)",
+        iprint(f"'{target}' does not look like a tag name",
                style=cfg.WARNING_STYLE)
         return
-    elif fixed_target not in check_ins:
+    if fixed_target in RETIRED_TAGS:
+        iprint(f"Tag '{fixed_target}' is retired", style=cfg.ANSWER_STYLE)
+        return
+    if fixed_target not in ALL_TAGS:
+        iprint(f"Tag '{fixed_target}' is not available for use",
+               style=cfg.WARNING_STYLE)
+        return
+    if fixed_target not in check_ins:
         iprint(f"Tag '{fixed_target}' not used yet today",
                style=cfg.WARNING_STYLE)
         return
@@ -871,7 +920,7 @@ def query_tag(args:list[str]) -> None:
                f"{fixed_target} returned OUT",
                style=cfg.ANSWER_STYLE)
     else:
-        iprint(f"(now)  {target} still at valet", style=cfg.ANSWER_STYLE)
+        iprint(f"       {fixed_target} still at valet", style=cfg.ANSWER_STYLE)
 
 def prompt_for_time(inp=False, prompt:str=None) -> bool or ut.Time:
     """Prompt for a time input if needed.
@@ -1513,6 +1562,8 @@ def main():
             print(cfg.help_message)
         elif cmd == cfg.CMD_LOOKBACK:
             recent(args)
+        elif cmd == cfg.CMD_RETIRED:
+            retired_report()
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:
@@ -1566,7 +1617,7 @@ def save():
     ut.rotate_log(LOG_FILEPATH)
     # Pack data into a TrackerDay object to store
     day = ut.TrackerDay()
-    day.bikes_in = VALET_DATE
+    day.date = VALET_DATE
     day.opening_time = VALET_OPENS
     day.closing_time = VALET_CLOSES
     day.bikes_in = check_ins
@@ -1594,7 +1645,7 @@ def maybe_publish(last_pub:ut.Time,force:bool=False) -> ut.Time:
         return last_pub
     # Pack info into TrackerDay object
     day = ut.TrackerDay()
-    day.bikes_in = VALET_DATE
+    day.date = VALET_DATE
     day.opening_time = VALET_OPENS
     day.closing_time = VALET_CLOSES
     day.bikes_in = check_ins
@@ -1691,8 +1742,10 @@ if __name__ == "__main__":
     if not VALET_DATE:
         VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)
     if VALET_DATE != ut.get_date():
-        iprint(f"Warning: Using data from {VALET_DATE}",
+        iprint(f"Warning: Data is from {VALET_DATE}",
                style=cfg.WARNING_STYLE)
+    else:
+        iprint(f"Today is {VALET_DATE}",style=cfg.HIGHLIGHT_STYLE)
 
     if not VALET_OPENS or not VALET_CLOSES:
         print()
@@ -1701,5 +1754,5 @@ if __name__ == "__main__":
         set_valet_hours([VALET_OPENS,VALET_CLOSES])
     valet_logo()
     main()
-
+    maybe_publish("",force=True)
 #==========================================
