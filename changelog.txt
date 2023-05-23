@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.7.5:
+~ refactoring and cleanup
+
 0.7.4:
 + numerous usability tweaks (see largely issue #80)
 + open/close times for valet added to datafile ("v")

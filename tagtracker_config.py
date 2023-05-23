@@ -1,4 +1,7 @@
-"""Config for TagTracker by Julias Hocking
+"""Config for TagTracker by Julias Hocking.
+
+Configuration items for the data entry module.
+
 Copyright (C) 2023 Julias Hocking
 
     This program is free software: you can redistribute it and/or modify
@@ -14,9 +17,6 @@ Copyright (C) 2023 Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
-import os
-import re
 
 # Use colour in the program?
 USE_COLOUR = True
@@ -34,14 +34,6 @@ LOG_BASENAME = "cityhall_"
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
 BLOCK_DURATION=30
 
-# Regular expression for parsing tags -- here & in main program.
-PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
-
-# time cutoffs for stays under x time and over y time
-# FIXME - these will become superseded by VISIT_CATEGORIES
-T_UNDER = 1.5*60 # minutes
-T_OVER = 5*60
-
 # Time ranges for categorizing stay-lengths, in hours.
 # First category will always be 0 - [0], last will always be > [-1]
 VISIT_CATEGORIES = [1.5,5]
@@ -56,10 +48,11 @@ BUSIEST_RANKS = 4
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30 # mins
 
-# Format preferences
+# Format preferences for prompting user.
 INDENT = '  '
 CURSOR = ">>> "
 INCLUDE_TIME_IN_PROMPT = True
+
 # Styles related to colour
 STYLE={}
 PROMPT_STYLE = "prompt_style"
@@ -142,87 +135,4 @@ help_message = f"""
 {INDENT}Dump CSV records to file   :   csv
 {INDENT}Exit                       :   x / stop / exit / quit / bye
 """
-
-# These constants are to avoid usinng strings for things like dictionary
-# keys.  E.g. rather than something[this_time]["tag"] = a_tag,
-# would be instead something[this_time][TAG_KEY] = a_tag.
-# The values of these constants aren't important as long as they're unique.
-# By using these rather than string values, the lint checker in the
-# editor can pick up missing or misspelled items, as can Python itself.
-TAG = "tag"
-BIKE_IN = "bike_in"
-BIKE_OUT = "bike_out"
-INOUT = "inout"
-REGULAR = "regular"
-OVERSIZE = "oversize"
-TOTAL = "total"
-COUNT = "count"
-TIME = "time"
-IGNORE = "ignore"
-
-# assemble list of normal tags
-def build_tags_config(filename:str) -> list[str]:
-    """Build a tag list from a file.
-
-    Constructs a list of each allowable tag in a given category
-    (normal, oversize, retired, etc) by reading its category.cfg file.
-    """
-    tags = []
-    if not os.path.exists(filename): # make new tags config file if needed
-        with open(filename, 'w',encoding='utf-8') as f:
-            header = ("# Enter lines of whitespace-separated tags, "
-                    "eg 'wa0 wa1 wa2 wa3'\n")
-            f.writelines(header)
-    with open(filename, 'r',encoding='utf-8') as f: # open and read
-        lines = f.readlines()
-    line_counter = 0 # init line counter to 0
-    for line in lines:
-        line_counter += 1 # increment for current line
-        if not line[0] == '#': # for each non-comment line
-            # (blank lines do nothing here anyway)
-            line_words = line.rstrip().split() # split into each tag name
-            for word in line_words: # check line for nonconforming tag names
-                if not PARSE_TAG_RE.match(word):
-                    print(f'Invalid tag "{word}" found '
-                          f'in {filename} on line {line_counter}')
-                    return None # stop loading
-            tags += line_words # add all tags in that line to this tag type
-    return tags
-
-normal_tags   = build_tags_config('normal_tags.cfg')
-
-oversize_tags = build_tags_config('oversize_tags.cfg')
-
-retired_tags  = build_tags_config('retired_tags.cfg')
-
-# combine allowable tags into single list for brevity in main script
-try:
-    all_tags = normal_tags + oversize_tags
-    SETUP_PROBLEM = False # don't flag because it's fine
-except TypeError: # if returned None for any of these tags lists
-    # flag problem for main script
-    SETUP_PROBLEM = "Unsuccessful load of config files;"
-
-if not os.path.exists("tag_colour_abbreviations.cfg"):
-    with open('tag_colour_abbreviations.cfg', 'w',
-              encoding='utf-8') as f:
-        header = ("Enter each first letter(s) of a tag name corresponding to "
-                  "a tag colour separated by whitespace on their own line, "
-                  "eg 'b black' etc")
-        f.writelines(header)
-with open('tag_colour_abbreviations.cfg', 'r',
-          encoding='utf-8') as f:
-    lines = f.readlines()[1:] # ignore header text
-colour_letters = {}
-for line in lines:
-    if len(line.rstrip().split()) == 2:
-        abbrev = line.rstrip().split()[0]
-        colour = line.rstrip().split()[1]
-        colour_letters[abbrev] = colour # add to dictionary
-
-# pull startup header and version from changelog
-with open('changelog.txt', 'r',encoding='utf-8') as f:
-    f.readline()
-    f.readline() # skip empty lines
-    VERSION = f.readline()[:-2] # cut off ':\n'
 

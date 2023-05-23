@@ -12,20 +12,18 @@ import sys
 import os
 import re
 import random
-from typing import Union
+##from typing import Union
+import tracker_util as ut
 
 # If set, RANDOMIZE_TIMES will randomize times within their block.
 # To keep things crazy simple, this assumes blocks are 30 minutes.
 # This will also then make a second pass and arbitrarily make any
 # stays that are therefore 0-length or longer to a random length between
 # 10 - 30 minutes.
-RANDOMIZE_TIMES = True
+RANDOMIZE_TIMES = False
 if RANDOMIZE_TIMES:
     print( "WARNING: this is bogifying times slightly for demo purposes")
 
-BIKE_IN = "bike_in"
-BIKE_OUT = "bike_out"
-PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
 WARNING_MSG = "Warning"
 ERROR_MSG = "Error"
 INFO_MSG = "Info"
@@ -37,33 +35,6 @@ BIKE_IN_HEADER = 'Bikes checked in / tags out:'
 BIKE_OUT_HEADER = 'Bikes checked out / tags in:'
 
 messages = {}   # key=filename, value = list of messages
-
-def convert_time(time_in:Union[str,int],
-            as_number:bool=False) -> Union[str,int]:
-    """Convert time (as str or int) to time (as str or int).
-
-    If int time, it is minutes since midnight.
-    Assumes that time values are legit (this will not check).
-    """
-    if isinstance(time_in,str) and not as_number:
-        #print("converting from str to str")
-        return isatime(time_in)
-    if isinstance(time_in,int) and as_number:
-        #print("converting from int to int")
-        return time_in
-    # We now know we are changing types.
-    if as_number:
-        # Convert str to int
-        #print("converting from str to int")
-        bits = time_in.split(':')
-        #print(f"{bits=},{bits[0]=},{bits[1]=},{(bits[0]*60+bits[1])=}")
-        return int(bits[0]) * 60 + int(bits[1])
-    else:
-        # Convert int to str
-        #print("converting from int to str")
-        h = time_in // 60
-        m = time_in % 60
-        return f"{h:02d}:{m:02d}"
 
 def message( filename:str, msg_text:str, severity:str=INFO_MSG ) -> None:
     """Print (& save) warning for given filename."""
@@ -102,7 +73,7 @@ def isatag(maybe:str) -> str:
         tag_number: a sequence number, without lead zeroes.
     """
     maybe = maybe.lower()
-    if not bool(r := PARSE_TAG_RE.match(maybe)):
+    if not bool(r := ut.PARSE_TAG_RE.match(maybe)):
         return []
 
     tag_colour = r.group(1)
@@ -142,10 +113,10 @@ def readafile( file:str ) -> list[str, dict,dict]:
                 this_date = chunks[0]
             # Is this a "check-in" or "check-out" header line?
             if re.match(r"^Tag given out",chunks[0]):
-                inout = BIKE_IN
+                inout = ut.BIKE_IN
                 continue
             elif re.match(r"^Tag returned",chunks[0]):
-                inout = BIKE_OUT
+                inout = ut.BIKE_OUT
                 continue
             # Ignore non-date junk at top of the file
             if not inout:
@@ -175,18 +146,16 @@ def readafile( file:str ) -> list[str, dict,dict]:
                     continue
                 # A legit tag at a legit time.
                 if RANDOMIZE_TIMES:
-                    block_begin = convert_time(block_start,as_number=True)
+                    block_begin = ut.time_int(block_start)
                     check_time = random.randint(block_begin,block_begin+29)
                 else:
-                    offset = BIKE_IN_OFFSET if inout == BIKE_IN else BIKE_OUT_OFFSET
-                    check_time = (convert_time(block_start,as_number=True)
+                    offset = BIKE_IN_OFFSET if inout == ut.BIKE_IN else BIKE_OUT_OFFSET
+                    check_time = (ut.time_int(block_start)
                             + offset)
-                if inout == BIKE_IN:
-                    check_ins[tag] = convert_time(check_time,
-                            as_number=False)
-                elif inout == BIKE_OUT:
-                    check_outs[tag] = convert_time(check_time,
-                            as_number=False)
+                if inout == ut.BIKE_IN:
+                    check_ins[tag] = ut.time_str(check_time)
+                elif inout == ut.BIKE_OUT:
+                    check_outs[tag] = ut.time_str(check_time)
     return [this_date, dict(check_ins), dict(check_outs)]
 
 def clean(file:str, check_ins:dict, check_outs:dict) -> None:
@@ -216,10 +185,9 @@ def clean(file:str, check_ins:dict, check_outs:dict) -> None:
     for tag in check_outs:
         if RANDOMIZE_TIMES:
             if check_outs[tag] <= check_ins[tag]:
-                check_outs[tag] = convert_time(
-                    convert_time(check_ins[tag],as_number=True)
-                    + random.randint(10,30),
-                    as_number=False)
+                check_outs[tag] = ut.time_str(
+                    ut.time_int(check_ins[tag])
+                    + random.randint(10,30))
         elif check_outs[tag] < check_ins[tag]:
             message( file,f"Check out before check in for {tag} (discarded) ",
                     WARNING_MSG)
