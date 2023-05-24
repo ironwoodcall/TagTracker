@@ -115,6 +115,7 @@ CMD_CSV = "csv"
 CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
 CMD_RETIRED = "retired"
+CMD_LINT = "lint"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -132,6 +133,7 @@ COMMANDS[CMD_CSV] = ["csv"]
 COMMANDS[CMD_UPPERCASE] = ["uc","uppercase", "upper"]
 COMMANDS[CMD_LOWERCASE] = ["lc","lowercase", "lower"]
 COMMANDS[CMD_RETIRED] = ["retired","ret"]
+COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
@@ -149,6 +151,7 @@ help_message = f"""
 {INDENT}Show what tags are retired :   retired / ret
 {INDENT}Display tags in UPPER CASE :   uppercase / uc
 {INDENT}Display tags in lower case :   lowercase / lc
+{INDENT}Perform consistency check  :   consistency / con
 {INDENT}Dump CSV records to file   :   csv
 {INDENT}Exit                       :   x / stop / exit / quit / bye
 """

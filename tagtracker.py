@@ -230,6 +230,34 @@ def deduce_valet_date(current_guess:str, filename:str) -> str:
                 f"{int(r.group(4)):02d}")
     return ut.get_date()
 
+def pack_day_data() -> ut.TrackerDay:
+    """Create a TrackerDay object loaded with today's data."""
+    # Pack info into TrackerDay object
+    day = ut.TrackerDay()
+    day.date = VALET_DATE
+    day.opening_time = VALET_OPENS
+    day.closing_time = VALET_CLOSES
+    day.bikes_in = check_ins
+    day.bikes_out = check_outs
+    day.regular = NORMAL_TAGS
+    day.oversize = OVERSIZE_TAGS
+    return day
+
+def unpack_day_data(today_data:ut.TrackerDay) -> None:
+    """Set globals from a TrackerDay data object."""
+    # pylint: disable=global-statement
+    global VALET_DATE, VALET_OPENS, VALET_CLOSES
+    global check_ins, check_outs
+    # pylint: enable=global-statement
+    VALET_DATE = today_data.date
+    VALET_OPENS = today_data.opening_time
+    VALET_CLOSES = today_data.closing_time
+    check_ins = today_data.bikes_in
+    check_outs = today_data.bikes_out
+    # FIXME: add these  when starting reading this from file
+    # NORMAL_TAGS = today_data.regular
+    # OVERSIZE_TAGS = today_data.oversize
+
 def initialize_today() -> bool:
     """Fetch today's data from file (if exists)."""
     # Does the file even exist? (If not we will just create it later)
@@ -242,23 +270,14 @@ def initialize_today() -> bool:
     iprint(f"Reading data from {LOG_FILEPATH}...",
            end="", style=cfg.SUBTITLE_STYLE)
     error_msgs = []
-    today_data = ut.read_datafile(LOG_FILEPATH,error_msgs,ALL_TAGS)
+    today_data = ut.read_logfile(LOG_FILEPATH,error_msgs,ALL_TAGS)
     if error_msgs:
         print()
         for text in error_msgs:
             iprint(text, style=cfg.ERROR_STYLE)
         return False
     # On success, set today's working data
-    # pylint: disable=global-statement
-    global VALET_DATE, VALET_OPENS, VALET_CLOSES
-    global check_ins, check_outs
-    # pylint: enable=global-statement
-    VALET_DATE = today_data.date
-    VALET_OPENS = today_data.opening_time
-    VALET_CLOSES = today_data.closing_time
-    check_ins = today_data.bikes_in
-    check_outs = today_data.bikes_out
-
+    unpack_day_data(today_data)
     iprint('done.', num_indents=0, style=cfg.SUBTITLE_STYLE)
     return True
 
@@ -509,7 +528,6 @@ def visit_statistics_report(visits:dict) -> None:
     one_line( f"Mean {noun}:", ut.pretty_time(statistics.mean(durations_list)))
     one_line( f"Median {noun}:", ut.pretty_time(statistics.median(list(duration_tags.keys()))))
     visits_mode(durations_list)
-
 
 def highwater_report(events:dict) -> None:
     """Make a highwater table as at as_of_when."""
@@ -1574,6 +1592,8 @@ def main():
             more_stats_report(args)
         elif cmd == cfg.CMD_CSV:
             csv_dump(args)
+        elif cmd == cfg.CMD_LINT:
+            lint_report(strict_datetimes=True)
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
@@ -1616,16 +1636,9 @@ def save():
     # Save .bak
     ut.rotate_log(LOG_FILEPATH)
     # Pack data into a TrackerDay object to store
-    day = ut.TrackerDay()
-    day.date = VALET_DATE
-    day.opening_time = VALET_OPENS
-    day.closing_time = VALET_CLOSES
-    day.bikes_in = check_ins
-    day.bikes_out = check_outs
-    day.regular = NORMAL_TAGS
-    day.oversize = OVERSIZE_TAGS
+    day = pack_day_data()
     # Store the data
-    ut.write_datafile(LOG_FILEPATH, day)
+    ut.write_logfile(LOG_FILEPATH, day)
 
 def maybe_publish(last_pub:ut.Time,force:bool=False) -> ut.Time:
     """Maybe save current log to 'publish' directory."""
@@ -1643,17 +1656,9 @@ def maybe_publish(last_pub:ut.Time,force:bool=False) -> ut.Time:
         iprint("Publication folder does not exist",
                style=cfg.ERROR_STYLE)
         return last_pub
-    # Pack info into TrackerDay object
-    day = ut.TrackerDay()
-    day.date = VALET_DATE
-    day.opening_time = VALET_OPENS
-    day.closing_time = VALET_CLOSES
-    day.bikes_in = check_ins
-    day.bikes_out = check_outs
-    day.regular = NORMAL_TAGS
-    day.oversize = OVERSIZE_TAGS
-    # Store the data
-    ut.write_datafile(datafile_name(cfg.PUBLISH_FOLDER), day)
+    # Pack info into TrackerDay object, save the data
+    day = pack_day_data()
+    ut.write_logfile(datafile_name(cfg.PUBLISH_FOLDER), day)
     # Return new last_published time
     return ut.get_time()
 
@@ -1669,6 +1674,8 @@ def error_exit() -> None:
 
 def fold_tags_case(uppercase:bool):
     """Change main data structures to uppercase or lowercase."""
+    # FIXME: eventually make this obj=pack(), obj.fold_case(), unpack(obj)
+    #           followed by re-asserting all_tags = regular + oversize
     global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS # pylint: disable=global-statement
     global ALL_TAGS, check_ins, check_outs # pylint: disable=global-statement
     if uppercase:
@@ -1696,6 +1703,14 @@ def set_tag_case(want_uppercase:bool) -> None:
     UC_TAGS = want_uppercase
     fold_tags_case(UC_TAGS)
     iprint(f" Tags will now show in {case_str}. ", style=cfg.ANSWER_STYLE)
+
+def lint_report(strict_datetimes:bool=True) -> None:
+    errs = pack_day_data().lint_check(strict_datetimes)
+    if errs:
+        for msg in errs:
+            iprint(msg,style=cfg.WARNING_STYLE)
+    else:
+        iprint("No inconsistencies found",style=cfg.HIGHLIGHT_STYLE)
 
 # STARTUP
 
@@ -1735,10 +1750,12 @@ if __name__ == "__main__":
     # Configure check in- and out-lists and operating hours from file
     if not initialize_today(): # only run main() if tags read successfully
         error_exit()
+    lint_report(strict_datetimes=False)
 
     # Flip everything uppercase (or lowercase)
     fold_tags_case(UC_TAGS)
 
+    # Get/set valet date & time
     if not VALET_DATE:
         VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)
     if VALET_DATE != ut.get_date():
@@ -1746,13 +1763,17 @@ if __name__ == "__main__":
                style=cfg.WARNING_STYLE)
     else:
         iprint(f"Today is {VALET_DATE}",style=cfg.HIGHLIGHT_STYLE)
-
     if not VALET_OPENS or not VALET_CLOSES:
         print()
         iprint("Please enter today's opening/closing times.",
             style=cfg.ERROR_STYLE)
         set_valet_hours([VALET_OPENS,VALET_CLOSES])
+        if VALET_OPENS or VALET_CLOSES:
+            save()
+
     valet_logo()
     main()
+    # Exiting now; one last save
+    save()
     maybe_publish("",force=True)
 #==========================================
