@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.7.6:
++ usability tweaks per issue #104
+
 0.7.5:
 ~ refactoring and cleanup
 

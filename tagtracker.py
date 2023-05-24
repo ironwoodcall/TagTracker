@@ -37,10 +37,41 @@ VALET_DATE=""
 def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     """Make a simplified str of tag names from a list of tags.
 
-    E.g. "wa1,2,3,4,9 wb1,9,10 be4"
+    E.g. "wa0,2-7,9 wb1,9,10 be4"
     The tags list can be a string separated by whitespace or comma.
     or it can be a list of tags.
     """
+    def hyphenize(nums:list[int]) -> str:
+        """Convert a list of ints into a hypenated list."""
+        # Warning: dark magic.
+        # Build lists of sequences from the sorted list.
+        # starts is list of starting values of sequences.
+        # ends is matching list of ending values.
+        # singles is list of ints that are not part of sequences.
+        nums_set = set(nums)
+        starts = [x for x in nums_set if x-1 not in nums_set and x+1 in nums_set]
+        startset = set(starts)
+        ends = [x for x in nums_set
+                if x-1 in nums_set and x+1 not in nums_set
+                and x not in startset]
+        singles = [x for x in nums_set
+                if x-1 not in nums_set and x+1 not in nums_set]
+        # Build start & end into dictionary, rejecting any sequences
+        # shorter than an arbitrary shortest length
+        min_len = 3
+        seqs = {}  # key = int start; value = str representing the sequence
+        for start,end in zip(starts, ends):
+            if (end - start) >= (min_len - 1):
+                seqs[start] = f"{start}-{end}"
+            else:
+                # Too short, convert to singles
+                singles = singles + list(range(start,end+1))
+        # Add the singles to the seqs dict
+        for num in singles:
+            seqs[num] = f"{num}"
+        # Return the whole thing as a comma-joined string
+        return ",".join([seqs[n] for n in sorted(seqs.keys())])
+
     if isinstance(tags,str):
         # Break the tags down into a list.  First split comma.
         tags = tags.split(",")
@@ -53,8 +84,9 @@ def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     simplified_list = []
     for prefix in sorted(tag_prefixes.keys()):
         # A list of the tag numbers for this prefix
-        simplified_list.append(f"{prefix}" +
-                (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
+        ##simplified_list.append(f"{prefix}" +
+        ##        (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
+        simplified_list.append(f"{prefix}{hyphenize(tag_prefixes[prefix])}")
     # Return all of these joined together
     simple_str = " ".join(simplified_list)
     simple_str = simple_str.upper() if UC_TAGS else simple_str.lower()
@@ -91,21 +123,20 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
         text = text_style(text,style=style)
     print(f"{cfg.INDENT * num_indents}{text}",end=end)
 
-def future_warning(when:ut.Time="") -> None:
-    """Give a reminder that requested report time is in the future.
+def later_events_warning(when:ut.Time="") -> None:
+    """Warn about report that excludes later events.
 
-    If called with when same as current time or in the past, does nothing.
+    If  no later events, does nothing.
     """
-    if when:
-        rightnow = ut.get_time()
-        if rightnow >= when:
-            return
-        msg = ("(Reporting a time "
-                f"{ut.pretty_time(ut.time_int(when)-ut.time_int(rightnow),trim=True)}"
-                "h later than now)")
-    else:
-        msg = "(Reporting a time in the future)"
-    iprint(msg,style=cfg.HIGHLIGHT_STYLE)
+    if not when:
+        return
+    # Buid the message
+    later_events = num_later_events(when)
+    if not later_events:
+        return
+    msg = (f"Report excludes {later_events} events later than "
+           f"{ut.pretty_time(when,trim=True)}")
+    iprint(msg,style=cfg.WARNING_STYLE)
 
 def valet_logo():
     """Print a cute bike valet logo using unicode."""
@@ -163,9 +194,23 @@ def latest_event(as_of_when:Union[ut.Time,int,None]=None ) -> ut.Time:
     # Anything?
     if not events:
         return ""
-    # Find earliest and latest block of the day
+    # Find latest event of the day
     latest = max(events)
     return latest
+
+def num_later_events(after_when:Union[ut.Time,int,None]=None ) -> int:
+    """Get count of events that are later than after_when."""
+    if not after_when:
+        after_when = ut.get_time()
+    else:
+        after_when = ut.time_str(after_when)
+        if not (after_when):
+            return ""
+
+    events = [x for x in
+            (list(check_ins.values()) + list(check_outs.values()))
+            if x > after_when]
+    return len(events)
 
 def deduce_valet_date(current_guess:str, filename:str) -> str:
     """Guess what date the current data is for.
@@ -185,25 +230,21 @@ def deduce_valet_date(current_guess:str, filename:str) -> str:
                 f"{int(r.group(4)):02d}")
     return ut.get_date()
 
-def initialize_today() -> bool:
-    """Fetch today's data from file (if exists)."""
-    # Does the file even exist? (If not we will just create it later)
-    pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
-    if not os.path.exists(LOG_FILEPATH):
-        iprint("No datafile for today found. Will create new datafile"
-               f" {LOG_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
-        return True
-    # Fetch data from file; errors go into error_msgs
-    iprint(f"Reading data from {LOG_FILEPATH}...",
-           end="", style=cfg.SUBTITLE_STYLE)
-    error_msgs = []
-    today_data = ut.read_datafile(LOG_FILEPATH,error_msgs,ALL_TAGS)
-    if error_msgs:
-        print()
-        for text in error_msgs:
-            iprint(text, style=cfg.ERROR_STYLE)
-        return False
-    # On success, set today's working data
+def pack_day_data() -> ut.TrackerDay:
+    """Create a TrackerDay object loaded with today's data."""
+    # Pack info into TrackerDay object
+    day = ut.TrackerDay()
+    day.date = VALET_DATE
+    day.opening_time = VALET_OPENS
+    day.closing_time = VALET_CLOSES
+    day.bikes_in = check_ins
+    day.bikes_out = check_outs
+    day.regular = NORMAL_TAGS
+    day.oversize = OVERSIZE_TAGS
+    return day
+
+def unpack_day_data(today_data:ut.TrackerDay) -> None:
+    """Set globals from a TrackerDay data object."""
     # pylint: disable=global-statement
     global VALET_DATE, VALET_OPENS, VALET_CLOSES
     global check_ins, check_outs
@@ -213,7 +254,30 @@ def initialize_today() -> bool:
     VALET_CLOSES = today_data.closing_time
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
+    # FIXME: add these  when starting reading this from file
+    # NORMAL_TAGS = today_data.regular
+    # OVERSIZE_TAGS = today_data.oversize
 
+def initialize_today() -> bool:
+    """Fetch today's data from file (if exists)."""
+    # Does the file even exist? (If not we will just create it later)
+    pathlib.Path(cfg.LOG_FOLDER).mkdir(exist_ok = True) # make logs folder if missing
+    if not os.path.exists(LOG_FILEPATH):
+        iprint("No datafile for today found. Will create new datafile"
+               f" {LOG_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
+        return True
+    # Fetch data from file; errors go into error_msgs
+    iprint(f"Reading data from {LOG_FILEPATH}...",
+           end="", style=cfg.SUBTITLE_STYLE)
+    error_msgs = []
+    today_data = ut.read_logfile(LOG_FILEPATH,error_msgs,ALL_TAGS)
+    if error_msgs:
+        print()
+        for text in error_msgs:
+            iprint(text, style=cfg.ERROR_STYLE)
+        return False
+    # On success, set today's working data
+    unpack_day_data(today_data)
     iprint('done.', num_indents=0, style=cfg.SUBTITLE_STYLE)
     return True
 
@@ -465,7 +529,6 @@ def visit_statistics_report(visits:dict) -> None:
     one_line( f"Median {noun}:", ut.pretty_time(statistics.median(list(duration_tags.keys()))))
     visits_mode(durations_list)
 
-
 def highwater_report(events:dict) -> None:
     """Make a highwater table as at as_of_when."""
     # High-water mark for bikes in valet at any one time
@@ -609,8 +672,7 @@ def day_end_report(args:list) -> None:
     print()
     iprint(f"Summary statistics as at {ut.pretty_time(as_of_when,trim=True)}",
            style=cfg.TITLE_STYLE)
-    if as_of_when > rightnow:
-        future_warning(as_of_when)
+    later_events_warning(as_of_when)
     if not latest_event(as_of_when):
         iprint(f"No bikes checked in by {as_of_when}",
                style=cfg.SUBTITLE_STYLE)
@@ -640,8 +702,7 @@ def more_stats_report(args:list) -> None:
     print()
     iprint(f"More summary statistics as at {ut.pretty_time(as_of_when,trim=True)}",
            style=cfg.TITLE_STYLE)
-    if as_of_when > rightnow:
-        future_warning(as_of_when)
+    later_events_warning(as_of_when)
     if not latest_event(as_of_when):
         iprint(f"No bikes checked in by {as_of_when}",
                style=cfg.SUBTITLE_STYLE)
@@ -728,7 +789,7 @@ def delete_entry(args:list[str]) -> None:
                syntax=False)
         return
     # Get a confirmation
-    confirm = arg_prompt(maybe_confirm,"Are you sure (y/n)?")
+    confirm = arg_prompt(maybe_confirm,"Are you sure (y/N)?")
     if confirm not in ["y","yes", "!"]:
         nogood("Delete cancelled",syntax=False)
         return
@@ -835,20 +896,37 @@ def old_delete_entry(args:list[str]) -> None:
 '''
 # pylint: enable=pointless-string-statement
 
+def retired_report() -> None:
+    """List retired tags."""
+    print()
+    iprint("Retired tags",style=cfg.SUBTITLE_STYLE)
+    if not RETIRED_TAGS:
+        iprint("--no retired tags--")
+        return
+    for tag in RETIRED_TAGS:
+        iprint(tag,num_indents=2)
+
 def query_tag(args:list[str]) -> None:
     """Query the check in/out times of a specific tag."""
     target = (args + [None])[0]
     if not target: # only do dialog if no target passed
-        iprint(f"Which tag would you like to query? (tag name) {cfg.CURSOR}",
+        iprint(f"Query which tag? (tag name) {cfg.CURSOR}",
                style=cfg.SUBPROMPT_STYLE, end="")
         target = input().lower()
-    fixed_target = ut.fix_tag(target,must_be_in=ALL_TAGS,uppercase=UC_TAGS)
     print()
+    fixed_target = ut.fix_tag(target,uppercase=UC_TAGS)
     if not fixed_target:
-        iprint(f"Tag {target} is not available (retired, does not exist, etc)",
+        iprint(f"'{target}' does not look like a tag name",
                style=cfg.WARNING_STYLE)
         return
-    elif fixed_target not in check_ins:
+    if fixed_target in RETIRED_TAGS:
+        iprint(f"Tag '{fixed_target}' is retired", style=cfg.ANSWER_STYLE)
+        return
+    if fixed_target not in ALL_TAGS:
+        iprint(f"Tag '{fixed_target}' is not available for use",
+               style=cfg.WARNING_STYLE)
+        return
+    if fixed_target not in check_ins:
         iprint(f"Tag '{fixed_target}' not used yet today",
                style=cfg.WARNING_STYLE)
         return
@@ -860,7 +938,7 @@ def query_tag(args:list[str]) -> None:
                f"{fixed_target} returned OUT",
                style=cfg.ANSWER_STYLE)
     else:
-        iprint(f"(now)  {target} still at valet", style=cfg.ANSWER_STYLE)
+        iprint(f"       {fixed_target} still at valet", style=cfg.ANSWER_STYLE)
 
 def prompt_for_time(inp=False, prompt:str=None) -> bool or ut.Time:
     """Prompt for a time input if needed.
@@ -952,8 +1030,9 @@ def edit_entry(args:list[str]):
                         iprint(f"{target} was returned OUT at {check_outs[target]}",
                                style=cfg.WARNING_STYLE)
                     else:
-                        iprint(f"Check-IN time for {target} "
-                               f"set to {new_time}",style=cfg.ANSWER_STYLE)
+                        iprint(f"Check-IN time for {target} changed to "
+                               f"{ut.pretty_time(new_time,trim=True)}",
+                               style=cfg.ANSWER_STYLE)
                         check_ins[target] = new_time
                 elif in_or_out in ["o","out"]:
                     if (ut.time_int(new_time) <
@@ -964,8 +1043,8 @@ def edit_entry(args:list[str]):
                         iprint(f"{target} was checked IN at {check_ins[target]}",
                                style=cfg.WARNING_STYLE)
                     else:
-                        iprint(f"Check-OUT time for {target} "
-                               f"set to {new_time}",
+                        iprint(f"Check-OUT time for {target} changed to "
+                               f"{ut.pretty_time(new_time,trim=True)}",
                                style=cfg.ANSWER_STYLE)
                         check_outs[target] = new_time
         else:
@@ -1109,23 +1188,31 @@ def recent(args:list[str]) -> None:
         iprint("Can not make sense of the given start/end times",
                style=cfg.WARNING_STYLE)
         return
-    # Collect any bike-in/bike-out events that are in the time period.
-    events = []
-    for tag, atime in check_ins.items():
-        if start_time <= atime <= end_time:
-            events.append( format_one(atime, tag, True))
-    for tag, atime in check_outs.items():
-        if start_time <= atime <= end_time:
-            events.append( format_one(atime, tag, False))
-    # Print
+    # Print header.
     iprint()
     iprint(f"Recent activity (from {ut.pretty_time(start_time,trim=True)} "
            f"to {ut.pretty_time(end_time,trim=True)})",
             style=cfg.TITLE_STYLE)
     print()
     iprint("Time  BikeIn BikeOut",style=cfg.SUBTITLE_STYLE)
-    for line in sorted(events):
-        iprint(line)
+    # Collect & print any bike-in/bike-out events in the time period.
+    events = calc_events(end_time)
+    current_block_end = None
+    for atime in sorted(events.keys()):
+        # Ignore events outside the desired time range.
+        if not (start_time <= atime <= end_time):
+            continue
+        # Possibly put a line between blocks of activity.
+        if not current_block_end:
+            current_block_end = Block.block_end(atime)
+        if atime > current_block_end:
+            iprint(f"{ut.pretty_time(Block.block_start(atime))}-------------")
+            current_block_end = Block.block_end(atime)
+        # Print all the activity that happened at this time.
+        for tag in sorted(events[atime].bikes_in):
+            iprint(format_one(atime, tag, True))
+        for tag in sorted(events[atime].bikes_out):
+            iprint(format_one(atime, tag, False))
 
 def dataform_report(args:list[str]) -> None:
     """Print days activity in timeblocks.
@@ -1139,14 +1226,17 @@ def dataform_report(args:list[str]) -> None:
     if not end_time:
         end_time = ut.get_time()
     end_time = ut.time_str(end_time)
+    end_time = Block.block_end(end_time)
     if not (end_time):
         print()
         iprint(f"Unrecognized time {args[0]}",style=cfg.WARNING_STYLE)
         return
 
     print()
-    iprint(f"Tracking form data from start of day until {end_time}",
+    iprint("Tracking form data from start of day until "
+           f"{ut.pretty_time(end_time,trim=True)}",
            style=cfg.TITLE_STYLE)
+    later_events_warning(end_time)
     all_blocks = Block.calc_blocks(end_time)
     if not all_blocks:
         earliest = min(list(check_ins.values()) + list(check_outs.values()))
@@ -1163,8 +1253,8 @@ def dataform_report(args:list[str]) -> None:
         for start,block in all_blocks.items():
             inouts = (block.ins_list if which == ut.BIKE_IN
                     else block.outs_list)
-            endtime = ut.time_str(ut.time_int(start)+cfg.BLOCK_DURATION)
-            iprint(f"{start}-{endtime}  {simplified_taglist(inouts)}")
+            end = Block.block_end(start)
+            iprint(f"{start}-{end}  {simplified_taglist(inouts)}")
 
 def audit_report(args:list[str]) -> None:
     """Create & display audit report as at a particular time.
@@ -1243,7 +1333,7 @@ def audit_report(args:list[str]) -> None:
     print()
     iprint(f"Audit report as at {ut.pretty_time(as_of_when,trim=True)}",
            style=cfg.TITLE_STYLE)
-    future_warning(as_of_when)
+    later_events_warning(as_of_when)
 
     # Audit summary section.
     print()
@@ -1364,10 +1454,10 @@ def tag_check(tag:ut.Tag) -> None:
     def print_inout(tag:str, inout:str) -> None:
         """Pretty-print a tag-in or tag-out message."""
         if inout == ut.BIKE_IN:
-            msg1 = f"Bike {tag} checked IN "
+            msg1 = f"Bike {tag} checked IN {' ' * 10}<---in---  "
             msg2 = "" # f"bike #{len(check_ins)}"
         elif inout == ut.BIKE_OUT:
-            msg1 = f"Bike {tag} checked OUT                "
+            msg1 = f"Bike {tag} checked OUT {' ' * 25}---out--->  "
             msg2 = ""   # Saying duration might have been confusing
             ##duration = ut.pretty_time(
             ##        ut.time_int((check_outs[tag]) - ut.time_int((check_ins[tag]),
@@ -1378,10 +1468,10 @@ def tag_check(tag:ut.Tag) -> None:
                    style=cfg.ERROR_STYLE)
             return
         # Print
-        msg1 = text_style(f"  {msg1}  ",style=cfg.ANSWER_STYLE)
+        msg1 = text_style(f"{msg1}  ",style=cfg.ANSWER_STYLE)
         if msg2:
             msg2 = text_style(f"({msg2})",style=cfg.NORMAL_STYLE)
-        iprint( f"{ut.pretty_time(ut.get_time(),trim=False)} {msg1} {msg2}")
+        iprint( f"{msg1} {msg2}")
 
     if tag in RETIRED_TAGS: # if retired print specific retirement message
         iprint(f"{tag} is retired", style=cfg.WARNING_STYLE)
@@ -1407,9 +1497,9 @@ def tag_check(tag:ut.Tag) -> None:
                            f"{check_ins[tag]} ({time_diff_mins} mins ago)",
                            style=cfg.SUBPROMPT_STYLE)
                     iprint("Do you want to check it out? "
-                           f"(Y/n) {cfg.CURSOR}",
+                           f"(y/N) {cfg.CURSOR}",
                            style=cfg.SUBPROMPT_STYLE, end="")
-                    sure = input().lower() in ['', 'y']
+                    sure = input().lower() in ['yes', 'y']
                 else: # don't check for long stays
                     sure = True
                 if sure:
@@ -1457,6 +1547,7 @@ def parse_command(user_input:str) -> list[str]:
 def main():
     """Run main program loop and dispatcher."""
     done = False
+    last_published = "00:00"
     while not done:
         prompt_str = text_style(f"Bike tag or command {cfg.CURSOR}",
                 cfg.PROMPT_STYLE)
@@ -1489,14 +1580,20 @@ def main():
             print(cfg.help_message)
         elif cmd == cfg.CMD_LOOKBACK:
             recent(args)
+        elif cmd == cfg.CMD_RETIRED:
+            retired_report()
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:
             day_end_report(args)
+            # Force publication when do day-end reports
+            last_published = maybe_publish(last_published,force=True)
         elif cmd == cfg.CMD_MORE_STATS:
             more_stats_report(args)
         elif cmd == cfg.CMD_CSV:
             csv_dump(args)
+        elif cmd == cfg.CMD_LINT:
+            lint_report(strict_datetimes=True)
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
@@ -1512,21 +1609,58 @@ def main():
             data_dirty = True
         # Save if anything has changed
         if data_dirty:
-            save()
             data_dirty = False
+            save()
+            last_published = maybe_publish(last_published)
+
+def datafile_name(folder:str) -> str:
+    """Return the name of the data file (datafile) to read/write."""
+    # Use default filename
+    return f"{folder}/{cfg.LOG_BASENAME}{ut.get_date()}.log"
+
+def custom_datafile() -> str:
+    """Return custom datafilename from command line arg or ""."""
+    if len(sys.argv) <= 1:
+        return ""
+    # Custom datafile name or location
+    file = sys.argv[1]
+    # File there?
+    if not os.path.exists(file):
+        iprint(f"Error: File {file} not found",style=cfg.ERROR_STYLE)
+        error_exit()
+    # This is the custom datafile & it exists
+    return file
 
 def save():
     """Save today's data in the datafile."""
+    # Save .bak
     ut.rotate_log(LOG_FILEPATH)
-    day = ut.TrackerDay()
-    day.bikes_in = VALET_DATE
-    day.opening_time = VALET_OPENS
-    day.closing_time = VALET_CLOSES
-    day.bikes_in = check_ins
-    day.bikes_out = check_outs
-    day.regular = NORMAL_TAGS
-    day.oversize = OVERSIZE_TAGS
-    ut.write_datafile(LOG_FILEPATH, day)
+    # Pack data into a TrackerDay object to store
+    day = pack_day_data()
+    # Store the data
+    ut.write_logfile(LOG_FILEPATH, day)
+
+def maybe_publish(last_pub:ut.Time,force:bool=False) -> ut.Time:
+    """Maybe save current log to 'publish' directory."""
+    # Nothing to do if not configured to publish
+    if not (cfg.PUBLISH_FOLDER or not cfg.PUBLISH_FREQUENCY
+            or not os.path.exists(cfg.PUBLISH_FOLDER)):
+        return last_pub
+    # Is it time to re-publish?
+    if not force and (ut.time_int(ut.get_time()) <
+            (ut.time_int(last_pub) + cfg.PUBLISH_FREQUENCY)):
+        # Nothing to do yet.
+        return last_pub
+    # Nothing to do if publication dir does not exist
+    if not os.path.exists(cfg.PUBLISH_FOLDER):
+        iprint("Publication folder does not exist",
+               style=cfg.ERROR_STYLE)
+        return last_pub
+    # Pack info into TrackerDay object, save the data
+    day = pack_day_data()
+    ut.write_logfile(datafile_name(cfg.PUBLISH_FOLDER), day)
+    # Return new last_published time
+    return ut.get_time()
 
 def error_exit() -> None:
     """If an error has occurred, give a message and shut down.
@@ -1538,24 +1672,10 @@ def error_exit() -> None:
     time.sleep(30)
     exit()
 
-def datafile_name() -> str:
-    """Return the name of the data file (datafile) to read/write."""
-    if len(sys.argv) <= 1:
-        # Use default filename
-        return f"logs/{cfg.LOG_BASENAME}{ut.get_date()}.log"
-
-    # Custom datafile name or location
-    file = sys.argv[1]
-    # File there?
-    if not os.path.exists(file):
-        iprint(f"Error: File {file} not found",style=cfg.ERROR_STYLE)
-        error_exit()
-
-    # This is the custom datafile & it exists
-    return file
-
 def fold_tags_case(uppercase:bool):
     """Change main data structures to uppercase or lowercase."""
+    # FIXME: eventually make this obj=pack(), obj.fold_case(), unpack(obj)
+    #           followed by re-asserting all_tags = regular + oversize
     global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS # pylint: disable=global-statement
     global ALL_TAGS, check_ins, check_outs # pylint: disable=global-statement
     if uppercase:
@@ -1584,6 +1704,14 @@ def set_tag_case(want_uppercase:bool) -> None:
     fold_tags_case(UC_TAGS)
     iprint(f" Tags will now show in {case_str}. ", style=cfg.ANSWER_STYLE)
 
+def lint_report(strict_datetimes:bool=True) -> None:
+    errs = pack_day_data().lint_check(strict_datetimes)
+    if errs:
+        for msg in errs:
+            iprint(msg,style=cfg.WARNING_STYLE)
+    else:
+        iprint("No inconsistencies found",style=cfg.HIGHLIGHT_STYLE)
+
 # STARTUP
 
 # Tags uppercase or lowercase?
@@ -1602,7 +1730,16 @@ RETIRED_TAGS  = ut.build_tags_config('retired_tags.cfg')
 
 ALL_TAGS = NORMAL_TAGS + OVERSIZE_TAGS
 COLOUR_LETTERS = ut.build_colour_dict("tag_colour_abbreviations.cfg")
-LOG_FILEPATH = datafile_name()
+
+# Log file
+LOG_FILEPATH = custom_datafile()
+CUSTOM_LOG = bool(LOG_FILEPATH)
+if not CUSTOM_LOG:
+    LOG_FILEPATH = datafile_name(cfg.LOG_FOLDER)
+# Publication
+if cfg.PUBLISH_FOLDER and not os.path.exists(cfg.PUBLISH_FOLDER):
+    iprint(f"Publication folder {cfg.PUBLISH_FOLDER} not found",
+           style=cfg.ERROR_STYLE)
 
 if __name__ == "__main__":
 
@@ -1610,22 +1747,33 @@ if __name__ == "__main__":
     print(text_style(f"TagTracker {ut.get_version()} by Julias Hocking",
             style=cfg.ANSWER_STYLE))
     print()
-    # Configure check in- and out-lists and operating hours
+    # Configure check in- and out-lists and operating hours from file
     if not initialize_today(): # only run main() if tags read successfully
         error_exit()
+    lint_report(strict_datetimes=False)
 
     # Flip everything uppercase (or lowercase)
     fold_tags_case(UC_TAGS)
 
+    # Get/set valet date & time
     if not VALET_DATE:
         VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)
-
+    if VALET_DATE != ut.get_date():
+        iprint(f"Warning: Data is from {VALET_DATE}",
+               style=cfg.WARNING_STYLE)
+    else:
+        iprint(f"Today is {VALET_DATE}",style=cfg.HIGHLIGHT_STYLE)
     if not VALET_OPENS or not VALET_CLOSES:
         print()
         iprint("Please enter today's opening/closing times.",
             style=cfg.ERROR_STYLE)
         set_valet_hours([VALET_OPENS,VALET_CLOSES])
+        if VALET_OPENS or VALET_CLOSES:
+            save()
+
     valet_logo()
     main()
-
+    # Exiting now; one last save
+    save()
+    maybe_publish("",force=True)
 #==========================================

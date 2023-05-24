@@ -236,6 +236,9 @@ def tags_by_prefix(tags:list[Tag]) -> dict[str,list[Tag]]:
 
 class TrackerDay():
     """One day's worth of tracker info."""
+    # FIXME: add fold_case method sometime
+    # FIXME: consider an all_tags() method
+    # FIXME: add retired tags list as part of the object
 
     def __init__(self) -> None:
         """Initialize blank."""
@@ -246,6 +249,86 @@ class TrackerDay():
         self.bikes_out = {}
         self.regular = []
         self.oversize = []
+        self.retired = []   # This not un use yet.
+
+    def lint_check(self,strict_datetimes:bool=False) -> list[str]:
+        """Generate a list of logic error messages for TrackerDay object.
+
+        If no errors found returns []
+        If errors, returns list of error message strings.
+
+        Check for:
+        - bikes checked out but not in
+        - checked out before in
+        - multiple check-ins, multiple check-outs
+        - unrecognized tag in check-ins & check-outs
+        - poorly formed Tag
+        - poorly formed Time
+        - use of a tag that is retired (to do later)
+        If strict_datetimes then checks:
+        - valet date, opening and closing are well-formed
+        - valet opening time < closing time
+        """
+
+        def bad_tags(taglist:list[Tag], listname:str) -> list[str]:
+            """Get list of err msgs about poorly formed tags in taglist."""
+            msgs = []
+            for tag in taglist:
+                if fix_tag(tag) != tag:
+                    msgs.append(f"Bad tag '{tag}' in {listname}")
+            return msgs
+
+        def bad_times(timesdict:dict[str,Time], listname:str) -> list[str]:
+            """Get list of errors about mal-formed time values in timesdict."""
+            msgs = []
+            for key,atime in timesdict.items():
+                if time_str(atime) != atime:
+                    msgs.append(f"Bad time '{atime}' in "
+                            f"{listname} with key '{key}'")
+            return msgs
+
+        def dup_check(taglist:list[Tag], listname:str) -> list[str]:
+            """Get list of err msgs about tag in taglist more than once."""
+            msgs = []
+            if len(taglist) != len(list(set(taglist))):
+                msgs.append(f"Duplicate tags in {listname}")
+            return msgs
+
+        errors = []
+        # Look for missing or bad times and dates
+        if strict_datetimes:
+            if not self.date or date_str(self.date) != self.date:
+                errors.append(f"Bad or missing valet date {self.date}")
+            if (not self.opening_time or
+                    time_str(self.opening_time) != self.opening_time):
+                errors.append(f"Bad or missing opening time {self.opening_time}")
+            if (not self.closing_time or
+                    time_str(self.closing_time) != self.closing_time):
+                errors.append(f"Bad or missing closing time {self.closing_time}")
+            if (self.opening_time and self.closing_time
+                    and self.opening_time >= self.closing_time):
+                errors.append(f"Opening time '{self.opening_time}' is not "
+                        f"earlier then closing time '{self.closing_time}'")
+        # Look for poorly formed times and tags
+        errors += bad_tags(self.regular, "regular-tags")
+        errors += bad_tags(self.oversize, "oversize-tags")
+        errors += bad_tags(self.bikes_in.keys(), "bikes-checked-in")
+        errors += bad_tags(self.bikes_out.keys(), "bikes-checked-out")
+        errors += bad_times(self.bikes_in, "bikes-checked-in")
+        errors += bad_times(self.bikes_out, "bikes-checked-out")
+        # Look for duplicates in regular and oversize tags lists
+        errors += dup_check(self.regular + self.oversize,
+                "oversize + regular tags")
+        # Look for bike checked out but not in, or check-in later than check-out
+        for tag,atime in self.bikes_out.items():
+            if tag not in self.bikes_in:
+                errors.append(f"Bike {tag} checked in but not out")
+            elif atime < self.bikes_in[tag]:
+                errors.append(f"Bike {tag} check-out earlier than check-in")
+        # LATER: check that oversize/regular not in retired tags
+        # LATER: check that retired tags well-formed and not duplicated
+        # Return list of errors
+        return errors
 
 def rotate_log(filename:str) -> None:
     """Rename the current logfile to <itself>.bak."""
@@ -256,7 +339,7 @@ def rotate_log(filename:str) -> None:
         os.rename(filename,backuppath)
     return None
 
-def read_datafile(filename:str, err_msgs:list[str],
+def read_logfile(filename:str, err_msgs:list[str],
             usable_tags:list[Tag]=None) -> TrackerDay:
     """Fetch tag data from file into a TrackerDay object.
 
@@ -272,6 +355,8 @@ def read_datafile(filename:str, err_msgs:list[str],
     checking takes place.
 
     """
+    # FIXME: change to read without too much fuss, then do a lint check
+    # FIXME: change: get regular,oversize,(retired?) from logfile, if present.
     def data_read_error(text:str, message_list:list[str],
                 errs:int=0, fname:str="", fline:int=None) -> int:
         """Print a datafile read error, increments error counter.
@@ -417,7 +502,7 @@ def read_datafile(filename:str, err_msgs:list[str],
     # Return today's working data.
     return data
 
-def write_datafile(filename:str, data:TrackerDay, header_lines:list=None
+def write_logfile(filename:str, data:TrackerDay, header_lines:list=None
             ) -> None:
     """Write current data to today's data file."""
     lines = []
@@ -523,6 +608,7 @@ def get_version() -> str:
             if r:
                 return r.group(1)
     return ""
+
 
 # Regular expression for parsing tags -- here & in main program.
 PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")

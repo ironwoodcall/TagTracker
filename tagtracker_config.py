@@ -28,8 +28,12 @@ if USE_COLOUR:
         USE_COLOUR = False
         print("WARNING: No 'colorame' module, text will be in black & white.")
 
-# Basename for the Logfiles. They will be {BASENAME}YY-MM-DD.LOG.
-LOG_BASENAME = "cityhall_"
+# Datafiles/Logfiles
+LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
+LOG_FOLDER = "logs" # Folder to keep logfiles in
+# System occasionally puts a copy of log in a publish folder
+PUBLISH_FOLDER = r"c:\tmp"
+PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
 BLOCK_DURATION=30
@@ -110,6 +114,8 @@ CMD_VALET_HOURS = "valet_hours"
 CMD_CSV = "csv"
 CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
+CMD_RETIRED = "retired"
+CMD_LINT = "lint"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -126,22 +132,26 @@ COMMANDS[CMD_VALET_HOURS] = ["v","valet"]
 COMMANDS[CMD_CSV] = ["csv"]
 COMMANDS[CMD_UPPERCASE] = ["uc","uppercase", "upper"]
 COMMANDS[CMD_LOWERCASE] = ["lc","lowercase", "lower"]
+COMMANDS[CMD_RETIRED] = ["retired","ret"]
+COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 help_message = f"""
 {INDENT}This list of commands      :   help  /  h
 {INDENT}Check bike in or out       :   <tag name> (eg “wa3”)
 {INDENT}Edit a check in/out time   :   edit  / e
-{INDENT}Delete a check in/out      :   del   / d
+{INDENT}Delete a check in/out      :   delete / del  / d
 {INDENT}Valet opening/closing hours:   valet / v
 {INDENT}Show info about one tag    :   query / q / ?
 {INDENT}Show summary statistics    :   stat  / s
 {INDENT}Show more statistics       :   more / m
 {INDENT}Show accouting audit info  :   audit / a
 {INDENT}Show recent logged events  :   recent / r
-{INDENT}Show dataform log          :   form / f / log / l
+{INDENT}Show dataform log          :   form / f
+{INDENT}Show what tags are retired :   retired / ret
 {INDENT}Display tags in UPPER CASE :   uppercase / uc
 {INDENT}Display tags in lower case :   lowercase / lc
+{INDENT}Perform consistency check  :   consistency / con
 {INDENT}Dump CSV records to file   :   csv
 {INDENT}Exit                       :   x / stop / exit / quit / bye
 """
