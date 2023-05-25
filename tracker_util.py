@@ -116,11 +116,17 @@ def time_int(maybe_time:Union[str,int,float,None]) -> Union[int,None]:
     squawk(f"PROGRAM ERROR: called time_int({maybe_time=})")
     return None
 
-def time_str(maybe_time:Union[int,str,float,None]) -> Time:
+def time_str(maybe_time:Union[int,str,float,None],
+             allow_now:bool=False, default_now:bool=False) -> Time:
     """Return maybe_time as HH:MM (or "").
 
     Input can be int/float (duration or minutes since midnight),
     or a string that *might* be a time in [H]H[:]MM.
+
+    Special case: "now" will return current time if allowed
+    by flag "allow_now".
+
+    If default_now is True, then will return current time when input is blank.
 
     Return is either "" (doesn't look like a valid time) or
     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
@@ -128,6 +134,8 @@ def time_str(maybe_time:Union[int,str,float,None]) -> Time:
     if isinstance(maybe_time,float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time,str):
+        if maybe_time == "now" and allow_now:
+            return get_time()
         r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
         if not (r):
             return ""
@@ -236,7 +244,6 @@ def tags_by_prefix(tags:list[Tag]) -> dict[str,list[Tag]]:
 
 class TrackerDay():
     """One day's worth of tracker info."""
-    # FIXME: add fold_case method sometime
     # FIXME: consider an all_tags() method
     # FIXME: add retired tags list as part of the object
 
@@ -250,6 +257,25 @@ class TrackerDay():
         self.regular = []
         self.oversize = []
         self.retired = []   # This not un use yet.
+        self.is_uppercase = None   # Tags in uppercase or lowercase?
+
+    def make_lowercase(self) -> None:
+        """Sets TrackerDay object to all lowercase."""
+        self.regular = [t.lower for t in self.regular]
+        self.oversize = [t.lower for t in self.oversize]
+        self.retired = [t.lower for t in self.retired]
+        self.bikes_in = {k.lower(): v for k,v in self.bikes_in.items()}
+        self.bikes_out = {k.lower(): v for k,v in self.bikes_out.items()}
+        self.is_uppercase = False
+
+    def make_uppercase(self) -> None:
+        """Sets TrackerDay object to all uppercase."""
+        self.regular = [t.upper for t in self.regular]
+        self.oversize = [t.upper for t in self.oversize]
+        self.retired = [t.upper for t in self.retired]
+        self.bikes_in = {k.upper(): v for k,v in self.bikes_in.items()}
+        self.bikes_out = {k.upper(): v for k,v in self.bikes_out.items()}
+        self.is_uppercase = True
 
     def lint_check(self,strict_datetimes:bool=False) -> list[str]:
         """Generate a list of logic error messages for TrackerDay object.
@@ -274,7 +300,7 @@ class TrackerDay():
             """Get list of err msgs about poorly formed tags in taglist."""
             msgs = []
             for tag in taglist:
-                if fix_tag(tag) != tag:
+                if fix_tag(tag,uppercase=self.is_uppercase) != tag:
                     msgs.append(f"Bad tag '{tag}' in {listname}")
             return msgs
 

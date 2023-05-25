@@ -187,7 +187,6 @@ def latest_event(as_of_when:Union[ut.Time,int,None]=None ) -> ut.Time:
         as_of_when = ut.time_str(as_of_when)
         if not (as_of_when):
             return ""
-
     events = [x for x in
             (list(check_ins.values()) + list(check_outs.values()))
             if x <= as_of_when]
@@ -211,6 +210,23 @@ def num_later_events(after_when:Union[ut.Time,int,None]=None ) -> int:
             (list(check_ins.values()) + list(check_outs.values()))
             if x > after_when]
     return len(events)
+
+def fix_2400_events() -> list[ut.Tag]:
+    """Change any 24:00 events to 23:59, warn, return Tags changed."""
+    changed = []
+    for tag, atime in check_ins.items():
+        if atime == "24:00":
+            check_ins[tag] = "23:59"
+            changed.append(tag)
+    for tag, atime in check_outs.items():
+        if atime == "24:00":
+            check_outs[tag] = "23:59"
+            changed.append(tag)
+    changed = list(set(changed))    # Remove duplicates.
+    if changed:
+        iprint(f"(Time for {simplified_taglist(changed)} adjusted to 23:59)",
+               style=cfg.WARNING_STYLE)
+    return changed
 
 def deduce_valet_date(current_guess:str, filename:str) -> str:
     """Guess what date the current data is for.
@@ -241,6 +257,8 @@ def pack_day_data() -> ut.TrackerDay:
     day.bikes_out = check_outs
     day.regular = NORMAL_TAGS
     day.oversize = OVERSIZE_TAGS
+    day.retired = RETIRED_TAGS
+    day.is_uppercase = UC_TAGS
     return day
 
 def unpack_day_data(today_data:ut.TrackerDay) -> None:
@@ -257,6 +275,7 @@ def unpack_day_data(today_data:ut.TrackerDay) -> None:
     # FIXME: add these  when starting reading this from file
     # NORMAL_TAGS = today_data.regular
     # OVERSIZE_TAGS = today_data.oversize
+    # RETIRED_TAGS = today_data.retired
 
 def initialize_today() -> bool:
     """Fetch today's data from file (if exists)."""
@@ -307,10 +326,8 @@ def calc_visits(as_of_when:Union[int,ut.Time]=None) -> dict[ut.Tag,Visit]:
     As a special case, this will also accept the word "now" to
     mean the current time.
     """
-    if (not as_of_when or
-            (isinstance(as_of_when,str) and as_of_when.lower() == "now")):
-        as_of_when = ut.get_time()
-    as_of_when = ut.time_str(as_of_when)
+    as_of_when = "now" if not as_of_when else as_of_when
+    as_of_when = ut.time_str(as_of_when,allow_now=True)
 
     # If a bike isn't checked out or its checkout is after the requested
     # time, then use what as its checkout time?
@@ -362,15 +379,13 @@ def calc_events(as_of_when:(int or ut.Time)=None ) -> dict[ut.Time,Event]:
     As a special case, this will also accept the word "now" to
     mean the current time.
     """
-    if isinstance(as_of_when,str) and as_of_when.lower() == "now":
-        as_of_when = ut.get_time()
-    elif as_of_when is None:
+    if as_of_when is None:
         # Set as_of_when to be the time of the latest checkout of the day.
         if check_ins:
             as_of_when = min(list(check_ins.values()))
         else:
-            as_of_when = ut.get_time()
-    as_of_when = ut.time_str(as_of_when)
+            as_of_when = "now"
+    as_of_when = ut.time_str(as_of_when,allow_now=True)
     # First pass, create all the Events and list their tags in & out.
     events = {}
     for tag,atime in check_ins.items():
@@ -664,7 +679,7 @@ def day_end_report(args:list) -> None:
     if not as_of_when:
         as_of_when = rightnow
     else:
-        as_of_when = ut.time_str(as_of_when)
+        as_of_when = ut.time_str(as_of_when,allow_now=True)
         if not (as_of_when):
             iprint(f"Unrecognized time passed to visits summary ({args[0]})",
                 style=cfg.WARNING_STYLE)
@@ -689,16 +704,12 @@ def more_stats_report(args:list) -> None:
 
     If not time given, calculates as of latest checkin/out of the day.
     """
-    rightnow = ut.get_time()
+    #rightnow = ut.get_time()
     as_of_when = (args + [None])[0]
-    if not as_of_when:
-        as_of_when = rightnow
-    else:
-        as_of_when = ut.time_str(as_of_when)
-        if not (as_of_when):
-            iprint(f"Unrecognized time passed to visits summary ({args[0]})",
-                style=cfg.WARNING_STYLE)
-            return
+    as_of_when = ut.time_str(as_of_when,allow_now=True,default_now=True)
+    if not (as_of_when):
+        iprint("Unrecognized time", style=cfg.WARNING_STYLE)
+        return
     print()
     iprint(f"More summary statistics as at {ut.pretty_time(as_of_when,trim=True)}",
            style=cfg.TITLE_STYLE)
@@ -953,9 +964,7 @@ def prompt_for_time(inp=False, prompt:str=None) -> bool or ut.Time:
         #iprint("Use 24-hour format, or 'now' to use "
         #       f"the current time ({ut.get_time()}) ",end="")
         inp = input()
-    if inp.lower() == 'now':
-        return ut.get_time()
-    hhmm = ut.time_str(inp)
+    hhmm = ut.time_str(inp,allow_now=True)
     if not hhmm:
         return False
     return hhmm
@@ -1167,9 +1176,10 @@ class Block():
 def recent(args:list[str]) -> None:
     """Display a look back at recent activity.
 
-    Args are both optional, start_time and end_time.
-    If end_time is missing, runs to current time.
-    If start_time is missing, starts one hour before end_time.
+    Args are: start_time, end_time
+        If no args ==> now-30, now
+        If start_time but no end_time ==> start, now
+        If start_time and end_time ==> start, end
     """
     def format_one( atime:str, tag:str, check_in:bool) -> str:
         """Format one line of output."""
@@ -1178,12 +1188,15 @@ def recent(args:list[str]) -> None:
         return f"{ut.pretty_time(atime,trim=False)}   {in_tag:<5s} {out_tag:<5s}"
 
     (start_time, end_time) = (args + [None,None])[:2]
-    if not end_time:
-        end_time = ut.get_time()
     if not start_time:
+        end_time = ut.get_time()
         start_time = ut.time_str(ut.time_int(end_time)-30)
-    start_time = ut.time_str(start_time)
-    end_time = ut.time_str(end_time)
+    elif not end_time:
+        end_time = ut.get_time()
+    else:
+        start_time = ut.time_str(start_time,allow_now=True,default_now=True)
+        end_time = ut.time_str(end_time,allow_now=True,default_now=True)
+    # ANything we can work with?
     if not start_time or not end_time or start_time > end_time:
         iprint("Can not make sense of the given start/end times",
                style=cfg.WARNING_STYLE)
@@ -1225,12 +1238,17 @@ def dataform_report(args:list[str]) -> None:
     end_time = (args + [None])[0]
     if not end_time:
         end_time = ut.get_time()
-    end_time = ut.time_str(end_time)
-    end_time = Block.block_end(end_time)
-    if not (end_time):
-        print()
-        iprint(f"Unrecognized time {args[0]}",style=cfg.WARNING_STYLE)
+    end_time = ut.time_str(end_time,allow_now=True)
+    if not end_time:
+        iprint( "Unrecognized time",style=cfg.WARNING_STYLE)
         return
+    # Special case: allow "24:00"
+    if end_time != "24:00":
+        end_time = Block.block_end(end_time)
+        if not (end_time):
+            print()
+            iprint(f"Unrecognized time {args[0]}",style=cfg.WARNING_STYLE)
+            return
 
     print()
     iprint("Tracking form data from start of day until "
@@ -1273,14 +1291,13 @@ def audit_report(args:list[str]) -> None:
         OVERSIZE_TAGS
     """
     # FIXME: this is long and could get broken up with helper functions
-    rightnow = ut.get_time()
-    as_of_when = (args + [rightnow])[0]
+    as_of_when = (args + [""])[0]
+    as_of_when = ut.time_str(as_of_when,allow_now=True,default_now=True)
 
     # What time will this audit report reflect?
     as_of_when = ut.time_str(as_of_when)
     if not as_of_when:
-        iprint(f"Unrecognized time passed to audit ({args[0]})",
-               style=cfg.WARNING_STYLE)
+        iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return False
 
     # Get rid of any check-ins or -outs later than the requested time.
@@ -1588,7 +1605,7 @@ def main():
             day_end_report(args)
             # Force publication when do day-end reports
             last_published = maybe_publish(last_published,force=True)
-        elif cmd == cfg.CMD_MORE_STATS:
+        elif cmd == cfg.CMD_BUSY:
             more_stats_report(args)
         elif cmd == cfg.CMD_CSV:
             csv_dump(args)
@@ -1607,6 +1624,9 @@ def main():
             # This is a tag
             tag_check(cmd)
             data_dirty = True
+        # If anything has becomne "24:00" change it to "23:59"
+        if data_dirty:
+            fix_2400_events()
         # Save if anything has changed
         if data_dirty:
             data_dirty = False
@@ -1640,11 +1660,13 @@ def save():
     # Store the data
     ut.write_logfile(LOG_FILEPATH, day)
 
+ABLE_TO_PUBLISH = True
 def maybe_publish(last_pub:ut.Time,force:bool=False) -> ut.Time:
     """Maybe save current log to 'publish' directory."""
-    # Nothing to do if not configured to publish
-    if not (cfg.PUBLISH_FOLDER or not cfg.PUBLISH_FREQUENCY
-            or not os.path.exists(cfg.PUBLISH_FOLDER)):
+    global ABLE_TO_PUBLISH # pylint:disable=global-statement
+    # Nothing to do if not configured to publish or can't publish
+    if (not ABLE_TO_PUBLISH
+            or not cfg.PUBLISH_FOLDER or not cfg.PUBLISH_FREQUENCY):
         return last_pub
     # Is it time to re-publish?
     if not force and (ut.time_int(ut.get_time()) <
@@ -1653,8 +1675,10 @@ def maybe_publish(last_pub:ut.Time,force:bool=False) -> ut.Time:
         return last_pub
     # Nothing to do if publication dir does not exist
     if not os.path.exists(cfg.PUBLISH_FOLDER):
-        iprint("Publication folder does not exist",
-               style=cfg.ERROR_STYLE)
+        ABLE_TO_PUBLISH = False
+        print()
+        iprint(f"Publication folder '{cfg.PUBLISH_FOLDER}' not found, "
+               "will not try to Publish", style=cfg.ERROR_STYLE)
         return last_pub
     # Pack info into TrackerDay object, save the data
     day = pack_day_data()
@@ -1711,6 +1735,7 @@ def lint_report(strict_datetimes:bool=True) -> None:
             iprint(msg,style=cfg.WARNING_STYLE)
     else:
         iprint("No inconsistencies found",style=cfg.HIGHLIGHT_STYLE)
+    fix_2400_events()
 
 # STARTUP
 
@@ -1737,9 +1762,9 @@ CUSTOM_LOG = bool(LOG_FILEPATH)
 if not CUSTOM_LOG:
     LOG_FILEPATH = datafile_name(cfg.LOG_FOLDER)
 # Publication
-if cfg.PUBLISH_FOLDER and not os.path.exists(cfg.PUBLISH_FOLDER):
-    iprint(f"Publication folder {cfg.PUBLISH_FOLDER} not found",
-           style=cfg.ERROR_STYLE)
+##if cfg.PUBLISH_FOLDER and not os.path.exists(cfg.PUBLISH_FOLDER):
+##    iprint(f"Publication folder {cfg.PUBLISH_FOLDER} not found",
+##           style=cfg.ERROR_STYLE)
 
 if __name__ == "__main__":
 

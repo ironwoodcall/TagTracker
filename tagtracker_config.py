@@ -32,7 +32,7 @@ if USE_COLOUR:
 LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
 LOG_FOLDER = "logs" # Folder to keep logfiles in
 # System occasionally puts a copy of log in a publish folder
-PUBLISH_FOLDER = r"c:\tmp"
+PUBLISH_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
@@ -81,7 +81,7 @@ if USE_COLOUR:
     STYLE[SUBPROMPT_STYLE] = (
             f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
     STYLE[ANSWER_STYLE] = (
-            f"{Style.NORMAL}{Fore.WHITE}{Back.BLUE}")
+            f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}")
     STYLE[TITLE_STYLE] = (
             f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}")
     STYLE[SUBTITLE_STYLE] = (
@@ -109,7 +109,7 @@ CMD_HELP ="help"
 CMD_LOOKBACK = "lookback"
 CMD_QUERY ="query"
 CMD_STATS ="stats"
-CMD_MORE_STATS = "more_stats"
+CMD_BUSY = "busy"
 CMD_VALET_HOURS = "valet_hours"
 CMD_CSV = "csv"
 CMD_UPPERCASE = "uppercase"
@@ -127,7 +127,7 @@ COMMANDS[CMD_HELP] = ['help','h']
 COMMANDS[CMD_LOOKBACK] = ['recent', 'r']
 COMMANDS[CMD_QUERY] = ['query','q','?','/']
 COMMANDS[CMD_STATS] = ['s','stat','stats','statistics']
-COMMANDS[CMD_MORE_STATS] = ["m", "more"]
+COMMANDS[CMD_BUSY] = ["b", "busy","busyness","business"]
 COMMANDS[CMD_VALET_HOURS] = ["v","valet"]
 COMMANDS[CMD_CSV] = ["csv"]
 COMMANDS[CMD_UPPERCASE] = ["uc","uppercase", "upper"]
@@ -144,7 +144,7 @@ help_message = f"""
 {INDENT}Valet opening/closing hours:   valet / v
 {INDENT}Show info about one tag    :   query / q / ?
 {INDENT}Show summary statistics    :   stat  / s
-{INDENT}Show more statistics       :   more / m
+{INDENT}Show how busy valet is     :   busy / b
 {INDENT}Show accouting audit info  :   audit / a
 {INDENT}Show recent logged events  :   recent / r
 {INDENT}Show dataform log          :   form / f
