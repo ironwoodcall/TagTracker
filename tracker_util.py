@@ -244,6 +244,7 @@ def tags_by_prefix(tags:list[Tag]) -> dict[str,list[Tag]]:
 
 class TrackerDay():
     """One day's worth of tracker info."""
+
     # FIXME: consider an all_tags() method
     # FIXME: add retired tags list as part of the object
 
@@ -301,6 +302,7 @@ class TrackerDay():
             msgs = []
             for tag in taglist:
                 if fix_tag(tag,uppercase=self.is_uppercase) != tag:
+
                     msgs.append(f"Bad tag '{tag}' in {listname}")
             return msgs
 
