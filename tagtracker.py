@@ -1564,6 +1564,7 @@ def parse_command(user_input:str) -> list[str]:
 def main():
     """Run main program loop and dispatcher."""
     done = False
+    todays_date = ut.get_date()
     last_published = "00:00"
     while not done:
         prompt_str = text_style(f"Bike tag or command {cfg.CURSOR}",
@@ -1632,6 +1633,9 @@ def main():
             data_dirty = False
             save()
             last_published = maybe_publish(last_published)
+        # If midnight has passed then need to restart
+        if midnight_passed(todays_date):
+            done = True
 
 def datafile_name(folder:str) -> str:
     """Return the name of the data file (datafile) to read/write."""
@@ -1736,6 +1740,23 @@ def lint_report(strict_datetimes:bool=True) -> None:
     else:
         iprint("No inconsistencies found",style=cfg.HIGHLIGHT_STYLE)
     fix_2400_events()
+
+def midnight_passed(today_is:str) -> bool:
+    """Check if it's still the same day."""
+    if today_is == ut.get_date():
+        return False
+
+    print("\n\n\n")
+    iprint("Program has been running since yesterday.",
+            style=cfg.WARNING_STYLE)
+    iprint("Please restart program to reset for today's data.",
+            style=cfg.WARNING_STYLE)
+    print()
+    print("\n\n\n")
+    print("Automatically exiting in 15 seconds")
+    time.sleep(15)
+    return True
+
 
 # STARTUP
 
