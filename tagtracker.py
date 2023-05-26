@@ -1594,6 +1594,11 @@ def main():
             prompt_str = f"{ut.pretty_time(ut.get_time(),trim=True)}  {prompt_str}"
         print()
         user_str = input(prompt_str)
+        # If midnight has passed then need to restart
+        if midnight_passed(todays_date):
+            done = True
+            continue
+        # Break command into tokens, parse as command
         tokens = parse_command(user_str)
         if not tokens:
             continue        # No input, ignore
@@ -1655,9 +1660,6 @@ def main():
             data_dirty = False
             save()
             last_published = maybe_publish(last_published)
-        # If midnight has passed then need to restart
-        if midnight_passed(todays_date):
-            done = True
 
 def datafile_name(folder:str) -> str:
     """Return the name of the data file (datafile) to read/write."""
