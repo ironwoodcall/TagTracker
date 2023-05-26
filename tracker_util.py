@@ -19,7 +19,7 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import os
-from datetime import datetime
+import datetime
 import re
 from typing import Union    # This is for type hints instead of (eg) int|str
 from inspect import currentframe, getframeinfo
@@ -56,9 +56,15 @@ def squawk(whatever="") -> None:
     lineno = cf.f_back.f_lineno
     print(f"{filename}:{lineno}: {whatever}")
 
-def get_date() -> str:
-    """Return current date as string: YYYY-MM-DD."""
-    return datetime.today().strftime("%Y-%m-%d")
+def get_date(long:bool=False) -> str:
+    """Return current date as string YYYY-MM-DD or a longer str if long=True."""
+    if long:
+        return datetime.datetime.today().strftime("%A %B %d (%Y-%m-%d)")
+    return datetime.datetime.today().strftime("%Y-%m-%d")
+
+def long_date(date:str) -> str:
+    """Convert YYYY-MM-DD to a long statement of the date."""
+    return datetime.datetime.fromisoformat(date).strftime("%A %B %d (%Y-%m-%d)")
 
 def date_str(maybe_date:str) -> str:
     """Return maybe_date in the form of YYYY-MM-DD (or "")."""
@@ -77,7 +83,7 @@ def date_str(maybe_date:str) -> str:
 
 def get_time() -> Time:
     """Return current time as string: HH:MM."""
-    return datetime.today().strftime("%H:%M")
+    return datetime.datetime.today().strftime("%H:%M")
 
 def time_int(maybe_time:Union[str,int,float,None]) -> Union[int,None]:
     """Return maybe_time (str or int) to number of minutes since midnight or "".
@@ -131,6 +137,8 @@ def time_str(maybe_time:Union[int,str,float,None],
     Return is either "" (doesn't look like a valid time) or
     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
     """
+    if not maybe_time and default_now:
+        return get_time()
     if isinstance(maybe_time,float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time,str):
@@ -261,7 +269,7 @@ class TrackerDay():
         self.is_uppercase = None   # Tags in uppercase or lowercase?
 
     def make_lowercase(self) -> None:
-        """Sets TrackerDay object to all lowercase."""
+        """Set TrackerDay object to all lowercase."""
         self.regular = [t.lower for t in self.regular]
         self.oversize = [t.lower for t in self.oversize]
         self.retired = [t.lower for t in self.retired]
@@ -270,7 +278,7 @@ class TrackerDay():
         self.is_uppercase = False
 
     def make_uppercase(self) -> None:
-        """Sets TrackerDay object to all uppercase."""
+        """Set TrackerDay object to all uppercase."""
         self.regular = [t.upper for t in self.regular]
         self.oversize = [t.upper for t in self.oversize]
         self.retired = [t.upper for t in self.retired]

@@ -273,6 +273,9 @@ def unpack_day_data(today_data:ut.TrackerDay) -> None:
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
     # FIXME: add these  when starting reading this from file
+    # Logic: use dat from this datafile if exists & if not today's data
+    #        else use tag lists from config files.
+    #        (Though this might not be the place to exercise that logic?)
     # NORMAL_TAGS = today_data.regular
     # OVERSIZE_TAGS = today_data.oversize
     # RETIRED_TAGS = today_data.retired
@@ -711,7 +714,7 @@ def more_stats_report(args:list) -> None:
         iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return
     print()
-    iprint(f"More summary statistics as at {ut.pretty_time(as_of_when,trim=True)}",
+    iprint(f"Busyness report, as at {ut.pretty_time(as_of_when,trim=True)}",
            style=cfg.TITLE_STYLE)
     later_events_warning(as_of_when)
     if not latest_event(as_of_when):
@@ -974,26 +977,30 @@ def set_valet_hours(args:list[str]) -> None:
     global VALET_OPENS, VALET_CLOSES # pylint: disable=global-statement
     (open_arg, close_arg) = (args+["",""])[:2]
     print()
+    if VALET_DATE:
+        iprint(f"Bike Valet information for {ut.long_date(VALET_DATE)}",
+               style=cfg.HIGHLIGHT_STYLE)
     # Valet opening time
     if VALET_OPENS:
-        iprint(f"Valet opening time is currently set at: {VALET_OPENS}",
-               style=cfg.PROMPT_STYLE)
+        iprint(f"Opening time is: {VALET_OPENS}",
+               style=cfg.HIGHLIGHT_STYLE)
+    if VALET_CLOSES:
+        iprint(f"Closing time is: {VALET_CLOSES}",
+               style=cfg.HIGHLIGHT_STYLE)
+
     maybe_open = prompt_for_time(open_arg,
-            prompt="Today's valet opening time")
+            prompt="New valet opening time (<Enter> to cancel)")
     if not maybe_open:
-        iprint(f"Input {open_arg} not recognized as a time.  Cancelled.",
+        iprint(f"Input '{open_arg}' not a time.  Opening time unchanged.",
                style=cfg.WARNING_STYLE)
         return
     VALET_OPENS = maybe_open
     iprint(f"Opening time now set to {VALET_OPENS}",style=cfg.ANSWER_STYLE)
     # Valet closing time
-    if VALET_CLOSES:
-        iprint(f"Valet closing time is currently set at: {VALET_CLOSES}",
-               style=cfg.PROMPT_STYLE)
     maybe_close = prompt_for_time(close_arg,
-            prompt="Enter today's valet closing time")
+            prompt="New valet closing time (<Enter> to cancel)")
     if not maybe_close:
-        iprint(f"Input {close_arg} not recognized as a time.  Cancelled.",
+        iprint(f"Input '{close_arg}' not a time.  Closing time unchanged.",
                style=cfg.WARNING_STYLE)
         return
     VALET_CLOSES = maybe_close
@@ -1561,6 +1568,20 @@ def parse_command(user_input:str) -> list[str]:
     input_tokens[0] = command
     return input_tokens
 
+def show_help():
+    """Show help_message with colour style highlighting."""
+    title_done = False
+    for line in cfg.help_message.split("\n"):
+        if not line:
+            print()
+        elif not title_done:
+            title_done = True
+            iprint(line,style=cfg.TITLE_STYLE)
+        elif line[0] != " ":
+            iprint(line,style=cfg.SUBTITLE_STYLE)
+        else:
+            iprint(line,style=cfg.NORMAL_STYLE)
+
 def main():
     """Run main program loop and dispatcher."""
     done = False
@@ -1595,7 +1616,8 @@ def main():
         elif cmd == cfg.CMD_BLOCK:
             dataform_report(args)
         elif cmd == cfg.CMD_HELP:
-            print(cfg.help_message)
+            ##print(cfg.help_message)
+            show_help()
         elif cmd == cfg.CMD_LOOKBACK:
             recent(args)
         elif cmd == cfg.CMD_RETIRED:
@@ -1733,19 +1755,21 @@ def set_tag_case(want_uppercase:bool) -> None:
     iprint(f" Tags will now show in {case_str}. ", style=cfg.ANSWER_STYLE)
 
 def lint_report(strict_datetimes:bool=True) -> None:
+    """Check tag lists and event lists for consistency."""
     errs = pack_day_data().lint_check(strict_datetimes)
     if errs:
         for msg in errs:
             iprint(msg,style=cfg.WARNING_STYLE)
     else:
         iprint("No inconsistencies found",style=cfg.HIGHLIGHT_STYLE)
+    # And while we're at it, fix up any times that are set to "24:00"
     fix_2400_events()
 
 def midnight_passed(today_is:str) -> bool:
     """Check if it's still the same day."""
     if today_is == ut.get_date():
         return False
-
+    # Time has rolled over past midnight so need a new datafile.
     print("\n\n\n")
     iprint("Program has been running since yesterday.",
             style=cfg.WARNING_STYLE)
@@ -1756,7 +1780,6 @@ def midnight_passed(today_is:str) -> bool:
     print("Automatically exiting in 15 seconds")
     time.sleep(15)
     return True
-
 
 # STARTUP
 
@@ -1805,10 +1828,10 @@ if __name__ == "__main__":
     if not VALET_DATE:
         VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)
     if VALET_DATE != ut.get_date():
-        iprint(f"Warning: Data is from {VALET_DATE}",
+        iprint(f"Warning: Data is from {ut.long_date(VALET_DATE)}",
                style=cfg.WARNING_STYLE)
     else:
-        iprint(f"Today is {VALET_DATE}",style=cfg.HIGHLIGHT_STYLE)
+        iprint(f"Today is {ut.long_date(VALET_DATE)}",style=cfg.HIGHLIGHT_STYLE)
     if not VALET_OPENS or not VALET_CLOSES:
         print()
         iprint("Please enter today's opening/closing times.",

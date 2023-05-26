@@ -196,16 +196,16 @@ def clean(file:str, check_ins:dict, check_outs:dict) -> None:
         check_outs.pop(tag)
         check_ins.pop(tag)
 
-def write_file(oldfile:str, newfile:str, date:str,
+def write_file(oldf:str, newf:str, filedate:str,
         check_ins:dict, check_outs:dict ) ->None:
     """Write the records to a tagtracker-complians file."""
-    with open(newfile, 'w',encoding='utf-8') as f: # write stored lines to file
-        f.write(f"# {date}\n")
+    with open(newf , 'w',encoding='utf-8') as f: # write stored lines to file
+        f.write(f"# {filedate}\n")
         timestamp = datetime.datetime.today().strftime("%Y-%m-%d %H:%M")
-        f.write(f"# Converted from {oldfile} on {timestamp}\n")
-        if len(messages[oldfile]):
+        f.write(f"# Converted from {oldf} on {timestamp}\n")
+        if  oldf  in messages and len(messages[oldf]):
             f.write("# These issues detected during conversion:\n")
-            for msg in messages[oldfile]:
+            for msg in messages[ oldf ]:
                 f.write(f"# {msg}\n")
         f.write(f"{BIKE_IN_HEADER}\n")
         for tag,time in check_ins.items():
