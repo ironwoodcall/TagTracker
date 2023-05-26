@@ -52,6 +52,35 @@ BUSIEST_RANKS = 4
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30 # mins
 
+# Help message.  Colour styles will be applied as:
+#       First non-blank line will be in TITLE_STYLE, after which
+#       lines that are flush left will be in SUBTITLE_STYLE; and
+#       all other lines will be in NORMAL_STYLE
+help_message = """
+TagTracker Commands
+
+To enter and change valet data
+  Check bike in or out         :   <tag name> (eg “wa3”)
+  Edit a check in/out time     :   edit / e
+  Delete a check in/out        :   delete / del  / d
+  Set valet open/close hours   :   valet / v
+
+Information and reports
+  Show info about one tag      :   query / q / ?
+  Show recent activity         :   recent / r
+  Show audit info              :   audit / a
+  Show day-end stats report    :   stat  / s
+  Show valet busy-ness report  :   busy / b
+  Show data as on paper form   :   form / f
+  Show what tags are retired   :   retired / ret
+
+Other
+  Show this list of commands   :   help  /  h
+  Set tag display to UPPERCASE :   uppercase / uc
+  Set tag display to lowercase :   lowercase / lc
+  Exit                         :   exit / x
+"""
+
 # Format preferences for prompting user.
 INDENT = '  '
 CURSOR = ">>> "
@@ -136,23 +165,4 @@ COMMANDS[CMD_RETIRED] = ["retired","ret"]
 COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
-help_message = f"""
-{INDENT}This list of commands      :   help  /  h
-{INDENT}Check bike in or out       :   <tag name> (eg “wa3”)
-{INDENT}Edit a check in/out time   :   edit  / e
-{INDENT}Delete a check in/out      :   delete / del  / d
-{INDENT}Valet opening/closing hours:   valet / v
-{INDENT}Show info about one tag    :   query / q / ?
-{INDENT}Show summary statistics    :   stat  / s
-{INDENT}Show how busy valet is     :   busy / b
-{INDENT}Show accouting audit info  :   audit / a
-{INDENT}Show recent logged events  :   recent / r
-{INDENT}Show dataform log          :   form / f
-{INDENT}Show what tags are retired :   retired / ret
-{INDENT}Display tags in UPPER CASE :   uppercase / uc
-{INDENT}Display tags in lower case :   lowercase / lc
-{INDENT}Perform consistency check  :   consistency / con
-{INDENT}Dump CSV records to file   :   csv
-{INDENT}Exit                       :   x / stop / exit / quit / bye
-"""
 
