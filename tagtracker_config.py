@@ -56,12 +56,12 @@ CHECK_OUT_CONFIRM_TIME = 30 # mins
 #       First non-blank line will be in TITLE_STYLE, after which
 #       lines that are flush left will be in SUBTITLE_STYLE; and
 #       all other lines will be in NORMAL_STYLE
-help_message = """
+HELP_MESSAGE = """
 TagTracker Commands
 
 To enter and change valet data
   Check bike in or out         :   <tag name> (eg “wa3”)
-  Edit a check in/out time     :   edit / e
+  Edit check in/out times      :   edit / e
   Delete a check in/out        :   delete / del  / d
   Set valet open/close hours   :   valet / v
 

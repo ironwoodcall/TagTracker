@@ -41,11 +41,23 @@ BIKE_OUT = "bike_out"
 INOUT = "inout"
 REGULAR = "regular"
 OVERSIZE = "oversize"
+RETIRED = "retired"
 TOTAL = "total"
 COUNT = "count"
 TIME = "time"
 IGNORE = "ignore"
 BADVALUE = "badvalue"
+
+# Header strings to use in logfile and tags- config file
+# These are used when writing & also for string-matching when reading.
+HEADER_BIKES_IN = "Bikes checked in / tags out:"
+HEADER_BIKES_OUT = "Bikes checked out / tags in:"
+HEADER_VALET_DATE = "Valet date:"
+HEADER_VALET_OPENS = "Valet opens:"
+HEADER_VALET_CLOSES = "Valet closes:"
+HEADER_OVERSIZE = "Oversize-bike tags:"
+HEADER_REGULAR = "Regular-bike tags:"
+HEADER_RETIRED = "Retired tags:"
 
 def squawk(whatever="") -> None:
     """Print whatever with file & linenumber in front of it.
@@ -362,15 +374,21 @@ class TrackerDay():
                 errors.append(f"Bike {tag} checked in but not out")
             elif atime < self.bikes_in[tag]:
                 errors.append(f"Bike {tag} check-out earlier than check-in")
-        # LATER: check that oversize/regular not in retired tags
-        # LATER: check that retired tags well-formed and not duplicated
-        # Return list of errors
+        # Bikes that are not in the list of allowed bikes
+        _allowed_tags = self.regular + self.oversize
+        _used_tags = list(set(
+            list(self.bikes_in.keys())+list(self.bikes_out.keys()) ))
+        for tag in _used_tags:
+            if tag not in _allowed_tags:
+                errors.append(f"Tag {tag} not in use (not regular nor oversized)")
+            if tag in self.retired:
+                errors.append(f"Tag {tag} is marked as retired")
         return errors
 
-def splitline(input:str) -> list[str]:
+def splitline(inp:str) -> list[str]:
     """Split input on commas & whitespace into list of non-blank strs."""
     # Start by splitting on commas
-    tokens = input.split(",")
+    tokens = inp.split(",")
     # Split on whitespace.  This makes a list of lists.
     tokens = [item.split() for item in tokens]
     # Flatten the list of lists into a single list.
@@ -433,24 +451,27 @@ def read_logfile(filename:str, err_msgs:list[str],
             line = line.strip()
             if not line:
                 continue
-            # Look for section headers
-            if (re.match(r"^Bikes checked in.*:",line)):
+            # Look for section headers to figure out what section we will process
+            if (re.match(fr"^ *{HEADER_BIKES_IN}",line)):
                 section = BIKE_IN
                 continue
-            elif (re.match(r"^Bikes checked out.*:", line)):
+            elif (re.match(fr"^ *{HEADER_BIKES_OUT}", line)):
                 section = BIKE_OUT
                 continue
             # Look for headers for oversize & regular bikes, ignore them.
-            elif (re.match(r"^Regular-bike tags.*:",line)):
-                section = IGNORE
+            elif (re.match(fr"^ *{HEADER_REGULAR}",line)):
+                section = REGULAR
                 continue
-            elif (re.match(r"^Oversize-bike tags.*:",line)):
-                section = IGNORE
+            elif (re.match(fr"^ *{HEADER_OVERSIZE}",line)):
+                section = OVERSIZE
                 continue
-            elif (re.match(r"^Valet date:",line)):
+            elif (re.match(fr"^ *{HEADER_RETIRED}",line)):
+                section = RETIRED
+                continue
+            elif (re.match(fr"^ *{HEADER_VALET_DATE}",line)):
                 # Read the logfile's date
                 section = IGNORE
-                r = re.match(r"Valet date: *(.+)",line)
+                r = re.match(fr"{HEADER_VALET_DATE} *(.+)",line)
                 maybedate = date_str(r.group(1))
                 if not maybedate:
                     errors = data_read_error("Unable to read valet date",
@@ -459,17 +480,17 @@ def read_logfile(filename:str, err_msgs:list[str],
                     continue
                 data.date = maybedate
                 continue
-            elif (re.match(r"^Valet (opens|closes):",line)):
-                # This is either an open or a close time (probably)
+            elif (re.match(fr"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES})",line)):
+                # This is an open or a close time (probably)
                 section = IGNORE
-                r = re.match(r"Valet (opens|closes): *(.+)",line)
+                r = re.match(fr"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES}) *(.+)",line)
                 maybetime = time_str(r.group(2))
                 if not maybetime:
                     errors = data_read_error(
                         "Unable to read valet open/close time", err_msgs,
                         errs=errors, fname=filename, fline=line_num)
                     continue
-                if r.group(1) == "opens":
+                if r.group(1) == HEADER_VALET_OPENS:
                     data.opening_time = maybetime
                 else:
                     data.closing_time = maybetime
@@ -483,6 +504,32 @@ def read_logfile(filename:str, err_msgs:list[str],
             if section == IGNORE:
                 # Things to ignore
                 continue
+            if section in [REGULAR, OVERSIZE, RETIRED]:
+                # Break each line into 0 or more tags
+                bits = splitline(line)
+                taglist = [fix_tag(x) for x in bits]
+                taglist = [x for x in taglist if x] # remove blanks
+                # Any errors?
+                if len(taglist) != len(bits):
+                    errors = data_read_error(
+                            f"Bad tag(s) in '{line}", err_msgs,
+                            errs=errors, fname=filename, fline=line_num)
+                    continue
+                # Looks like we have some tags
+                if section == REGULAR:
+                    data.regular += taglist
+                elif section == OVERSIZE:
+                    data.oversize += taglist
+                elif section == RETIRED:
+                    data.retired += taglist
+                else:
+                    squawk(f"Bad section value in read_logfile(), '{section}")
+                    return
+                continue
+            if section not in [BIKE_IN,BIKE_OUT]:
+                squawk(f"Bad section value in read_logfile(), '{section}")
+                return
+            # This is a tags in or tags out section
             # Break into putative tag and text, looking for errors
             cells = line.split(',')
             if len(cells) != 2:
@@ -548,6 +595,10 @@ def read_logfile(filename:str, err_msgs:list[str],
                 continue
     if errors:
         err_msgs.append(f"Found {errors} errors in datafile {filename}")
+    # remove duplicates from tag reference lists
+    data.regular = list(set(data.regular))
+    data.oversize = list(set(data.oversize))
+    data.retired = list(set(data.retired))
     # Return today's working data.
     return data
 
@@ -562,26 +613,29 @@ def write_logfile(filename:str, data:TrackerDay, header_lines:list=None
                 f"{get_date()} {get_time()}")
     # Valet data, opening & closing hours
     if data.date:
-        lines.append(f"Valet date: {data.date}")
+        lines.append(f"{HEADER_VALET_DATE} {data.date}")
     if data.opening_time:
-        lines.append(f"Valet opens: {data.opening_time}")
+        lines.append(f"{HEADER_VALET_OPENS} {data.opening_time}")
     if data.closing_time:
-        lines.append(f"Valet closes: {data.closing_time}")
+        lines.append(f"{HEADER_VALET_CLOSES} {data.closing_time}")
 
-    lines.append("Bikes checked in / tags out:")
+    lines.append(HEADER_BIKES_IN)
     for tag, atime in data.bikes_in.items(): # for each bike checked in
         lines.append(f"{tag.lower()},{atime}") # add a line "tag,time"
-    lines.append("Bikes checked out / tags in:")
+    lines.append(HEADER_BIKES_OUT)
     for tag,atime in data.bikes_out.items(): # for each  checked
         lines.append(f"{tag.lower()},{atime}") # add a line "tag,time"
     # Also write tag info of which bikes are oversize, which are regular.
-    # This is for datafile aggregator.
-    lines.append( "# The following sections are for datafile aggregator")
-    lines.append("Regular-bike tags:")
+    # This to make complete bundles for historic information
+    lines.append( "# The following sections are for historic use of logfile")
+    lines.append(HEADER_REGULAR)
     for tag in data.regular:
         lines.append(tag.lower())
-    lines.append("Oversize-bike tags:")
+    lines.append(HEADER_OVERSIZE)
     for tag in data.oversize:
+        lines.append(tag.lower())
+    lines.append(HEADER_RETIRED)
+    for tag in data.retired:
         lines.append(tag.lower())
     lines.append("# Normal end of file")
     # Write the data to the file.

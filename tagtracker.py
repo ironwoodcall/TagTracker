@@ -29,10 +29,15 @@ from typing import Union    # This is for type hints instead of (eg) int|str
 import tracker_util as ut
 import tagtracker_config as cfg
 
+
 # Initialize valet open/close globals
 VALET_OPENS = ""
 VALET_CLOSES = ""
 VALET_DATE=""
+NORMAL_TAGS = []
+OVERSIZE_TAGS = []
+RETIRED_TAGS = []
+ALL_TAGS = []
 
 def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     """Make a simplified str of tag names from a list of tags.
@@ -266,19 +271,16 @@ def unpack_day_data(today_data:ut.TrackerDay) -> None:
     # pylint: disable=global-statement
     global VALET_DATE, VALET_OPENS, VALET_CLOSES
     global check_ins, check_outs
+    global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
     # pylint: enable=global-statement
     VALET_DATE = today_data.date
     VALET_OPENS = today_data.opening_time
     VALET_CLOSES = today_data.closing_time
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
-    # FIXME: add these  when starting reading this from file
-    # Logic: use dat from this datafile if exists & if not today's data
-    #        else use tag lists from config files.
-    #        (Though this might not be the place to exercise that logic?)
-    # NORMAL_TAGS = today_data.regular
-    # OVERSIZE_TAGS = today_data.oversize
-    # RETIRED_TAGS = today_data.retired
+    NORMAL_TAGS = today_data.regular
+    OVERSIZE_TAGS = today_data.oversize
+    RETIRED_TAGS = today_data.retired
 
 def initialize_today() -> bool:
     """Fetch today's data from file (if exists)."""
@@ -292,7 +294,7 @@ def initialize_today() -> bool:
     iprint(f"Reading data from {LOG_FILEPATH}...",
            end="", style=cfg.SUBTITLE_STYLE)
     error_msgs = []
-    today_data = ut.read_logfile(LOG_FILEPATH,error_msgs,ALL_TAGS)
+    today_data = ut.read_logfile(LOG_FILEPATH,error_msgs)
     if error_msgs:
         print()
         for text in error_msgs:
@@ -300,7 +302,29 @@ def initialize_today() -> bool:
         return False
     # On success, set today's working data
     unpack_day_data(today_data)
+    # Figure out the date for the informatino
+    global VALET_DATE #pylint:disable=global-statement
+    if not VALET_DATE:
+        VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)
+    # If the valet's date is today, or tag list (regular etc) info missing,
+    # set from the tags configuration file
+    if not NORMAL_TAGS or VALET_DATE == ut.get_date():
+        if not get_taglists_from_config():
+            return False
+    global ALL_TAGS # pylint:disable=global-statement
+    ALL_TAGS = NORMAL_TAGS + OVERSIZE_TAGS
+    # Now do a consistency check.
+    errs = pack_day_data().lint_check(strict_datetimes=False)
+    if errs:
+        print()
+        for msg in errs:
+            iprint(msg,style=cfg.ERROR_STYLE)
+        error_exit()
+    # Done
     iprint('done.', num_indents=0, style=cfg.SUBTITLE_STYLE)
+    if VALET_DATE != ut.get_date():
+        iprint(f"Warning: Valet information is from {ut.long_date(VALET_DATE)}",
+                style=cfg.WARNING_STYLE)
     return True
 
 class Visit():
@@ -1687,9 +1711,14 @@ def parse_command(user_input:str) -> list[str]:
     return input_tokens
 
 def show_help():
-    """Show help_message with colour style highlighting."""
+    """Show help_message with colour style highlighting.
+
+    Prints first non-blank line as title;
+    lines that are flush-left as subtitles;
+    other lines in normal style.
+    """
     title_done = False
-    for line in cfg.help_message.split("\n"):
+    for line in cfg.HELP_MESSAGE.split("\n"):
         if not line:
             print()
         elif not title_done:
@@ -1736,7 +1765,6 @@ def main():
         elif cmd == cfg.CMD_BLOCK:
             dataform_report(args)
         elif cmd == cfg.CMD_HELP:
-            ##print(cfg.help_message)
             show_help()
         elif cmd == cfg.CMD_LOOKBACK:
             recent(args)
@@ -1898,6 +1926,22 @@ def midnight_passed(today_is:str) -> bool:
     time.sleep(15)
     return True
 
+def get_taglists_from_config() -> bool:
+    """Initialize lists of oversize, regular, retired tags from config file."""
+    # Lists of normal, oversize, retired tags
+    # If it's today's data, read from config, else from logfile
+    errs = []
+    day = ut.read_logfile("tags.txt",errs)
+    if errs:
+        print(f"Errors in file, {errs=}")
+        error_exit()
+    global NORMAL_TAGS, OVERSIZE_TAGS #pylint:disable=global-statement
+    global RETIRED_TAGS #pylint:disable=global-statement
+    NORMAL_TAGS   = day.regular
+    OVERSIZE_TAGS = day.oversize
+    RETIRED_TAGS  = day.retired
+    return True
+
 # STARTUP
 
 # Tags uppercase or lowercase?
@@ -1909,12 +1953,6 @@ UC_TAGS = cfg.TAGS_UPPERCASE_DEFAULT
 #   value = ISO8601 event time (e.g. "08:43" as str)
 check_ins = {}
 check_outs = {}
-# Lists of tag ids of various categories
-NORMAL_TAGS   = ut.build_tags_config('normal_tags.cfg')
-OVERSIZE_TAGS = ut.build_tags_config('oversize_tags.cfg')
-RETIRED_TAGS  = ut.build_tags_config('retired_tags.cfg')
-
-ALL_TAGS = NORMAL_TAGS + OVERSIZE_TAGS
 COLOUR_LETTERS = ut.build_colour_dict("tag_colour_abbreviations.cfg")
 
 # Log file
@@ -1942,13 +1980,6 @@ if __name__ == "__main__":
     fold_tags_case(UC_TAGS)
 
     # Get/set valet date & time
-    if not VALET_DATE:
-        VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)
-    if VALET_DATE != ut.get_date():
-        iprint(f"Warning: Data is from {ut.long_date(VALET_DATE)}",
-               style=cfg.WARNING_STYLE)
-    else:
-        iprint(f"Today is {ut.long_date(VALET_DATE)}",style=cfg.HIGHLIGHT_STYLE)
     if not VALET_OPENS or not VALET_CLOSES:
         print()
         iprint("Please enter today's opening/closing times.",
