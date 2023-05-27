@@ -768,7 +768,7 @@ def delete_entry(args:list[str]) -> None:
         if msg:
             iprint(msg, style=cfg.WARNING_STYLE)
         if syntax:
-            iprint("syntax: delete <tag> <in|out|both> <y|n|!>",
+            iprint("Syntax: delete <tag> <in|out|both> <y|n|!>",
                     style=cfg.WARNING_STYLE)
 
     (maybe_target,maybe_what,maybe_confirm) = (args + ["","",""])[:3]
@@ -1006,69 +1006,187 @@ def set_valet_hours(args:list[str]) -> None:
     VALET_CLOSES = maybe_close
     iprint(f"Closing time now set to {VALET_CLOSES}",style=cfg.ANSWER_STYLE)
 
-def edit_entry(args:list[str]):
-    """Perform Dialog to correct a tag's check in/out time."""
-    (target, in_or_out, new_time) = (args + [None,None,None])[:3]
+def multi_edit(args:list[str]):
+    """Perform Dialog to correct a tag's check in/out time.
 
-    edit_syntax_message = text_style("Syntax: e <bike's tag> <in or out (i/o)> "
-            "<new time or 'now'>",cfg.WARNING_STYLE)
-    if not target:
-        iprint(f"Which bike's record do you want to edit? (tag ID) {cfg.CURSOR}",
+    Command syntax: edit [tag-list] [in|out] [time]
+    Where:
+        tag-list is a comma or whitespace-separated list of tags
+        inout is 'in', 'i', 'out', 'o'
+        time is a valid time (including 'now')
+    """
+    def prompt_for_stuff(prompt:str):
+        iprint(f"{prompt} {cfg.CURSOR}",
                style=cfg.SUBPROMPT_STYLE, end="")
-        target = input().lower()
-    elif not target in ALL_TAGS:
-        iprint(edit_syntax_message)
-        return False
-    if target in ALL_TAGS:
-        if target in check_ins:
-            if not in_or_out:
-                iprint("Do you want to change this bike's "
-                       f"check-(i)n or check-(o)ut time? (i/o) {cfg.CURSOR}",
-                       style=cfg.SUBPROMPT_STYLE, end="")
-                in_or_out = input().lower()
-                if not in_or_out in ["i","in","o","out"]:
-                    iprint(f"Unrecognized answer '{in_or_out}' needs to be 'i' or 'o' "
-                           "(edit cancelled)", style=cfg.WARNING_STYLE)
-                    return False
-            if not in_or_out in ["i","in","o","out"]:
-                iprint(edit_syntax_message)
-            else:
-                new_time = prompt_for_time(new_time)
-                if not new_time:
-                    iprint('Invalid time entered (edit cancelled)',
-                           style=cfg.WARNING_STYLE)
-                elif in_or_out in ["i","in"]:
-                    if (target in check_outs and
-                            (ut.time_int(new_time) >
-                            ut.time_int(check_outs[target]))):
-                        iprint("Can't set a check-IN later than a check-OUT;",
-                               style=cfg.WARNING_STYLE)
-                        iprint(f"{target} was returned OUT at {check_outs[target]}",
-                               style=cfg.WARNING_STYLE)
-                    else:
-                        iprint(f"Check-IN time for {target} changed to "
-                               f"{ut.pretty_time(new_time,trim=True)}",
-                               style=cfg.ANSWER_STYLE)
-                        check_ins[target] = new_time
-                elif in_or_out in ["o","out"]:
-                    if (ut.time_int(new_time) <
-                            ut.time_int(check_ins[target])):
-                        # don't check a tag out earlier than it checked in
-                        iprint("Can't set a check-OUT earlier than check-IN;",
-                               style=cfg.WARNING_STYLE)
-                        iprint(f"{target} was checked IN at {check_ins[target]}",
-                               style=cfg.WARNING_STYLE)
-                    else:
-                        iprint(f"Check-OUT time for {target} changed to "
-                               f"{ut.pretty_time(new_time,trim=True)}",
-                               style=cfg.ANSWER_STYLE)
-                        check_outs[target] = new_time
+        return input().lower()
+
+    def error(msg:str,severe:bool=True) -> None:
+        if severe:
+            iprint(msg,style=cfg.WARNING_STYLE)
         else:
-            iprint(f"{target} isn't in today's records (edit cancelled)",
-                   style=cfg.WARNING_STYLE)
-    else:
-        iprint(f"'{target}' isn't a valid tag (edit cancelled)",
-               style=cfg.WARNING_STYLE)
+            iprint(msg,style=cfg.HIGHLIGHT_STYLE)
+
+    def cancel():
+        error("Edit cancelled",severe=False)
+
+    class TokenSet:
+        """Local class to hold parsed portions of command."""
+        def __init__(self,token_str:str) -> None:
+            """Break token_str into token portions."""
+            # In future this might do hyphenated tag lists
+            #       - num_tokens is total of tokens in that list
+            #       - add elements to taglist as long as look like tags
+            #       - next element if present is INOUT
+            #       - next element if present is TIME
+            #       - remaining elements are REMAINDER
+            parts = ut.splitline(token_str)
+            self.num_tokens = len(parts)
+            # FIXME: parse chunks into tags (valid tag ids), inout, atime
+            self.tags = []  # valid Tags (though possibly not available)
+            self.inout_str = "" # what the user said
+            self.inout_value = ut.BADVALUE # or BIKE_IN, BIKE_OUT
+            self.atime_str = "" # What the user said
+            self.atime_value = ut.BADVALUE # A valid time, or BADVALUE
+            self.remainder = [] # whatever is left (hopefully nothing)
+            if self.num_tokens == 0:
+                return
+            # Break into tags list and other list
+            done_tags = False
+            for part in parts:
+                tag = ut.fix_tag(part)
+                if done_tags or not tag:
+                    self.remainder.append(part)
+                else:
+                    self.tags.append(part)
+            # Anything left over?
+            if not self.remainder:
+                return
+            # Is next part IN/OUT?
+            self.inout_str = self.remainder[0]
+            self.remainder = self.remainder[1:]
+            if self.inout_str.lower() in ["i","in"]:
+                self.inout_value = ut.BIKE_IN
+            elif self.inout_str.lower() in ["o","out"]:
+                self.inout_value = ut.BIKE_OUT
+            else:
+                return
+            # Anything left over?
+            if not self.remainder:
+                return
+            # Next part a time value?
+            self.atime_str = self.remainder[0]
+            self.remainder = self.remainder[1:]
+            atime = ut.time_str(self.atime_str,allow_now=True)
+            if not atime:
+                return
+            self.atime_value = atime
+            # All done here
+            return
+
+    def edit_processor(tag:ut.Tag,inout:str,target_time:ut.Time) -> bool:
+        """Execute one edit command with all its args known.
+
+        On entry:
+            tag: is a valid tag id (though possibly not usable)
+            inout: is ut.BIKE_IN or ut.BIKE_OUT
+            target_time: is a valid ut.Time
+        On exit, either:
+            tag has been changed, msg delivered, returns True; or
+            no change, error msg delivered, returns False
+        """
+        def success(tag:ut.Tag,inout_str:str,newtime:ut.Time) -> None:
+            """Print change message. inout_str is 'in' or 'out."""
+            iprint(f"{tag} check-{inout_str} set to "
+                   f"{ut.pretty_time(newtime,trim=True)}",
+                   style=cfg.ANSWER_STYLE)
+
+        # Error conditions to test for
+        # Unusable tag (not known, retired)
+        # For checking in:
+        #   Existing Out is earler than target time
+        # For checking out:
+        #   Not yet checked in
+        #   Existing In later than target_time
+        if tag in RETIRED_TAGS:
+            error(f"Tag '{tag}' is marked as retired")
+            return False
+        if ut.fix_tag(tag,ALL_TAGS) != tag:
+            error( f"Tag '{tag}' unrecognized or not available for use")
+            return False
+        if (inout == ut.BIKE_IN and
+                tag in check_outs and check_outs[tag] < target_time):
+            error(f"Tag '{tag}' has check-out time earlier than {target_time}")
+            return False
+        if inout == ut.BIKE_OUT:
+            if tag not in check_ins:
+                error(f"Tag '{tag}' not checked in")
+                return False
+            if check_ins[tag] > target_time:
+                error(f"Tag '{tag}' has check-in time later than "
+                      f"{ut.pretty_time(target_time,trim=True)}")
+                return False
+        # Have checked for errors, can now commit the change
+        if inout == ut.BIKE_IN:
+            check_ins[tag] = target_time
+            success(tag,"in",target_time)
+        elif inout == ut.BIKE_OUT:
+            check_outs[tag] = target_time
+            success(tag,"out",target_time)
+        else:
+            ut.squawk(f"Bad inout in call to edit_processor: '{inout}'")
+            return False
+        return True
+
+    syntax = "Syntax: edit [tag(s)] [in|out] [time|'now']"
+    # Turn all the args into a string, discarding the 'edit' at the front
+
+    argstring = " ".join(args)
+    cmd = TokenSet(argstring)
+    if cmd.num_tokens > 0 and not cmd.tags:
+        error(f"Bad input. {syntax}")
+        return
+    if not cmd.tags:
+        response = prompt_for_stuff("Change time for which bike tag(s)?")
+        if not response:
+            cancel()
+            return
+        argstring += " " + response
+        cmd = TokenSet(argstring)
+        if not cmd.tags:
+            error("Bad tag values",severe=True)
+            return
+    # At this point we know we have tags
+    while not cmd.inout_str:
+        response = prompt_for_stuff("Change bike check-IN or OUT (i/o)?")
+        if not response:
+            cancel()
+            return
+        argstring += " " + response
+        cmd = TokenSet(argstring)
+    if cmd.inout_value not in [ut.BIKE_IN,ut.BIKE_OUT]:
+        error(f"Must specify IN or OUT, not '{cmd.inout_str}'. "
+              f"{syntax}")
+        return
+    # Now we know we have tags and an INOUT
+    while not cmd.atime_str:
+        response = prompt_for_stuff("Set to what time?")
+        if not response:
+            cancel()
+            return
+        argstring += " " + response
+        cmd = TokenSet(argstring)
+    if cmd.atime_value == ut.BADVALUE:
+        error(f"Bad time '{cmd.atime_str}', "
+              f"must be HHMM or 'now'. {syntax}")
+        return
+    # That should be the whole command, with nothing left over.
+    if cmd.remainder:
+        error("Bad input at end "
+              f"'{' '.join(cmd.remainder)}'. {syntax}")
+        return
+    # Now we have a list of maybe-ish Tags, a usable INOUT and a usable Time
+    for tag in cmd.tags:
+        edit_processor(tag,cmd.inout_value,cmd.atime_value)
 
 class Block():
     """Class to help with reporting.
@@ -1509,7 +1627,7 @@ def tag_check(tag:ut.Tag) -> None:
                        style=cfg.SUBPROMPT_STYLE, end="")
                 sure = input() in ["y","yes"]
                 if sure:
-                    edit_entry([tag, 'o', ut.get_time()])
+                    multi_edit([tag, 'o', ut.get_time()])
                 else:
                     iprint("Cancelled",style=cfg.WARNING_STYLE)
             else:# checked in only
@@ -1606,15 +1724,12 @@ def main():
         # Dispatcher
         data_dirty = False
         if cmd == cfg.CMD_EDIT:
-            edit_entry(args)
+            multi_edit(args)
             data_dirty = True
         elif cmd == cfg.CMD_AUDIT:
             audit_report(args)
         elif cmd == cfg.CMD_DELETE:
             delete_entry(args)
-            data_dirty = True
-        elif cmd == cfg.CMD_EDIT:
-            edit_entry(args)
             data_dirty = True
         elif cmd == cfg.CMD_EXIT:
             done = True

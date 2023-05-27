@@ -45,6 +45,7 @@ TOTAL = "total"
 COUNT = "count"
 TIME = "time"
 IGNORE = "ignore"
+BADVALUE = "badvalue"
 
 def squawk(whatever="") -> None:
     """Print whatever with file & linenumber in front of it.
@@ -365,6 +366,18 @@ class TrackerDay():
         # LATER: check that retired tags well-formed and not duplicated
         # Return list of errors
         return errors
+
+def splitline(input:str) -> list[str]:
+    """Split input on commas & whitespace into list of non-blank strs."""
+    # Start by splitting on commas
+    tokens = input.split(",")
+    # Split on whitespace.  This makes a list of lists.
+    tokens = [item.split() for item in tokens]
+    # Flatten the list of lists into a single list.
+    tokens = [item for sublist in tokens for item in sublist]
+    # Reject any blank members of the list.
+    tokens = [x for x in tokens if x]
+    return tokens
 
 def rotate_log(filename:str) -> None:
     """Rename the current logfile to <itself>.bak."""
