@@ -25,14 +25,27 @@ import time
 import pathlib
 import statistics
 from typing import Union    # This is for type hints instead of (eg) int|str
+# readline module *might* magically solve arrow keys creating ANSI esc codes
+try:
+    import readline
+except ImportError:
+    pass
 
 import tracker_util as ut
 import tagtracker_config as cfg
 
 # Initialize valet open/close globals
+# (These are all represented in TrackerDay attributes or methods)
 VALET_OPENS = ""
 VALET_CLOSES = ""
 VALET_DATE=""
+NORMAL_TAGS = []
+OVERSIZE_TAGS = []
+RETIRED_TAGS = []
+ALL_TAGS = []
+COLOUR_LETTERS = {}
+check_ins = {}
+check_outs = {}
 
 def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     """Make a simplified str of tag names from a list of tags.
@@ -258,6 +271,7 @@ def pack_day_data() -> ut.TrackerDay:
     day.regular = NORMAL_TAGS
     day.oversize = OVERSIZE_TAGS
     day.retired = RETIRED_TAGS
+    day.colour_letters = COLOUR_LETTERS
     day.is_uppercase = UC_TAGS
     return day
 
@@ -266,41 +280,67 @@ def unpack_day_data(today_data:ut.TrackerDay) -> None:
     # pylint: disable=global-statement
     global VALET_DATE, VALET_OPENS, VALET_CLOSES
     global check_ins, check_outs
+    global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
+    global ALL_TAGS
+    global COLOUR_LETTERS
     # pylint: enable=global-statement
     VALET_DATE = today_data.date
     VALET_OPENS = today_data.opening_time
     VALET_CLOSES = today_data.closing_time
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
-    # FIXME: add these  when starting reading this from file
-    # Logic: use dat from this datafile if exists & if not today's data
-    #        else use tag lists from config files.
-    #        (Though this might not be the place to exercise that logic?)
-    # NORMAL_TAGS = today_data.regular
-    # OVERSIZE_TAGS = today_data.oversize
-    # RETIRED_TAGS = today_data.retired
+    NORMAL_TAGS = today_data.regular
+    OVERSIZE_TAGS = today_data.oversize
+    RETIRED_TAGS = today_data.retired
+    ALL_TAGS = NORMAL_TAGS + OVERSIZE_TAGS
+    COLOUR_LETTERS = today_data.colour_letters
 
 def initialize_today() -> bool:
-    """Fetch today's data from file (if exists)."""
+    """Read today's info from logfile & maybe tags-config file."""
     # Does the file even exist? (If not we will just create it later)
     pathlib.Path(cfg.LOG_FOLDER).mkdir(exist_ok = True) # make logs folder if missing
     if not os.path.exists(LOG_FILEPATH):
         iprint("No datafile for today found. Will create new datafile"
                f" {LOG_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
-        return True
-    # Fetch data from file; errors go into error_msgs
-    iprint(f"Reading data from {LOG_FILEPATH}...",
-           end="", style=cfg.SUBTITLE_STYLE)
-    error_msgs = []
-    today_data = ut.read_logfile(LOG_FILEPATH,error_msgs,ALL_TAGS)
-    if error_msgs:
-        print()
-        for text in error_msgs:
-            iprint(text, style=cfg.ERROR_STYLE)
-        return False
+        today = ut.TrackerDay()
+    else:
+        # Fetch data from file; errors go into error_msgs
+        iprint(f"Reading data from {LOG_FILEPATH}...",
+            end="", style=cfg.SUBTITLE_STYLE)
+        error_msgs = []
+        today = ut.read_logfile(LOG_FILEPATH,error_msgs)
+        if error_msgs:
+            print()
+            for text in error_msgs:
+                iprint(text, style=cfg.ERROR_STYLE)
+            return False
+    # Figure out the date for this bunch of data
+    if not today.date:
+        today.date = deduce_valet_date(today.date,LOG_FILEPATH)
+    # Find the tag reference lists (regular, oversize, etc).
+    # If there's no tag reference lists, or it's today's date,
+    # then fetch the tag reference lists from tags config
+    if (not (today.regular or today.oversize)
+            or today.date == ut.get_date()):
+        tagconfig = get_taglists_from_config()
+        today.regular = tagconfig.regular
+        today.oversize = tagconfig.oversize
+        today.retired = tagconfig.retired
+        today.colour_letters = tagconfig.colour_letters
     # On success, set today's working data
-    unpack_day_data(today_data)
+    unpack_day_data(today)
+    # Now do a consistency check.
+    errs = pack_day_data().lint_check(strict_datetimes=False)
+    if errs:
+        print()
+        for msg in errs:
+            iprint(msg,style=cfg.ERROR_STYLE)
+        error_exit()
+    # Done
     iprint('done.', num_indents=0, style=cfg.SUBTITLE_STYLE)
+    if VALET_DATE != ut.get_date():
+        iprint(f"Warning: Valet information is from {ut.long_date(VALET_DATE)}",
+                style=cfg.WARNING_STYLE)
     return True
 
 class Visit():
@@ -814,102 +854,6 @@ def delete_entry(args:list[str]) -> None:
         check_ins.pop(target)
     iprint("Deleted.",style=cfg.ANSWER_STYLE)
 
-# pylint: disable=pointless-string-statement
-'''
-def old_delete_entry(args:list[str]) -> None:
-    """Perform tag entry deletion dialogue."""
-    # FIXME: this is superseded
-    (target,which_to_del,confirm) = (args + [None,None,None])[:3]
-
-    if target:
-        target = ut.fix_tag(target)
-    if not target:
-        target = None
-    del_syntax_message = text_style("Syntax: d <tag> <both or check-out only"
-            " (b/o)> <optional pre-confirm (y)>",style=cfg.SUBPROMPT_STYLE)
-    if not(target in [None] + ALL_TAGS or which_to_del in [None,'b','o']
-           or confirm in [None, "y","yes"]):
-        iprint(del_syntax_message) # remind of syntax if invalid input
-        return None # interrupt
-    if not target: # get target if unspecified
-        iprint("Which tag's entry would you like to remove? "
-               f"(tag name) {cfg.CURSOR}",
-               style=cfg.SUBPROMPT_STYLE,end="")
-        target = input().lower()
-    checked_in = target in check_ins
-    checked_out = target in check_outs
-    if not checked_in and not checked_out:
-        iprint(f"'{target}' not used yet today (delete cancelled)",
-               style=cfg.WARNING_STYLE)
-    elif checked_out: # both events recorded
-        time_in_temp = check_ins[target]
-        time_out_temp = check_outs[target]
-        if not which_to_del: # ask which to del if not specified
-            iprint(f"Bike {target} checked in at "
-                   f"{ut.pretty_time(time_in_temp,trim=True)} and "
-                   f"out at {ut.pretty_time(time_out_temp,trim=True)}.",
-                   style=cfg.SUBPROMPT_STYLE)
-            iprint("Delete (b)oth events, "
-                   f"or just the check-(o)ut?  (b/o) {cfg.CURSOR}",
-                   style=cfg.SUBPROMPT_STYLE,end="")
-            which_to_del = input().lower()
-        if which_to_del in ["b","both"]:
-            if confirm in ["y","yes"]: # pre-confirmation
-                sure = True
-            else:
-                iprint(f"Delete {target} check-in and check-out "
-                       f"(y/N) {cfg.CURSOR}",
-                       style=cfg.SUBPROMPT_STYLE, end="")
-                sure = input().lower() in ["y","yes"]
-            if sure:
-                check_ins.pop(target)
-                check_outs.pop(target)
-                iprint(f"Deleted {target} check-in and check-out",
-                       style=cfg.ANSWER_STYLE)
-            else:
-                iprint("Delete cancelled",style=cfg.WARNING_STYLE)
-
-        elif which_to_del in ["o","out"]: # selected to delete
-            if confirm in ["y","yes"]:
-                sure = True
-            else:
-                iprint(f"Delete {target} check-out? (y/N) {cfg.CURSOR}",
-                       style=cfg.SUBPROMPT_STYLE, end="" )
-                sure = input().lower() in ["y","yes"]
-
-            if sure:
-                time_temp = check_outs[target]
-                check_outs.pop(target)
-                iprint(f"Deleted {target} check-out", style=cfg.ANSWER_STYLE)
-            else:
-                iprint("Delete cancelled",style=cfg.WARNING_STYLE)
-        else:
-            iprint("Delete cancelled",style=cfg.WARNING_STYLE)
-    else: # checked in only
-        time_in_temp = check_ins[target]
-        if which_to_del in ["b", "both", None]:
-            if confirm in ["y","yes"]:
-                sure = True
-            else: # check
-                iprint(f"Bike {target} checked in at "
-                       f"{ut.pretty_time(time_in_temp,trim=True)}. "
-                       f"Delete check-in? (y/N) {cfg.CURSOR}",
-                       style=cfg.SUBPROMPT_STYLE, end="")
-                sure = input().lower() in ["y","yes"]
-            if sure:
-                time_temp = check_ins[target]
-                check_ins.pop(target)
-                iprint(f"Deleted {time_temp} check-in for {target}",
-                       style=cfg.ANSWER_STYLE)
-            else:
-                iprint("Delete cancelled",style=cfg.WARNING_STYLE)
-        else:#  which_to_del in ["o","out"]:
-            iprint(f"{target} has only a check-in ({time_in_temp}) recorded; "
-                   "can't delete a nonexistent check-out",
-                   style=cfg.WARNING_STYLE)
-'''
-# pylint: enable=pointless-string-statement
-
 def retired_report() -> None:
     """List retired tags."""
     print()
@@ -1053,11 +997,11 @@ def multi_edit(args:list[str]):
             # Break into tags list and other list
             done_tags = False
             for part in parts:
-                tag = ut.fix_tag(part)
+                tag = ut.fix_tag(part,uppercase=UC_TAGS)
                 if done_tags or not tag:
                     self.remainder.append(part)
                 else:
-                    self.tags.append(part)
+                    self.tags.append(tag)
             # Anything left over?
             if not self.remainder:
                 return
@@ -1110,7 +1054,7 @@ def multi_edit(args:list[str]):
         if tag in RETIRED_TAGS:
             error(f"Tag '{tag}' is marked as retired")
             return False
-        if ut.fix_tag(tag,ALL_TAGS) != tag:
+        if ut.fix_tag(tag,ALL_TAGS,uppercase=UC_TAGS) != tag:
             error( f"Tag '{tag}' unrecognized or not available for use")
             return False
         if (inout == ut.BIKE_IN and
@@ -1687,9 +1631,14 @@ def parse_command(user_input:str) -> list[str]:
     return input_tokens
 
 def show_help():
-    """Show help_message with colour style highlighting."""
+    """Show help_message with colour style highlighting.
+
+    Prints first non-blank line as title;
+    lines that are flush-left as subtitles;
+    other lines in normal style.
+    """
     title_done = False
-    for line in cfg.help_message.split("\n"):
+    for line in cfg.HELP_MESSAGE.split("\n"):
         if not line:
             print()
         elif not title_done:
@@ -1699,6 +1648,26 @@ def show_help():
             iprint(line,style=cfg.SUBTITLE_STYLE)
         else:
             iprint(line,style=cfg.NORMAL_STYLE)
+
+def dump_data():
+    """For debugging. Dump current contents of core data structures."""
+    print()
+    iprint("Retired",style=cfg.ANSWER_STYLE)
+    print(f"{RETIRED_TAGS=}")
+    iprint("All Tags",style=cfg.ANSWER_STYLE)
+    print(f"{ALL_TAGS=}")
+    iprint("Regular",style=cfg.ANSWER_STYLE)
+    print(f"{NORMAL_TAGS=}")
+    iprint("Oversize",style=cfg.ANSWER_STYLE)
+    print(f"{OVERSIZE_TAGS=}")
+    iprint("Colour letters",style=cfg.ANSWER_STYLE)
+    print(f"{COLOUR_LETTERS=}")
+    iprint("Check ins",style=cfg.ANSWER_STYLE)
+    print(f"{check_ins=}")
+    iprint("Check outs",style=cfg.ANSWER_STYLE)
+    print(f"{check_outs=}")
+
+
 
 def main():
     """Run main program loop and dispatcher."""
@@ -1736,7 +1705,6 @@ def main():
         elif cmd == cfg.CMD_BLOCK:
             dataform_report(args)
         elif cmd == cfg.CMD_HELP:
-            ##print(cfg.help_message)
             show_help()
         elif cmd == cfg.CMD_LOOKBACK:
             recent(args)
@@ -1752,6 +1720,8 @@ def main():
             more_stats_report(args)
         elif cmd == cfg.CMD_CSV:
             csv_dump(args)
+        elif cmd == cfg.CMD_DUMP:
+            dump_data()
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
         elif cmd == cfg.CMD_VALET_HOURS:
@@ -1898,41 +1868,50 @@ def midnight_passed(today_is:str) -> bool:
     time.sleep(15)
     return True
 
+def get_taglists_from_config() -> ut.TrackerDay:
+    """Read tag lists (oversize, etc) from tag config file."""
+    # Lists of normal, oversize, retired tags
+    # Return a TrackerDay object, though its bikes_in/out are meaningless.
+    errs = []
+    day = ut.read_logfile(cfg.TAG_CONFIG_FILE,errs)
+    if errs:
+        print(f"Errors in file, {errs=}")
+        error_exit()
+    return day
+    ##global NORMAL_TAGS, OVERSIZE_TAGS #pylint:disable=global-statement
+    ##global RETIRED_TAGS #pylint:disable=global-statement
+    ##NORMAL_TAGS   = day.regular
+    ##OVERSIZE_TAGS = day.oversize
+    ##RETIRED_TAGS  = day.retired
+    ##return True
+
 # STARTUP
 
 # Tags uppercase or lowercase?
 UC_TAGS = cfg.TAGS_UPPERCASE_DEFAULT
-
-# These are the master dictionaries for tag status
-# and are read and written globally.
-#   key = canonical tag id (e.g. "wf4")
-#   value = ISO8601 event time (e.g. "08:43" as str)
-check_ins = {}
-check_outs = {}
-# Lists of tag ids of various categories
-NORMAL_TAGS   = ut.build_tags_config('normal_tags.cfg')
-OVERSIZE_TAGS = ut.build_tags_config('oversize_tags.cfg')
-RETIRED_TAGS  = ut.build_tags_config('retired_tags.cfg')
-
-ALL_TAGS = NORMAL_TAGS + OVERSIZE_TAGS
-COLOUR_LETTERS = ut.build_colour_dict("tag_colour_abbreviations.cfg")
-
 # Log file
 LOG_FILEPATH = custom_datafile()
 CUSTOM_LOG = bool(LOG_FILEPATH)
 if not CUSTOM_LOG:
     LOG_FILEPATH = datafile_name(cfg.LOG_FOLDER)
-# Publication
-##if cfg.PUBLISH_FOLDER and not os.path.exists(cfg.PUBLISH_FOLDER):
-##    iprint(f"Publication folder {cfg.PUBLISH_FOLDER} not found",
-##           style=cfg.ERROR_STYLE)
 
 if __name__ == "__main__":
-
     print()
     print(text_style(f"TagTracker {ut.get_version()} by Julias Hocking",
             style=cfg.ANSWER_STYLE))
     print()
+    # If no tags file, create one and tell them to edit it.
+    if not os.path.exists(cfg.TAG_CONFIG_FILE):
+        ut.new_tag_config_file(cfg.TAG_CONFIG_FILE)
+        iprint("No tags configuration file found.",style=cfg.WARNING_STYLE)
+        iprint(f"Creating new configuration file {cfg.TAG_CONFIG_FILE}",
+               style=cfg.WARNING_STYLE)
+        iprint("Edit this file then re-rerun TagTracker.",
+               style=cfg.WARNING_STYLE)
+        print("\n" * 3, "Exiting automatically in 15 seconds.")
+        time.sleep(15)
+        exit()
+
     # Configure check in- and out-lists and operating hours from file
     if not initialize_today(): # only run main() if tags read successfully
         error_exit()
@@ -1942,13 +1921,6 @@ if __name__ == "__main__":
     fold_tags_case(UC_TAGS)
 
     # Get/set valet date & time
-    if not VALET_DATE:
-        VALET_DATE = deduce_valet_date(VALET_DATE,LOG_FILEPATH)
-    if VALET_DATE != ut.get_date():
-        iprint(f"Warning: Data is from {ut.long_date(VALET_DATE)}",
-               style=cfg.WARNING_STYLE)
-    else:
-        iprint(f"Today is {ut.long_date(VALET_DATE)}",style=cfg.HIGHLIGHT_STYLE)
     if not VALET_OPENS or not VALET_CLOSES:
         print()
         iprint("Please enter today's opening/closing times.",

@@ -35,6 +35,8 @@ LOG_FOLDER = "logs" # Folder to keep logfiles in
 PUBLISH_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
+TAG_CONFIG_FILE = "tags.txt"
+
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
 BLOCK_DURATION=30
 
@@ -56,12 +58,12 @@ CHECK_OUT_CONFIRM_TIME = 30 # mins
 #       First non-blank line will be in TITLE_STYLE, after which
 #       lines that are flush left will be in SUBTITLE_STYLE; and
 #       all other lines will be in NORMAL_STYLE
-help_message = """
+HELP_MESSAGE = """
 TagTracker Commands
 
 To enter and change valet data
   Check bike in or out         :   <tag name> (eg “wa3”)
-  Edit a check in/out time     :   edit / e
+  Edit check in/out times      :   edit / e
   Delete a check in/out        :   delete / del  / d
   Set valet open/close hours   :   valet / v
 
@@ -145,6 +147,7 @@ CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
 CMD_RETIRED = "retired"
 CMD_LINT = "lint"
+CMD_DUMP = "dump"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -163,6 +166,7 @@ COMMANDS[CMD_UPPERCASE] = ["uc","uppercase", "upper"]
 COMMANDS[CMD_LOWERCASE] = ["lc","lowercase", "lower"]
 COMMANDS[CMD_RETIRED] = ["retired","ret"]
 COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
+COMMANDS[CMD_DUMP] = ["dump"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 
