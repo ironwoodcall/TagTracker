@@ -46,6 +46,7 @@ TOTAL = "total"
 COUNT = "count"
 TIME = "time"
 IGNORE = "ignore"
+COLOURS = "colours"
 BADVALUE = "badvalue"
 
 # Header strings to use in logfile and tags- config file
@@ -58,6 +59,7 @@ HEADER_VALET_CLOSES = "Valet closes:"
 HEADER_OVERSIZE = "Oversize-bike tags:"
 HEADER_REGULAR = "Regular-bike tags:"
 HEADER_RETIRED = "Retired tags:"
+HEADER_COLOURS = "Colour codes:"
 
 def squawk(whatever="") -> None:
     """Print whatever with file & linenumber in front of it.
@@ -264,10 +266,7 @@ def tags_by_prefix(tags:list[Tag]) -> dict[str,list[Tag]]:
     return prefixes
 
 class TrackerDay():
-    """One day's worth of tracker info."""
-
-    # FIXME: consider an all_tags() method
-    # FIXME: add retired tags list as part of the object
+    """One day's worth of tracker info and its context."""
 
     def __init__(self) -> None:
         """Initialize blank."""
@@ -278,8 +277,13 @@ class TrackerDay():
         self.bikes_out = {}
         self.regular = []
         self.oversize = []
-        self.retired = []   # This not un use yet.
+        self.retired = []
+        self.colour_letters = {}
         self.is_uppercase = None   # Tags in uppercase or lowercase?
+
+    def all_tags(self) -> list[Tag]:
+        """Return list of all usable tags."""
+        return list(set(self.regular + self.oversize))
 
     def make_lowercase(self) -> None:
         """Set TrackerDay object to all lowercase."""
@@ -468,6 +472,9 @@ def read_logfile(filename:str, err_msgs:list[str],
             elif (re.match(fr"^ *{HEADER_RETIRED}",line)):
                 section = RETIRED
                 continue
+            elif (re.match(fr"^ *{HEADER_COLOURS}",line)):
+                section = COLOURS
+                continue
             elif (re.match(fr"^ *{HEADER_VALET_DATE}",line)):
                 # Read the logfile's date
                 section = IGNORE
@@ -501,9 +508,27 @@ def read_logfile(filename:str, err_msgs:list[str],
                         "Unexpected unintelligibility in line", err_msgs,
                         errs=errors, fname=filename, fline=line_num)
                 continue
+
             if section == IGNORE:
                 # Things to ignore
                 continue
+
+            if section == COLOURS:
+                # Read the colour dictionary
+                bits = splitline(line)
+                if len(bits) < 2:
+                    errors = data_read_error(
+                            f"Bad colour code '{line}", err_msgs,
+                            errs=errors, fname=filename, fline=line_num)
+                    continue
+                if bits[0] in data.colour_letters:
+                    errors = data_read_error(
+                            f"Duplicate colour code '{bits[0]}", err_msgs,
+                            errs=errors, fname=filename, fline=line_num)
+                    continue
+                data.colour_letters[bits[0]] = " ".join(bits[1:])
+                continue
+
             if section in [REGULAR, OVERSIZE, RETIRED]:
                 # Break each line into 0 or more tags
                 bits = splitline(line)
@@ -526,9 +551,11 @@ def read_logfile(filename:str, err_msgs:list[str],
                     squawk(f"Bad section value in read_logfile(), '{section}")
                     return
                 continue
+
             if section not in [BIKE_IN,BIKE_OUT]:
                 squawk(f"Bad section value in read_logfile(), '{section}")
                 return
+
             # This is a tags in or tags out section
             # Break into putative tag and text, looking for errors
             cells = line.split(',')
@@ -596,9 +623,9 @@ def read_logfile(filename:str, err_msgs:list[str],
     if errors:
         err_msgs.append(f"Found {errors} errors in datafile {filename}")
     # remove duplicates from tag reference lists
-    data.regular = list(set(data.regular))
-    data.oversize = list(set(data.oversize))
-    data.retired = list(set(data.retired))
+    data.regular = sorted(list(set(data.regular)))
+    data.oversize = sorted(list(set(data.oversize)))
+    data.retired = sorted(list(set(data.retired)))
     # Return today's working data.
     return data
 
@@ -627,7 +654,7 @@ def write_logfile(filename:str, data:TrackerDay, header_lines:list=None
         lines.append(f"{tag.lower()},{atime}") # add a line "tag,time"
     # Also write tag info of which bikes are oversize, which are regular.
     # This to make complete bundles for historic information
-    lines.append( "# The following sections are for historic use of logfile")
+    lines.append( "# Following sections are context for the check-ins/outs")
     lines.append(HEADER_REGULAR)
     for tag in data.regular:
         lines.append(tag.lower())
@@ -637,12 +664,41 @@ def write_logfile(filename:str, data:TrackerDay, header_lines:list=None
     lines.append(HEADER_RETIRED)
     for tag in data.retired:
         lines.append(tag.lower())
+    lines.append(HEADER_COLOURS)
+    for letter,name in data.colour_letters.items():
+        lines.append(f"{letter},{name}")
     lines.append("# Normal end of file")
     # Write the data to the file.
     with open(filename, 'w',encoding='utf-8') as f: # write stored lines to file
         for line in lines:
             f.write(line)
             f.write("\n")
+
+def new_tag_config_file(filename:str):
+    """Create new, empty tags config file."""
+    template = [
+        "# Tags configuration file for TagTracker \n",
+        "\n",
+        "# Regular bike tags are tags that are used for bikes that are stored on racks.\n",
+        "# List tags in any order, with one or more tags per line,\n",
+        "# separated by spaces or commas.\n",
+        "# E.g. bf1 bf2 bf3 bf4\n",
+        "Regular-bike tags:\n\n",
+        "# Oversize bike tags are tags that are used for oversize bikes.\n",
+        "# List tags in any order, with one or more tags per line,\n",
+        "# separated by spaces or commas.\n",
+        "# E.g. bf1 bf2 bf3 bf4\n",
+        "Oversize-bike tags:\n\n",
+        "# Retired tags are tags that are no longer available for use.\n",
+        "Retired tags:\n\n",
+        "# Colour codes are used to format reports.\n",
+        "# Each line is one- or two-letter colour code then the name of the colour\n",
+        "# E.g. r red \n",
+        "Colour codes:\n\n"
+    ]
+    if not os.path.exists(filename): # make new tags config file only if needed
+        with open(filename, 'w',encoding='utf-8') as f:
+            f.writelines(template)
 
 # assemble list of normal tags
 def build_tags_config(filename:str) -> list[Tag]:

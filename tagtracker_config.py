@@ -35,6 +35,8 @@ LOG_FOLDER = "logs" # Folder to keep logfiles in
 PUBLISH_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
+TAG_CONFIG_FILE = "tags.txt"
+
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
 BLOCK_DURATION=30
 
@@ -145,6 +147,7 @@ CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
 CMD_RETIRED = "retired"
 CMD_LINT = "lint"
+CMD_DUMP = "dump"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -163,6 +166,7 @@ COMMANDS[CMD_UPPERCASE] = ["uc","uppercase", "upper"]
 COMMANDS[CMD_LOWERCASE] = ["lc","lowercase", "lower"]
 COMMANDS[CMD_RETIRED] = ["retired","ret"]
 COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
+COMMANDS[CMD_DUMP] = ["dump"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 
