@@ -21,10 +21,6 @@ import re
 
 TAG_CONFIG_FILE = "tags.txt"
 
-
-# FIXME Creating VISIT_NOUN was silly - replace references to it with "stay"
-VISIT_NOUN = "stay"    # Probably either "stay" or "visit"
-
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
 BLOCK_DURATION=30
 

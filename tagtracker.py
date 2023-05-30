@@ -35,6 +35,9 @@ except ImportError:
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
+import tt_event
+import tt_trackerday
+import tt_visit
 import tt_config as cfg
 import tt_printer as pr
 import tt_datafile as df
@@ -135,7 +138,7 @@ def later_events_warning(when: ut.Time = "") -> None:
     if not when:
         return
     # Buid the message
-    later_events = num_later_events(when)
+    later_events = pack_day_data().num_later_events(when)
     if not later_events:
         return
     msg = (
@@ -165,65 +168,13 @@ def valet_logo():
 
     WHATSTYLE = pr.ANSWER_STYLE
 
-    print()
+    pr.iprint()
     pr.iprint(f"            {ln1}             ", style=WHATSTYLE)
     pr.iprint(f"   FREE     {ln2}     BIKE    ", style=WHATSTYLE)
     pr.iprint(f"   SAFE     {ln3}     VALET   ", style=WHATSTYLE)
     pr.iprint(f"            {ln4}             ", style=WHATSTYLE)
-    print()
+    pr.iprint()
 
-
-def earliest_event() -> ut.Time:
-    """Return the earliest event of the day as HH:MM (or "" if none)."""
-    # Find earliest and latest block of the day
-    all_events = list(check_ins.keys()) + list(check_outs.keys())
-    if not all_events:
-        return ""
-    return min(all_events)
-
-
-def latest_event(as_of_when: Union[ut.Time, int, None] = None) -> ut.Time:
-    """Return the latest event of the day at or before as_of_when.
-
-    If no events in the time period, return "".
-    If as_of_when is blank or None, then this will use the whole day.
-    FIXME: check that this is the right choice. Would it be better to
-    go only up to the current moment?
-    """
-    if not as_of_when:
-        as_of_when = "24:00"
-    else:
-        as_of_when = ut.time_str(as_of_when)
-        if not (as_of_when):
-            return ""
-    events = [
-        x
-        for x in (list(check_ins.values()) + list(check_outs.values()))
-        if x <= as_of_when
-    ]
-    # Anything?
-    if not events:
-        return ""
-    # Find latest event of the day
-    latest = max(events)
-    return latest
-
-
-def num_later_events(after_when: Union[ut.Time, int, None] = None) -> int:
-    """Get count of events that are later than after_when."""
-    if not after_when:
-        after_when = ut.get_time()
-    else:
-        after_when = ut.time_str(after_when)
-        if not (after_when):
-            return ""
-
-    events = [
-        x
-        for x in (list(check_ins.values()) + list(check_outs.values()))
-        if x > after_when
-    ]
-    return len(events)
 
 
 def fix_2400_events() -> list[ut.Tag]:
@@ -264,10 +215,10 @@ def deduce_valet_date(current_guess: str, filename: str) -> str:
     return ut.get_date()
 
 
-def pack_day_data() -> ut.TrackerDay:
+def pack_day_data() -> tt_trackerday.TrackerDay:
     """Create a TrackerDay object loaded with today's data."""
     # Pack info into TrackerDay object
-    day = ut.TrackerDay()
+    day = tt_trackerday.TrackerDay()
     day.date = VALET_DATE
     day.opening_time = VALET_OPENS
     day.closing_time = VALET_CLOSES
@@ -281,7 +232,7 @@ def pack_day_data() -> ut.TrackerDay:
     return day
 
 
-def unpack_day_data(today_data: ut.TrackerDay) -> None:
+def unpack_day_data(today_data: tt_trackerday.TrackerDay) -> None:
     """Set globals from a TrackerDay data object."""
     # pylint: disable=global-statement
     global VALET_DATE, VALET_OPENS, VALET_CLOSES
@@ -311,7 +262,7 @@ def initialize_today() -> bool:
             "No datafile for today found. Will create new datafile" f" {LOG_FILEPATH}.",
             style=pr.SUBTITLE_STYLE,
         )
-        today = ut.TrackerDay()
+        today = tt_trackerday.TrackerDay()
     else:
         # Fetch data from file; errors go into error_msgs
         pr.iprint(
@@ -320,7 +271,7 @@ def initialize_today() -> bool:
         error_msgs = []
         today = df.read_logfile(LOG_FILEPATH, error_msgs)
         if error_msgs:
-            print()
+            pr.iprint()
             for text in error_msgs:
                 pr.iprint(text, style=pr.ERROR_STYLE)
             return False
@@ -341,7 +292,7 @@ def initialize_today() -> bool:
     # Now do a consistency check.
     errs = pack_day_data().lint_check(strict_datetimes=False)
     if errs:
-        print()
+        pr.iprint()
         for msg in errs:
             pr.iprint(msg, style=pr.ERROR_STYLE)
         error_exit()
@@ -354,132 +305,6 @@ def initialize_today() -> bool:
         )
     return True
 
-
-class Visit:
-    """Just a data structure to keep track of bike visits."""
-
-    def __init__(self, tag: str) -> None:
-        """Initialize blank."""
-        self.tag = tag  # canonical
-        self.time_in = ""  # HH:MM
-        self.time_out = ""  # HH:MM
-        self.duration = 0  # minutes
-        self.type = None  # ut.REGULAR, ut.OVERSIZE
-        self.still_here = None  # True or False
-
-
-def calc_visits(as_of_when: Union[int, ut.Time] = None) -> dict[ut.Tag, Visit]:
-    """Create a dict of visits keyed by tag as of as_of_when.
-
-    If as_of_when is not given, then this will use the current time.
-
-    If there are bikes that are not checked out, then this will
-    consider their check-out time to be:
-        earlier of:
-            current time
-            closing time if there is one, else time of latest event of the day.
-
-    As a special case, this will also accept the word "now" to
-    mean the current time.
-    """
-    as_of_when = "now" if not as_of_when else as_of_when
-    as_of_when = ut.time_str(as_of_when, allow_now=True)
-
-    # If a bike isn't checked out or its checkout is after the requested
-    # time, then use what as its checkout time?
-    latest_time = VALET_CLOSES if VALET_CLOSES else latest_event()
-    missing_checkout_time = min([latest_time, as_of_when])
-
-    visits = {}
-    for tag, time_in in check_ins.items():
-        if time_in > as_of_when:
-            continue
-        this_visit = Visit(tag)
-        this_visit.time_in = time_in
-        if tag in check_outs and check_outs[tag] <= as_of_when:
-            this_visit.time_out = check_outs[tag]
-            this_visit.still_here = False
-        else:
-            this_visit.time_out = missing_checkout_time
-            this_visit.still_here = True
-        this_visit.duration = max(
-            1, (ut.time_int(this_visit.time_out) - ut.time_int(this_visit.time_in))
-        )
-        if tag in NORMAL_TAGS:
-            this_visit.type = ut.REGULAR
-        else:
-            this_visit.type = ut.OVERSIZE
-        visits[tag] = this_visit
-    return visits
-
-
-class Event:
-    """What happened at each discrete atime of day (that something happened)."""
-
-    def __init__(self, event_time: ut.Time) -> None:
-        """Create empty Event, attributes initialized to type."""
-        self.event_time = event_time
-        self.num_here_total = None  # will be int
-        self.num_here_regular = None
-        self.num_here_oversize = None
-        self.bikes_in = []  # List of canonical tag ids.
-        self.bikes_out = []
-        self.num_ins = 0  # This is just len(self.bikes_in).
-        self.num_outs = 0  # This is just len(self.bikes_out).
-
-
-def calc_events(as_of_when: (int or ut.Time) = None) -> dict[ut.Time, Event]:
-    """Create a dict of events keyed by HH:MM time.
-
-    If as_of_when is not given, then this will choose the latest
-    check-out time of the day as its time.
-
-    As a special case, this will also accept the word "now" to
-    mean the current time.
-    """
-    if as_of_when is None:
-        # Set as_of_when to be the time of the latest checkout of the day.
-        if check_ins:
-            as_of_when = min(list(check_ins.values()))
-        else:
-            as_of_when = "now"
-    as_of_when = ut.time_str(as_of_when, allow_now=True)
-    # First pass, create all the Events and list their tags in & out.
-    events = {}
-    for tag, atime in check_ins.items():
-        if atime > as_of_when:
-            continue
-        if atime not in events:
-            events[atime] = Event(atime)
-        events[atime].bikes_in.append(tag)
-    for tag, atime in check_outs.items():
-        if atime > as_of_when:
-            continue
-        if atime not in events:
-            events[atime] = Event(atime)
-        events[atime].bikes_out.append(tag)
-    # Second pass, calculate other attributes of Events.
-    num_regular = 0  # Running balance of regular & oversize bikes.
-    num_oversize = 0
-    for atime in sorted(events.keys()):
-        vx = events[atime]
-        vx.num_ins = len(vx.bikes_in)
-        vx.num_outs = len(vx.bikes_out)
-        # How many regular & oversize bikes have we added or lost?
-        diff_normal = len([x for x in vx.bikes_in if x in NORMAL_TAGS]) - len(
-            [x for x in vx.bikes_out if x in NORMAL_TAGS]
-        )
-        diff_oversize = len([x for x in vx.bikes_in if x in OVERSIZE_TAGS]) - len(
-            [x for x in vx.bikes_out if x in OVERSIZE_TAGS]
-        )
-        num_regular += diff_normal
-        num_oversize += diff_oversize
-        vx.num_here_regular = num_regular
-        vx.num_here_oversize = num_oversize
-        vx.num_here_total = num_regular + num_oversize
-        vx.num_ins = len(vx.bikes_in)
-        vx.num_outs = len(vx.bikes_out)
-    return events
 
 
 def bike_check_ins_report(as_of_when: ut.Time) -> None:
@@ -503,7 +328,7 @@ def bike_check_ins_report(as_of_when: ut.Time) -> None:
     num_bikes_regular = len([x for x in these_check_ins if x in NORMAL_TAGS])
     num_bikes_oversize = len([x for x in these_check_ins if x in OVERSIZE_TAGS])
 
-    print()
+    pr.iprint()
     pr.iprint("Bike check-ins", style=pr.SUBTITLE_STYLE)
     pr.iprint(f"Total bikes in:   {num_bikes_ttl:4d}")
     pr.iprint(f"AM bikes in:      {num_bikes_am:4d}")
@@ -522,7 +347,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         If lower is missing, uses anything below upper
         If upper is missing, uses anything above lower
         """
-        noun = cfg.VISIT_NOUN.title()
+        noun = "Stay"
         if not lower and not upper:
             pr.iprint(
                 f"PROGRAM ERROR: called one_range(lower='{lower}'," f"upper='{upper}')",
@@ -544,10 +369,8 @@ def visit_lengths_by_category_report(visits: dict) -> None:
                 num += 1
         pr.iprint(f"{header:18s}{num:4d}")
 
-    print()
-    pr.iprint(
-        f"Number of {cfg.VISIT_NOUN.lower()}s by duration", style=pr.SUBTITLE_STYLE
-    )
+    pr.iprint()
+    pr.iprint("Number of stays by duration", style=pr.SUBTITLE_STYLE)
     prev_boundary = None
     for boundary in cfg.VISIT_CATEGORIES:
         one_range(lower=prev_boundary, upper=boundary)
@@ -557,7 +380,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
 
 def visit_statistics_report(visits: dict) -> None:
     """Max, min, mean, median, mode of visits."""
-    noun = cfg.VISIT_NOUN.lower()
+    noun = "stay"
 
     def one_line(key: str, value: str) -> None:
         """Print one line."""
@@ -577,7 +400,7 @@ def visit_statistics_report(visits: dict) -> None:
         modes_str = (
             f"{modes_str}  (times " f"rounded to {cfg.MODE_ROUND_TO_NEAREST} minutes)"
         )
-        one_line(f"Mode {cfg.VISIT_NOUN}:", modes_str)
+        one_line("Mode stay:", modes_str)
 
     def make_tags_str(tags: list[ut.Tag]) -> str:
         """Make a 'list of tags' string that is sure not to be too long."""
@@ -596,8 +419,8 @@ def visit_statistics_report(visits: dict) -> None:
         duration_tags[dur].append(tag)
     if not duration_tags:
         return  # No durations
-    print()
-    pr.iprint(f"{cfg.VISIT_NOUN.title()}-length statistics", style=pr.SUBTITLE_STYLE)
+    pr.iprint()
+    pr.iprint("Stay-length statistics", style=pr.SUBTITLE_STYLE)
     longest = max(list(duration_tags.keys()))
     long_tags = make_tags_str(duration_tags[longest])
     shortest = min(list(duration_tags.keys()))
@@ -615,7 +438,6 @@ def visit_statistics_report(visits: dict) -> None:
 
 def highwater_report(events: dict) -> None:
     """Make a highwater table as at as_of_when."""
-
     # High-water mark for bikes in valet at any one time
     def one_line(
         header: str, events: dict, atime: ut.Time, highlight_field: int
@@ -635,7 +457,7 @@ def highwater_report(events: dict) -> None:
         pr.iprint(f"{line}    {atime}")
 
     # Table header
-    print()
+    pr.iprint()
     pr.iprint("Most bikes at valet at any one time", style=pr.SUBTITLE_STYLE)
     if not events:
         pr.iprint("(No bikes)")
@@ -664,7 +486,7 @@ def highwater_report(events: dict) -> None:
     one_line("Most combined:", events, max_total_time, 2)
 
 
-def busy_report(events: dict[ut.Time, Event], as_of_when: ut.Time) -> None:
+def busy_report(events: dict[ut.Time, tt_event.Event], as_of_when: ut.Time) -> None:
     """Report the busiest time(s) of day."""
 
     def one_line(rank: int, num_events: int, times: list[ut.Time]) -> None:
@@ -679,7 +501,7 @@ def busy_report(events: dict[ut.Time, Event], as_of_when: ut.Time) -> None:
             )
             if time_num < len(times):
                 print(", ", end="")
-        print()
+        pr.iprint()
 
     # Make an empty dict of busyness of timeblocks.
     blocks = dict(zip(Block.timeblock_list(as_of_when), [0 for _ in range(0, 100)]))
@@ -694,7 +516,7 @@ def busy_report(events: dict[ut.Time, Event], as_of_when: ut.Time) -> None:
             busy_times[activity] = []
         busy_times[activity].append(atime)
     # Report the results.
-    print()
+    pr.iprint()
     pr.iprint("Busiest times of day", style=pr.SUBTITLE_STYLE)
     pr.iprint("Rank  Ins&Outs  When")
     for rank, activity in enumerate(sorted(busy_times.keys(), reverse=True), start=1):
@@ -703,7 +525,7 @@ def busy_report(events: dict[ut.Time, Event], as_of_when: ut.Time) -> None:
         one_line(rank, activity, busy_times[activity])
 
 
-def qstack_report(visits: dict[ut.Tag : Visit]) -> None:
+def qstack_report(visits: dict[ut.Tag : tt_visit.Visit]) -> None:
     """Report whether visits are more queue-like or more stack-like."""
     # Make a list of tuples: start_time, end_time for all visits.
     visit_times = list(
@@ -736,8 +558,7 @@ def qstack_report(visits: dict[ut.Tag : Visit]) -> None:
                 neutralish += 1
 
     print("")
-    pr.iprint(
-        f"Were today's {cfg.VISIT_NOUN.lower()}s " "more queue-like or stack-like?",
+    pr.iprint("Were today's stays more queue-like or stack-like?",
         style=pr.SUBTITLE_STYLE,
     )
     if not queueish and not stackish:
@@ -748,21 +569,19 @@ def qstack_report(visits: dict[ut.Tag : Visit]) -> None:
     stack_proportion = stackish / (queueish + stackish + neutralish)
     pr.iprint(
         f"The {total_possible_compares} compares of today's {len(visits)} "
-        f"{cfg.VISIT_NOUN.lower()}s are:"
+        "stays are:"
     )
     pr.iprint(
-        f"{(queue_proportion):0.3f} queue-like "
-        f"(overlapping {cfg.VISIT_NOUN.lower()}s)",
+        f"{(queue_proportion):0.3f} queue-like (overlapping stays)",
         num_indents=2,
     )
     pr.iprint(
-        f"{(stack_proportion):0.3f} stack-like " f"(nested {cfg.VISIT_NOUN.lower()}s)",
+        f"{(stack_proportion):0.3f} stack-like (nested stays)",
         num_indents=2,
     )
     pr.iprint(
         f"{((1 - stack_proportion - queue_proportion)):0.3f} neither "
-        f"(disjunct {cfg.VISIT_NOUN.lower()}s, "
-        "or share a check-in or -out time)",
+        "(disjunct stays, or share a check-in or -out time)",
         num_indents=2,
     )
 
@@ -774,6 +593,7 @@ def day_end_report(args: list) -> None:
     """
     rightnow = ut.get_time()
     as_of_when = (args + [None])[0]
+    this_day = pack_day_data()
     if not as_of_when:
         as_of_when = rightnow
     else:
@@ -784,19 +604,19 @@ def day_end_report(args: list) -> None:
                 style=pr.WARNING_STYLE,
             )
             return
-    print()
+    pr.iprint()
     pr.iprint(
         f"Summary statistics as at {ut.pretty_time(as_of_when,trim=True)}",
         style=pr.TITLE_STYLE,
     )
     later_events_warning(as_of_when)
-    if not latest_event(as_of_when):
+    if not this_day.latest_event(as_of_when):
         pr.iprint(f"No bikes checked in by {as_of_when}", style=pr.SUBTITLE_STYLE)
         return
     # Bikes in, in various categories.
     bike_check_ins_report(as_of_when)
     # Stats that use visits (stays)
-    visits = calc_visits(as_of_when)
+    visits = tt_visit.calc_visits(as_of_when)
     visit_lengths_by_category_report(visits)
     visit_statistics_report(visits)
 
@@ -812,19 +632,20 @@ def more_stats_report(args: list) -> None:
     if not (as_of_when):
         pr.iprint("Unrecognized time", style=pr.WARNING_STYLE)
         return
-    print()
+    this_day = pack_day_data()
+    pr.iprint()
     pr.iprint(
         f"Busyness report, as at {ut.pretty_time(as_of_when,trim=True)}",
         style=pr.TITLE_STYLE,
     )
     later_events_warning(as_of_when)
-    if not latest_event(as_of_when):
+    if not this_day.latest_event(as_of_when):
         pr.iprint(f"No bikes checked in by {as_of_when}", style=pr.SUBTITLE_STYLE)
         return
     # Stats that use visits (stays)
-    visits = calc_visits(as_of_when)
+    visits = tt_visit.calc_visits(as_of_when)
     # Dict of time (events)
-    events = calc_events(as_of_when)
+    events = tt_event.calc_events(as_of_when)
     highwater_report(events)
     # Busiest times of day
     busy_report(events, as_of_when)
@@ -921,7 +742,7 @@ def delete_entry(args: list[str]) -> None:
 
 def retired_report() -> None:
     """List retired tags."""
-    print()
+    pr.iprint()
     pr.iprint("Retired tags", style=pr.SUBTITLE_STYLE)
     if not RETIRED_TAGS:
         pr.iprint("--no retired tags--")
@@ -940,7 +761,7 @@ def query_tag(args: list[str]) -> None:
             end="",
         )
         target = input().lower()
-    print()
+    pr.iprint()
     fixed_target = ut.fix_tag(target, uppercase=UC_TAGS)
     if not fixed_target:
         pr.iprint(f"'{target}' does not look like a tag name", style=pr.WARNING_STYLE)
@@ -993,7 +814,7 @@ def set_valet_hours(args: list[str]) -> None:
     """Set the valet opening & closing hours."""
     global VALET_OPENS, VALET_CLOSES  # pylint: disable=global-statement
     (open_arg, close_arg) = (args + ["", ""])[:2]
-    print()
+    pr.iprint()
     if VALET_DATE:
         pr.iprint(
             f"Bike Valet information for {ut.long_date(VALET_DATE)}",
@@ -1246,7 +1067,7 @@ class Block:
         # Get time in minutes
         atime = ut.time_int(atime) if isinstance(atime, str) else atime
         # which block of time does it fall in?
-        block_start_min = (atime // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
+        block_start_min = (atime // BLOCK_DURATION) * BLOCK_DURATION
         if as_number:
             return block_start_min
         return ut.time_str(block_start_min)
@@ -1263,7 +1084,7 @@ class Block:
         # Get block start
         start = Block.block_start(atime, as_number=True)
         # Calculate block end
-        end = start + cfg.BLOCK_DURATION - 1
+        end = start + BLOCK_DURATION - 1
         # Return as minutes or HHMM
         if as_number:
             return end
@@ -1292,7 +1113,7 @@ class Block:
         # Create list of timeblocks for the the whole day.
         timeblocks = []
         for t in range(
-            min_block_min, max_block_min + cfg.BLOCK_DURATION, cfg.BLOCK_DURATION
+            min_block_min, max_block_min + BLOCK_DURATION, BLOCK_DURATION
         ):
             timeblocks.append(ut.time_str(t))
         return timeblocks
@@ -1368,10 +1189,10 @@ def recent(args: list[str]) -> None:
         f"to {ut.pretty_time(end_time,trim=True)})",
         style=pr.TITLE_STYLE,
     )
-    print()
+    pr.iprint()
     pr.iprint("Time  BikeIn BikeOut", style=pr.SUBTITLE_STYLE)
     # Collect & print any bike-in/bike-out events in the time period.
-    events = calc_events(end_time)
+    events = tt_event.calc_events(end_time)
     current_block_end = None
     for atime in sorted(events.keys()):
         # Ignore events outside the desired time range.
@@ -1409,11 +1230,11 @@ def dataform_report(args: list[str]) -> None:
     if end_time != "24:00":
         end_time = Block.block_end(end_time)
         if not (end_time):
-            print()
+            pr.iprint()
             pr.iprint(f"Unrecognized time {args[0]}", style=pr.WARNING_STYLE)
             return
 
-    print()
+    pr.iprint()
     pr.iprint(
         "Tracking form data from start of day until "
         f"{ut.pretty_time(end_time,trim=True)}",
@@ -1431,7 +1252,7 @@ def dataform_report(args: list[str]) -> None:
     for which in [ut.BIKE_IN, ut.BIKE_OUT]:
         titlebit = "checked IN" if which == ut.BIKE_IN else "returned OUT"
         title = f"Bikes {titlebit}"
-        print()
+        pr.iprint()
         pr.iprint(title, style=pr.SUBTITLE_STYLE)
         pr.iprint("-" * len(title), style=pr.SUBTITLE_STYLE)
         for start, block in all_blocks.items():
@@ -1513,7 +1334,7 @@ def audit_report(args: list[str]) -> None:
             returns_by_colour[colour_code] += len(numbers)
 
     # Audit report header.
-    print()
+    pr.iprint()
     pr.iprint(
         f"Audit report as at {ut.pretty_time(as_of_when,trim=True)}",
         style=pr.TITLE_STYLE,
@@ -1521,7 +1342,7 @@ def audit_report(args: list[str]) -> None:
     later_events_warning(as_of_when)
 
     # Audit summary section.
-    print()
+    pr.iprint()
     pr.iprint("Summary             Regular Oversize Total", style=pr.SUBTITLE_STYLE)
     pr.iprint(
         f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}" f"    {sum_in:4d}"
@@ -1543,7 +1364,7 @@ def audit_report(args: list[str]) -> None:
 
     # Tags matrixes
     no_item_str = "  "  # what to show when there's no tag
-    print()
+    pr.iprint()
     # Bikes returned out -- tags matrix.
     pr.iprint(f"Bikes still in valet at {as_of_when}", style=pr.SUBTITLE_STYLE)
     for prefix in sorted(prefixes_on_hand.keys()):
@@ -1555,7 +1376,7 @@ def audit_report(args: list[str]) -> None:
         pr.iprint(line)
     if not prefixes_on_hand:
         pr.iprint("-no bikes-")
-    print()
+    pr.iprint()
 
     # Bikes returned out -- tags matrix.
     bikes_out_title = "Bikes returned out ("
@@ -1593,9 +1414,9 @@ def csv_dump(args) -> None:
 
     as_of_when = "24:00"
 
-    events = calc_events(as_of_when)
+    events = tt_event.calc_events(as_of_when)
     # detailed fullness
-    print()
+    pr.iprint()
     print("Time, Regular, Oversize, Total")
     for atime in sorted(events.keys()):
         ev = events[atime]
@@ -1616,14 +1437,14 @@ def csv_dump(args) -> None:
     for atime in sorted(blocks_heres.keys()):
         blocks_heres[atime] = prev_here + blocks_ins[atime] - blocks_outs[atime]
         prev_here = blocks_heres[atime]
-    print()
+    pr.iprint()
     print("Time period,Incoming,Outgoing,At Valet")
     for atime in sorted(blocks_ins.keys()):
         print(f"{atime},{blocks_ins[atime]},{blocks_outs[atime]},{blocks_heres[atime]}")
-    print()
+    pr.iprint()
 
     # stay_start(hrs),duration(hrs),stay_end(hrs)
-    visits = calc_visits(as_of_when)  # keyed by tag
+    visits = tt_visit.calc_visits(as_of_when)  # keyed by tag
     # make list of stays keyed by start time
     visits_by_start = {}
     for v in visits.values():
@@ -1631,7 +1452,7 @@ def csv_dump(args) -> None:
         if start not in visits_by_start:
             visits_by_start[start] = []
         visits_by_start[start].append(v)
-    print()
+    pr.iprint()
     print("Sequence, Start time, Length of stay")
     seq = 1
     for atime in sorted(visits_by_start.keys()):
@@ -1760,7 +1581,7 @@ def show_help():
     title_done = False
     for line in cfg.HELP_MESSAGE.split("\n"):
         if not line:
-            print()
+            pr.iprint()
         elif not title_done:
             title_done = True
             pr.iprint(line, style=pr.TITLE_STYLE)
@@ -1772,7 +1593,7 @@ def show_help():
 
 def dump_data():
     """For debugging. Dump current contents of core data structures."""
-    print()
+    pr.iprint()
     pr.iprint("Retired", style=pr.ANSWER_STYLE)
     print(f"{RETIRED_TAGS=}")
     pr.iprint("All Tags", style=pr.ANSWER_STYLE)
@@ -1798,7 +1619,7 @@ def main():
         prompt_str = pr.text_style(f"Bike tag or command {cfg.CURSOR}", pr.PROMPT_STYLE)
         if cfg.INCLUDE_TIME_IN_PROMPT:
             prompt_str = f"{ut.pretty_time(ut.get_time(),trim=True)}  {prompt_str}"
-        print()
+        pr.iprint()
         user_str = input(prompt_str)
         # If midnight has passed then need to restart
         if midnight_passed(todays_date):
@@ -1849,7 +1670,7 @@ def main():
         elif cmd == cfg.CMD_UPPERCASE or cmd == cfg.CMD_LOWERCASE:
             set_tag_case(cmd == cfg.CMD_UPPERCASE)
         elif cmd == cfg.CMD_UNKNOWN:
-            print()
+            pr.iprint()
             pr.iprint(
                 "Unrecognized tag or command, enter 'h' for help",
                 style=pr.WARNING_STYLE,
@@ -1916,7 +1737,7 @@ def maybe_publish(last_pub: ut.Time, force: bool = False) -> ut.Time:
     # Nothing to do if publication dir does not exist
     if not os.path.exists(cfg.PUBLISH_FOLDER):
         ABLE_TO_PUBLISH = False
-        print()
+        pr.iprint()
         pr.iprint(
             f"Publication folder '{cfg.PUBLISH_FOLDER}' not found, "
             "will not try to Publish",
@@ -1935,7 +1756,7 @@ def error_exit() -> None:
 
     Any specific info about the error should already have been printed.
     """
-    print()
+    pr.iprint()
     pr.iprint("Closing in 30 seconds", style=pr.ERROR_STYLE)
     time.sleep(30)
     exit()
@@ -1997,19 +1818,19 @@ def midnight_passed(today_is: str) -> bool:
     pr.iprint(
         "Please restart program to reset for today's data.", style=pr.WARNING_STYLE
     )
-    print()
+    pr.iprint()
     print("\n\n\n")
     print("Automatically exiting in 15 seconds")
     time.sleep(15)
     return True
 
 
-def get_taglists_from_config() -> ut.TrackerDay:
+def get_taglists_from_config() -> tt_trackerday.TrackerDay:
     """Read tag lists (oversize, etc) from tag config file."""
     # Lists of normal, oversize, retired tags
     # Return a TrackerDay object, though its bikes_in/out are meaningless.
     errs = []
-    day = df.read_logfile(cfg.TAG_CONFIG_FILE, errs)
+    day = df.read_logfile(TAG_CONFIG_FILE, errs)
     if errs:
         print(f"Errors in file, {errs=}")
         error_exit()
@@ -2033,13 +1854,13 @@ if not CUSTOM_LOG:
     LOG_FILEPATH = datafile_name(cfg.LOG_FOLDER)
 
 if __name__ == "__main__":
-    print()
+    pr.iprint()
     print(
         pr.text_style(
             f"TagTracker {ut.get_version()} by Julias Hocking", style=pr.ANSWER_STYLE
         )
     )
-    print()
+    pr.iprint()
     # If no tags file, create one and tell them to edit it.
     if not os.path.exists(cfg.TAG_CONFIG_FILE):
         ut.new_tag_config_file(cfg.TAG_CONFIG_FILE)
@@ -2063,7 +1884,7 @@ if __name__ == "__main__":
 
     # Get/set valet date & time
     if not VALET_OPENS or not VALET_CLOSES:
-        print()
+        pr.iprint()
         pr.iprint("Please enter today's opening/closing times.", style=pr.ERROR_STYLE)
         set_valet_hours([VALET_OPENS, VALET_CLOSES])
         if VALET_OPENS or VALET_CLOSES:
