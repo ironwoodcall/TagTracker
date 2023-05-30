@@ -99,7 +99,7 @@ def recent(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             pr.iprint(format_one(atime, tag, False))
 
 
-def later_events_warning(day: tt_trackerday.TrackerDay, when: ut.Time = "") -> None:
+def later_events_warning(day: tt_trackerday.TrackerDay, when: ut.Time) -> None:
     """Warn about report that excludes later events.
 
     If  no later events, does nothing.
@@ -258,7 +258,7 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         f"Audit report as at {ut.pretty_time(as_of_when,trim=True)}",
         style=pr.TITLE_STYLE,
     )
-    later_events_warning(as_of_when)
+    later_events_warning(day, as_of_when)
 
     # Audit summary section.
     pr.iprint()
@@ -690,7 +690,7 @@ def day_end_report(day: tt_trackerday.TrackerDay, args: list) -> None:
         f"Summary statistics as at {ut.pretty_time(as_of_when,trim=True)}",
         style=pr.TITLE_STYLE,
     )
-    later_events_warning(as_of_when)
+    later_events_warning(day, as_of_when)
     if not day.latest_event(as_of_when):
         pr.iprint(f"No bikes checked in by {as_of_when}", style=pr.SUBTITLE_STYLE)
         return
@@ -718,7 +718,7 @@ def more_stats_report(day: tt_trackerday.TrackerDay, args: list) -> None:
         f"Busyness report, as at {ut.pretty_time(as_of_when,trim=True)}",
         style=pr.TITLE_STYLE,
     )
-    later_events_warning(as_of_when)
+    later_events_warning(day, as_of_when)
     if not day.latest_event(as_of_when):
         pr.iprint(f"No bikes checked in by {as_of_when}", style=pr.SUBTITLE_STYLE)
         return
@@ -773,7 +773,7 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         f"{ut.pretty_time(end_time,trim=True)}",
         style=pr.TITLE_STYLE,
     )
-    later_events_warning(end_time)
+    later_events_warning(day, end_time)
     all_blocks = tt_block.calc_blocks(day, end_time)
     if not all_blocks:
         earliest = day.earliest_event()

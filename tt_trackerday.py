@@ -198,7 +198,7 @@ class TrackerDay:
 
         events = [
             x
-            for x in (list(self.bikes_in.values()) + list(self.bikes_out()))
+            for x in (list(self.bikes_in.values()) + list(self.bikes_out.values()))
             if x > after_when
         ]
         return len(events)
