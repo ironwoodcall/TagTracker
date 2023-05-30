@@ -54,10 +54,13 @@ def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     The tags list can be a string separated by whitespace or comma.
     or it can be a list of tags.
 
-    This text is also being added when the other comment is!
-    What ever will occur when they merge?!?
+    :param tags: this is a list of potential inputs
+    :type tags: list[ut.Tag] or str
+    :return: a string with a bunch of tag names
+    :rtype: str
     """
     def hyphenize(nums:list[int]) -> str:
+        
         """Convert a list of ints into a hypenated list."""
         # Warning: dark magic.
         # Build lists of sequences from the sorted list.
