@@ -122,7 +122,7 @@ def time_str(maybe_time:Union[int,str,float,None],
     if isinstance(maybe_time,float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time,str):
-        if maybe_time == "now" and allow_now:
+        if maybe_time.lower() == "now" and allow_now:
             return get_time()
         r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
         if not (r):
