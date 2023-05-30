@@ -21,6 +21,7 @@ import os
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
+import tt_trackerday
 
 # Header strings to use in logfile and tags- config file
 # These are used when writing & also for string-matching when reading.
@@ -47,7 +48,7 @@ def rotate_log(filename: str) -> None:
 
 def read_logfile(
     filename: str, err_msgs: list[str], usable_tags: list[Tag] = None
-) -> ut.TrackerDay:
+) -> tt_trackerday.TrackerDay:
     """Fetch tag data from file into a TrackerDay object.
 
     Read data from a pre-existing data file, returns the info in a
@@ -85,7 +86,7 @@ def read_logfile(
         message_list.append(text)
         return errs + 1
 
-    data = ut.TrackerDay()
+    data = tt_trackerday.TrackerDay()
     errors = 0  # How many errors found reading datafile?
     section = None
     with open(filename, "r", encoding="utf-8") as f:
@@ -329,7 +330,7 @@ def read_logfile(
 
 
 def write_logfile(
-    filename: str, data: ut.TrackerDay, header_lines: list = None
+    filename: str, data: tt_trackerday.TrackerDay, header_lines: list = None
 ) -> None:
     """Write current data to today's data file."""
     lines = []

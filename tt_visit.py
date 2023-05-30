@@ -37,7 +37,7 @@ class Visit:
 
 
 def calc_visits(
-    day: tt_trackerday.TrackerDay, as_of_when: Union[int, ut.Time] = None
+    day: tt_trackerday.TrackerDay, as_of_when: Union[int, ut.Time]
 ) -> dict[ut.Tag, Visit]:
     """Create a dict of visits keyed by tag as of as_of_when.
 
@@ -57,7 +57,7 @@ def calc_visits(
 
     # If a bike isn't checked out or its checkout is after the requested
     # time, then use what as its checkout time?
-    latest_time = day.VALET_CLOSES if day.VALET_CLOSES else day.latest_event()
+    latest_time = day.opening_time if day.closing_time else day.latest_event()
     missing_checkout_time = min([latest_time, as_of_when])
 
     visits = {}

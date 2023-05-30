@@ -80,7 +80,7 @@ def block_end(
 
 
 def get_timeblock_list(
-    day: tt_trackerday.TrackerDay, as_of_when: ut.Time = None
+    day: tt_trackerday.TrackerDay, as_of_when: ut.Time
 ) -> list[ut.Time]:
     """Build a list of timeblocks from beg of day until as_of_when.
 
