@@ -53,6 +53,9 @@ def simplified_taglist(tags:Union[list[ut.Tag],str]) -> str:
     E.g. "wa0,2-7,9 wb1,9,10 be4"
     The tags list can be a string separated by whitespace or comma.
     or it can be a list of tags.
+
+    This text is also being added when the other comment is!
+    What ever will occur when they merge?!?
     """
     def hyphenize(nums:list[int]) -> str:
         """Convert a list of ints into a hypenated list."""
