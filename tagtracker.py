@@ -173,11 +173,13 @@ def unpack_day_data(today_data: tt_trackerday.TrackerDay) -> None:
 def initialize_today() -> bool:
     """Read today's info from logfile & maybe tags-config file."""
     # Does the file even exist? (If not we will just create it later)
+    new_datafile = False
     pathlib.Path(cfg.LOG_FOLDER).mkdir(exist_ok=True)  # make logs folder if missing
     if not os.path.exists(LOG_FILEPATH):
+        new_datafile = True
         pr.iprint(
-            "No datafile for today found. Will create new datafile" f" {LOG_FILEPATH}.",
-            style=pr.SUBTITLE_STYLE,
+            "Creating new datafile" f" {LOG_FILEPATH}.",
+            style=pr.SUBTITLE_STYLE
         )
         today = tt_trackerday.TrackerDay()
     else:
@@ -204,8 +206,12 @@ def initialize_today() -> bool:
         today.oversize = tagconfig.oversize
         today.retired = tagconfig.retired
         today.colour_letters = tagconfig.colour_letters
+    # Set UC if needed (NB: logfiles are always LC)
+    if UC_TAGS:
+        today.make_uppercase()
     # On success, set today's working data
     unpack_day_data(today)
+
     # Now do a consistency check.
     errs = pack_day_data().lint_check(strict_datetimes=False)
     if errs:
@@ -214,7 +220,8 @@ def initialize_today() -> bool:
             pr.iprint(msg, style=pr.ERROR_STYLE)
         error_exit()
     # Done
-    pr.iprint("done.", num_indents=0, style=pr.SUBTITLE_STYLE)
+    if not new_datafile:
+        pr.iprint("done.", num_indents=0, style=pr.SUBTITLE_STYLE)
     if VALET_DATE != ut.get_date():
         pr.iprint(
             f"Warning: Valet information is from {ut.long_date(VALET_DATE)}",
@@ -354,12 +361,12 @@ def query_tag(args: list[str]) -> None:
 def prompt_for_time(inp=False, prompt: str = None) -> bool or ut.Time:
     """Prompt for a time input if needed.
 
-    Helper for edit_entry(); if no time passed in, get a valid
+    Helper for edit_entry() & others; if no time passed in, get a valid
     24h time input from the user and return an HH:MM string.
     """
     if not inp:
         if not prompt:
-            prompt = "What is the correct time for this event? (HHMM or 'now')"
+            prompt = "Correct time for this event? (HHMM or 'now')"
         pr.iprint(f"{prompt} {cfg.CURSOR}", style=pr.SUBPROMPT_STYLE, end="")
         # pr.iprint("Use 24-hour format, or 'now' to use "
         #       f"the current time ({ut.get_time()}) ",end="")
@@ -387,11 +394,11 @@ def set_valet_hours(args: list[str]) -> None:
         pr.iprint(f"Closing time is: {VALET_CLOSES}", style=pr.HIGHLIGHT_STYLE)
 
     maybe_open = prompt_for_time(
-        open_arg, prompt="New valet opening time (<Enter> to cancel)"
+        open_arg, prompt="New valet opening time (24 hour clock HHMM or <Enter> to cancel)"
     )
     if not maybe_open:
         pr.iprint(
-            f"Input '{open_arg}' not a time.  Opening time unchanged.",
+            "Input is not a time.  Opening time unchanged.",
             style=pr.WARNING_STYLE,
         )
         return
@@ -399,13 +406,17 @@ def set_valet_hours(args: list[str]) -> None:
     pr.iprint(f"Opening time now set to {VALET_OPENS}", style=pr.ANSWER_STYLE)
     # Valet closing time
     maybe_close = prompt_for_time(
-        close_arg, prompt="New valet closing time (<Enter> to cancel)"
+        close_arg, prompt="New valet closing time (24 hour clock HHMM or <Enter> to cancel)"
     )
     if not maybe_close:
         pr.iprint(
-            f"Input '{close_arg}' not a time.  Closing time unchanged.",
+            "Input is not a time.  Closing time unchanged.",
             style=pr.WARNING_STYLE,
         )
+        return
+    if maybe_close <= VALET_OPENS:
+        pr.iprint("Closing time must be later than opening time. Closing time not changed.",
+                  style=pr.ERROR_STYLE)
         return
     VALET_CLOSES = maybe_close
     pr.iprint(f"Closing time now set to {VALET_CLOSES}", style=pr.ANSWER_STYLE)
@@ -639,7 +650,7 @@ def tag_check(tag: ut.Tag) -> None:
                     style=pr.SUBPROMPT_STYLE,
                     end="",
                 )
-                sure = input() in ["y", "yes"]
+                sure = input().lower() in ["y", "yes"]
                 if sure:
                     multi_edit([tag, "o", ut.get_time()])
                 else:
@@ -899,25 +910,9 @@ def error_exit() -> None:
 
 def fold_tags_case(uppercase: bool):
     """Change main data structures to uppercase or lowercase."""
-    # FIXME: eventually make this obj=pack(), obj.fold_case(), unpack(obj)
-    #           followed by re-asserting all_tags = regular + oversize
-    global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS  # pylint: disable=global-statement
-    global ALL_TAGS, check_ins, check_outs  # pylint: disable=global-statement
-    if uppercase:
-        NORMAL_TAGS = [t.upper() for t in NORMAL_TAGS]
-        OVERSIZE_TAGS = [t.upper() for t in OVERSIZE_TAGS]
-        RETIRED_TAGS = [t.upper() for t in RETIRED_TAGS]
-        ALL_TAGS = [t.upper() for t in ALL_TAGS]
-        check_ins = {k.upper(): v for k, v in check_ins.items()}
-        check_outs = {k.upper(): v for k, v in check_outs.items()}
-    else:
-        NORMAL_TAGS = [t.lower() for t in NORMAL_TAGS]
-        OVERSIZE_TAGS = [t.lower() for t in OVERSIZE_TAGS]
-        RETIRED_TAGS = [t.lower() for t in RETIRED_TAGS]
-        ALL_TAGS = [t.lower() for t in ALL_TAGS]
-        check_ins = {k.lower(): v for k, v in check_ins.items()}
-        check_outs = {k.lower(): v for k, v in check_outs.items()}
-
+    day = pack_day_data()
+    day.fold_case(uppercase=uppercase)
+    unpack_day_data(day)
 
 def set_tag_case(want_uppercase: bool) -> None:
     """Set tags to be uppercase or lowercase depending on 'command'."""

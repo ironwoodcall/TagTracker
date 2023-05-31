@@ -45,21 +45,28 @@ class TrackerDay:
 
     def make_lowercase(self) -> None:
         """Set TrackerDay object to all lowercase."""
-        self.regular = [t.lower for t in self.regular]
-        self.oversize = [t.lower for t in self.oversize]
-        self.retired = [t.lower for t in self.retired]
+        self.regular = [t.lower() for t in self.regular]
+        self.oversize = [t.lower() for t in self.oversize]
+        self.retired = [t.lower() for t in self.retired]
         self.bikes_in = {k.lower(): v for k, v in self.bikes_in.items()}
         self.bikes_out = {k.lower(): v for k, v in self.bikes_out.items()}
         self.is_uppercase = False
 
     def make_uppercase(self) -> None:
         """Set TrackerDay object to all uppercase."""
-        self.regular = [t.upper for t in self.regular]
-        self.oversize = [t.upper for t in self.oversize]
-        self.retired = [t.upper for t in self.retired]
+        self.regular = [t.upper() for t in self.regular]
+        self.oversize = [t.upper() for t in self.oversize]
+        self.retired = [t.upper() for t in self.retired]
         self.bikes_in = {k.upper(): v for k, v in self.bikes_in.items()}
         self.bikes_out = {k.upper(): v for k, v in self.bikes_out.items()}
         self.is_uppercase = True
+
+    def fold_case(self,uppercase:bool) -> None:
+        """Folds to either uppercase or lowercase."""
+        if uppercase:
+            self.make_uppercase()
+        else:
+            self.make_lowercase()
 
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
         """Generate a list of logic error messages for TrackerDay object.

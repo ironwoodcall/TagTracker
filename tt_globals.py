@@ -22,12 +22,12 @@ import re
 TAG_CONFIG_FILE = "tags.txt"
 
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
-BLOCK_DURATION=30
+BLOCK_DURATION = 30
 
 # Type aliases only to improve readability and IDE linting
 Tag = str
 Time = str
-TagDict = dict[Tag,Time]
+TagDict = dict[Tag, Time]
 
 # Constants to use as dictionary keys.
 # E.g. rather than something[this_time]["tag"] = "whatever",
@@ -48,6 +48,9 @@ TIME = "time"
 IGNORE = "ignore"
 COLOURS = "colours"
 BADVALUE = "badvalue"
+UPPERCASE = "uppercase"
+LOWERCASE = "lowercase"
+UNKNOWN = "unknown"
 
 
 # Regular expression for parsing tags -- here & in main program.
@@ -58,4 +61,3 @@ _DATE_RE = r"(2[0-9][0-9][0-9])[/-]([01]?[0-9])[/-]([0123]?[0-9])"
 DATE_PART_RE = re.compile(r"(\b|[^a-zA-Z0-9])" + _DATE_RE + r"\b")
 # Match a date as the whole string
 DATE_FULL_RE = re.compile(r"^ *" + _DATE_RE + " *$")
-

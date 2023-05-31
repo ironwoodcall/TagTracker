@@ -16,6 +16,14 @@ Copyright (C) 2023 Julias Hocking
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+    Datafiles (logfiles) contain a full day's tracker data.
+    It is made of both
+        key:value lines (for valet date, opening and closing time)
+        header/list sections (for tag lists and events):
+        Anything following comments (#) is ignored, as are blank lines and
+            lead/trailing whitespace
+
 """
 import os
 
@@ -195,7 +203,7 @@ def read_logfile(
             if section in [REGULAR, OVERSIZE, RETIRED]:
                 # Break each line into 0 or more tags
                 bits = ut.splitline(line)
-                taglist = [ut.fix_tag(x) for x in bits]
+                taglist = [ut.fix_tag(x,uppercase=False) for x in bits]
                 taglist = [x for x in taglist if x]  # remove blanks
                 # Any errors?
                 if len(taglist) != len(bits):
@@ -235,7 +243,7 @@ def read_logfile(
                     fline=line_num,
                 )
                 continue
-            this_tag = ut.fix_tag(cells[0])
+            this_tag = ut.fix_tag(cells[0],uppercase=False)
             if not (this_tag):
                 errors = data_read_error(
                     "String does not appear to be a tag",
