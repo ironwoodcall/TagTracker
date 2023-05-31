@@ -54,8 +54,6 @@ check_ins = {}
 check_outs = {}
 
 
-
-
 def num_bikes_at_valet(as_of_when: Union[ut.Time, int] = None) -> int:
     """Return count of bikes at the valet as of as_of_when."""
     as_of_when = ut.time_str(as_of_when)
