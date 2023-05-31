@@ -18,38 +18,12 @@ Copyright (C) 2023 Julias Hocking
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-# Use colour in the program?
-USE_COLOUR = True
-# If use colour, try to import colorama library
-if USE_COLOUR:
-    try:
-        from colorama import Style,Fore,Back
-    except ImportError:
-        USE_COLOUR = False
-        print("WARNING: No 'colorame' module, text will be in black & white.")
-
 # Datafiles/Logfiles
 LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
 LOG_FOLDER = "logs" # Folder to keep logfiles in
 # System occasionally puts a copy of log in a publish folder
 PUBLISH_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
-
-TAG_CONFIG_FILE = "tags.txt"
-
-# Duration (minutes) for roll-up blocks (e.g. for datasheet report)
-BLOCK_DURATION=30
-
-# Time ranges for categorizing stay-lengths, in hours.
-# First category will always be 0 - [0], last will always be > [-1]
-VISIT_CATEGORIES = [1.5,5]
-VISIT_NOUN = "stay"    # Probably either "stay" or "visit"
-
-# size of 'buckets' for calculating the mode stay time
-MODE_ROUND_TO_NEAREST = 30 # mins
-
-# List ow many ranked busiest times of day in report?
-BUSIEST_RANKS = 4
 
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30 # mins
@@ -84,51 +58,12 @@ Other
 """
 
 # Format preferences for prompting user.
-INDENT = '  '
 CURSOR = ">>> "
 INCLUDE_TIME_IN_PROMPT = True
 
 # Tags display in uppercase or lowercase?
 # (Note: in files always stored as lowercase)
 TAGS_UPPERCASE_DEFAULT=False
-
-# Styles related to colour
-STYLE={}
-PROMPT_STYLE = "prompt_style"
-SUBPROMPT_STYLE = "subprompt_style"
-ANSWER_STYLE = "answer_style"
-TITLE_STYLE = "title_style"
-SUBTITLE_STYLE = "subtitle_style"
-NORMAL_STYLE = "normal_style"
-RESET_STYLE = "reset_style"
-HIGHLIGHT_STYLE = "highlight_style"
-QUIET_STYLE = "quiet_style"
-WARNING_STYLE = "warn_style"
-ERROR_STYLE = "error_style"
-# These are assigned in 'if' in case could not import colorame.
-if USE_COLOUR:
-    STYLE[PROMPT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
-    STYLE[SUBPROMPT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
-    STYLE[ANSWER_STYLE] = (
-            f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}")
-    STYLE[TITLE_STYLE] = (
-            f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}")
-    STYLE[SUBTITLE_STYLE] = (
-            f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}")
-    STYLE[RESET_STYLE] = (
-            f"{Style.RESET_ALL}")
-    STYLE[NORMAL_STYLE] = (
-            f"{Style.RESET_ALL}")
-    STYLE[HIGHLIGHT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}")
-    STYLE[QUIET_STYLE] = (
-            f"{Style.RESET_ALL}{Fore.BLUE}")
-    STYLE[WARNING_STYLE] = (
-            f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}")
-    STYLE[ERROR_STYLE] = (
-            f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}")
 
 # Command keys and aliases.
 CMD_AUDIT = "audit"
