@@ -285,7 +285,10 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     no_item_str = "  "  # what to show when there's no tag
     pr.iprint()
     # Bikes returned out -- tags matrix.
-    pr.iprint(f"Bikes still in valet at {as_of_when}", style=pr.SUBTITLE_STYLE)
+    pr.iprint(
+        f"Bikes still in valet at {ut.pretty_time(as_of_when,trim=True)}",
+        style=pr.SUBTITLE_STYLE,
+    )
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix.upper():3>} "
@@ -346,7 +349,7 @@ def csv_dump(day: tt_trackerday.TrackerDay, args) -> None:
 
     # block, ins, outs, num_bikes_here
     blocks_ins = dict(
-        zip(tt_block.get_timeblock_list(day,as_of_when), [0 for _ in range(0, 100)])
+        zip(tt_block.get_timeblock_list(day, as_of_when), [0 for _ in range(0, 100)])
     )
     blocks_outs = blocks_ins.copy()
     blocks_heres = blocks_ins.copy()
@@ -723,9 +726,9 @@ def more_stats_report(day: tt_trackerday.TrackerDay, args: list) -> None:
         pr.iprint(f"No bikes checked in by {as_of_when}", style=pr.SUBTITLE_STYLE)
         return
     # Stats that use visits (stays)
-    visits = tt_visit.calc_visits(day,as_of_when)
+    visits = tt_visit.calc_visits(day, as_of_when)
     # Dict of time (events)
-    events = tt_event.calc_events(day,as_of_when)
+    events = tt_event.calc_events(day, as_of_when)
     highwater_report(events)
     # Busiest times of day
     busy_report(day, events, as_of_when)
