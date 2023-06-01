@@ -28,7 +28,7 @@ from typing import Union  # This is for type hints instead of (eg) int|str
 # The readline module magically solves arrow keys creating ANSI esc codes
 # on the Chromebook.  But it isn't on all platforms.
 try:
-    import readline # pylint:disable=unused-import
+    import readline  # pylint:disable=unused-import
 except ImportError:
     pass
 
@@ -42,7 +42,7 @@ import tt_reports as rep
 
 # Local connfiguration
 try:
-    import tt_local_config #pylint:disable=unused-import
+    import tt_local_config  # pylint:disable=unused-import
 except ImportError:
     pass
 
@@ -97,7 +97,6 @@ def valet_logo():
     pr.iprint(f"   SAFE     {ln3}     VALET   ", style=WHATSTYLE)
     pr.iprint(f"            {ln4}             ", style=WHATSTYLE)
     pr.iprint()
-
 
 
 def fix_2400_events() -> list[ut.Tag]:
@@ -183,10 +182,7 @@ def initialize_today() -> bool:
     pathlib.Path(cfg.LOG_FOLDER).mkdir(exist_ok=True)  # make logs folder if missing
     if not os.path.exists(LOG_FILEPATH):
         new_datafile = True
-        pr.iprint(
-            "Creating new datafile" f" {LOG_FILEPATH}.",
-            style=pr.SUBTITLE_STYLE
-        )
+        pr.iprint("Creating new datafile" f" {LOG_FILEPATH}.", style=pr.SUBTITLE_STYLE)
         today = tt_trackerday.TrackerDay()
     else:
         # Fetch data from file; errors go into error_msgs
@@ -323,7 +319,6 @@ def delete_entry(args: list[str]) -> None:
     pr.iprint("Deleted.", style=pr.ANSWER_STYLE)
 
 
-
 def query_tag(args: list[str]) -> None:
     """Query the check in/out times of a specific tag."""
     target = (args + [None])[0]
@@ -400,7 +395,8 @@ def set_valet_hours(args: list[str]) -> None:
         pr.iprint(f"Closing time is: {VALET_CLOSES}", style=pr.HIGHLIGHT_STYLE)
 
     maybe_open = prompt_for_time(
-        open_arg, prompt="New valet opening time (24 hour clock HHMM or <Enter> to cancel)"
+        open_arg,
+        prompt="New valet opening time (24 hour clock HHMM or <Enter> to cancel)",
     )
     if not maybe_open:
         pr.iprint(
@@ -412,7 +408,8 @@ def set_valet_hours(args: list[str]) -> None:
     pr.iprint(f"Opening time now set to {VALET_OPENS}", style=pr.ANSWER_STYLE)
     # Valet closing time
     maybe_close = prompt_for_time(
-        close_arg, prompt="New valet closing time (24 hour clock HHMM or <Enter> to cancel)"
+        close_arg,
+        prompt="New valet closing time (24 hour clock HHMM or <Enter> to cancel)",
     )
     if not maybe_close:
         pr.iprint(
@@ -421,8 +418,10 @@ def set_valet_hours(args: list[str]) -> None:
         )
         return
     if maybe_close <= VALET_OPENS:
-        pr.iprint("Closing time must be later than opening time. Closing time not changed.",
-                  style=pr.ERROR_STYLE)
+        pr.iprint(
+            "Closing time must be later than opening time. Closing time not changed.",
+            style=pr.ERROR_STYLE,
+        )
         return
     VALET_CLOSES = maybe_close
     pr.iprint(f"Closing time now set to {VALET_CLOSES}", style=pr.ANSWER_STYLE)
@@ -519,11 +518,13 @@ def multi_edit(args: list[str]):
 
         def success(tag: ut.Tag, inout_str: str, newtime: ut.Time) -> None:
             """Print change message. inout_str is 'in' or 'out."""
-            pr.iprint(
-                f"{tag} check-{inout_str} set to "
-                f"{ut.pretty_time(newtime,trim=True)}",
-                style=pr.ANSWER_STYLE,
-            )
+            inoutflag = ut.BIKE_IN if inout_str == "in" else ut.BIKE_OUT
+            print_tag_inout(tag,inoutflag,newtime)
+            #pr.iprint(
+            #    f"{tag} check-{inout_str} set to "
+            #    f"{ut.pretty_time(newtime,trim=True)}",
+            #    style=pr.ANSWER_STYLE,
+            #)
 
         # Error conditions to test for
         # Unusable tag (not known, retired)
@@ -572,7 +573,7 @@ def multi_edit(args: list[str]):
         error(f"Bad input. {syntax}")
         return
     if not cmd.tags:
-        response = prompt_for_stuff("Change time for which bike tag(s)?")
+        response = prompt_for_stuff("Set time for which bike tag(s)?")
         if not response:
             cancel()
             return
@@ -583,7 +584,7 @@ def multi_edit(args: list[str]):
             return
     # At this point we know we have tags
     while not cmd.inout_str:
-        response = prompt_for_stuff("Change bike check-IN or OUT (i/o)?")
+        response = prompt_for_stuff("Set bike check-IN or OUT (i/o)?")
         if not response:
             cancel()
             return
@@ -612,36 +613,34 @@ def multi_edit(args: list[str]):
         edit_processor(tag, cmd.inout_value, cmd.atime_value)
 
 
+def print_tag_inout(tag: str, inout: str, when: str = "") -> None:
+    """Pretty-print a tag-in or tag-out message."""
+    if inout == ut.BIKE_IN:
+        basemsg = f"Bike {tag} checked IN"
+        basemsg = (
+            f"{basemsg} at {ut.pretty_time(when,trim=True)}"
+            if when else basemsg
+        )
+        finalmsg = f"{basemsg:40} <---in---  "
+    elif inout == ut.BIKE_OUT:
+        basemsg = f"Bike {tag} checked OUT"
+        basemsg = (
+            f"{basemsg} at {ut.pretty_time(when,trim=True)}"
+            if when else basemsg
+        )
+        finalmsg = f"{basemsg:55} ---out--->  "
+    else:
+        ut.squawk(f"bad call to called print_tag_inout({tag}, {inout})")
+        return
+    # Print
+    pr.iprint(finalmsg,style=pr.ANSWER_STYLE)
+
 
 def tag_check(tag: ut.Tag) -> None:
     """Check a tag in or out.
 
     This processes a prompt that's just a tag ID.
     """
-
-    def print_inout(tag: str, inout: str) -> None:
-        """Pretty-print a tag-in or tag-out message."""
-        if inout == ut.BIKE_IN:
-            msg1 = f"Bike {tag} checked IN {' ' * 10}<---in---  "
-            msg2 = ""  # f"bike #{len(check_ins)}"
-        elif inout == ut.BIKE_OUT:
-            msg1 = f"Bike {tag} checked OUT {' ' * 25}---out--->  "
-            msg2 = ""  # Saying duration might have been confusing
-            ##duration = ut.pretty_time(
-            ##        ut.time_int((check_outs[tag]) - ut.time_int((check_ins[tag]),
-            ##        trim=True)
-            ##msg2 = f"at valet for {duration}h"
-        else:
-            pr.iprint(
-                f"PROGRAM ERROR: called print_inout({tag}, {inout})",
-                style=pr.ERROR_STYLE,
-            )
-            return
-        # Print
-        msg1 = pr.text_style(f"{msg1}  ", style=pr.ANSWER_STYLE)
-        if msg2:
-            msg2 = pr.text_style(f"({msg2})", style=pr.NORMAL_STYLE)
-        pr.iprint(f"{msg1} {msg2}")
 
     if tag in RETIRED_TAGS:  # if retired print specific retirement message
         pr.iprint(f"{tag} is retired", style=pr.WARNING_STYLE)
@@ -681,13 +680,13 @@ def tag_check(tag: ut.Tag) -> None:
                     sure = True
                 if sure:
                     check_outs[tag] = ut.get_time()  # check it out
-                    print_inout(tag, inout=ut.BIKE_OUT)
+                    print_tag_inout(tag, inout=ut.BIKE_OUT)
                     ##pr.iprint(f"{tag} returned OUT",style=pr.ANSWER_STYLE)
                 else:
                     pr.iprint("Cancelled return bike out", style=pr.WARNING_STYLE)
         else:  # if string is in neither dict
             check_ins[tag] = ut.get_time()  # check it in
-            print_inout(tag, ut.BIKE_IN)
+            print_tag_inout(tag, ut.BIKE_IN)
             ##pr.iprint(f"{tag} checked IN",style=pr.ANSWER_STYLE)
 
 
@@ -795,21 +794,23 @@ def main():
         elif cmd == cfg.CMD_EXIT:
             done = True
         elif cmd == cfg.CMD_BLOCK:
-            rep.dataform_report(pack_day_data(),args)
+            rep.dataform_report(pack_day_data(), args)
         elif cmd == cfg.CMD_HELP:
             show_help()
         elif cmd == cfg.CMD_LOOKBACK:
-            rep.recent(pack_day_data(),args)
+            rep.recent(pack_day_data(), args)
         elif cmd == cfg.CMD_RETIRED:
-            rep.retired_report(pack_day_data(),)
+            rep.retired_report(
+                pack_day_data(),
+            )
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:
-            rep.day_end_report(pack_day_data(),args)
+            rep.day_end_report(pack_day_data(), args)
             # Force publication when do day-end reports
             last_published = maybe_publish(last_published, force=True)
         elif cmd == cfg.CMD_BUSY:
-            rep.more_stats_report(pack_day_data(),args)
+            rep.more_stats_report(pack_day_data(), args)
         elif cmd == cfg.CMD_CSV:
             rep.csv_dump(pack_day_data(), args)
         elif cmd == cfg.CMD_DUMP:
@@ -919,6 +920,7 @@ def fold_tags_case(uppercase: bool):
     day = pack_day_data()
     day.fold_case(uppercase=uppercase)
     unpack_day_data(day)
+
 
 def set_tag_case(want_uppercase: bool) -> None:
     """Set tags to be uppercase or lowercase depending on 'command'."""
