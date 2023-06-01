@@ -23,6 +23,7 @@ from typing import Union
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
 
+
 class TrackerDay:
     """One day's worth of tracker info and its context."""
 
@@ -61,7 +62,7 @@ class TrackerDay:
         self.bikes_out = {k.upper(): v for k, v in self.bikes_out.items()}
         self.is_uppercase = True
 
-    def fold_case(self,uppercase:bool) -> None:
+    def fold_case(self, uppercase: bool) -> None:
         """Folds to either uppercase or lowercase."""
         if uppercase:
             self.make_uppercase()
