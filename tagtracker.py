@@ -39,16 +39,12 @@ import tt_config as cfg
 import tt_printer as pr
 import tt_datafile as df
 import tt_reports as rep
-# Local connfiguration
-ut.squawk(f"{cfg.USE_COLOUR=},{cfg.TAGS_UPPERCASE=}")
 
+# Local connfiguration
 try:
     import tt_local_config #pylint:disable=unused-import
 except ImportError:
-    ##print("No local config, using default values")
     pass
-
-ut.squawk(f"{cfg.USE_COLOUR=},{cfg.TAGS_UPPERCASE=}")
 
 # Initialize valet open/close globals
 # (These are all represented in TrackerDay attributes or methods)
