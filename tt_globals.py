@@ -35,22 +35,42 @@ TagDict = dict[Tag, Time]
 # The values of these constants aren't important as long as they're unique.
 # By using these rather than string values, the lint checker in the
 # editor can pick up missing or misspelled items, as can Python itself.
-TAG = "tag"
-BIKE_IN = "bike_in"
-BIKE_OUT = "bike_out"
-INOUT = "inout"
-REGULAR = "regular"
-OVERSIZE = "oversize"
-RETIRED = "retired"
-TOTAL = "total"
-COUNT = "count"
-TIME = "time"
-IGNORE = "ignore"
-COLOURS = "colours"
-BADVALUE = "badvalue"
-UPPERCASE = "uppercase"
-LOWERCASE = "lowercase"
-UNKNOWN = "unknown"
+# These all have a non-ASCII chr (→) at the beginning to make it unlikely
+# that their values would ever get typed or otherwise be non-unique
+
+TAG = chr(0x2192) + "tag"
+BIKE_IN = chr(0x2192) + "bike_in"
+BIKE_OUT = chr(0x2192) + "bike_out"
+INOUT = chr(0x2192) + "inout"
+REGULAR = chr(0x2192) + "regular"
+OVERSIZE = chr(0x2192) + "oversize"
+RETIRED = chr(0x2192) + "retired"
+TOTAL = chr(0x2192) + "total"
+COUNT = chr(0x2192) + "count"
+TIME = chr(0x2192) + "time"
+IGNORE = chr(0x2192) + "ignore"
+COLOURS = chr(0x2192) + "colours"
+BADVALUE = chr(0x2192) + "badvalue"
+UPPERCASE = chr(0x2192) + "uppercase"
+LOWERCASE = chr(0x2192) + "lowercase"
+UNKNOWN = chr(0x2192) + "unknown"
+ON = chr(0x2192) + "on"
+OFF = chr(0x2192) + "off"
+
+# Here's how I really want to do it, but then pylint won't know they're defined
+#for keyword in [
+#    "TAG", "TIME",
+#    "BIKE_IN","BIKE_OUT","INOUT",
+#    "REGULAR","OVERSIZE","RETIRED",
+#    "TOTAL","COUNT",
+#    "IGNORE",
+#    "COLOURS",
+#    "BADVALUE",
+#    "UPPERCASE","LOWERCASE",
+#   "UNKNOWN",
+#    "ON","OFF"
+#]:
+#   globals()[keyword] = chr(0x2192) + keyword.lower()
 
 
 # Regular expression for parsing tags -- here & in main program.

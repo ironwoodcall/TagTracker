@@ -18,68 +18,107 @@ Copyright (C) 2023 Julias Hocking
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import os
+import io
+
+# The readline module magically solves arrow keys creating ANSI esc codes
+# on the Chromebook.  But it isn't on all platforms.
+try:
+    import readline # pylint:disable=unused-import
+except ImportError:
+    pass
+
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+import tt_util as ut
+import tt_config as cfg
+##from tt_colours import *
+from tt_colours import (HAVE_COLOURS, STYLE,
+            PROMPT_STYLE, SUBPROMPT_STYLE, ANSWER_STYLE, TITLE_STYLE,
+            SUBTITLE_STYLE, RESET_STYLE, NORMAL_STYLE, HIGHLIGHT_STYLE,
+            WARNING_STYLE, ERROR_STYLE,Fore,Back,Style)
 
-# Use colour in the program?
-USE_COLOUR = True
+
+# Amount to indent normal output. iprint() indents in units of _INDENT
+_INDENT = '  '
+
 # If use colour, try to import colorama library
-if USE_COLOUR:
-    try:
-        from colorama import Style,Fore,Back
-    except ImportError:
-        USE_COLOUR = False
-        print("WARNING: No 'colorame' module, text will be in black & white.")
+#USE_COLOUR = True
+#if USE_COLOUR and not HAVE_COLOURS:
+#    USE_COLOUR = False
+#    print("WARNING: No colours available, text will be in black & white.")
 
-# Amount to indent normal output. iprint() indents in units of INDENT
-INDENT = '  '
 
-# Styles related to colour
-STYLE={}
-PROMPT_STYLE = "prompt_style"
-SUBPROMPT_STYLE = "subprompt_style"
-ANSWER_STYLE = "answer_style"
-TITLE_STYLE = "title_style"
-SUBTITLE_STYLE = "subtitle_style"
-NORMAL_STYLE = "normal_style"
-RESET_STYLE = "reset_style"
-HIGHLIGHT_STYLE = "highlight_style"
-QUIET_STYLE = "quiet_style"
-WARNING_STYLE = "warn_style"
-ERROR_STYLE = "error_style"
-# These are assigned in 'if' in case could not import colorame.
-if USE_COLOUR:
-    STYLE[PROMPT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
-    STYLE[SUBPROMPT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
-    STYLE[ANSWER_STYLE] = (
-            f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}")
-    STYLE[TITLE_STYLE] = (
-            f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}")
-    STYLE[SUBTITLE_STYLE] = (
-            f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}")
-    STYLE[RESET_STYLE] = (
-            f"{Style.RESET_ALL}")
-    STYLE[NORMAL_STYLE] = (
-            f"{Style.RESET_ALL}")
-    STYLE[HIGHLIGHT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}")
-    STYLE[QUIET_STYLE] = (
-            f"{Style.RESET_ALL}{Fore.BLUE}")
-    STYLE[WARNING_STYLE] = (
-            f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}")
-    STYLE[ERROR_STYLE] = (
-            f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}")
+# echo will save all input & (screen) output to an echo logfile
+# To start echoing, call set_echo(True)
+# To stop it, call set_echo(False)
+
+_echo_state = False
+_echo_filename = os.path.join(cfg.PUBLISH_FOLDER,f"echo-{ut.get_date()}.txt")
+_echo_file = None # This is the file object
+
+def get_echo() -> bool:
+    """Return current echo state ON or OFF."""
+    return _echo_state
+
+def set_echo(state:bool) -> None:
+    """Set the echo state to ON or OFF."""
+    global _echo_state, _echo_file
+    if state == _echo_state:
+        return
+    _echo_state = state
+    # If turning echo off, close the file
+    if not state and isinstance(_echo_file,io.TextIOWrapper):
+        _echo_file.close()
+    # If turning echo on, try to open the file
+    if state:
+        try:
+            _echo_file = open(_echo_filename,"at",encoding="utf-8")
+        except OSError:
+            ut.squawk(f"OSError opening echo file '{_echo_filename}'")
+
+def echo(text:str="") -> None:
+    """Send text to the echo log."""
+    if not _echo_state:
+        return
+    if not _echo_file:
+        ut.squawk("call to echo when echo file not open")
+        set_echo(False)
+        return
+    _echo_file.write(text,"\n")
+
+def tt_inp(prompt:str="") -> str:
+    """Get input, possibly echo to file."""
+    inp = input(prompt)
+    if _echo_state:
+        echo(inp)
+    return inp
+
+# Output destination
+_destination = ""   # blank == screen
+_destination_file = None
+_destination_filename = ""
+
+def set_output(filename:str="") -> None:
+    """Set print destination to filename or (default) screen.
+
+    Only close the file if it has changed to a different filename
+    (ie not just to screen).
+    """
+    pass
+
+def get_output() -> str:
+    """Get the current output destination (filename), or "" if screen."""
+    return _destination_filename
+
 
 def text_style(text:str, style=None) -> str:
     """Return text with style 'style' applied."""
-    if not USE_COLOUR:
+    if not cfg.USE_COLOUR:
         return text
     if not style:
         style = NORMAL_STYLE
     if style not in STYLE:
-        iprint(f"*** PROGRAM ERROR: Unknown style '{style}' ***",
-               style=ERROR_STYLE)
+        ut.squawk(f"Call to text_style() with unknown style '{style}'")
         return "!!!???"
     return f"{STYLE[style]}{text}{STYLE[RESET_STYLE]}"
 
@@ -88,7 +127,19 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
 
     Recognizes the 'end=' keyword for the print() statement.
     """
-    if style:
-        text = text_style(text,style=style)
-    print(f"{INDENT * num_indents}{text}",end=end)
+    indented = f"{_INDENT * num_indents}{text}"
+    if cfg.USE_COLOUR and style:
+        styled = text_style(indented,style=style)
+    else:
+        styled = indented
+    # Output goes either to screen or to a file
+    if _destination:
+        _destination_file.write(indented,"\n")
+    else:
+        print(styled,end=end)
+
+    if _echo_state:
+        echo(indented)
+
+
 

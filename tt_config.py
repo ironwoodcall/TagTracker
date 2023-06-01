@@ -18,6 +18,9 @@ Copyright (C) 2023 Julias Hocking
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+# Use colours?
+USE_COLOUR = True
+
 # Datafiles/Logfiles
 LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
 LOG_FOLDER = "logs" # Folder to keep logfiles in
@@ -68,7 +71,7 @@ INCLUDE_TIME_IN_PROMPT = True
 # object but not stored in the data file, since (1) it's part of program
 # state not data state (arguable), and more to the point (2), because
 # datafile format is canonically all lowercase.
-TAGS_UPPERCASE_DEFAULT=False
+TAGS_UPPERCASE = False
 
 # Command keys and aliases.
 CMD_AUDIT = "audit"
