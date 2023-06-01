@@ -9,3 +9,4 @@ __pycache__
 tmp
 *.csv
 *.bak
+tt_local_config.py

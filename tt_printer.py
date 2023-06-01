@@ -31,57 +31,21 @@ except ImportError:
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
 import tt_config as cfg
+##from tt_colours import *
+from tt_colours import (HAVE_COLOURS, STYLE,
+            PROMPT_STYLE, SUBPROMPT_STYLE, ANSWER_STYLE, TITLE_STYLE,
+            SUBTITLE_STYLE, RESET_STYLE, NORMAL_STYLE, HIGHLIGHT_STYLE,
+            WARNING_STYLE, ERROR_STYLE,Fore,Back,Style)
 
-# Use colour in the program?
-USE_COLOUR = True
-# If use colour, try to import colorama library
-if USE_COLOUR:
-    try:
-        from colorama import Style,Fore,Back
-    except ImportError:
-        USE_COLOUR = False
-        print("WARNING: No 'colorame' module, text will be in black & white.")
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
 _INDENT = '  '
 
-# Styles related to colour
-STYLE={}
-PROMPT_STYLE = "prompt_style"
-SUBPROMPT_STYLE = "subprompt_style"
-ANSWER_STYLE = "answer_style"
-TITLE_STYLE = "title_style"
-SUBTITLE_STYLE = "subtitle_style"
-NORMAL_STYLE = "normal_style"
-RESET_STYLE = "reset_style"
-HIGHLIGHT_STYLE = "highlight_style"
-QUIET_STYLE = "quiet_style"
-WARNING_STYLE = "warn_style"
-ERROR_STYLE = "error_style"
-# These are assigned in 'if' in case could not import colorame.
-if USE_COLOUR:
-    STYLE[PROMPT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
-    STYLE[SUBPROMPT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}")
-    STYLE[ANSWER_STYLE] = (
-            f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}")
-    STYLE[TITLE_STYLE] = (
-            f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}")
-    STYLE[SUBTITLE_STYLE] = (
-            f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}")
-    STYLE[RESET_STYLE] = (
-            f"{Style.RESET_ALL}")
-    STYLE[NORMAL_STYLE] = (
-            f"{Style.RESET_ALL}")
-    STYLE[HIGHLIGHT_STYLE] = (
-            f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}")
-    STYLE[QUIET_STYLE] = (
-            f"{Style.RESET_ALL}{Fore.BLUE}")
-    STYLE[WARNING_STYLE] = (
-            f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}")
-    STYLE[ERROR_STYLE] = (
-            f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}")
+# If use colour, try to import colorama library
+#USE_COLOUR = True
+#if USE_COLOUR and not HAVE_COLOURS:
+#    USE_COLOUR = False
+#    print("WARNING: No colours available, text will be in black & white.")
 
 
 # echo will save all input & (screen) output to an echo logfile
@@ -97,7 +61,7 @@ def get_echo() -> bool:
     return _echo_state
 
 def set_echo(state:bool) -> None:
-    """Sets the echo state to ON or OFF."""
+    """Set the echo state to ON or OFF."""
     global _echo_state, _echo_file
     if state == _echo_state:
         return
@@ -138,7 +102,8 @@ def set_output(filename:str="") -> None:
     """Set print destination to filename or (default) screen.
 
     Only close the file if it has changed to a different filename
-    (ie not just to screen)."""
+    (ie not just to screen).
+    """
     pass
 
 def get_output() -> str:
@@ -148,7 +113,7 @@ def get_output() -> str:
 
 def text_style(text:str, style=None) -> str:
     """Return text with style 'style' applied."""
-    if not USE_COLOUR:
+    if not cfg.USE_COLOUR:
         return text
     if not style:
         style = NORMAL_STYLE
@@ -163,10 +128,10 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
     Recognizes the 'end=' keyword for the print() statement.
     """
     indented = f"{_INDENT * num_indents}{text}"
-    if USE_COLOUR and style:
+    if cfg.USE_COLOUR and style:
         styled = text_style(indented,style=style)
     else:
-        style = indented
+        styled = indented
     # Output goes either to screen or to a file
     if _destination:
         _destination_file.write(indented,"\n")

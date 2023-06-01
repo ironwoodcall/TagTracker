@@ -39,6 +39,11 @@ import tt_config as cfg
 import tt_printer as pr
 import tt_datafile as df
 import tt_reports as rep
+# Local connfiguration
+try:
+    import tt_local_config #pylint:disable=unused-import
+except ImportError:
+    pass
 
 # Initialize valet open/close globals
 # (These are all represented in TrackerDay attributes or methods)
@@ -976,7 +981,7 @@ def get_taglists_from_config() -> tt_trackerday.TrackerDay:
 # STARTUP
 
 # Tags uppercase or lowercase?
-UC_TAGS = cfg.TAGS_UPPERCASE_DEFAULT
+UC_TAGS = cfg.TAGS_UPPERCASE
 # Log file
 LOG_FILEPATH = custom_datafile()
 CUSTOM_LOG = bool(LOG_FILEPATH)
