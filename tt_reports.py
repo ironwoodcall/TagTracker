@@ -585,7 +585,7 @@ def busy_histogram(day: tt_trackerday.TrackerDay) -> None:
     )
 
     for start in sorted(blocks.keys()):
-        pr.iprint(f"{start} {marker * round(blocks[start]/marker_width)}")
+        pr.iprint(f"{start} {marker * round((blocks[start]+0.1)/marker_width)}")
 
 
 def fullness_histogram(day: tt_trackerday.TrackerDay) -> None:
@@ -609,7 +609,7 @@ def fullness_histogram(day: tt_trackerday.TrackerDay) -> None:
     )
     pr.iprint(f"Each {marker} represents {marker_width} bikes", style=pr.SUBTITLE_STYLE)
     for start in sorted(blocks.keys()):
-        pr.iprint(f"{start} {marker * round(blocks[start]/marker_width)}")
+        pr.iprint(f"{start} {marker * round((blocks[start]+0.1)/marker_width)}")
 
 
 def busy_report(
