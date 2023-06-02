@@ -127,19 +127,20 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
 
     Recognizes the 'end=' keyword for the print() statement.
     """
-    indented = f"{_INDENT * num_indents}{text}"
+    indent = _INDENT * num_indents
     if cfg.USE_COLOUR and style:
-        styled = text_style(indented,style=style)
+        styled = f"{indent}{text_style(text,style=style)}"
     else:
-        styled = indented
+        styled = f"{indent}{text}"
     # Output goes either to screen or to a file
+    #FIXME : this will send styled output to file and echo
     if _destination:
-        _destination_file.write(indented,"\n")
+        _destination_file.write(styled,"\n")
     else:
         print(styled,end=end)
 
     if _echo_state:
-        echo(indented)
+        echo(styled)
 
 
 
