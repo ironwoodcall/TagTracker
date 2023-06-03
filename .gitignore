@@ -10,4 +10,5 @@ tmp
 *.csv
 *.bak
 tt_local_config.py
-tags.txt
+tt_conf.py
+tags*.txt
