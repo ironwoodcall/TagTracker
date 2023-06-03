@@ -271,7 +271,8 @@ def delete_entry(args: list[str]) -> None:
             pr.iprint(msg, style=pr.WARNING_STYLE)
         if syntax:
             pr.iprint(
-                "Syntax: delete <tag> <in|out|both> <y|n|!>", style=pr.WARNING_STYLE
+                "Syntax: delete <tag> <in|out|both> <y|n|!>",
+                style=pr.WARNING_STYLE
             )
 
     (maybe_target, maybe_what, maybe_confirm) = (args + ["", "", ""])[:3]
@@ -641,7 +642,6 @@ def tag_check(tag: ut.Tag) -> None:
 
     This processes a prompt that's just a tag ID.
     """
-
     if tag in RETIRED_TAGS:  # if retired print specific retirement message
         pr.iprint(f"{tag} is retired", style=pr.WARNING_STYLE)
     else:  # must not be retired so handle as normal
@@ -745,21 +745,23 @@ def show_help():
 def dump_data():
     """For debugging. Dump current contents of core data structures."""
     pr.iprint()
-    pr.iprint("Retired", style=pr.ANSWER_STYLE)
-    print(f"{RETIRED_TAGS=}")
-    pr.iprint("All Tags", style=pr.ANSWER_STYLE)
-    print(f"{ALL_TAGS=}")
-    pr.iprint("Regular", style=pr.ANSWER_STYLE)
-    print(f"{NORMAL_TAGS=}")
-    pr.iprint("Oversize", style=pr.ANSWER_STYLE)
-    print(f"{OVERSIZE_TAGS=}")
-    pr.iprint("Colour letters", style=pr.ANSWER_STYLE)
-    print(f"{COLOUR_LETTERS=}")
-    pr.iprint("Check ins", style=pr.ANSWER_STYLE)
-    print(f"{check_ins=}")
-    pr.iprint("Check outs", style=pr.ANSWER_STYLE)
-    print(f"{check_outs=}")
-
+    pr.iprint("    cfg   ",num_indents=0,style=pr.ERROR_STYLE)
+    for var in vars(cfg):
+        if var[0] == "_":
+            continue
+        value = vars(cfg)[var]
+        if isinstance(value,Union[str,dict,list,set,float,int]):
+            pr.iprint(f"{var}:  ",style=pr.ANSWER_STYLE,end = "")
+            pr.iprint(value)
+    pr.iprint()
+    pr.iprint("    main module   ",num_indents=0,style=pr.ERROR_STYLE)
+    for var in globals():
+        if var[0] == "_":
+            continue
+        value = globals()[var]
+        if isinstance(value,Union[str,dict,list,set,float,int]):
+            pr.iprint(f"{var}:  ",style=pr.ANSWER_STYLE,end = "")
+            pr.iprint(value)
 
 def main():
     """Run main program loop and dispatcher."""
@@ -1005,7 +1007,7 @@ if __name__ == "__main__":
     pr.iprint()
     # If no tags file, create one and tell them to edit it.
     if not os.path.exists(TAG_CONFIG_FILE):
-        ut.new_tag_config_file(TAG_CONFIG_FILE)
+        df.new_tag_config_file(TAG_CONFIG_FILE)
         pr.iprint("No tags configuration file found.", style=pr.WARNING_STYLE)
         pr.iprint(
             f"Creating new configuration file {TAG_CONFIG_FILE}",

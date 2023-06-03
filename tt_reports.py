@@ -569,9 +569,13 @@ def busy_histogram(day: tt_trackerday.TrackerDay) -> None:
     """Make a quick & dirty histogram of busyness."""
     marker = chr(0x2713)
     marker_width = 1
-    events = tt_event.calc_events(day, "24:00")
+    end_time = tt_block.block_end(ut.get_time())
+    events = tt_event.calc_events(day, as_of_when=end_time)
     blocks = dict(
-        zip(tt_block.get_timeblock_list(day, "24:00"), [0 for _ in range(0, 100)])
+        zip(
+            tt_block.get_timeblock_list(day, as_of_when=end_time),
+            [0 for _ in range(0, 100)],
+        )
     )
     # Count actions in each timeblock
     for atime, ev in events.items():
@@ -591,10 +595,14 @@ def busy_histogram(day: tt_trackerday.TrackerDay) -> None:
 def fullness_histogram(day: tt_trackerday.TrackerDay) -> None:
     """Make a quick & dirty histogram of busyness."""
     marker = chr(0x1F6B2)
-    marker_width = 2
-    events = tt_event.calc_events(day, "24:00")
+    marker_width = 2.5
+    end_time = tt_block.block_end(ut.get_time())
+    events = tt_event.calc_events(day, as_of_when=end_time)
     blocks = dict(
-        zip(tt_block.get_timeblock_list(day, "24:00"), [0 for _ in range(0, 100)])
+        zip(
+            tt_block.get_timeblock_list(day, as_of_when=end_time),
+            [0 for _ in range(0, 100)],
+        )
     )
     # Find max fullness in each block
     for atime, ev in events.items():
