@@ -30,14 +30,18 @@ except ImportError:
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
-import tt_config as cfg
+import tt_conf as cfg
 ##from tt_colours import *
 # pylint:disable=unused-import
-from tt_colours import (HAVE_COLOURS, STYLE,
-            PROMPT_STYLE, SUBPROMPT_STYLE, ANSWER_STYLE, TITLE_STYLE,
-            SUBTITLE_STYLE, RESET_STYLE, NORMAL_STYLE, HIGHLIGHT_STYLE,
-            WARNING_STYLE, ERROR_STYLE,Fore,Back,Style)
+#from tt_colours import (HAVE_COLOURS, STYLE,
+#            PROMPT_STYLE, SUBPROMPT_STYLE, ANSWER_STYLE, TITLE_STYLE,
+#            SUBTITLE_STYLE, RESET_STYLE, NORMAL_STYLE, HIGHLIGHT_STYLE,
+#            WARNING_STYLE, ERROR_STYLE,Fore,Back,Style)
 # pylint:enable=unused-import
+#try:
+#    import tt_local_config  # pylint:disable=unused-import
+#except ImportError:
+#    pass
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
 _INDENT = '  '
@@ -85,43 +89,49 @@ def echo(text:str="") -> None:
         ut.squawk("call to echo when echo file not open")
         set_echo(False)
         return
-    _echo_file.write(text,"\n")
+    _echo_file.write(f"{text}")
 
-def tt_inp(prompt:str="") -> str:
+def tt_inp(prompt:str="",style:str="") -> str:
     """Get input, possibly echo to file."""
-    inp = input(prompt)
+    inp = input(text_style(prompt,style))
     if _echo_state:
-        echo(inp)
+        echo(f"{prompt}  {inp}\n")
     return inp
 
 # Output destination
-_destination = ""   # blank == screen
+_destination:str = ""   # blank == screen
 _destination_file = None
-_destination_filename = ""
 
 def set_output(filename:str="") -> None:
     """Set print destination to filename or (default) screen.
 
     Only close the file if it has changed to a different filename
     (ie not just to screen).
+
     """
-    pass
+    global _destination, _destination_file
+    if filename == _destination:
+        return
+    if _destination:
+        _destination_file.close()
+    if filename:
+        _destination_file = open(filename,mode="at",encoding="utf-8")
+    _destination = filename
 
 def get_output() -> str:
     """Get the current output destination (filename), or "" if screen."""
-    return _destination_filename
-
+    return _destination
 
 def text_style(text:str, style=None) -> str:
     """Return text with style 'style' applied."""
     if not cfg.USE_COLOUR:
         return text
     if not style:
-        style = NORMAL_STYLE
-    if style not in STYLE:
+        style = cfg.NORMAL_STYLE
+    if style not in cfg.STYLE:
         ut.squawk(f"Call to text_style() with unknown style '{style}'")
         return "!!!???"
-    return f"{STYLE[style]}{text}{STYLE[RESET_STYLE]}"
+    return f"{cfg.STYLE[style]}{text}{cfg.STYLE[cfg.RESET_STYLE]}"
 
 def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
     """Print the text, indented num_indents times.
@@ -140,8 +150,10 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
     else:
         # Going to screen.  Style and indent.
         if cfg.USE_COLOUR and style:
-            text = text_style(text,style=style)
-        print(f"{indent}{text}",end=end)
+            styled_text = text_style(text,style=style)
+            print(f"{indent}{styled_text}",end=end)
+        else:
+            print(f"{indent}{text}",end=end)
 
     # Also echo?
     if _echo_state:

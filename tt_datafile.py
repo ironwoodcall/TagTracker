@@ -412,35 +412,3 @@ def new_tag_config_file(filename: str):
         with open(filename, "w", encoding="utf-8") as f:
             f.writelines(template)
 
-
-# assemble list of normal tags
-def build_tags_config(filename: str) -> list[Tag]:
-    """Build a tag list from a file.
-
-    Constructs a list of each allowable tag in a given category
-    (normal, oversize, retired, etc) by reading its category.cfg file.
-    """
-    tags = []
-    if not os.path.exists(filename):  # make new tags config file if needed
-        with open(filename, "w", encoding="utf-8") as f:
-            header = (
-                "# Enter lines of whitespace-separated tags, eg 'wa0 wa1 wa2 wa3'\n"
-            )
-            f.writelines(header)
-    with open(filename, "r", encoding="utf-8") as f:  # open and read
-        lines = f.readlines()
-    line_counter = 0  # init line counter to 0
-    for line in lines:
-        line_counter += 1  # increment for current line
-        if not line[0] == "#":  # for each non-comment line
-            # (blank lines do nothing here anyway)
-            line_words = line.rstrip().split()  # split into each tag name
-            for word in line_words:  # check line for nonconforming tag names
-                if not PARSE_TAG_RE.match(word.lower()):
-                    print(
-                        f'Invalid tag "{word}" found '
-                        f"in {filename} on line {line_counter}"
-                    )
-                    return []  # stop loading
-            tags += line_words  # add all tags in that line to this tag type
-    return tags

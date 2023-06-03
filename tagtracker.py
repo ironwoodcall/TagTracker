@@ -35,16 +35,16 @@ except ImportError:
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
 import tt_trackerday
-import tt_config as cfg
+import tt_conf as cfg
 import tt_printer as pr
 import tt_datafile as df
 import tt_reports as rep
 
 # Local connfiguration
-try:
-    import tt_local_config  # pylint:disable=unused-import
-except ImportError:
-    pass
+# try:
+#    import tt_local_config  # pylint:disable=unused-import
+# except ImportError:
+#    pass
 
 # Initialize valet open/close globals
 # (These are all represented in TrackerDay attributes or methods)
@@ -89,7 +89,7 @@ def valet_logo():
     ln3 = f"{LOCK00}{BL}{BIKE00}{BIKE00}{BIKE00}{SCOOTR}{BL}{VR}"
     ln4 = f"{BL}{LL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{LR}"
 
-    WHATSTYLE = pr.ANSWER_STYLE
+    WHATSTYLE = cfg.ANSWER_STYLE
 
     pr.iprint()
     pr.iprint(f"            {ln1}             ", style=WHATSTYLE)
@@ -114,7 +114,7 @@ def fix_2400_events() -> list[ut.Tag]:
     if changed:
         pr.iprint(
             f"(Time for {rep.simplified_taglist(changed)} adjusted to 23:59)",
-            style=pr.WARNING_STYLE,
+            style=cfg.WARNING_STYLE,
         )
     return changed
 
@@ -182,19 +182,19 @@ def initialize_today() -> bool:
     pathlib.Path(cfg.LOG_FOLDER).mkdir(exist_ok=True)  # make logs folder if missing
     if not os.path.exists(LOG_FILEPATH):
         new_datafile = True
-        pr.iprint("Creating new datafile" f" {LOG_FILEPATH}.", style=pr.SUBTITLE_STYLE)
+        pr.iprint("Creating new datafile" f" {LOG_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
         today = tt_trackerday.TrackerDay()
     else:
         # Fetch data from file; errors go into error_msgs
         pr.iprint(
-            f"Reading data from {LOG_FILEPATH}...", end="", style=pr.SUBTITLE_STYLE
+            f"Reading data from {LOG_FILEPATH}...", end="", style=cfg.SUBTITLE_STYLE
         )
         error_msgs = []
         today = df.read_logfile(LOG_FILEPATH, error_msgs)
         if error_msgs:
             pr.iprint()
             for text in error_msgs:
-                pr.iprint(text, style=pr.ERROR_STYLE)
+                pr.iprint(text, style=cfg.ERROR_STYLE)
             return False
     # Figure out the date for this bunch of data
     if not today.date:
@@ -219,15 +219,15 @@ def initialize_today() -> bool:
     if errs:
         pr.iprint()
         for msg in errs:
-            pr.iprint(msg, style=pr.ERROR_STYLE)
+            pr.iprint(msg, style=cfg.ERROR_STYLE)
         error_exit()
     # Done
     if not new_datafile:
-        pr.iprint("done.", num_indents=0, style=pr.SUBTITLE_STYLE)
+        pr.iprint("done.", num_indents=0, style=cfg.SUBTITLE_STYLE)
     if VALET_DATE != ut.get_date():
         pr.iprint(
             f"Warning: Valet information is from {ut.long_date(VALET_DATE)}",
-            style=pr.WARNING_STYLE,
+            style=cfg.WARNING_STYLE,
         )
     return True
 
@@ -262,17 +262,16 @@ def delete_entry(args: list[str]) -> None:
         if optional or maybe:
             maybe = "" if maybe is None else f"{maybe}".strip().lower()
             return maybe
-        prompt = pr.text_style(f"{prompt} {cfg.CURSOR}", style=pr.PROMPT_STYLE)
-        return input(prompt).strip().lower()
+        prompt = f"{prompt} {cfg.CURSOR}"
+        return pr.tt_inp(prompt, style=cfg.PROMPT_STYLE).strip().lower()
 
     def nogood(msg: str = "", syntax: bool = True) -> None:
         """Print the nogood msg + syntax msg."""
         if msg:
-            pr.iprint(msg, style=pr.WARNING_STYLE)
+            pr.iprint(msg, style=cfg.WARNING_STYLE)
         if syntax:
             pr.iprint(
-                "Syntax: delete <tag> <in|out|both> <y|n|!>",
-                style=pr.WARNING_STYLE
+                "Syntax: delete <tag> <in|out|both> <y|n|!>", style=cfg.WARNING_STYLE
             )
 
     (maybe_target, maybe_what, maybe_confirm) = (args + ["", "", ""])[:3]
@@ -317,7 +316,7 @@ def delete_entry(args: list[str]) -> None:
         check_outs.pop(target)
     if what in ["b", "both", "i", "in"] and target in check_ins:
         check_ins.pop(target)
-    pr.iprint("Deleted.", style=pr.ANSWER_STYLE)
+    pr.iprint("Deleted.", style=cfg.ANSWER_STYLE)
 
 
 def query_tag(args: list[str]) -> None:
@@ -326,38 +325,38 @@ def query_tag(args: list[str]) -> None:
     if not target:  # only do dialog if no target passed
         pr.iprint(
             f"Query which tag? (tag name) {cfg.CURSOR}",
-            style=pr.SUBPROMPT_STYLE,
+            style=cfg.SUBPROMPT_STYLE,
             end="",
         )
-        target = input().lower()
+        target = pr.tt_inp().lower()
     pr.iprint()
     fixed_target = ut.fix_tag(target, uppercase=UC_TAGS)
     if not fixed_target:
-        pr.iprint(f"'{target}' does not look like a tag name", style=pr.WARNING_STYLE)
+        pr.iprint(f"'{target}' does not look like a tag name", style=cfg.WARNING_STYLE)
         return
     if fixed_target in RETIRED_TAGS:
-        pr.iprint(f"Tag '{fixed_target}' is retired", style=pr.ANSWER_STYLE)
+        pr.iprint(f"Tag '{fixed_target}' is retired", style=cfg.ANSWER_STYLE)
         return
     if fixed_target not in ALL_TAGS:
         pr.iprint(
-            f"Tag '{fixed_target}' is not available for use", style=pr.WARNING_STYLE
+            f"Tag '{fixed_target}' is not available for use", style=cfg.WARNING_STYLE
         )
         return
     if fixed_target not in check_ins:
-        pr.iprint(f"Tag '{fixed_target}' not used yet today", style=pr.WARNING_STYLE)
+        pr.iprint(f"Tag '{fixed_target}' not used yet today", style=cfg.WARNING_STYLE)
         return
     pr.iprint(
         f"{ut.pretty_time(check_ins[fixed_target])}  " f"{fixed_target} checked  IN",
-        style=pr.ANSWER_STYLE,
+        style=cfg.ANSWER_STYLE,
     )
     if fixed_target in check_outs:
         pr.iprint(
             f"{ut.pretty_time(check_outs[fixed_target])}  "
             f"{fixed_target} returned OUT",
-            style=pr.ANSWER_STYLE,
+            style=cfg.ANSWER_STYLE,
         )
     else:
-        pr.iprint(f"       {fixed_target} still at valet", style=pr.ANSWER_STYLE)
+        pr.iprint(f"       {fixed_target} still at valet", style=cfg.ANSWER_STYLE)
 
 
 def prompt_for_time(inp=False, prompt: str = None) -> bool or ut.Time:
@@ -369,10 +368,10 @@ def prompt_for_time(inp=False, prompt: str = None) -> bool or ut.Time:
     if not inp:
         if not prompt:
             prompt = "Correct time for this event? (HHMM or 'now')"
-        pr.iprint(f"{prompt} {cfg.CURSOR}", style=pr.SUBPROMPT_STYLE, end="")
+        pr.iprint(f"{prompt} {cfg.CURSOR}", style=cfg.SUBPROMPT_STYLE, end="")
         # pr.iprint("Use 24-hour format, or 'now' to use "
         #       f"the current time ({ut.get_time()}) ",end="")
-        inp = input()
+        inp = pr.tt_inp()
     hhmm = ut.time_str(inp, allow_now=True)
     if not hhmm:
         return False
@@ -387,13 +386,13 @@ def set_valet_hours(args: list[str]) -> None:
     if VALET_DATE:
         pr.iprint(
             f"Bike Valet information for {ut.long_date(VALET_DATE)}",
-            style=pr.HIGHLIGHT_STYLE,
+            style=cfg.HIGHLIGHT_STYLE,
         )
     # Valet opening time
     if VALET_OPENS:
-        pr.iprint(f"Opening time is: {VALET_OPENS}", style=pr.HIGHLIGHT_STYLE)
+        pr.iprint(f"Opening time is: {VALET_OPENS}", style=cfg.HIGHLIGHT_STYLE)
     if VALET_CLOSES:
-        pr.iprint(f"Closing time is: {VALET_CLOSES}", style=pr.HIGHLIGHT_STYLE)
+        pr.iprint(f"Closing time is: {VALET_CLOSES}", style=cfg.HIGHLIGHT_STYLE)
 
     maybe_open = prompt_for_time(
         open_arg,
@@ -402,11 +401,11 @@ def set_valet_hours(args: list[str]) -> None:
     if not maybe_open:
         pr.iprint(
             "Input is not a time.  Opening time unchanged.",
-            style=pr.WARNING_STYLE,
+            style=cfg.WARNING_STYLE,
         )
         return
     VALET_OPENS = maybe_open
-    pr.iprint(f"Opening time now set to {VALET_OPENS}", style=pr.ANSWER_STYLE)
+    pr.iprint(f"Opening time now set to {VALET_OPENS}", style=cfg.ANSWER_STYLE)
     # Valet closing time
     maybe_close = prompt_for_time(
         close_arg,
@@ -415,17 +414,17 @@ def set_valet_hours(args: list[str]) -> None:
     if not maybe_close:
         pr.iprint(
             "Input is not a time.  Closing time unchanged.",
-            style=pr.WARNING_STYLE,
+            style=cfg.WARNING_STYLE,
         )
         return
     if maybe_close <= VALET_OPENS:
         pr.iprint(
             "Closing time must be later than opening time. Closing time not changed.",
-            style=pr.ERROR_STYLE,
+            style=cfg.ERROR_STYLE,
         )
         return
     VALET_CLOSES = maybe_close
-    pr.iprint(f"Closing time now set to {VALET_CLOSES}", style=pr.ANSWER_STYLE)
+    pr.iprint(f"Closing time now set to {VALET_CLOSES}", style=cfg.ANSWER_STYLE)
 
 
 def multi_edit(args: list[str]):
@@ -439,14 +438,14 @@ def multi_edit(args: list[str]):
     """
 
     def prompt_for_stuff(prompt: str):
-        pr.iprint(f"{prompt} {cfg.CURSOR}", style=pr.SUBPROMPT_STYLE, end="")
-        return input().lower()
+        pr.iprint(f"{prompt} {cfg.CURSOR}", style=cfg.SUBPROMPT_STYLE, end="")
+        return pr.tt_inp().lower()
 
     def error(msg: str, severe: bool = True) -> None:
         if severe:
-            pr.iprint(msg, style=pr.WARNING_STYLE)
+            pr.iprint(msg, style=cfg.WARNING_STYLE)
         else:
-            pr.iprint(msg, style=pr.HIGHLIGHT_STYLE)
+            pr.iprint(msg, style=cfg.HIGHLIGHT_STYLE)
 
     def cancel():
         error("Edit cancelled", severe=False)
@@ -520,12 +519,12 @@ def multi_edit(args: list[str]):
         def success(tag: ut.Tag, inout_str: str, newtime: ut.Time) -> None:
             """Print change message. inout_str is 'in' or 'out."""
             inoutflag = ut.BIKE_IN if inout_str == "in" else ut.BIKE_OUT
-            print_tag_inout(tag,inoutflag,newtime)
-            #pr.iprint(
+            print_tag_inout(tag, inoutflag, newtime)
+            # pr.iprint(
             #    f"{tag} check-{inout_str} set to "
             #    f"{ut.pretty_time(newtime,trim=True)}",
-            #    style=pr.ANSWER_STYLE,
-            #)
+            #    style=cfg.ANSWER_STYLE,
+            # )
 
         # Error conditions to test for
         # Unusable tag (not known, retired)
@@ -618,23 +617,17 @@ def print_tag_inout(tag: str, inout: str, when: str = "") -> None:
     """Pretty-print a tag-in or tag-out message."""
     if inout == ut.BIKE_IN:
         basemsg = f"Bike {tag} checked IN"
-        basemsg = (
-            f"{basemsg} at {ut.pretty_time(when,trim=True)}"
-            if when else basemsg
-        )
+        basemsg = f"{basemsg} at {ut.pretty_time(when,trim=True)}" if when else basemsg
         finalmsg = f"{basemsg:40} <---in---  "
     elif inout == ut.BIKE_OUT:
         basemsg = f"Bike {tag} checked OUT"
-        basemsg = (
-            f"{basemsg} at {ut.pretty_time(when,trim=True)}"
-            if when else basemsg
-        )
+        basemsg = f"{basemsg} at {ut.pretty_time(when,trim=True)}" if when else basemsg
         finalmsg = f"{basemsg:55} ---out--->  "
     else:
         ut.squawk(f"bad call to called print_tag_inout({tag}, {inout})")
         return
     # Print
-    pr.iprint(finalmsg,style=pr.ANSWER_STYLE)
+    pr.iprint(finalmsg, style=cfg.ANSWER_STYLE)
 
 
 def tag_check(tag: ut.Tag) -> None:
@@ -643,7 +636,7 @@ def tag_check(tag: ut.Tag) -> None:
     This processes a prompt that's just a tag ID.
     """
     if tag in RETIRED_TAGS:  # if retired print specific retirement message
-        pr.iprint(f"{tag} is retired", style=pr.WARNING_STYLE)
+        pr.iprint(f"{tag} is retired", style=cfg.WARNING_STYLE)
     else:  # must not be retired so handle as normal
         if tag in check_ins:
             if tag in check_outs:  # if tag has checked in & out
@@ -652,14 +645,14 @@ def tag_check(tag: ut.Tag) -> None:
                     f"Overwrite {check_outs[tag]} check-out with "
                     f"current time ({ut.get_time()})? "
                     f"(y/N) {cfg.CURSOR}",
-                    style=pr.SUBPROMPT_STYLE,
+                    style=cfg.SUBPROMPT_STYLE,
                     end="",
                 )
-                sure = input().lower() in ["y", "yes"]
+                sure = pr.tt_inp().lower() in ["y", "yes"]
                 if sure:
                     multi_edit([tag, "o", ut.get_time()])
                 else:
-                    pr.iprint("Cancelled", style=pr.WARNING_STYLE)
+                    pr.iprint("Cancelled", style=cfg.WARNING_STYLE)
             else:  # checked in only
                 now_mins = ut.time_int(ut.get_time())
                 check_in_mins = ut.time_int(check_ins[tag])
@@ -668,26 +661,26 @@ def tag_check(tag: ut.Tag) -> None:
                     pr.iprint(
                         "This bike checked in at "
                         f"{check_ins[tag]} ({time_diff_mins} mins ago)",
-                        style=pr.SUBPROMPT_STYLE,
+                        style=cfg.SUBPROMPT_STYLE,
                     )
                     pr.iprint(
                         "Do you want to check it out? " f"(y/N) {cfg.CURSOR}",
-                        style=pr.SUBPROMPT_STYLE,
+                        style=cfg.SUBPROMPT_STYLE,
                         end="",
                     )
-                    sure = input().lower() in ["yes", "y"]
+                    sure = pr.tt_inp().lower() in ["yes", "y"]
                 else:  # don't check for long stays
                     sure = True
                 if sure:
                     check_outs[tag] = ut.get_time()  # check it out
                     print_tag_inout(tag, inout=ut.BIKE_OUT)
-                    ##pr.iprint(f"{tag} returned OUT",style=pr.ANSWER_STYLE)
+                    ##pr.iprint(f"{tag} returned OUT",style=cfg.ANSWER_STYLE)
                 else:
-                    pr.iprint("Cancelled return bike out", style=pr.WARNING_STYLE)
+                    pr.iprint("Cancelled return bike out", style=cfg.WARNING_STYLE)
         else:  # if string is in neither dict
             check_ins[tag] = ut.get_time()  # check it in
             print_tag_inout(tag, ut.BIKE_IN)
-            ##pr.iprint(f"{tag} checked IN",style=pr.ANSWER_STYLE)
+            ##pr.iprint(f"{tag} checked IN",style=cfg.ANSWER_STYLE)
 
 
 def parse_command(user_input: str) -> list[str]:
@@ -735,33 +728,34 @@ def show_help():
             pr.iprint()
         elif not title_done:
             title_done = True
-            pr.iprint(line, style=pr.TITLE_STYLE)
+            pr.iprint(line, style=cfg.TITLE_STYLE)
         elif line[0] != " ":
-            pr.iprint(line, style=pr.SUBTITLE_STYLE)
+            pr.iprint(line, style=cfg.SUBTITLE_STYLE)
         else:
-            pr.iprint(line, style=pr.NORMAL_STYLE)
+            pr.iprint(line, style=cfg.NORMAL_STYLE)
 
 
 def dump_data():
     """For debugging. Dump current contents of core data structures."""
     pr.iprint()
-    pr.iprint("    cfg   ",num_indents=0,style=pr.ERROR_STYLE)
+    pr.iprint("    cfg   ", num_indents=0, style=cfg.ERROR_STYLE)
     for var in vars(cfg):
         if var[0] == "_":
             continue
         value = vars(cfg)[var]
-        if isinstance(value,Union[str,dict,list,set,float,int]):
-            pr.iprint(f"{var}:  ",style=pr.ANSWER_STYLE,end = "")
+        if isinstance(value, Union[str, dict, list, set, float, int]):
+            pr.iprint(f"{var}:  ", style=cfg.ANSWER_STYLE, end="")
             pr.iprint(value)
     pr.iprint()
-    pr.iprint("    main module   ",num_indents=0,style=pr.ERROR_STYLE)
+    pr.iprint("    main module   ", num_indents=0, style=cfg.ERROR_STYLE)
     for var in globals():
         if var[0] == "_":
             continue
         value = globals()[var]
-        if isinstance(value,Union[str,dict,list,set,float,int]):
-            pr.iprint(f"{var}:  ",style=pr.ANSWER_STYLE,end = "")
+        if isinstance(value, Union[str, dict, list, set, float, int]):
+            pr.iprint(f"{var}:  ", style=cfg.ANSWER_STYLE, end="")
             pr.iprint(value)
+
 
 def main():
     """Run main program loop and dispatcher."""
@@ -769,11 +763,11 @@ def main():
     todays_date = ut.get_date()
     last_published = "00:00"
     while not done:
-        prompt_str = pr.text_style(f"Bike tag or command {cfg.CURSOR}", pr.PROMPT_STYLE)
-        if cfg.INCLUDE_TIME_IN_PROMPT:
-            prompt_str = f"{ut.pretty_time(ut.get_time(),trim=True)}  {prompt_str}"
         pr.iprint()
-        user_str = input(prompt_str)
+        if cfg.INCLUDE_TIME_IN_PROMPT:
+            pr.iprint(f"{ut.pretty_time(ut.get_time(),trim=True)}", end="")
+        pr.iprint(f"Bike tag or command {cfg.CURSOR}", style=cfg.PROMPT_STYLE, end="")
+        user_str = pr.tt_inp()
         # If midnight has passed then need to restart
         if midnight_passed(todays_date):
             done = True
@@ -823,6 +817,8 @@ def main():
             dump_data()
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
+        elif cmd == cfg.CMD_PUBLISH:
+            rep.published_reports(pack_day_data())
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
@@ -832,7 +828,7 @@ def main():
             pr.iprint()
             pr.iprint(
                 "Unrecognized tag or command, enter 'h' for help",
-                style=pr.WARNING_STYLE,
+                style=cfg.WARNING_STYLE,
             )
         else:
             # This is a tag
@@ -862,7 +858,7 @@ def custom_datafile() -> str:
     file = sys.argv[1]
     # File there?
     if not os.path.exists(file):
-        pr.iprint(f"Error: File {file} not found", style=pr.ERROR_STYLE)
+        pr.iprint(f"Error: File {file} not found", style=cfg.ERROR_STYLE)
         error_exit()
     # This is the custom datafile & it exists
     return file
@@ -900,7 +896,7 @@ def maybe_publish(last_pub: ut.Time, force: bool = False) -> ut.Time:
         pr.iprint(
             f"Publication folder '{cfg.PUBLISH_FOLDER}' not found, "
             "will not try to Publish",
-            style=pr.ERROR_STYLE,
+            style=cfg.ERROR_STYLE,
         )
         return last_pub
     # Pack info into TrackerDay object, save the data
@@ -916,7 +912,7 @@ def error_exit() -> None:
     Any specific info about the error should already have been printed.
     """
     pr.iprint()
-    pr.iprint("Closing in 30 seconds", style=pr.ERROR_STYLE)
+    pr.iprint("Closing in 30 seconds", style=cfg.ERROR_STYLE)
     time.sleep(30)
     exit()
 
@@ -933,11 +929,11 @@ def set_tag_case(want_uppercase: bool) -> None:
     global UC_TAGS  # pylint: disable=global-statement
     case_str = "upper case" if want_uppercase else "lower case"
     if UC_TAGS == want_uppercase:
-        pr.iprint(f"Tags already {case_str}.", style=pr.WARNING_STYLE)
+        pr.iprint(f"Tags already {case_str}.", style=cfg.WARNING_STYLE)
         return
     UC_TAGS = want_uppercase
     fold_tags_case(UC_TAGS)
-    pr.iprint(f" Tags will now show in {case_str}. ", style=pr.ANSWER_STYLE)
+    pr.iprint(f" Tags will now show in {case_str}. ", style=cfg.ANSWER_STYLE)
 
 
 def lint_report(strict_datetimes: bool = True) -> None:
@@ -945,9 +941,9 @@ def lint_report(strict_datetimes: bool = True) -> None:
     errs = pack_day_data().lint_check(strict_datetimes)
     if errs:
         for msg in errs:
-            pr.iprint(msg, style=pr.WARNING_STYLE)
+            pr.iprint(msg, style=cfg.WARNING_STYLE)
     else:
-        pr.iprint("No inconsistencies found", style=pr.HIGHLIGHT_STYLE)
+        pr.iprint("No inconsistencies found", style=cfg.HIGHLIGHT_STYLE)
     # And while we're at it, fix up any times that are set to "24:00"
     fix_2400_events()
 
@@ -958,9 +954,9 @@ def midnight_passed(today_is: str) -> bool:
         return False
     # Time has rolled over past midnight so need a new datafile.
     print("\n\n\n")
-    pr.iprint("Program has been running since yesterday.", style=pr.WARNING_STYLE)
+    pr.iprint("Program has been running since yesterday.", style=cfg.WARNING_STYLE)
     pr.iprint(
-        "Please restart program to reset for today's data.", style=pr.WARNING_STYLE
+        "Please restart program to reset for today's data.", style=cfg.WARNING_STYLE
     )
     pr.iprint()
     print("\n\n\n")
@@ -998,22 +994,26 @@ if not CUSTOM_LOG:
     LOG_FILEPATH = datafile_name(cfg.LOG_FOLDER)
 
 if __name__ == "__main__":
+    # Possibly turn on echo
+    if cfg.ECHO:
+        pr.set_echo(True)
+
     pr.iprint()
-    print(
-        pr.text_style(
-            f"TagTracker {ut.get_version()} by Julias Hocking", style=pr.ANSWER_STYLE
-        )
+    pr.iprint(
+        f"TagTracker {ut.get_version()} by Julias Hocking",
+        num_indents=0,
+        style=cfg.ANSWER_STYLE
     )
     pr.iprint()
     # If no tags file, create one and tell them to edit it.
     if not os.path.exists(TAG_CONFIG_FILE):
         df.new_tag_config_file(TAG_CONFIG_FILE)
-        pr.iprint("No tags configuration file found.", style=pr.WARNING_STYLE)
+        pr.iprint("No tags configuration file found.", style=cfg.WARNING_STYLE)
         pr.iprint(
             f"Creating new configuration file {TAG_CONFIG_FILE}",
-            style=pr.WARNING_STYLE,
+            style=cfg.WARNING_STYLE,
         )
-        pr.iprint("Edit this file then re-rerun TagTracker.", style=pr.WARNING_STYLE)
+        pr.iprint("Edit this file then re-rerun TagTracker.", style=cfg.WARNING_STYLE)
         print("\n" * 3, "Exiting automatically in 15 seconds.")
         time.sleep(15)
         exit()
@@ -1029,7 +1029,7 @@ if __name__ == "__main__":
     # Get/set valet date & time
     if not VALET_OPENS or not VALET_CLOSES:
         pr.iprint()
-        pr.iprint("Please enter today's opening/closing times.", style=pr.ERROR_STYLE)
+        pr.iprint("Please enter today's opening/closing times.", style=cfg.ERROR_STYLE)
         set_valet_hours([VALET_OPENS, VALET_CLOSES])
         if VALET_OPENS or VALET_CLOSES:
             save()
@@ -1039,4 +1039,5 @@ if __name__ == "__main__":
     # Exiting now; one last save
     save()
     maybe_publish("", force=True)
+    pr.set_echo(False)
 # ==========================================

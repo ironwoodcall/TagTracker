@@ -20,6 +20,8 @@ Copyright (C) 2023 Julias Hocking
 
 import statistics
 from typing import Union
+import os
+
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
@@ -28,6 +30,13 @@ import tt_trackerday
 import tt_visit
 import tt_block
 import tt_printer as pr
+
+import tt_conf as cfg
+#try:
+#    import tt_local_config  # pylint:disable=unused-import
+#except ImportError:
+#    pass
+
 
 # Time ranges for categorizing stay-lengths, in hours.
 # First category will always be 0 - [0], last will always be > [-1]
@@ -67,7 +76,7 @@ def recent(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     # ANything we can work with?
     if not start_time or not end_time or start_time > end_time:
         pr.iprint(
-            "Can not make sense of the given start/end times", style=pr.WARNING_STYLE
+            "Can not make sense of the given start/end times", style=cfg.WARNING_STYLE
         )
         return
     # Print header.
@@ -75,10 +84,10 @@ def recent(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     pr.iprint(
         f"Recent activity (from {ut.pretty_time(start_time,trim=True)} "
         f"to {ut.pretty_time(end_time,trim=True)})",
-        style=pr.TITLE_STYLE,
+        style=cfg.TITLE_STYLE,
     )
     pr.iprint()
-    pr.iprint("Time  BikeIn BikeOut", style=pr.SUBTITLE_STYLE)
+    pr.iprint("Time  BikeIn BikeOut", style=cfg.SUBTITLE_STYLE)
     # Collect & print any bike-in/bike-out events in the time period.
     events = tt_event.calc_events(day, end_time)
     current_block_end = None
@@ -114,7 +123,7 @@ def later_events_warning(day: tt_trackerday.TrackerDay, when: ut.Time) -> None:
         f"Report excludes {later_events} events later than "
         f"{ut.pretty_time(when,trim=True)}"
     )
-    pr.iprint(msg, style=pr.WARNING_STYLE)
+    pr.iprint(msg, style=cfg.WARNING_STYLE)
 
 
 def simplified_taglist(tags: Union[list[ut.Tag], str]) -> str:
@@ -203,7 +212,7 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     # What time will this audit report reflect?
     as_of_when = ut.time_str(as_of_when)
     if not as_of_when:
-        pr.iprint("Unrecognized time", style=pr.WARNING_STYLE)
+        pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return False
 
     # Get rid of any check-ins or -outs later than the requested time.
@@ -256,13 +265,13 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     pr.iprint()
     pr.iprint(
         f"Audit report as at {ut.pretty_time(as_of_when,trim=True)}",
-        style=pr.TITLE_STYLE,
+        style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
 
     # Audit summary section.
     pr.iprint()
-    pr.iprint("Summary             Regular Oversize Total", style=pr.SUBTITLE_STYLE)
+    pr.iprint("Summary             Regular Oversize Total", style=cfg.SUBTITLE_STYLE)
     pr.iprint(
         f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}" f"    {sum_in:4d}"
     )
@@ -278,7 +287,7 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         pr.iprint(
             "** Totals mismatch, expected total "
             f"{num_bikes_on_hand} != {sum_total} **",
-            style=pr.ERROR_STYLE,
+            style=cfg.ERROR_STYLE,
         )
 
     # Tags matrixes
@@ -287,7 +296,7 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     # Bikes returned out -- tags matrix.
     pr.iprint(
         f"Bikes still in valet at {ut.pretty_time(as_of_when,trim=True)}",
-        style=pr.SUBTITLE_STYLE,
+        style=cfg.SUBTITLE_STYLE,
     )
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
@@ -308,7 +317,7 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             f"{bikes_out_title}{num} " f"{day.colour_letters[colour_code].title()}, "
         )
     bikes_out_title = f"{bikes_out_title}{sum_out} Total)"
-    pr.iprint(bikes_out_title, style=pr.SUBTITLE_STYLE)
+    pr.iprint(bikes_out_title, style=cfg.SUBTITLE_STYLE)
     for prefix in sorted(prefixes_returned_out.keys()):
         numbers = prefixes_returned_out[prefix]
         line = f"{prefix.upper():3>} "
@@ -326,8 +335,8 @@ def csv_dump(day: tt_trackerday.TrackerDay, args) -> None:
     """Dump a few stats into csv for pasting into spreadsheets."""
     filename = (args + [None])[0]
     if not filename:
-        ##pr.iprint("usage: csv <filename>",style=pr.WARNING_STYLE)
-        pr.iprint("Printing to screen.", style=pr.WARNING_STYLE)
+        ##pr.iprint("usage: csv <filename>",style=cfg.WARNING_STYLE)
+        pr.iprint("Printing to screen.", style=cfg.WARNING_STYLE)
 
     def time_hrs(atime) -> str:
         """Return atime (str or int) as a string of decimal hours."""
@@ -407,7 +416,7 @@ def bike_check_ins_report(day: tt_trackerday.TrackerDay, as_of_when: ut.Time) ->
     num_bikes_oversize = len([x for x in these_check_ins if x in day.oversize])
 
     pr.iprint()
-    pr.iprint("Bike check-ins", style=pr.SUBTITLE_STYLE)
+    pr.iprint("Bike check-ins", style=cfg.SUBTITLE_STYLE)
     pr.iprint(f"Total bikes in:   {num_bikes_ttl:4d}")
     pr.iprint(f"AM bikes in:      {num_bikes_am:4d}")
     pr.iprint(f"PM bikes in:      {(num_bikes_ttl - num_bikes_am):4d}")
@@ -429,7 +438,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         if not lower and not upper:
             pr.iprint(
                 f"PROGRAM ERROR: called one_range(lower='{lower}'," f"upper='{upper}')",
-                style=pr.ERROR_STYLE,
+                style=cfg.ERROR_STYLE,
             )
             return None
         if not lower:
@@ -448,7 +457,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         pr.iprint(f"{header:18s}{num:4d}")
 
     pr.iprint()
-    pr.iprint("Number of stays by duration", style=pr.SUBTITLE_STYLE)
+    pr.iprint("Number of stays by duration", style=cfg.SUBTITLE_STYLE)
     prev_boundary = None
     for boundary in VISIT_CATEGORIES:
         one_range(lower=prev_boundary, upper=boundary)
@@ -462,7 +471,7 @@ def visit_statistics_report(visits: dict) -> None:
 
     def one_line(key: str, value: str) -> None:
         """Print one line."""
-        pr.iprint(f"{key:17s}{value}", style=pr.NORMAL_STYLE)
+        pr.iprint(f"{key:17s}{value}", style=cfg.NORMAL_STYLE)
 
     def visits_mode(durations_list: list[int]) -> None:
         """Calculat and print the mode info."""
@@ -498,7 +507,7 @@ def visit_statistics_report(visits: dict) -> None:
     if not duration_tags:
         return  # No durations
     pr.iprint()
-    pr.iprint("Stay-length statistics", style=pr.SUBTITLE_STYLE)
+    pr.iprint("Stay-length statistics", style=cfg.SUBTITLE_STYLE)
     longest = max(list(duration_tags.keys()))
     long_tags = make_tags_str(duration_tags[longest])
     shortest = min(list(duration_tags.keys()))
@@ -531,13 +540,13 @@ def highwater_report(events: dict) -> None:
         for num, val in enumerate(values):
             bit = f"{val:3d}"
             if num == highlight_field:
-                bit = pr.text_style(bit, style=pr.HIGHLIGHT_STYLE)
+                bit = pr.text_style(bit, style=cfg.HIGHLIGHT_STYLE)
             line = f"{line}   {bit}"
         pr.iprint(f"{line}    {atime}")
 
     # Table header
     pr.iprint()
-    pr.iprint("Most bikes at valet at any one time", style=pr.SUBTITLE_STYLE)
+    pr.iprint("Most bikes at valet at any one time", style=cfg.SUBTITLE_STYLE)
     if not events:
         pr.iprint("(No bikes)")
         return
@@ -583,9 +592,9 @@ def busy_histogram(day: tt_trackerday.TrackerDay) -> None:
         blocks[start] += ev.num_ins + ev.num_outs
     # Print histogram
     pr.iprint()
-    pr.iprint(f"Chart of busyness for {day.date}", style=pr.TITLE_STYLE)
+    pr.iprint(f"Chart of busyness for {day.date}", style=cfg.TITLE_STYLE)
     pr.iprint(
-        f"Each {marker} represents {marker_width} transactions", style=pr.SUBTITLE_STYLE
+        f"Each {marker} represents {marker_width} transactions", style=cfg.SUBTITLE_STYLE
     )
 
     for start in sorted(blocks.keys()):
@@ -613,9 +622,9 @@ def fullness_histogram(day: tt_trackerday.TrackerDay) -> None:
     pr.iprint()
     pr.iprint(
         f"Number of bikes at valet at the same time for {day.date}",
-        style=pr.TITLE_STYLE,
+        style=cfg.TITLE_STYLE,
     )
-    pr.iprint(f"Each {marker} represents {marker_width} bikes", style=pr.SUBTITLE_STYLE)
+    pr.iprint(f"Each {marker} represents {marker_width} bikes", style=cfg.SUBTITLE_STYLE)
     for start in sorted(blocks.keys()):
         pr.iprint(f"{start} {marker * round((blocks[start]+0.1)/marker_width)}")
 
@@ -658,7 +667,7 @@ def busy_report(
         busy_times[activity].append(atime)
     # Report the results.
     pr.iprint()
-    pr.iprint("Busiest times of day", style=pr.SUBTITLE_STYLE)
+    pr.iprint("Busiest times of day", style=cfg.SUBTITLE_STYLE)
     pr.iprint("Rank  Ins&Outs  When")
     for rank, activity in enumerate(sorted(busy_times.keys(), reverse=True), start=1):
         if rank > BUSIEST_RANKS:
@@ -701,7 +710,7 @@ def qstack_report(visits: dict[ut.Tag : tt_visit.Visit]) -> None:
     print("")
     pr.iprint(
         "Were today's stays more queue-like or stack-like?",
-        style=pr.SUBTITLE_STYLE,
+        style=cfg.SUBTITLE_STYLE,
     )
     if not queueish and not stackish:
         pr.iprint("Unable to determine.")
@@ -741,17 +750,17 @@ def day_end_report(day: tt_trackerday.TrackerDay, args: list) -> None:
         if not (as_of_when):
             pr.iprint(
                 f"Unrecognized time passed to visits summary ({args[0]})",
-                style=pr.WARNING_STYLE,
+                style=cfg.WARNING_STYLE,
             )
             return
     pr.iprint()
     pr.iprint(
         f"Summary statistics as at {ut.pretty_time(as_of_when,trim=True)}",
-        style=pr.TITLE_STYLE,
+        style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
     if not day.latest_event(as_of_when):
-        pr.iprint(f"No bikes checked in by {as_of_when}", style=pr.SUBTITLE_STYLE)
+        pr.iprint(f"No bikes checked in by {as_of_when}", style=cfg.SUBTITLE_STYLE)
         return
     # Bikes in, in various categories.
     bike_check_ins_report(day, as_of_when)
@@ -770,16 +779,16 @@ def more_stats_report(day: tt_trackerday.TrackerDay, args: list) -> None:
     as_of_when = (args + [None])[0]
     as_of_when = ut.time_str(as_of_when, allow_now=True, default_now=True)
     if not (as_of_when):
-        pr.iprint("Unrecognized time", style=pr.WARNING_STYLE)
+        pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return
     pr.iprint()
     pr.iprint(
         f"Busyness report, as at {ut.pretty_time(as_of_when,trim=True)}",
-        style=pr.TITLE_STYLE,
+        style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
     if not day.latest_event(as_of_when):
-        pr.iprint(f"No bikes checked in by {as_of_when}", style=pr.SUBTITLE_STYLE)
+        pr.iprint(f"No bikes checked in by {as_of_when}", style=cfg.SUBTITLE_STYLE)
         return
     # Stats that use visits (stays)
     visits = tt_visit.calc_visits(day, as_of_when)
@@ -795,7 +804,7 @@ def more_stats_report(day: tt_trackerday.TrackerDay, args: list) -> None:
 def retired_report(day: tt_trackerday.TrackerDay) -> None:
     """List retired tags."""
     pr.iprint()
-    pr.iprint("Retired tags", style=pr.SUBTITLE_STYLE)
+    pr.iprint("Retired tags", style=cfg.SUBTITLE_STYLE)
     if not day.retired:
         pr.iprint("--no retired tags--")
         return
@@ -816,21 +825,21 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         end_time = ut.get_time()
     end_time = ut.time_str(end_time, allow_now=True)
     if not end_time:
-        pr.iprint("Unrecognized time", style=pr.WARNING_STYLE)
+        pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return
     # Special case: allow "24:00"
     if end_time != "24:00":
         end_time = tt_block.block_end(end_time)
         if not (end_time):
             pr.iprint()
-            pr.iprint(f"Unrecognized time {args[0]}", style=pr.WARNING_STYLE)
+            pr.iprint(f"Unrecognized time {args[0]}", style=cfg.WARNING_STYLE)
             return
 
     pr.iprint()
     pr.iprint(
         "Tracking form data from start of day until "
         f"{ut.pretty_time(end_time,trim=True)}",
-        style=pr.TITLE_STYLE,
+        style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, end_time)
     all_blocks = tt_block.calc_blocks(day, end_time)
@@ -838,15 +847,15 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         earliest = day.earliest_event()
         pr.iprint(
             f"No bikes came in before {end_time} " f"(earliest came in at {earliest})",
-            style=pr.HIGHLIGHT_STYLE,
+            style=cfg.HIGHLIGHT_STYLE,
         )
         return
     for which in [ut.BIKE_IN, ut.BIKE_OUT]:
         titlebit = "checked IN" if which == ut.BIKE_IN else "returned OUT"
         title = f"Bikes {titlebit}"
         pr.iprint()
-        pr.iprint(title, style=pr.SUBTITLE_STYLE)
-        pr.iprint("-" * len(title), style=pr.SUBTITLE_STYLE)
+        pr.iprint(title, style=cfg.SUBTITLE_STYLE)
+        pr.iprint("-" * len(title), style=cfg.SUBTITLE_STYLE)
         for start, block in all_blocks.items():
             inouts = block.ins_list if which == ut.BIKE_IN else block.outs_list
             end = tt_block.block_end(start)
@@ -856,3 +865,14 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             else:
                 tagslist = tagslist.lower()
             pr.iprint(f"{start}-{end}  {tagslist}")
+
+def published_reports(day:tt_trackerday.TrackerDay) -> None:
+    """Publish reports to the PUBLISH directory."""
+    fn = "reports.txt"
+    fullfn = os.path.join(cfg.PUBLISH_FOLDER,fn)
+    pr.iprint(f"Going to screen")
+    pr.set_output(fullfn)
+    pr.iprint(f"Going to {fullfn}")
+    dataform_report(day,[ut.get_time()])
+    pr.set_output()
+    pr.iprint(f"Report done, going to screen again")
