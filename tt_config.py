@@ -19,7 +19,7 @@ Copyright (C) 2023 Julias Hocking
 """
 
 # Use colours?
-USE_COLOUR = True
+USE_COLOUR = True # FIXME: is this in the right place? Should be in tt_printer?
 
 # Datafiles/Logfiles
 LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
@@ -29,7 +29,7 @@ PUBLISH_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
 # Ask confirmatino for checkouts when visits less than this duration.
-CHECK_OUT_CONFIRM_TIME = 30 # mins
+CHECK_OUT_CONFIRM_TIME = 30 # mins # FIXME put override in local_config
 
 # Help message.  Colour styles will be applied as:
 #       First non-blank line will be in TITLE_STYLE, after which
@@ -61,8 +61,8 @@ Other
 """
 
 # Format preferences for prompting user.
-CURSOR = ">>> "
-INCLUDE_TIME_IN_PROMPT = True
+CURSOR = ">>> " #FIXME: put an override for this in local_config
+INCLUDE_TIME_IN_PROMPT = True #FIXME: put an override for this in local_config
 
 # Tags display in uppercase or lowercase?
 # (Note: in files always stored as lowercase)
@@ -91,6 +91,8 @@ CMD_LOWERCASE = "lowercase"
 CMD_RETIRED = "retired"
 CMD_LINT = "lint"
 CMD_DUMP = "dump"
+CMD_BUSY_CHART = "busy_chart"
+CMD_FULL_CHART = "full_chart"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -110,6 +112,8 @@ COMMANDS[CMD_LOWERCASE] = ["lc","lowercase", "lower"]
 COMMANDS[CMD_RETIRED] = ["retired","ret"]
 COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
 COMMANDS[CMD_DUMP] = ["dump"]
+COMMANDS[CMD_BUSY_CHART] = ["chart-busy","graph-busy","busy-chart","busy-graph"]
+COMMANDS[CMD_FULL_CHART] = ["chart-full","graph-full","full-chart","full-graph"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 

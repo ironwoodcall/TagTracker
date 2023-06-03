@@ -32,11 +32,12 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 import tt_util as ut
 import tt_config as cfg
 ##from tt_colours import *
+# pylint:disable=unused-import
 from tt_colours import (HAVE_COLOURS, STYLE,
             PROMPT_STYLE, SUBPROMPT_STYLE, ANSWER_STYLE, TITLE_STYLE,
             SUBTITLE_STYLE, RESET_STYLE, NORMAL_STYLE, HIGHLIGHT_STYLE,
             WARNING_STYLE, ERROR_STYLE,Fore,Back,Style)
-
+# pylint:enable=unused-import
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
 _INDENT = '  '
@@ -126,20 +127,25 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
     """Print the text, indented num_indents times.
 
     Recognizes the 'end=' keyword for the print() statement.
-    """
-    indented = f"{_INDENT * num_indents}{text}"
-    if cfg.USE_COLOUR and style:
-        styled = text_style(indented,style=style)
-    else:
-        styled = indented
-    # Output goes either to screen or to a file
-    if _destination:
-        _destination_file.write(indented,"\n")
-    else:
-        print(styled,end=end)
 
+    Everything gets indented
+    Only screen output gets styled; indents do *not* get styled to screen
+    """
+    indent = _INDENT * num_indents
+
+    # Going to screen?
+    if _destination:
+        # Going to file - print with indents but no styling
+        _destination_file.write(f"{indent}{text}{end}")
+    else:
+        # Going to screen.  Style and indent.
+        if cfg.USE_COLOUR and style:
+            text = text_style(text,style=style)
+        print(f"{indent}{text}",end=end)
+
+    # Also echo?
     if _echo_state:
-        echo(indented)
+        echo(f"{indent}{text}{end}")
 
 
 
