@@ -29,7 +29,7 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 ##LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
 ##LOG_FOLDER = "logs" # Folder to keep logfiles in
 # System occasionally puts a copy of log in a publish folder
-##PUBLISH_FOLDER = r""
+##SHARE_FOLDER = r""
 ##PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
 # Ask confirmatino for checkouts when visits less than this duration.

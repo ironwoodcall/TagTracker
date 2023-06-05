@@ -349,6 +349,7 @@ def write_logfile(
             "# TagTracker datafile (data file) created on "
             f"{ut.get_date()} {ut.get_time()}"
         )
+        lines.append(f"# TagTracker version {ut.get_version()}")
     # Valet data, opening & closing hours
     if data.date:
         lines.append(f"{HEADER_VALET_DATE} {data.date}")

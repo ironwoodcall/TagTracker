@@ -784,6 +784,7 @@ def main():
             data_dirty = True
         elif cmd == cfg.CMD_AUDIT:
             rep.audit_report(pack_day_data(), args)
+            rep.publish_audit(pack_day_data(), args)
         elif cmd == cfg.CMD_DELETE:
             delete_entry(args)
             data_dirty = True
@@ -802,7 +803,7 @@ def main():
         elif cmd == cfg.CMD_STATS:
             rep.day_end_report(pack_day_data(), args)
             # Force publication when do day-end reports
-            last_published = maybe_publish_log(last_published, force=True)
+            last_published = maybe_publish(last_published, force=True)
         elif cmd == cfg.CMD_BUSY:
             rep.more_stats_report(pack_day_data(), args)
         elif cmd == cfg.CMD_BUSY_CHART:
@@ -816,7 +817,7 @@ def main():
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
         elif cmd == cfg.CMD_PUBLISH:
-            rep.published_reports(pack_day_data())
+            rep.publish_reports(pack_day_data())
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
@@ -839,9 +840,10 @@ def main():
         if data_dirty:
             data_dirty = False
             save()
-            last_published = maybe_publish_log(last_published)
+            last_published = maybe_publish(last_published)
         # Flush any echo buffer
         pr.echo_flush()
+
 
 def datafile_name(folder: str) -> str:
     """Return the name of the data file (datafile) to read/write."""
@@ -876,11 +878,11 @@ def save():
 ABLE_TO_PUBLISH = True
 
 
-def maybe_publish_log(last_pub: ut.Time, force: bool = False) -> ut.Time:
+def maybe_publish(last_pub: ut.Time, force: bool = False) -> ut.Time:
     """Maybe save current log to 'publish' directory."""
     global ABLE_TO_PUBLISH  # pylint:disable=global-statement
     # Nothing to do if not configured to publish or can't publish
-    if not ABLE_TO_PUBLISH or not cfg.PUBLISH_FOLDER or not cfg.PUBLISH_FREQUENCY:
+    if not ABLE_TO_PUBLISH or not cfg.SHARE_FOLDER or not cfg.PUBLISH_FREQUENCY:
         return last_pub
     # Is it time to re-publish?
     if not force and (
@@ -889,18 +891,22 @@ def maybe_publish_log(last_pub: ut.Time, force: bool = False) -> ut.Time:
         # Nothing to do yet.
         return last_pub
     # Nothing to do if publication dir does not exist
-    if not os.path.exists(cfg.PUBLISH_FOLDER):
+    if not os.path.exists(cfg.SHARE_FOLDER):
         ABLE_TO_PUBLISH = False
         pr.iprint()
         pr.iprint(
-            f"Publication folder '{cfg.PUBLISH_FOLDER}' not found, "
+            f"Publication folder '{cfg.SHARE_FOLDER}' not found, "
             "will not try to Publish",
             style=cfg.ERROR_STYLE,
         )
         return last_pub
     # Pack info into TrackerDay object, save the data
     day = pack_day_data()
-    df.write_logfile(datafile_name(cfg.PUBLISH_FOLDER), day)
+    df.write_logfile(datafile_name(cfg.SHARE_FOLDER), day)
+
+    # Now also publish updated reports
+    rep.publish_reports(day)
+
     # Return new last_published time
     return ut.get_time()
 
@@ -1033,6 +1039,6 @@ if __name__ == "__main__":
     main()
     # Exiting now; one last save
     save()
-    maybe_publish_log("", force=True)
+    maybe_publish("", force=True)
     pr.set_echo(False)
 # ==========================================
