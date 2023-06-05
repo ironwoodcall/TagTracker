@@ -589,10 +589,13 @@ def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
-    max_activity = max([b.num_ins + b.num_outs for b in blocks.values()])
-    available_width = cfg.SCREEN_WIDTH - 10
-    scale_factor = round((max_activity / available_width))
-    scale_factor = max(scale_factor, 1)
+    max_ins = max([b.num_ins for b in blocks.values()])
+    max_outs = max([b.num_outs for b in blocks.values()])
+    max_needed = max_ins + max_outs + 10
+    available_width = cfg.SCREEN_WIDTH
+    scale_factor = (max_needed // available_width) + 1
+    ##scale_factor = round((max_activity / available_width))
+    ##scale_factor = max(scale_factor, 1)
 
     # Print graph
     pr.iprint()
@@ -602,13 +605,15 @@ def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
         f"bike{ut.plural(scale_factor)} in ({in_marker}) or out ({out_marker})",
         style=cfg.SUBTITLE_STYLE,
     )
-
+    ins_field_width = round(max_ins / scale_factor) + 1
     for start in sorted(blocks.keys()):
         blk: tt_block.Block
         blk = blocks[start]
         insize = round(blk.num_ins / scale_factor)
         outsize = round(blk.num_outs / scale_factor)
-        pr.iprint(f"{start} {in_marker * insize}{out_marker * outsize}")
+
+        #pr.iprint(f"{start} {' ' * (ins_field_width-insize)}{(in_marker * insize)}  {out_marker * outsize}")
+        pr.iprint(f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  {start}  {out_marker * outsize}")
 
 
 def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
