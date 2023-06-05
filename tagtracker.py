@@ -844,6 +844,7 @@ def main():
         # Flush any echo buffer
         pr.echo_flush()
 
+
 def datafile_name(folder: str) -> str:
     """Return the name of the data file (datafile) to read/write."""
     # Use default filename
@@ -863,6 +864,7 @@ def custom_datafile() -> str:
     # This is the custom datafile & it exists
     return file
 
+
 def save():
     """Save today's data in the datafile."""
     # Save .bak
@@ -874,6 +876,7 @@ def save():
 
 
 ABLE_TO_PUBLISH = True
+
 
 def maybe_publish(last_pub: ut.Time, force: bool = False) -> ut.Time:
     """Maybe save current log to 'publish' directory."""
