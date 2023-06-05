@@ -880,7 +880,7 @@ def maybe_publish_log(last_pub: ut.Time, force: bool = False) -> ut.Time:
     """Maybe save current log to 'publish' directory."""
     global ABLE_TO_PUBLISH  # pylint:disable=global-statement
     # Nothing to do if not configured to publish or can't publish
-    if not ABLE_TO_PUBLISH or not cfg.PUBLISH_FOLDER or not cfg.PUBLISH_FREQUENCY:
+    if not ABLE_TO_PUBLISH or not cfg.SHARE_FOLDER or not cfg.PUBLISH_FREQUENCY:
         return last_pub
     # Is it time to re-publish?
     if not force and (
@@ -889,18 +889,18 @@ def maybe_publish_log(last_pub: ut.Time, force: bool = False) -> ut.Time:
         # Nothing to do yet.
         return last_pub
     # Nothing to do if publication dir does not exist
-    if not os.path.exists(cfg.PUBLISH_FOLDER):
+    if not os.path.exists(cfg.SHARE_FOLDER):
         ABLE_TO_PUBLISH = False
         pr.iprint()
         pr.iprint(
-            f"Publication folder '{cfg.PUBLISH_FOLDER}' not found, "
+            f"Publication folder '{cfg.SHARE_FOLDER}' not found, "
             "will not try to Publish",
             style=cfg.ERROR_STYLE,
         )
         return last_pub
     # Pack info into TrackerDay object, save the data
     day = pack_day_data()
-    df.write_logfile(datafile_name(cfg.PUBLISH_FOLDER), day)
+    df.write_logfile(datafile_name(cfg.SHARE_FOLDER), day)
     # Return new last_published time
     return ut.get_time()
 

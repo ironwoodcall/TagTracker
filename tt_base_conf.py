@@ -32,7 +32,7 @@ USE_COLOUR = True # FIXME: is this in the right place? Should be in tt_printer?
 LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
 LOG_FOLDER = "logs" # Folder to keep logfiles in
 # System occasionally puts a copy of log in a publish folder
-PUBLISH_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
+SHARE_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
 # Ask confirmatino for checkouts when visits less than this duration.

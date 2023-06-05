@@ -189,6 +189,46 @@ def simplified_taglist(tags: Union[list[ut.Tag], str]) -> str:
     ##simple_str = simple_str.upper() if UC_TAGS else simple_str.lower()
     return simple_str
 
+def inout_summary(day: tt_trackerday.TrackerDay,as_of_when:str="") ->None:
+    """Print summary table of # of bikes in, out and still at valet."""
+    # Count the totals
+    visits = tt_visit.calc_visits(day,as_of_when=as_of_when)
+    bikes_on_hand = [v.tag for v in visits.values() if v.still_here]
+    num_bikes_on_hand = len(bikes_on_hand)
+    regular_in = 0
+    regular_out = 0
+    oversize_in = 0
+    oversize_out = 0
+    for v in visits.values():
+        if v.type == REGULAR:
+            regular_in += 1
+            if not v.still_here:
+                regular_out += 1
+        elif v.type == OVERSIZE:
+            oversize_in += 1
+            if not v.still_here:
+                oversize_out += 1
+    sum_in = regular_in + oversize_in
+    sum_out = regular_out + oversize_out
+    sum_on_hand = regular_in + oversize_in - regular_out - oversize_out
+
+   # Print summary of bikes in/out/here
+    pr.iprint()
+    pr.iprint("Summary             Regular Oversize Total", style=cfg.SUBTITLE_STYLE)
+    pr.iprint(
+        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}" f"    {sum_in:4d}"
+    )
+    pr.iprint(
+        f"Bikes returned out:   {regular_out:4d}    {oversize_out:4d}"
+        f"    {sum_out:4d}"
+    )
+    pr.iprint(
+        f"Bikes in valet:       {(regular_in-regular_out):4d}"
+        f"    {(oversize_in-oversize_out):4d}    {sum_on_hand:4d}"
+    )
+    if sum_on_hand != num_bikes_on_hand:
+        ut.squawk(f"inout_summary() {num_bikes_on_hand=} != {sum_on_hand=}")
+
 
 def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     """Create & display audit report as at a particular time.
@@ -206,7 +246,6 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         NORMAL_TAGS
         OVERSIZE_TAGS
     """
-    # FIXME: this is long and could get broken up with helper functions
     as_of_when = (args + [""])[0]
     as_of_when = ut.time_str(as_of_when, allow_now=True, default_now=True)
 
@@ -215,6 +254,17 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     if not as_of_when:
         pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return False
+
+    # Audit report header.
+    pr.iprint()
+    pr.iprint(
+        f"Audit report as at {ut.pretty_time(as_of_when,trim=True)}",
+        style=cfg.TITLE_STYLE,
+    )
+    later_events_warning(day, as_of_when)
+
+    # Summary of bikes in a& bikes out
+    inout_summary(day,as_of_when)
 
     # Get rid of any check-ins or -outs later than the requested time.
     # (Yes I know there's a slicker way to do this but this is nice and clear.)
@@ -231,26 +281,11 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         if tag not in check_outs_to_now:
             bikes_on_hand[tag] = ctime
 
-    num_bikes_on_hand = len(bikes_on_hand)
-    normal_in = 0
-    normal_out = 0
-    oversize_in = 0
-    oversize_out = 0
 
-    # This assumes that any tag not a normal tag is an oversize tag
-    for tag in check_ins_to_now:
-        if tag in day.regular:
-            normal_in += 1
-            if tag in check_outs_to_now:
-                normal_out += 1
-        else:
-            oversize_in += 1
-            if tag in check_outs_to_now:
-                oversize_out += 1
-    # Sums
-    sum_in = normal_in + oversize_in
-    sum_out = normal_out + oversize_out
-    sum_total = sum_in - sum_out
+
+
+
+    # Tags matrixes
     # Tags broken down by prefix (for tags matrix)
     prefixes_on_hand = ut.tags_by_prefix(bikes_on_hand.keys())
     prefixes_returned_out = ut.tags_by_prefix(check_outs_to_now.keys())
@@ -262,36 +297,6 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         else:
             returns_by_colour[colour_code] += len(numbers)
 
-    # Audit report header.
-    pr.iprint()
-    pr.iprint(
-        f"Audit report as at {ut.pretty_time(as_of_when,trim=True)}",
-        style=cfg.TITLE_STYLE,
-    )
-    later_events_warning(day, as_of_when)
-
-    # Audit summary section.
-    pr.iprint()
-    pr.iprint("Summary             Regular Oversize Total", style=cfg.SUBTITLE_STYLE)
-    pr.iprint(
-        f"Bikes checked in:     {normal_in:4d}    {oversize_in:4d}" f"    {sum_in:4d}"
-    )
-    pr.iprint(
-        f"Bikes returned out:   {normal_out:4d}    {oversize_out:4d}"
-        f"    {sum_out:4d}"
-    )
-    pr.iprint(
-        f"Bikes in valet:       {(normal_in-normal_out):4d}"
-        f"    {(oversize_in-oversize_out):4d}    {sum_total:4d}"
-    )
-    if sum_total != num_bikes_on_hand:
-        pr.iprint(
-            "** Totals mismatch, expected total "
-            f"{num_bikes_on_hand} != {sum_total} **",
-            style=cfg.ERROR_STYLE,
-        )
-
-    # Tags matrixes
     no_item_str = "  "  # what to show when there's no tag
     pr.iprint()
     # Bikes returned out -- tags matrix.
@@ -312,8 +317,10 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
 
     # Bikes returned out -- tags matrix.
     bikes_out_title = "Bikes returned out ("
+    sum_out = 0
     for colour_code in sorted(returns_by_colour.keys()):
         num = returns_by_colour[colour_code]
+        sum_out += num
         bikes_out_title = (
             f"{bikes_out_title}{num} " f"{day.colour_letters[colour_code].title()}, "
         )
@@ -526,7 +533,6 @@ def visit_statistics_report(visits: dict) -> None:
 
 def highwater_report(events: dict) -> None:
     """Make a highwater table as at as_of_when."""
-
     # High-water mark for bikes in valet at any one time
     def one_line(
         header: str, events: dict, atime: ut.Time, highlight_field: int
@@ -578,7 +584,7 @@ def highwater_report(events: dict) -> None:
 def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of busyness."""
     in_marker = "+"  # OØ OX  <>  ↓↑
-    out_marker = "o"
+    out_marker = "x"
 
     as_of_when = as_of_when if as_of_when else "24:00"
 
@@ -887,7 +893,7 @@ def published_reports(day: tt_trackerday.TrackerDay) -> None:
     as_of_when = "24:00"
 
     fn = "audit.txt"
-    fullfn = os.path.join(cfg.PUBLISH_FOLDER, fn)
+    fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
     # pr.iprint(f"Going to screen")
     pr.set_output(fullfn)
     # pr.iprint(f"Going to {fullfn}")
@@ -899,7 +905,7 @@ def published_reports(day: tt_trackerday.TrackerDay) -> None:
     # pr.iprint(f"Report done, going to screen again")
 
     fn = "fullness.txt"
-    fullfn = os.path.join(cfg.PUBLISH_FOLDER, fn)
+    fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
     # pr.iprint(f"Going to screen")
     pr.set_output(fullfn)
     # pr.iprint(f"Going to {fullfn}")
@@ -908,5 +914,18 @@ def published_reports(day: tt_trackerday.TrackerDay) -> None:
     highwater_report(tt_event.calc_events(day))
     pr.iprint()
     fullness_graph(day, as_of_when)
+    # dataform_report(day, [ut.get_time()])
+    pr.set_output()
+
+    fn = "busyness.txt"
+    busyfn = os.path.join(cfg.SHARE_FOLDER, fn)
+    # pr.iprint(f"Going to screen")
+    pr.set_output(busyfn)
+    # pr.iprint(f"Going to {busyfn}")
+    pr.iprint(ut.long_date(day.date))
+    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
+    inout_summary(day,as_of_when)
+    pr.iprint()
+    busy_graph(day, as_of_when)
     # dataform_report(day, [ut.get_time()])
     pr.set_output()
