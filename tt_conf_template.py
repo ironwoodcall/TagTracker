@@ -36,7 +36,7 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 ##CHECK_OUT_CONFIRM_TIME = 30 # mins
 
 # Echo everything to a file?
-# File will go into the PUBLISH_FOLDER with today's date
+# File will go into the SHARE folder with today's date
 ##ECHO = False
 
 # Format preferences for prompting user.
