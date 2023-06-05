@@ -32,9 +32,10 @@ import tt_block
 import tt_printer as pr
 
 import tt_conf as cfg
-#try:
+
+# try:
 #    import tt_local_config  # pylint:disable=unused-import
-#except ImportError:
+# except ImportError:
 #    pass
 
 
@@ -574,59 +575,66 @@ def highwater_report(events: dict) -> None:
     one_line("Most combined:", events, max_total_time, 2)
 
 
-def busy_histogram(day: tt_trackerday.TrackerDay) -> None:
-    """Make a quick & dirty histogram of busyness."""
-    marker = chr(0x2713)
-    marker_width = 1
-    end_time = tt_block.block_end(ut.get_time())
-    events = tt_event.calc_events(day, as_of_when=end_time)
-    blocks = dict(
-        zip(
-            tt_block.get_timeblock_list(day, as_of_when=end_time),
-            [0 for _ in range(0, 100)],
-        )
-    )
-    # Count actions in each timeblock
-    for atime, ev in events.items():
-        start = tt_block.block_start(atime)  # Which block?
-        blocks[start] += ev.num_ins + ev.num_outs
-    # Print histogram
+def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
+    """Make a quick & dirty graph of busyness."""
+    in_marker = "+"  # OØ OX  <>  ↓↑
+    out_marker = "o"
+
+    as_of_when = as_of_when if as_of_when else "24:00"
+
+    blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
+    max_activity = max([b.num_ins + b.num_outs for b in blocks.values()])
+    available_width = cfg.SCREEN_WIDTH - 10
+    scale_factor = round((max_activity / available_width))
+    scale_factor = max(scale_factor, 1)
+
+    # Print graph
     pr.iprint()
     pr.iprint(f"Chart of busyness for {day.date}", style=cfg.TITLE_STYLE)
     pr.iprint(
-        f"Each {marker} represents {marker_width} transactions", style=cfg.SUBTITLE_STYLE
+        f"Each marker represents {scale_factor} "
+        f"bike{ut.plural(scale_factor)} in ({in_marker}) or out ({out_marker})",
+        style=cfg.SUBTITLE_STYLE,
     )
 
     for start in sorted(blocks.keys()):
-        pr.iprint(f"{start} {marker * round((blocks[start]+0.1)/marker_width)}")
+        blk: tt_block.Block
+        blk = blocks[start]
+        insize = round(blk.num_ins / scale_factor)
+        outsize = round(blk.num_outs / scale_factor)
+        pr.iprint(f"{start} {in_marker * insize}{out_marker * outsize}")
 
 
-def fullness_histogram(day: tt_trackerday.TrackerDay) -> None:
-    """Make a quick & dirty histogram of busyness."""
-    marker = chr(0x1F6B2)
-    marker_width = 2.5
-    end_time = tt_block.block_end(ut.get_time())
-    events = tt_event.calc_events(day, as_of_when=end_time)
-    blocks = dict(
-        zip(
-            tt_block.get_timeblock_list(day, as_of_when=end_time),
-            [0 for _ in range(0, 100)],
-        )
-    )
-    # Find max fullness in each block
-    for atime, ev in events.items():
-        start = tt_block.block_start(atime)  # Which block?
-        # blocks[start] += ev.num_ins + ev.num_outs
-        blocks[start] = max(blocks[start], ev.num_here_total)
-    # Print histogram
+def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
+    """Make a quick & dirty graph of how full the valet is."""
+    regular_marker = "r"
+    oversize_marker = "O"
+
+    as_of_when = as_of_when if as_of_when else "24:00"
+
+    blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
+    max_full = max([b.num_here for b in blocks.values()])
+    available_width = cfg.SCREEN_WIDTH - 10
+    scale_factor = round((max_full / available_width))
+    scale_factor = max(scale_factor, 1)
+    # Print graph
     pr.iprint()
     pr.iprint(
-        f"Number of bikes at valet at the same time for {day.date}",
+        f"Max bikes at valet within a time block for {day.date}",
         style=cfg.TITLE_STYLE,
     )
-    pr.iprint(f"Each {marker} represents {marker_width} bikes", style=cfg.SUBTITLE_STYLE)
+    pr.iprint(
+        f"Each marker represents {scale_factor} regular ({regular_marker}) "
+        f"or oversize ({oversize_marker}) bike{ut.plural(scale_factor)}",
+        style=cfg.SUBTITLE_STYLE,
+    )
     for start in sorted(blocks.keys()):
-        pr.iprint(f"{start} {marker * round((blocks[start]+0.1)/marker_width)}")
+        b: tt_block.Block
+        b = blocks[start]
+        ##pr.iprint(f"{start} {b.max_here=} {b.max_here_regular=} {b.max_here_oversize=}")
+        regs = round(b.max_here_regular / scale_factor)
+        overs = round(b.max_here_oversize / scale_factor)
+        pr.iprint(f"{start} {regular_marker * regs}{oversize_marker * overs}")
 
 
 def busy_report(
@@ -851,7 +859,14 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         )
         return
     for which in [ut.BIKE_IN, ut.BIKE_OUT]:
-        titlebit = "checked IN" if which == ut.BIKE_IN else "returned OUT"
+        if which == ut.BIKE_IN:
+            titlebit = "checked IN"
+            prefix = "<<<<"
+            suffix = ""
+        else:
+            titlebit = "returned OUT"
+            prefix = ">>>>"
+            suffix = ""
         title = f"Bikes {titlebit}"
         pr.iprint()
         pr.iprint(title, style=cfg.SUBTITLE_STYLE)
@@ -864,15 +879,34 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
                 tagslist = tagslist.upper()
             else:
                 tagslist = tagslist.lower()
-            pr.iprint(f"{start}-{end}  {tagslist}")
+            pr.iprint(f"{start}-{end} {prefix} {tagslist} {suffix}")
 
-def published_reports(day:tt_trackerday.TrackerDay) -> None:
+
+def published_reports(day: tt_trackerday.TrackerDay) -> None:
     """Publish reports to the PUBLISH directory."""
-    fn = "reports.txt"
-    fullfn = os.path.join(cfg.PUBLISH_FOLDER,fn)
-    pr.iprint(f"Going to screen")
+    as_of_when = "24:00"
+
+    fn = "audit.txt"
+    fullfn = os.path.join(cfg.PUBLISH_FOLDER, fn)
+    # pr.iprint(f"Going to screen")
     pr.set_output(fullfn)
-    pr.iprint(f"Going to {fullfn}")
-    dataform_report(day,[ut.get_time()])
+    # pr.iprint(f"Going to {fullfn}")
+    pr.iprint(ut.long_date(day.date))
+    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
+    audit_report(day, [as_of_when])
+    # dataform_report(day, [ut.get_time()])
+    # pr.set_output()
+    # pr.iprint(f"Report done, going to screen again")
+
+    fn = "fullness.txt"
+    fullfn = os.path.join(cfg.PUBLISH_FOLDER, fn)
+    # pr.iprint(f"Going to screen")
+    pr.set_output(fullfn)
+    # pr.iprint(f"Going to {fullfn}")
+    pr.iprint(ut.long_date(day.date))
+    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
+    highwater_report(tt_event.calc_events(day))
+    pr.iprint()
+    fullness_graph(day, as_of_when)
+    # dataform_report(day, [ut.get_time()])
     pr.set_output()
-    pr.iprint(f"Report done, going to screen again")

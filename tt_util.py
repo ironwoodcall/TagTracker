@@ -310,3 +310,10 @@ def get_version() -> str:
             if r:
                 return r.group(1)
     return ""
+
+def plural(count:int) -> str:
+    """Get an "s" if count indicates one is needed."""
+    if isinstance(count,(int,float)) and count == 1:
+        return ""
+    else:
+        return "s"

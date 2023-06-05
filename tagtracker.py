@@ -796,21 +796,19 @@ def main():
         elif cmd == cfg.CMD_LOOKBACK:
             rep.recent(pack_day_data(), args)
         elif cmd == cfg.CMD_RETIRED:
-            rep.retired_report(
-                pack_day_data(),
-            )
+            rep.retired_report(pack_day_data())
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:
             rep.day_end_report(pack_day_data(), args)
             # Force publication when do day-end reports
-            last_published = maybe_publish(last_published, force=True)
+            last_published = maybe_publish_log(last_published, force=True)
         elif cmd == cfg.CMD_BUSY:
             rep.more_stats_report(pack_day_data(), args)
         elif cmd == cfg.CMD_BUSY_CHART:
-            rep.busy_histogram(pack_day_data())
+            rep.busy_graph(pack_day_data())
         elif cmd == cfg.CMD_FULL_CHART:
-            rep.fullness_histogram(pack_day_data())
+            rep.fullness_graph(pack_day_data())
         elif cmd == cfg.CMD_CSV:
             rep.csv_dump(pack_day_data(), args)
         elif cmd == cfg.CMD_DUMP:
@@ -841,8 +839,9 @@ def main():
         if data_dirty:
             data_dirty = False
             save()
-            last_published = maybe_publish(last_published)
-
+            last_published = maybe_publish_log(last_published)
+        # Flush any echo buffer
+        pr.echo_flush()
 
 def datafile_name(folder: str) -> str:
     """Return the name of the data file (datafile) to read/write."""
@@ -877,7 +876,7 @@ def save():
 ABLE_TO_PUBLISH = True
 
 
-def maybe_publish(last_pub: ut.Time, force: bool = False) -> ut.Time:
+def maybe_publish_log(last_pub: ut.Time, force: bool = False) -> ut.Time:
     """Maybe save current log to 'publish' directory."""
     global ABLE_TO_PUBLISH  # pylint:disable=global-statement
     # Nothing to do if not configured to publish or can't publish
@@ -975,14 +974,9 @@ def get_taglists_from_config() -> tt_trackerday.TrackerDay:
         print(f"Errors in file, {errs=}")
         error_exit()
     return day
-    ##global NORMAL_TAGS, OVERSIZE_TAGS #pylint:disable=global-statement
-    ##global RETIRED_TAGS #pylint:disable=global-statement
-    ##NORMAL_TAGS   = day.regular
-    ##OVERSIZE_TAGS = day.oversize
-    ##RETIRED_TAGS  = day.retired
-    ##return True
 
 
+# ---------------------------------------------
 # STARTUP
 
 # Tags uppercase or lowercase?
@@ -1002,7 +996,7 @@ if __name__ == "__main__":
     pr.iprint(
         f"TagTracker {ut.get_version()} by Julias Hocking",
         num_indents=0,
-        style=cfg.ANSWER_STYLE
+        style=cfg.ANSWER_STYLE,
     )
     pr.iprint()
     # If no tags file, create one and tell them to edit it.
@@ -1038,6 +1032,6 @@ if __name__ == "__main__":
     main()
     # Exiting now; one last save
     save()
-    maybe_publish("", force=True)
+    maybe_publish_log("", force=True)
     pr.set_echo(False)
 # ==========================================

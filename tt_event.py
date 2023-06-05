@@ -35,6 +35,7 @@ class Event:
         self.bikes_out = []
         self.num_ins = 0  # This is just len(self.bikes_in).
         self.num_outs = 0  # This is just len(self.bikes_out).
+        self.bikes_here = [] # List of all bikes here
 
 
 def calc_events(
@@ -72,22 +73,29 @@ def calc_events(
     # Second pass, calculate other attributes of Events.
     num_regular = 0  # Running balance of regular & oversize bikes.
     num_oversize = 0
+    here_set = set()
     for atime in sorted(events.keys()):
-        vx = events[atime]
-        vx.num_ins = len(vx.bikes_in)
-        vx.num_outs = len(vx.bikes_out)
+        ev = events[atime]
+        ev.num_ins = len(ev.bikes_in)
+        ev.num_outs = len(ev.bikes_out)
         # How many regular & oversize bikes have we added or lost?
-        diff_normal = len([x for x in vx.bikes_in if x in day.regular]) - len(
-            [x for x in vx.bikes_out if x in day.regular]
+        delta_regular = len(
+            [x for x in ev.bikes_in if x in day.regular]
+            ) - len(
+            [x for x in ev.bikes_out if x in day.regular]
         )
-        diff_oversize = len([x for x in vx.bikes_in if x in day.oversize]) - len(
-            [x for x in vx.bikes_out if x in day.oversize]
+        delta_oversize = len(
+            [x for x in ev.bikes_in if x in day.oversize]
+            ) - len(
+            [x for x in ev.bikes_out if x in day.oversize]
         )
-        num_regular += diff_normal
-        num_oversize += diff_oversize
-        vx.num_here_regular = num_regular
-        vx.num_here_oversize = num_oversize
-        vx.num_here_total = num_regular + num_oversize
-        vx.num_ins = len(vx.bikes_in)
-        vx.num_outs = len(vx.bikes_out)
+        num_regular += delta_regular
+        num_oversize += delta_oversize
+        ev.num_here_regular = num_regular
+        ev.num_here_oversize = num_oversize
+        ev.num_here_total = num_regular + num_oversize
+        ev.num_ins = len(ev.bikes_in)
+        ev.num_outs = len(ev.bikes_out)
+        here_set = (here_set | set(ev.bikes_in)) - set(ev.bikes_out)
+        ev.bikes_here = list(here_set)
     return events

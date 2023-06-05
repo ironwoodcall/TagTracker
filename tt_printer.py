@@ -91,6 +91,11 @@ def echo(text:str="") -> None:
         return
     _echo_file.write(f"{text}")
 
+def echo_flush() -> None:
+    """If an echo file is active, flush buffer contents to it."""
+    if _echo_state and _echo_file:
+        _echo_file.flush()
+
 def tt_inp(prompt:str="",style:str="") -> str:
     """Get input, possibly echo to file."""
     inp = input(text_style(prompt,style))
@@ -115,7 +120,7 @@ def set_output(filename:str="") -> None:
     if _destination:
         _destination_file.close()
     if filename:
-        _destination_file = open(filename,mode="at",encoding="utf-8")
+        _destination_file = open(filename,mode="wt",encoding="utf-8")
     _destination = filename
 
 def get_output() -> str:
@@ -124,6 +129,10 @@ def get_output() -> str:
 
 def text_style(text:str, style=None) -> str:
     """Return text with style 'style' applied."""
+    # If redirecting to file, do not apply style
+    if _destination:
+        return text
+    # If no colour avilable, do not apply style
     if not cfg.USE_COLOUR:
         return text
     if not style:
@@ -156,7 +165,7 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
             print(f"{indent}{text}",end=end)
 
     # Also echo?
-    if _echo_state:
+    if _echo_state and not _destination:
         echo(f"{indent}{text}{end}")
 
 

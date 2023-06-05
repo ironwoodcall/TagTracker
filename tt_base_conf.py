@@ -22,6 +22,8 @@ Copyright (C) 2023 Julias Hocking
 """
 from tt_colours import Style, Fore, Back
 
+# Screen width - this will get used in some places but not necessarily everwhere
+SCREEN_WIDTH = 80 # characters
 
 # Use colours?
 USE_COLOUR = True # FIXME: is this in the right place? Should be in tt_printer?
