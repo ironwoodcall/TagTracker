@@ -35,6 +35,16 @@ class Visit:
         self.type = None  # ut.REGULAR, ut.OVERSIZE
         self.still_here = None  # True or False
 
+    def dump(self) -> None:
+        """Get contents of the Visit."""
+        return (f"{self.tag=},{self.time_in=},{self.time_out=},"
+                f"{self.duration=},{self.type=},{self.still_here=}")
+
+def dump_visits(visits:dict[Visit]) -> None:
+    """Dump whole visits dictionary."""
+    print("\nvisits\n")
+    for v in visits.values():
+        print(v.dump())
 
 def calc_visits(
     day: tt_trackerday.TrackerDay, as_of_when: Union[int, ut.Time]
@@ -57,7 +67,7 @@ def calc_visits(
 
     # If a bike isn't checked out or its checkout is after the requested
     # time, then use what as its checkout time?
-    latest_time = day.opening_time if day.closing_time else day.latest_event()
+    latest_time = day.closing_time if day.closing_time else day.latest_event()
     missing_checkout_time = min([latest_time, as_of_when])
 
     visits = {}

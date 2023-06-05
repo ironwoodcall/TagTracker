@@ -103,28 +103,3 @@ else:
     Back = _BackClass()
     Style = _StyleClass()
 
-
-# Styles related to colour
-STYLE = {}
-PROMPT_STYLE = "prompt_style"
-SUBPROMPT_STYLE = "subprompt_style"
-ANSWER_STYLE = "answer_style"
-TITLE_STYLE = "title_style"
-SUBTITLE_STYLE = "subtitle_style"
-NORMAL_STYLE = "normal_style"
-RESET_STYLE = "reset_style"
-HIGHLIGHT_STYLE = "highlight_style"
-WARNING_STYLE = "warn_style"
-ERROR_STYLE = "error_style"
-
-# Colour combinations. Override these in local config as desired.
-STYLE[PROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
-STYLE[SUBPROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
-STYLE[ANSWER_STYLE] = f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}"
-STYLE[TITLE_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}"
-STYLE[SUBTITLE_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
-STYLE[RESET_STYLE] = f"{Style.RESET_ALL}"
-STYLE[NORMAL_STYLE] = f"{Style.RESET_ALL}"
-STYLE[HIGHLIGHT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
-STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
-STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"

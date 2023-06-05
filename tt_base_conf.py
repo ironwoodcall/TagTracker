@@ -2,6 +2,9 @@
 
 Configuration items for the data entry module.
 
+This module sets configs then overrides with any same-named
+values that are set in tt_local_config
+
 Copyright (C) 2023 Julias Hocking
 
     This program is free software: you can redistribute it and/or modify
@@ -17,6 +20,10 @@ Copyright (C) 2023 Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+from tt_colours import Style, Fore, Back
+
+# Screen width - this will get used in some places but not necessarily everwhere
+SCREEN_WIDTH = 80 # characters
 
 # Use colours?
 USE_COLOUR = True # FIXME: is this in the right place? Should be in tt_printer?
@@ -59,6 +66,8 @@ Other
   Set tag display to lowercase :   lowercase / lc
   Exit                         :   exit / x
 """
+# Echo everything to a file?
+ECHO = False
 
 # Format preferences for prompting user.
 CURSOR = ">>> " #FIXME: put an override for this in local_config
@@ -72,6 +81,33 @@ INCLUDE_TIME_IN_PROMPT = True #FIXME: put an override for this in local_config
 # state not data state (arguable), and more to the point (2), because
 # datafile format is canonically all lowercase.
 TAGS_UPPERCASE = False
+
+# Styles related to colour
+STYLE = {}
+PROMPT_STYLE = "prompt_style"
+SUBPROMPT_STYLE = "subprompt_style"
+ANSWER_STYLE = "answer_style"
+TITLE_STYLE = "title_style"
+SUBTITLE_STYLE = "subtitle_style"
+NORMAL_STYLE = "normal_style"
+RESET_STYLE = "reset_style"
+HIGHLIGHT_STYLE = "highlight_style"
+WARNING_STYLE = "warn_style"
+ERROR_STYLE = "error_style"
+
+# Colour combinations. Override these in local config as desired.
+STYLE[PROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
+STYLE[SUBPROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
+STYLE[ANSWER_STYLE] = f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}"
+STYLE[TITLE_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}"
+STYLE[SUBTITLE_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
+STYLE[RESET_STYLE] = f"{Style.RESET_ALL}"
+STYLE[NORMAL_STYLE] = f"{Style.RESET_ALL}"
+STYLE[HIGHLIGHT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
+STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
+STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
+
+
 
 # Command keys and aliases.
 CMD_AUDIT = "audit"
@@ -93,6 +129,7 @@ CMD_LINT = "lint"
 CMD_DUMP = "dump"
 CMD_BUSY_CHART = "busy_chart"
 CMD_FULL_CHART = "full_chart"
+CMD_PUBLISH = "publish"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -114,6 +151,8 @@ COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
 COMMANDS[CMD_DUMP] = ["dump"]
 COMMANDS[CMD_BUSY_CHART] = ["chart-busy","graph-busy","busy-chart","busy-graph"]
 COMMANDS[CMD_FULL_CHART] = ["chart-full","graph-full","full-chart","full-graph"]
+COMMANDS[CMD_PUBLISH] = ["pub","publish"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
+
 
 
