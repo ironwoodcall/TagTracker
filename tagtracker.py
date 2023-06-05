@@ -994,10 +994,11 @@ if __name__ == "__main__":
 
     pr.iprint()
     pr.iprint(
-        f"TagTracker {ut.get_version()} by Julias Hocking",
+        "TagTracker by Julias Hocking",
         num_indents=0,
         style=cfg.ANSWER_STYLE,
     )
+    pr.iprint(f"Version {ut.get_version()}")
     pr.iprint()
     # If no tags file, create one and tell them to edit it.
     if not os.path.exists(TAG_CONFIG_FILE):

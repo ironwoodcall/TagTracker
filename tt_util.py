@@ -298,18 +298,49 @@ def build_colour_dict(file: str) -> TagDict:
 
 
 def get_version() -> str:
-    """Return system version number."""
-    changelog = "changelog.txt"
-    if not os.path.exists(changelog):
-        return "?"
+    """Return system version number from changelog.txt.
 
-    # Read startup header from changelog.
-    with open(changelog, "r", encoding="utf-8") as f:
+    If it looks like a git repo, will also try to include a ref from that."""
+    version_str = ""
+    changelog = "changelog.txt"
+    if os.path.exists(changelog):
+        # Read startup header from changelog.
+        with open(changelog, "r", encoding="utf-8") as f:
+            for line in f:
+                r = re.match(r"^ *([0-9]+\.[0-9]+\.[0-9]+): *$", line)
+                if r:
+                    version_str = r.group(1)
+                    break
+
+    # Git ref
+    git_head = os.path.join(".git","HEAD")
+    if not os.path.exists(git_head):
+        return version_str
+    # .git/HEAD points to the file that contains the version
+    with open(git_head, "r", encoding="utf-8") as f:
+        ref_path = ""
         for line in f:
-            r = re.match(r"^ *([0-9]+\.[0-9]+\.[0-9]+): *$", line)
+            r = re.match(r"^ref: *(refs.*)", line)
             if r:
-                return r.group(1)
-    return ""
+                ref_path = r.group(1)
+        if not ref_path:
+            return version_str
+    ref_full_path = os.path.join(".git",ref_path)
+    if not os.path.exists(ref_full_path):
+        return version_str
+    git_str = ""
+    with open(ref_full_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if line:
+                git_str = line.strip()[:6]
+                break
+    # get just the feature portion of the git ref_path
+    r = re.match(r"^refs/heads/(.*)", ref_path)
+    if r:
+        git_str = f"{git_str} {r.group(1)}"
+    # Full version string now
+    version_str = f"{version_str} ({git_str})"
+    return version_str
 
 def plural(count:int) -> str:
     """Get an "s" if count indicates one is needed."""
