@@ -281,10 +281,6 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         if tag not in check_outs_to_now:
             bikes_on_hand[tag] = ctime
 
-
-
-
-
     # Tags matrixes
     # Tags broken down by prefix (for tags matrix)
     prefixes_on_hand = ut.tags_by_prefix(bikes_on_hand.keys())
@@ -338,6 +334,14 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
 
     return
 
+
+def publish_audit(day: tt_trackerday.TrackerDay, args:list[str]) -> None:
+    """Publish the audit report."""
+    fn = "audit.txt"
+    fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
+    pr.set_output(fullfn)
+    audit_report(day,args)
+    pr.set_output()
 
 def csv_dump(day: tt_trackerday.TrackerDay, args) -> None:
     """Dump a few stats into csv for pasting into spreadsheets."""
@@ -893,21 +897,11 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             pr.iprint(f"{start}-{end} {prefix} {tagslist} {suffix}")
 
 
-def published_reports(day: tt_trackerday.TrackerDay) -> None:
+def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     """Publish reports to the PUBLISH directory."""
     as_of_when = "24:00"
 
-    fn = "audit.txt"
-    fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
-    # pr.iprint(f"Going to screen")
-    pr.set_output(fullfn)
-    # pr.iprint(f"Going to {fullfn}")
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    audit_report(day, [as_of_when])
-    # dataform_report(day, [ut.get_time()])
-    # pr.set_output()
-    # pr.iprint(f"Report done, going to screen again")
+    publish_audit(day, [as_of_when])
 
     fn = "fullness.txt"
     fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
