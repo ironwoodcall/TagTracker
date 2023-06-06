@@ -798,6 +798,8 @@ def main():
             rep.recent(pack_day_data(), args)
         elif cmd == cfg.CMD_RETIRED:
             rep.retired_report(pack_day_data())
+        elif cmd == cfg.CMD_COLOURS:
+            rep.colours_report(pack_day_data())
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:
