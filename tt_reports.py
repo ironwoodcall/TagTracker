@@ -867,8 +867,9 @@ def colours_report(day: tt_trackerday.TrackerDay) -> None:
     pr.iprint("Code Colour   Bike type  Count", style=cfg.SUBTITLE_STYLE)
     for code in sorted(colours):
         name = colours[code].title()
+        code_str = code.upper() if cfg.TAGS_UPPERCASE else code
         pr.iprint(
-            f" {code:>2}  {name:8} {type_names[tag_type[code]]:8}  {tag_count[code]:4d} tags"
+            f" {code_str:>2}  {name:8} {type_names[tag_type[code]]:8}  {tag_count[code]:4d} tags"
         )
 
 
