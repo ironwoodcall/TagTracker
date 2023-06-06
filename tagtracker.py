@@ -150,7 +150,7 @@ def pack_day_data() -> tt_trackerday.TrackerDay:
     day.oversize = OVERSIZE_TAGS
     day.retired = RETIRED_TAGS
     day.colour_letters = COLOUR_LETTERS
-    day.is_uppercase = UC_TAGS
+    day.is_uppercase = cfg.TAGS_UPPERCASE
     return day
 
 
@@ -209,7 +209,7 @@ def initialize_today() -> bool:
         today.retired = tagconfig.retired
         today.colour_letters = tagconfig.colour_letters
     # Set UC if needed (NB: logfiles are always LC)
-    if UC_TAGS:
+    if cfg.TAGS_UPPERCASE:
         today.make_uppercase()
     # On success, set today's working data
     unpack_day_data(today)
@@ -280,7 +280,7 @@ def delete_entry(args: list[str]) -> None:
     if not maybe_target:
         nogood()
         return
-    target = ut.fix_tag(maybe_target, must_be_in=ALL_TAGS, uppercase=UC_TAGS)
+    target = ut.fix_tag(maybe_target, must_be_in=ALL_TAGS, uppercase=cfg.TAGS_UPPERCASE)
     if not target:
         nogood(f"'{maybe_target}' is not a tag or not a tag in use.")
         return
@@ -330,7 +330,7 @@ def query_tag(args: list[str]) -> None:
         )
         target = pr.tt_inp().lower()
     pr.iprint()
-    fixed_target = ut.fix_tag(target, uppercase=UC_TAGS)
+    fixed_target = ut.fix_tag(target, uppercase=cfg.TAGS_UPPERCASE)
     if not fixed_target:
         pr.iprint(f"'{target}' does not look like a tag name", style=cfg.WARNING_STYLE)
         return
@@ -474,7 +474,7 @@ def multi_edit(args: list[str]):
             # Break into tags list and other list
             done_tags = False
             for part in parts:
-                tag = ut.fix_tag(part, uppercase=UC_TAGS)
+                tag = ut.fix_tag(part, uppercase=cfg.TAGS_UPPERCASE)
                 if done_tags or not tag:
                     self.remainder.append(part)
                 else:
@@ -536,7 +536,7 @@ def multi_edit(args: list[str]):
         if tag in RETIRED_TAGS:
             error(f"Tag '{tag}' is marked as retired")
             return False
-        if ut.fix_tag(tag, ALL_TAGS, uppercase=UC_TAGS) != tag:
+        if ut.fix_tag(tag, ALL_TAGS, uppercase=cfg.TAGS_UPPERCASE) != tag:
             error(f"Tag '{tag}' unrecognized or not available for use")
             return False
         if inout == ut.BIKE_IN and tag in check_outs and check_outs[tag] < target_time:
@@ -696,7 +696,7 @@ def parse_command(user_input: str) -> list[str]:
         user_input = user_input[0] + " " + user_input[1:]
     # Split to list, test to see if tag.
     input_tokens = user_input.split()
-    command = ut.fix_tag(input_tokens[0], must_be_in=ALL_TAGS, uppercase=UC_TAGS)
+    command = ut.fix_tag(input_tokens[0], must_be_in=ALL_TAGS, uppercase=cfg.TAGS_UPPERCASE)
     if command:
         return [command]  # A tag
     # See if it is a recognized command.
@@ -798,6 +798,8 @@ def main():
             rep.recent(pack_day_data(), args)
         elif cmd == cfg.CMD_RETIRED:
             rep.retired_report(pack_day_data())
+        elif cmd == cfg.CMD_COLOURS:
+            rep.colours_report(pack_day_data())
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:
@@ -931,13 +933,13 @@ def fold_tags_case(uppercase: bool):
 
 def set_tag_case(want_uppercase: bool) -> None:
     """Set tags to be uppercase or lowercase depending on 'command'."""
-    global UC_TAGS  # pylint: disable=global-statement
+    ##global UC_TAGS  # pylint: disable=global-statement
     case_str = "upper case" if want_uppercase else "lower case"
-    if UC_TAGS == want_uppercase:
+    if cfg.TAGS_UPPERCASE == want_uppercase:
         pr.iprint(f"Tags already {case_str}.", style=cfg.WARNING_STYLE)
         return
-    UC_TAGS = want_uppercase
-    fold_tags_case(UC_TAGS)
+    cfg.TAGS_UPPERCASE = want_uppercase
+    fold_tags_case(cfg.TAGS_UPPERCASE)
     pr.iprint(f" Tags will now show in {case_str}. ", style=cfg.ANSWER_STYLE)
 
 
@@ -986,7 +988,7 @@ def get_taglists_from_config() -> tt_trackerday.TrackerDay:
 # STARTUP
 
 # Tags uppercase or lowercase?
-UC_TAGS = cfg.TAGS_UPPERCASE
+##UC_TAGS = cfg.TAGS_UPPERCASE
 # Log file
 LOG_FILEPATH = custom_datafile()
 CUSTOM_LOG = bool(LOG_FILEPATH)
@@ -1025,7 +1027,7 @@ if __name__ == "__main__":
     lint_report(strict_datetimes=False)
 
     # Flip everything uppercase (or lowercase)
-    fold_tags_case(UC_TAGS)
+    fold_tags_case(cfg.TAGS_UPPERCASE)
 
     # Get/set valet date & time
     if not VALET_OPENS or not VALET_CLOSES:

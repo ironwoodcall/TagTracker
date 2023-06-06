@@ -189,10 +189,11 @@ def simplified_taglist(tags: Union[list[ut.Tag], str]) -> str:
     ##simple_str = simple_str.upper() if UC_TAGS else simple_str.lower()
     return simple_str
 
-def inout_summary(day: tt_trackerday.TrackerDay,as_of_when:str="") ->None:
+
+def inout_summary(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     """Print summary table of # of bikes in, out and still at valet."""
     # Count the totals
-    visits = tt_visit.calc_visits(day,as_of_when=as_of_when)
+    visits = tt_visit.calc_visits(day, as_of_when=as_of_when)
     bikes_on_hand = [v.tag for v in visits.values() if v.still_here]
     num_bikes_on_hand = len(bikes_on_hand)
     regular_in = 0
@@ -212,7 +213,7 @@ def inout_summary(day: tt_trackerday.TrackerDay,as_of_when:str="") ->None:
     sum_out = regular_out + oversize_out
     sum_on_hand = regular_in + oversize_in - regular_out - oversize_out
 
-   # Print summary of bikes in/out/here
+    # Print summary of bikes in/out/here
     pr.iprint()
     pr.iprint("Summary             Regular Oversize Total", style=cfg.SUBTITLE_STYLE)
     pr.iprint(
@@ -264,7 +265,7 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     later_events_warning(day, as_of_when)
 
     # Summary of bikes in a& bikes out
-    inout_summary(day,as_of_when)
+    inout_summary(day, as_of_when)
 
     # Get rid of any check-ins or -outs later than the requested time.
     # (Yes I know there's a slicker way to do this but this is nice and clear.)
@@ -335,13 +336,14 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     return
 
 
-def publish_audit(day: tt_trackerday.TrackerDay, args:list[str]) -> None:
+def publish_audit(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     """Publish the audit report."""
     fn = "audit.txt"
     fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
     pr.set_output(fullfn)
-    audit_report(day,args)
+    audit_report(day, args)
     pr.set_output()
+
 
 def csv_dump(day: tt_trackerday.TrackerDay, args) -> None:
     """Dump a few stats into csv for pasting into spreadsheets."""
@@ -537,6 +539,7 @@ def visit_statistics_report(visits: dict) -> None:
 
 def highwater_report(events: dict) -> None:
     """Make a highwater table as at as_of_when."""
+
     # High-water mark for bikes in valet at any one time
     def one_line(
         header: str, events: dict, atime: ut.Time, highlight_field: int
@@ -616,8 +619,10 @@ def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
         insize = round(blk.num_ins / scale_factor)
         outsize = round(blk.num_outs / scale_factor)
 
-        #pr.iprint(f"{start} {' ' * (ins_field_width-insize)}{(in_marker * insize)}  {out_marker * outsize}")
-        pr.iprint(f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  {start}  {out_marker * outsize}")
+        # pr.iprint(f"{start} {' ' * (ins_field_width-insize)}{(in_marker * insize)}  {out_marker * outsize}")
+        pr.iprint(
+            f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  {start}  {out_marker * outsize}"
+        )
 
 
 def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
@@ -628,6 +633,7 @@ def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
+    # FIXME: max() fails when no bikes checked in yet
     max_full = max([b.num_here for b in blocks.values()])
     available_width = cfg.SCREEN_WIDTH - 10
     scale_factor = round((max_full / available_width))
@@ -824,6 +830,49 @@ def more_stats_report(day: tt_trackerday.TrackerDay, args: list) -> None:
     qstack_report(visits)
 
 
+def colours_report(day: tt_trackerday.TrackerDay) -> None:
+    """List colours in use."""
+    type_names = {
+        UNKNOWN: "None",
+        REGULAR: "Regular",
+        OVERSIZE: "Oversize",
+        MIXED: "Mixed",
+    }
+
+    # Make a dict of the colour letters that's all lowercase
+    colours = {k.lower(): v for k, v in day.colour_letters.items()}
+    # Dict of bike types for tags: UNKNOWN, OVERSIZE, REGULAR or MIXED
+    tag_type = dict(
+        zip(list(day.colour_letters.keys()), [UNKNOWN for _ in range(0, 100)])
+    )
+    # Dictionary of how many tags are of each colour.
+    tag_count = dict(zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)]))
+    # Count and categorize the tags (all available for use)
+    for tag in day.all_tags():
+        code = ut.parse_tag(tag, [], uppercase=False)[1]
+        if code not in colours:
+            ut.squawk(f"bad colour for {tag}: '{code}' in colours_report()")
+            continue
+        # Tag type
+        btype = REGULAR if tag in day.regular else OVERSIZE
+        if tag_type[code] == UNKNOWN:
+            tag_type[code] = btype
+        elif tag_type[code] != btype:
+            tag_type[code] = MIXED
+        # Tag count
+        tag_count[code] += 1
+
+    pr.iprint()
+    pr.iprint("Currently configured colours", style=cfg.TITLE_STYLE)
+    pr.iprint("Code Colour   Bike type  Count", style=cfg.SUBTITLE_STYLE)
+    for code in sorted(colours):
+        name = colours[code].title()
+        code_str = code.upper() if cfg.TAGS_UPPERCASE else code
+        pr.iprint(
+            f" {code_str:>2}  {name:8} {type_names[tag_type[code]]:8}  {tag_count[code]:4d} tags"
+        )
+
+
 def retired_report(day: tt_trackerday.TrackerDay) -> None:
     """List retired tags."""
     pr.iprint()
@@ -923,7 +972,7 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     # pr.iprint(f"Going to {busyfn}")
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    inout_summary(day,as_of_when)
+    inout_summary(day, as_of_when)
     pr.iprint()
     busy_graph(day, as_of_when)
     # dataform_report(day, [ut.get_time()])
