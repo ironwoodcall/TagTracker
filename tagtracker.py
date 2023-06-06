@@ -808,6 +808,8 @@ def main():
             last_published = maybe_publish(last_published, force=True)
         elif cmd == cfg.CMD_BUSY:
             rep.more_stats_report(pack_day_data(), args)
+        elif cmd == cfg.CMD_CHART:
+            rep.full_chart(pack_day_data())
         elif cmd == cfg.CMD_BUSY_CHART:
             rep.busy_graph(pack_day_data())
         elif cmd == cfg.CMD_FULL_CHART:
