@@ -133,6 +133,7 @@ CMD_PUBLISH = "publish"
 CMD_COLOURS = "colours"
 CMD_CHART = "chart"
 
+
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
 COMMANDS[CMD_DELETE] = ['del','delete','d']
