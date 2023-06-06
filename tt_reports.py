@@ -588,12 +588,40 @@ def highwater_report(events: dict) -> None:
     one_line("Most combined:", events, max_total_time, 2)
 
 
+def full_chart(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
+    """Make chart of main stats by timeblock."""
+    as_of_when = as_of_when if as_of_when else "24:00"
+    if not day.bikes_in:
+        pr.iprint()
+        pr.iprint("No bikes in, nothing to report",style=cfg.WARNING_STYLE)
+        return
+
+    blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
+    pr.iprint()
+    pr.iprint(f"Activity chart {day.date}", style=cfg.TITLE_STYLE)
+    pr.iprint()
+    pr.iprint("          Activity    --Bikes at valet-    Max",style=cfg.SUBTITLE_STYLE)
+    pr.iprint(" Time     In   Out    Reglr Ovrsz Total   Bikes",style=cfg.SUBTITLE_STYLE)
+    for blk_start in sorted(blocks.keys()):
+        blk:tt_block.Block
+        blk = blocks[blk_start]
+        pr.iprint(
+            f"{ut.pretty_time(blk_start,trim=False)}    "
+            f"{blk.num_ins:3}   {blk.num_outs:3}    "
+            f"{blk.num_here_regular:4}  {blk.num_here_oversize:4}  {blk.num_here:4}    "
+            f"{blk.max_here:4}"
+        )
+
 def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of busyness."""
     in_marker = "+"  # OØ OX  <>  ↓↑
     out_marker = "x"
 
     as_of_when = as_of_when if as_of_when else "24:00"
+    if not day.bikes_in:
+        pr.iprint()
+        pr.iprint("No bikes in, nothing to report",style=cfg.WARNING_STYLE)
+        return
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
     max_ins = max([b.num_ins for b in blocks.values()])
@@ -633,7 +661,11 @@ def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
-    # FIXME: max() fails when no bikes checked in yet
+    if not day.bikes_in:
+        pr.iprint()
+        pr.iprint("No bikes in, nothing to report",style=cfg.WARNING_STYLE)
+        return
+
     max_full = max([b.num_here for b in blocks.values()])
     available_width = cfg.SCREEN_WIDTH - 10
     scale_factor = round((max_full / available_width))
@@ -954,26 +986,44 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
 
     fn = "fullness.txt"
     fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
-    # pr.iprint(f"Going to screen")
     pr.set_output(fullfn)
-    # pr.iprint(f"Going to {fullfn}")
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
     highwater_report(tt_event.calc_events(day))
     pr.iprint()
     fullness_graph(day, as_of_when)
-    # dataform_report(day, [ut.get_time()])
     pr.set_output()
 
     fn = "busyness.txt"
     busyfn = os.path.join(cfg.SHARE_FOLDER, fn)
-    # pr.iprint(f"Going to screen")
     pr.set_output(busyfn)
-    # pr.iprint(f"Going to {busyfn}")
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
     inout_summary(day, as_of_when)
     pr.iprint()
     busy_graph(day, as_of_when)
-    # dataform_report(day, [ut.get_time()])
+    pr.set_output()
+
+    fn = "activity.txt"
+    activity_fn = os.path.join(cfg.SHARE_FOLDER, fn)
+    pr.set_output(activity_fn)
+    pr.iprint(ut.long_date(day.date))
+    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
+    full_chart(day,as_of_when=as_of_when)
+    pr.set_output()
+
+    fn = "day_end.txt"
+    day_end_fn = os.path.join(cfg.SHARE_FOLDER, fn)
+    pr.set_output(day_end_fn)
+    pr.iprint(ut.long_date(day.date))
+    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
+    day_end_report(day,[as_of_when])
+    pr.set_output()
+
+    fn = "dataform.txt"
+    dataform_fn = os.path.join(cfg.SHARE_FOLDER, fn)
+    pr.set_output(dataform_fn)
+    pr.iprint(ut.long_date(day.date))
+    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
+    dataform_report(day,[])
     pr.set_output()

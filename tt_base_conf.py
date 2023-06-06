@@ -131,6 +131,7 @@ CMD_BUSY_CHART = "busy_chart"
 CMD_FULL_CHART = "full_chart"
 CMD_PUBLISH = "publish"
 CMD_COLOURS = "colours"
+CMD_CHART = "chart"
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ['audit','a','aud']
@@ -152,8 +153,9 @@ COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
 COMMANDS[CMD_DUMP] = ["dump"]
 COMMANDS[CMD_BUSY_CHART] = ["chart-busy","graph-busy","busy-chart","busy-graph"]
 COMMANDS[CMD_FULL_CHART] = ["chart-full","graph-full","full-chart","full-graph"]
+COMMANDS[CMD_CHART] = ["chart","c"]
 COMMANDS[CMD_PUBLISH] = ["pub","publish"]
-COMMANDS[CMD_COLOURS] = ["c","col","color","colors","colour","colours"]
+COMMANDS[CMD_COLOURS] = ["col","color","colors","colour","colours"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 
