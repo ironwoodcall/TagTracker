@@ -44,7 +44,7 @@ HEADER_RETIRED = "Retired tags:"
 HEADER_COLOURS = "Colour codes:"
 
 
-def rotate_log(filename: str) -> None:
+def rotate_datafile(filename: str) -> None:
     """Rename the current datafile to <itself>.bak."""
     backuppath = f"{filename}.bak"
     if os.path.exists(backuppath):
