@@ -26,7 +26,7 @@ from tt_colours import Style, Fore, Back
 SCREEN_WIDTH = 80 # characters
 
 # Use colours?
-USE_COLOUR = True # FIXME: is this in the right place? Should be in tt_printer?
+USE_COLOUR = True
 
 # Datafiles/Logfiles
 LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
@@ -36,7 +36,7 @@ SHARE_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
 # Ask confirmatino for checkouts when visits less than this duration.
-CHECK_OUT_CONFIRM_TIME = 30 # mins # FIXME put override in local_config
+CHECK_OUT_CONFIRM_TIME = 30 # mins
 
 # Help message.  Colour styles will be applied as:
 #       First non-blank line will be in TITLE_STYLE, after which
@@ -58,7 +58,8 @@ Information and reports
   Show day-end stats report    :   stat  / s
   Show valet busy-ness report  :   busy / b
   Show data as on paper form   :   form / f
-  Show what tags are retired   :   retired / ret
+  Show tag configuration       :   tags / t
+  Show chart of all activity   :   chart / c
 
 Other
   Show this list of commands   :   help  /  h
@@ -70,8 +71,8 @@ Other
 ECHO = False
 
 # Format preferences for prompting user.
-CURSOR = ">>> " #FIXME: put an override for this in local_config
-INCLUDE_TIME_IN_PROMPT = True #FIXME: put an override for this in local_config
+CURSOR = ">>> "
+INCLUDE_TIME_IN_PROMPT = True
 
 # Tags display in uppercase or lowercase?
 # (Note: in files always stored as lowercase)

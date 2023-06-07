@@ -1,5 +1,9 @@
 TagTracker by Julias Hocking
 
+0.8.1:
++ more reports
++ usability tweaks & bug fixes
+
 0.8.0:
 ~ refactored
 + local config file
