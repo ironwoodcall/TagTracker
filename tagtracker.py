@@ -796,10 +796,11 @@ def main():
             show_help()
         elif cmd == cfg.CMD_LOOKBACK:
             rep.recent(pack_day_data(), args)
-        elif cmd == cfg.CMD_RETIRED:
-            rep.retired_report(pack_day_data())
-        elif cmd == cfg.CMD_COLOURS:
-            rep.colours_report(pack_day_data())
+        elif cmd == cfg.CMD_RETIRED or cmd == cfg.CMD_COLOURS:
+            pr.iprint("This command has been replaced by the 'tags' command.",
+                      style=cfg.WARNING_STYLE)
+        elif cmd == cfg.CMD_TAGS:
+            rep.tags_config_report(pack_day_data())
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:

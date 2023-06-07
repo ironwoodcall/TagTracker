@@ -26,7 +26,7 @@ from tt_colours import Style, Fore, Back
 SCREEN_WIDTH = 80 # characters
 
 # Use colours?
-USE_COLOUR = True # FIXME: is this in the right place? Should be in tt_printer?
+USE_COLOUR = True
 
 # Datafiles/Logfiles
 LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
@@ -36,7 +36,7 @@ SHARE_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 
 # Ask confirmatino for checkouts when visits less than this duration.
-CHECK_OUT_CONFIRM_TIME = 30 # mins # FIXME put override in local_config
+CHECK_OUT_CONFIRM_TIME = 30 # mins
 
 # Help message.  Colour styles will be applied as:
 #       First non-blank line will be in TITLE_STYLE, after which
@@ -58,20 +58,22 @@ Information and reports
   Show day-end stats report    :   stat  / s
   Show valet busy-ness report  :   busy / b
   Show data as on paper form   :   form / f
-  Show what tags are retired   :   retired / ret
+  Show tag configurations      :   tags / t
+  Show chart of all activity   :   chart / c
 
 Other
   Show this list of commands   :   help  /  h
   Set tag display to UPPERCASE :   uppercase / uc
   Set tag display to lowercase :   lowercase / lc
+  Send reports to shared drive :   publish / pub
   Exit                         :   exit / x
 """
 # Echo everything to a file?
 ECHO = False
 
 # Format preferences for prompting user.
-CURSOR = ">>> " #FIXME: put an override for this in local_config
-INCLUDE_TIME_IN_PROMPT = True #FIXME: put an override for this in local_config
+CURSOR = ">>> "
+INCLUDE_TIME_IN_PROMPT = True
 
 # Tags display in uppercase or lowercase?
 # (Note: in files always stored as lowercase)
@@ -124,14 +126,15 @@ CMD_VALET_HOURS = "valet_hours"
 CMD_CSV = "csv"
 CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
-CMD_RETIRED = "retired"
 CMD_LINT = "lint"
 CMD_DUMP = "dump"
 CMD_BUSY_CHART = "busy_chart"
 CMD_FULL_CHART = "full_chart"
-CMD_PUBLISH = "publish"
-CMD_COLOURS = "colours"
 CMD_CHART = "chart"
+CMD_PUBLISH = "publish"
+CMD_COLOURS = "colours" # FIXME: remove in a while. Now "tags"
+CMD_RETIRED = "retired" # FIXME: remove in a while.  Now "tags"
+CMD_TAGS = "tags"
 
 
 COMMANDS = {}
@@ -157,6 +160,7 @@ COMMANDS[CMD_FULL_CHART] = ["chart-full","graph-full","full-chart","full-graph"]
 COMMANDS[CMD_CHART] = ["chart","c"]
 COMMANDS[CMD_PUBLISH] = ["pub","publish"]
 COMMANDS[CMD_COLOURS] = ["col","color","colors","colour","colours"]
+COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 

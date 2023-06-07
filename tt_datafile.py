@@ -368,14 +368,13 @@ def write_logfile(
     # This to make complete bundles for historic information
     lines.append("# Following sections are context for the check-ins/outs")
     lines.append(HEADER_REGULAR)
-    for tag in data.regular:
-        lines.append(tag.lower())
+    for group in ut.sort_tags([t.lower() for t in data.regular]):
+        lines.append(" ".join(group))
     lines.append(HEADER_OVERSIZE)
-    for tag in data.oversize:
-        lines.append(tag.lower())
+    for group in ut.sort_tags([t.lower() for t in data.oversize]):
+        lines.append(" ".join(group))
     lines.append(HEADER_RETIRED)
-    for tag in data.retired:
-        lines.append(tag.lower())
+    lines.append(" ".join([t.lower() for t in data.retired]))
     lines.append(HEADER_COLOURS)
     for letter, name in data.colour_letters.items():
         lines.append(f"{letter},{name}")
