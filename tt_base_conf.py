@@ -58,13 +58,14 @@ Information and reports
   Show day-end stats report    :   stat  / s
   Show valet busy-ness report  :   busy / b
   Show data as on paper form   :   form / f
-  Show tag configuration       :   tags / t
+  Show tag configurations      :   tags / t
   Show chart of all activity   :   chart / c
 
 Other
   Show this list of commands   :   help  /  h
   Set tag display to UPPERCASE :   uppercase / uc
   Set tag display to lowercase :   lowercase / lc
+  Send reports to shared drive :   publish / pub
   Exit                         :   exit / x
 """
 # Echo everything to a file?
