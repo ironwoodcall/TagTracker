@@ -179,7 +179,7 @@ def initialize_today() -> bool:
     """Read today's info from datafile & maybe tags-config file."""
     # Does the file even exist? (If not we will just create it later)
     new_datafile = False
-    pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make logs folder if missing
+    pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
     if not os.path.exists(DATA_FILEPATH):
         new_datafile = True
         pr.iprint("Creating new datafile" f" {DATA_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
@@ -873,7 +873,7 @@ def custom_datafile() -> str:
 def save():
     """Save today's data in the datafile."""
     # Save .bak
-    df.rotate_log(DATA_FILEPATH)
+    df.rotate_datafile(DATA_FILEPATH)
     # Pack data into a TrackerDay object to store
     day = pack_day_data()
     # Store the data
@@ -884,7 +884,7 @@ ABLE_TO_PUBLISH = True
 
 
 def maybe_publish(last_pub: Time, force: bool = False) -> Time:
-    """Maybe save current log to 'publish' directory."""
+    """Maybe save current data to 'publish' directory."""
     global ABLE_TO_PUBLISH  # pylint:disable=global-statement
     # Nothing to do if not configured to publish or can't publish
     if not ABLE_TO_PUBLISH or not cfg.REPORTS_FOLDER or not cfg.PUBLISH_FREQUENCY:
@@ -992,7 +992,7 @@ def get_taglists_from_config() -> tt_trackerday.TrackerDay:
 
 # Tags uppercase or lowercase?
 ##UC_TAGS = cfg.TAGS_UPPERCASE
-# Log file
+# Data file
 DATA_FILEPATH = custom_datafile()
 CUSTOM_DAT = bool(DATA_FILEPATH)
 if not CUSTOM_DAT:
