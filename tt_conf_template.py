@@ -19,32 +19,30 @@ Copyright (C) 2023 Julias Hocking
 """
 from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-import
 
-# Screen width - this will get used in some places but not necessarily everwhere
+
+# Screen appearance
 ##SCREEN_WIDTH = 80 # characters
-
-# Use colours?
 ##USE_COLOUR = True
+##CURSOR = ">>> "
+##INCLUDE_TIME_IN_PROMPT = True
+##TAGS_UPPERCASE = False
 
-# Datafiles/Logfiles
-##LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
-##LOG_FOLDER = "logs" # Folder to keep logfiles in
-# System occasionally puts a copy of log in a publish folder
-##SHARE_FOLDER = r""
+# This file defines what tags are available, for current-day sessions.
+##TAG_CONFIG_FILE = "tags.cfg"
+# Files and folder locations
+##DATA_FOLDER = "../data" # Folder to keep datafiles in
+##DATA_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.dat
+# Where and how often to publish reports
+##REPORTS_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
 ##PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
+# Echo captures full transcripts of a day's TT session
+##ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
+##ECHO = False
 
 # Ask confirmatino for checkouts when visits less than this duration.
 ##CHECK_OUT_CONFIRM_TIME = 30 # mins
-
-# Echo everything to a file?
-# File will go into the SHARE folder with today's date
-##ECHO = False
-
-# Format preferences for prompting user.
-##CURSOR = ">>> "
-##INCLUDE_TIME_IN_PROMPT = True
-
-# Tags display in uppercase or lowercase?
-##TAGS_UPPERCASE = False
+# Duration (minutes) for roll-up blocks (e.g. for datasheet report)
+##BLOCK_DURATION = 30
 
 # Help message.  Colour styles will be applied as:
 #       First non-blank line will be in TITLE_STYLE, after which
@@ -66,15 +64,18 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 ##  Show day-end stats report    :   stat  / s
 ##  Show valet busy-ness report  :   busy / b
 ##  Show data as on paper form   :   form / f
-##  Show what tags are retired   :   retired / ret
+##  Show tag configurations      :   tags / t
+##  Show chart of all activity   :   chart / c
 ##
 ##Other
 ##  Show this list of commands   :   help  /  h
 ##  Set tag display to UPPERCASE :   uppercase / uc
 ##  Set tag display to lowercase :   lowercase / lc
+##  Send reports to shared drive :   publish / pub
 ##  Exit                         :   exit / x
 ##"""
-# Colour combinations. Override these in local config as desired.
+
+# Colour combinations. Override these desired.
 ##STYLE[PROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
 ##STYLE[SUBPROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
 ##STYLE[ANSWER_STYLE] = f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}"
@@ -86,7 +87,7 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 ##STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
 ##STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
 
-# keywords to operate different commands
+# Surely you don't want to change these.  Which strings activate which commands.
 ##COMMANDS[CMD_AUDIT] = ['audit','a','aud']
 ##COMMANDS[CMD_DELETE] = ['del','delete','d']
 ##COMMANDS[CMD_EDIT] = ['edit','e','ed']
@@ -106,8 +107,10 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 ##COMMANDS[CMD_DUMP] = ["dump"]
 ##COMMANDS[CMD_BUSY_CHART] = ["chart-busy","graph-busy","busy-chart","busy-graph"]
 ##COMMANDS[CMD_FULL_CHART] = ["chart-full","graph-full","full-chart","full-graph"]
+##COMMANDS[CMD_CHART] = ["chart","c"]
 ##COMMANDS[CMD_PUBLISH] = ["pub","publish"]
-
+##COMMANDS[CMD_COLOURS] = ["col","color","colors","colour","colours"]
+##COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
 
 
 

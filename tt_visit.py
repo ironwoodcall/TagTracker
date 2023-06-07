@@ -32,7 +32,7 @@ class Visit:
         self.time_in = ""  # HH:MM
         self.time_out = ""  # HH:MM
         self.duration = 0  # minutes
-        self.type = None  # ut.REGULAR, ut.OVERSIZE
+        self.type = None  # REGULAR, OVERSIZE
         self.still_here = None  # True or False
 
     def dump(self) -> None:
@@ -47,8 +47,8 @@ def dump_visits(visits:dict[Visit]) -> None:
         print(v.dump())
 
 def calc_visits(
-    day: tt_trackerday.TrackerDay, as_of_when: Union[int, ut.Time]
-) -> dict[ut.Tag, Visit]:
+    day: tt_trackerday.TrackerDay, as_of_when: Union[int, Time]
+) -> dict[Tag, Visit]:
     """Create a dict of visits keyed by tag as of as_of_when.
 
     If as_of_when is not given, then this will use the current time.
@@ -86,8 +86,8 @@ def calc_visits(
             1, (ut.time_int(this_visit.time_out) - ut.time_int(this_visit.time_in))
         )
         if tag in day.regular:
-            this_visit.type = ut.REGULAR
+            this_visit.type = REGULAR
         else:
-            this_visit.type = ut.OVERSIZE
+            this_visit.type = OVERSIZE
         visits[tag] = this_visit
     return visits

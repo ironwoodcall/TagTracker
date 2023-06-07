@@ -1,7 +1,7 @@
 """Convert spreadsheet csv file to tagtracker format.
 
 This is a standalone script to convert one csv file into one
-tagracker *.log file.
+tagracker *.dat file.
 
 This rejects any check-ins without check-outs... which makes it weird if
 converting a partial-day's data.  Need to think about that.
@@ -13,7 +13,9 @@ import os
 import re
 import random
 ##from typing import Union
-import tracker_util as ut
+from tt_globals import *
+import tt_util as ut
+
 
 # If set, RANDOMIZE_TIMES will randomize times within their block.
 # To keep things crazy simple, this assumes blocks are 30 minutes.
@@ -30,7 +32,7 @@ INFO_MSG = "Info"
 # Record check ins/outs as this many minutes into the time block
 BIKE_IN_OFFSET = 14
 BIKE_OUT_OFFSET = 16
-# Header lines to put in the logfile.
+# Header lines to put in the datafile.
 BIKE_IN_HEADER = 'Bikes checked in / tags out:'
 BIKE_OUT_HEADER = 'Bikes checked out / tags in:'
 
@@ -73,7 +75,7 @@ def isatag(maybe:str) -> str:
         tag_number: a sequence number, without lead zeroes.
     """
     maybe = maybe.lower()
-    if not bool(r := ut.PARSE_TAG_RE.match(maybe)):
+    if not bool(r := PARSE_TAG_RE.match(maybe)):
         return []
 
     tag_colour = r.group(1)
@@ -113,10 +115,10 @@ def readafile( file:str ) -> list[str, dict,dict]:
                 this_date = chunks[0]
             # Is this a "check-in" or "check-out" header line?
             if re.match(r"^Tag given out",chunks[0]):
-                inout = ut.BIKE_IN
+                inout = BIKE_IN
                 continue
             elif re.match(r"^Tag returned",chunks[0]):
-                inout = ut.BIKE_OUT
+                inout = BIKE_OUT
                 continue
             # Ignore non-date junk at top of the file
             if not inout:
@@ -149,12 +151,12 @@ def readafile( file:str ) -> list[str, dict,dict]:
                     block_begin = ut.time_int(block_start)
                     check_time = random.randint(block_begin,block_begin+29)
                 else:
-                    offset = BIKE_IN_OFFSET if inout == ut.BIKE_IN else BIKE_OUT_OFFSET
+                    offset = BIKE_IN_OFFSET if inout == BIKE_IN else BIKE_OUT_OFFSET
                     check_time = (ut.time_int(block_start)
                             + offset)
-                if inout == ut.BIKE_IN:
+                if inout == BIKE_IN:
                     check_ins[tag] = ut.time_str(check_time)
-                elif inout == ut.BIKE_OUT:
+                elif inout == BIKE_OUT:
                     check_outs[tag] = ut.time_str(check_time)
     return [this_date, dict(check_ins), dict(check_outs)]
 
@@ -224,7 +226,7 @@ for oldfile in in_files:
     print("   ...checking for errors...")
     clean(oldfile, bikes_in, bikes_out)
     # Write the file
-    newfile = f"cityhall_{date}.log"
+    newfile = f"cityhall_{date}.dat"
     print(f"   ...writing tags to {newfile}")
     write_file(oldfile, newfile, date, bikes_in, bikes_out)
     print("   ...done")

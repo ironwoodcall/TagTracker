@@ -53,12 +53,12 @@ _INDENT = '  '
 #    print("WARNING: No colours available, text will be in black & white.")
 
 
-# echo will save all input & (screen) output to an echo logfile
+# echo will save all input & (screen) output to an echo datafile
 # To start echoing, call set_echo(True)
 # To stop it, call set_echo(False)
 
 _echo_state = False
-_echo_filename = os.path.join(cfg.SHARE_FOLDER,f"echo-{ut.get_date()}.txt")
+_echo_filename = os.path.join(cfg.ECHO_FOLDER,f"echo-{ut.get_date()}.txt")
 _echo_file = None # This is the file object
 
 def get_echo() -> bool:
@@ -80,6 +80,8 @@ def set_echo(state:bool) -> None:
             _echo_file = open(_echo_filename,"at",encoding="utf-8")
         except OSError:
             ut.squawk(f"OSError opening echo file '{_echo_filename}'")
+            ut.squawk("Setting echo off.")
+            _echo_state = False
 
 def echo(text:str="") -> None:
     """Send text to the echo log."""

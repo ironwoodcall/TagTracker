@@ -17,7 +17,7 @@ Copyright (C) 2023 Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-    Datafiles (logfiles) contain a full day's tracker data.
+    Datafiles (datafiles) contain a full day's tracker data.
     It is made of both
         key:value lines (for valet date, opening and closing time)
         header/list sections (for tag lists and events):
@@ -31,7 +31,7 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 import tt_util as ut
 import tt_trackerday
 
-# Header strings to use in logfile and tags- config file
+# Header strings to use in datafile and tags- config file
 # These are used when writing & also for string-matching when reading.
 HEADER_BIKES_IN = "Bikes checked in / tags out:"
 HEADER_BIKES_OUT = "Bikes checked out / tags in:"
@@ -45,7 +45,7 @@ HEADER_COLOURS = "Colour codes:"
 
 
 def rotate_log(filename: str) -> None:
-    """Rename the current logfile to <itself>.bak."""
+    """Rename the current datafile to <itself>.bak."""
     backuppath = f"{filename}.bak"
     if os.path.exists(backuppath):
         os.unlink(backuppath)
@@ -54,7 +54,7 @@ def rotate_log(filename: str) -> None:
     return None
 
 
-def read_logfile(
+def read_datafile(
     filename: str, err_msgs: list[str], usable_tags: list[Tag] = None
 ) -> tt_trackerday.TrackerDay:
     """Fetch tag data from file into a TrackerDay object.
@@ -125,7 +125,7 @@ def read_logfile(
                 section = COLOURS
                 continue
             elif re.match(rf"^ *{HEADER_VALET_DATE}", line):
-                # Read the logfile's date
+                # Read the datafile's date
                 section = IGNORE
                 r = re.match(rf"{HEADER_VALET_DATE} *(.+)", line)
                 maybedate = ut.date_str(r.group(1))
@@ -223,12 +223,12 @@ def read_logfile(
                 elif section == RETIRED:
                     data.retired += taglist
                 else:
-                    ut.squawk(f"Bad section value in read_logfile(), '{section}")
+                    ut.squawk(f"Bad section value in read_datafile(), '{section}")
                     return
                 continue
 
             if section not in [BIKE_IN, BIKE_OUT]:
-                ut.squawk(f"Bad section value in read_logfile(), '{section}")
+                ut.squawk(f"Bad section value in read_datafile(), '{section}")
                 return
 
             # This is a tags in or tags out section
@@ -337,7 +337,7 @@ def read_logfile(
     return data
 
 
-def write_logfile(
+def write_datafile(
     filename: str, data: tt_trackerday.TrackerDay, header_lines: list = None
 ) -> None:
     """Write current data to today's data file."""

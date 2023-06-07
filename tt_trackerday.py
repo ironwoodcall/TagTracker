@@ -162,14 +162,14 @@ class TrackerDay:
                 errors.append(f"Tag {tag} is marked as retired")
         return errors
 
-    def earliest_event(self) -> ut.Time:
+    def earliest_event(self) -> Time:
         """Return the earliest event of the day as HH:MM (or "" if none)."""
         all_events = list(self.bikes_in.keys()) + list(self.bikes_out.keys())
         if not all_events:
             return ""
         return min(all_events)
 
-    def latest_event(self, as_of_when: Union[ut.Time, int, None] = None) -> ut.Time:
+    def latest_event(self, as_of_when: Union[Time, int, None] = None) -> Time:
         """Return the latest event of the day at or before as_of_when.
 
         If no events in the time period, return "".
@@ -195,7 +195,7 @@ class TrackerDay:
         latest = max(events)
         return latest
 
-    def num_later_events(self, after_when: Union[ut.Time, int, None] = None) -> int:
+    def num_later_events(self, after_when: Union[Time, int, None] = None) -> int:
         """Get count of events that are later than after_when."""
         if not after_when:
             after_when = ut.get_time()
