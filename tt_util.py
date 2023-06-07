@@ -219,26 +219,41 @@ def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) ->
     return bits[0] if bits else ""
 
 
-def sort_tags(unsorted: list[Tag]) -> list[Tag]:
-    """Sorts a list of tags (smart eg about wa12 > wa7).
+def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
+    """Get tags sorted into lists by their prefix.
 
-    Precondition is that tags are all either uppercase or lowercase.
+    Return a list of lists of tags, sorted and de-duped. E.g.
+        sort_tags(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
+        --> [['be1','be9','be10],['wa5','wa12'],['wd15']]
+
+    Preconditions:
+        - tags are either all uppercase or all lowercase
+        - all tags are syntactically valid
     """
-    if re.search(r"[A-Z]", unsorted):
-        uppercase = True
-    elif re.search(r"[a-z]", unsorted):
-        uppercase = False
-    else:
-        squawk(f"error call to sort_tags(), list is mixed case: '{unsorted=}'")
-        uppercase = True
 
-    newlist = []
+    has_uc = bool(re.search(r"[A-Z]", "".join(unsorted)))
+    has_lc = bool(re.search(r"[a-z]", "".join(unsorted)))
+    if has_uc == has_lc:
+        squawk(f"error call to sort_tags(), list is mixed case: '{unsorted=}'")
+        unsorted = [x.upper() for x in unsorted]
+        uppercase = True
+    else:
+        uppercase = has_uc
+
+    # Put all the tags into sets, one set for each prefix
+    tagsets = {}
     for tag in unsorted:
-        bits = parse_tag(tag,uppercase=uppercase)
-        newlist.append(f"{bits[1]}{bits[2]}{int(bits[3]):04d}")
-    newlist.sort()
-    newlist = [fix_tag(t, uppercase=uppercase) for t in newlist]
-    return newlist
+        bits = parse_tag(tag,uppercase=uppercase,)
+        prefix = f"{bits[1]}{bits[2]}"
+        num = int(bits[3])
+        if prefix not in tagsets:
+            tagsets[prefix] = set()
+        tagsets[prefix].add(num)
+    # Make a list of lists with sorted tags
+    outerlist = []
+    for prefix in sorted(tagsets.keys()):
+        outerlist.append( [f"{prefix}{n}" for n in sorted(list(tagsets[prefix]))])
+    return outerlist
 
 
 def tags_by_prefix(tags: list[Tag]) -> dict[str, list[Tag]]:

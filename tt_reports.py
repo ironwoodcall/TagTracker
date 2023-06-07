@@ -917,9 +917,8 @@ def retired_report(day: tt_trackerday.TrackerDay) -> None:
     if not day.retired:
         pr.iprint("--no retired tags--")
         return
-    pr.iprint(" ".join(day.retired))
-    # for tag in day.retired:
-    #    pr.iprint(tag, num_indents=2)
+    pr.iprint(" ".join([x for sub in ut.sort_tags(day.retired) for x in sub]))
+
 
 
 def tags_config_report(day: tt_trackerday.TrackerDay) -> None:
