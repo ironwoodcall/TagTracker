@@ -593,17 +593,21 @@ def full_chart(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("No bikes in, nothing to report",style=cfg.WARNING_STYLE)
+        pr.iprint("No bikes in, nothing to report", style=cfg.WARNING_STYLE)
         return
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
     pr.iprint()
     pr.iprint(f"Activity chart {day.date}", style=cfg.TITLE_STYLE)
     pr.iprint()
-    pr.iprint("          Activity    --Bikes at valet-    Max",style=cfg.SUBTITLE_STYLE)
-    pr.iprint(" Time     In   Out    Reglr Ovrsz Total   Bikes",style=cfg.SUBTITLE_STYLE)
+    pr.iprint(
+        "          Activity    --Bikes at valet-    Max", style=cfg.SUBTITLE_STYLE
+    )
+    pr.iprint(
+        " Time     In   Out    Reglr Ovrsz Total   Bikes", style=cfg.SUBTITLE_STYLE
+    )
     for blk_start in sorted(blocks.keys()):
-        blk:tt_block.Block
+        blk: tt_block.Block
         blk = blocks[blk_start]
         pr.iprint(
             f"{ut.pretty_time(blk_start,trim=False)}    "
@@ -611,6 +615,7 @@ def full_chart(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
             f"{blk.num_here_regular:4}  {blk.num_here_oversize:4}  {blk.num_here:4}    "
             f"{blk.max_here:4}"
         )
+
 
 def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of busyness."""
@@ -620,7 +625,7 @@ def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("No bikes in, nothing to report",style=cfg.WARNING_STYLE)
+        pr.iprint("No bikes in, nothing to report", style=cfg.WARNING_STYLE)
         return
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
@@ -663,7 +668,7 @@ def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("No bikes in, nothing to report",style=cfg.WARNING_STYLE)
+        pr.iprint("No bikes in, nothing to report", style=cfg.WARNING_STYLE)
         return
 
     max_full = max([b.num_here for b in blocks.values()])
@@ -895,13 +900,13 @@ def colours_report(day: tt_trackerday.TrackerDay) -> None:
         tag_count[code] += 1
 
     pr.iprint()
-    pr.iprint("Currently configured colours", style=cfg.TITLE_STYLE)
     pr.iprint("Code Colour   Bike type  Count", style=cfg.SUBTITLE_STYLE)
     for code in sorted(colours):
         name = colours[code].title()
         code_str = code.upper() if cfg.TAGS_UPPERCASE else code
         pr.iprint(
-            f" {code_str:>2}  {name:8} {type_names[tag_type[code]]:8}  {tag_count[code]:4d} tags"
+            f" {code_str:>2}  {name:8} {type_names[tag_type[code]]:8}  "
+            f"{tag_count[code]:4d} tags"
         )
 
 
@@ -912,8 +917,17 @@ def retired_report(day: tt_trackerday.TrackerDay) -> None:
     if not day.retired:
         pr.iprint("--no retired tags--")
         return
-    for tag in day.retired:
-        pr.iprint(tag, num_indents=2)
+    pr.iprint(" ".join(day.retired))
+    # for tag in day.retired:
+    #    pr.iprint(tag, num_indents=2)
+
+
+def tags_config_report(day: tt_trackerday.TrackerDay) -> None:
+    """Report the current tags configuration."""
+    pr.iprint()
+    pr.iprint("Current tags configuration", style=cfg.TITLE_STYLE)
+    colours_report(day)
+    retired_report(day)
 
 
 def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
@@ -1009,7 +1023,7 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     pr.set_output(activity_fn)
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    full_chart(day,as_of_when=as_of_when)
+    full_chart(day, as_of_when=as_of_when)
     pr.set_output()
 
     fn = "day_end.txt"
@@ -1017,7 +1031,7 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     pr.set_output(day_end_fn)
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    day_end_report(day,[as_of_when])
+    day_end_report(day, [as_of_when])
     pr.set_output()
 
     fn = "dataform.txt"
@@ -1025,5 +1039,5 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     pr.set_output(dataform_fn)
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    dataform_report(day,[])
+    dataform_report(day, [])
     pr.set_output()

@@ -124,14 +124,15 @@ CMD_VALET_HOURS = "valet_hours"
 CMD_CSV = "csv"
 CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
-CMD_RETIRED = "retired"
 CMD_LINT = "lint"
 CMD_DUMP = "dump"
 CMD_BUSY_CHART = "busy_chart"
 CMD_FULL_CHART = "full_chart"
-CMD_PUBLISH = "publish"
-CMD_COLOURS = "colours"
 CMD_CHART = "chart"
+CMD_PUBLISH = "publish"
+CMD_COLOURS = "colours" # FIXME: remove in a while. Now "tags"
+CMD_RETIRED = "retired" # FIXME: remove in a while.  Now "tags"
+CMD_TAGS = "tags"
 
 
 COMMANDS = {}
@@ -157,6 +158,7 @@ COMMANDS[CMD_FULL_CHART] = ["chart-full","graph-full","full-chart","full-graph"]
 COMMANDS[CMD_CHART] = ["chart","c"]
 COMMANDS[CMD_PUBLISH] = ["pub","publish"]
 COMMANDS[CMD_COLOURS] = ["col","color","colors","colour","colours"]
+COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
 CMD_UNKNOWN = -1 # special value to mean unrecognized command
 
 
