@@ -1,9 +1,12 @@
 
-*.log
+*.dat
 *.pyc
 *.cfg
 *.docx
 logs
+data
+*.dat
+*.log
 __pycache__
 *.swp
 tmp
@@ -12,3 +15,4 @@ tmp
 tt_local_config.py
 tt_conf.py
 tags*.txt
+tags*.cfg

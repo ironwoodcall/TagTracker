@@ -23,6 +23,7 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 import tt_util as ut
 import tt_trackerday
 import tt_event
+import tt_conf as cfg
 
 class Block:
     """Class to help with reporting.
@@ -30,7 +31,7 @@ class Block:
     Each instance is a timeblock of duration cfg.BLOCK_DURATION.
     """
 
-    def __init__(self, start_time: Union[ut.Time, int]) -> None:
+    def __init__(self, start_time: Union[Time, int]) -> None:
         """Initialize. Assumes that start_time is valid."""
         if isinstance(start_time, str):
             self.start = ut.time_str(start_time)
@@ -54,8 +55,8 @@ class Block:
         self.max_here_oversize = 0
 
 def block_start(
-    atime: Union[int, ut.Time], as_number: bool = False
-) -> Union[ut.Time, int]:
+    atime: Union[int, Time], as_number: bool = False
+) -> Union[Time, int]:
     """Return the start time of the block that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
@@ -64,15 +65,15 @@ def block_start(
     # Get time in minutes
     atime = ut.time_int(atime) if isinstance(atime, str) else atime
     # which block of time does it fall in?
-    block_start_min = (atime // BLOCK_DURATION) * BLOCK_DURATION
+    block_start_min = (atime // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
     if as_number:
         return block_start_min
     return ut.time_str(block_start_min)
 
 
 def block_end(
-    atime: Union[int, ut.Time], as_number: bool = False
-) -> Union[ut.Time, int]:
+    atime: Union[int, Time], as_number: bool = False
+) -> Union[Time, int]:
     """Return the last minute of the timeblock that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
@@ -81,7 +82,7 @@ def block_end(
     # Get block start
     start = block_start(atime, as_number=True)
     # Calculate block end
-    end = start + BLOCK_DURATION - 1
+    end = start + cfg.BLOCK_DURATION - 1
     # Return as minutes or HHMM
     if as_number:
         return end
@@ -89,8 +90,8 @@ def block_end(
 
 
 def get_timeblock_list(
-    day: tt_trackerday.TrackerDay, as_of_when: ut.Time
-) -> list[ut.Time]:
+    day: tt_trackerday.TrackerDay, as_of_when: Time
+) -> list[Time]:
     """Build a list of timeblocks from beg of day until as_of_when.
 
     Latest block of the day will be the latest timeblock that
@@ -111,14 +112,14 @@ def get_timeblock_list(
     max_block_min = block_start(max(transx), as_number=True)
     # Create list of timeblocks for the the whole day.
     timeblocks = []
-    for t in range(min_block_min, max_block_min + BLOCK_DURATION, BLOCK_DURATION):
+    for t in range(min_block_min, max_block_min + cfg.BLOCK_DURATION, cfg.BLOCK_DURATION):
         timeblocks.append(ut.time_str(t))
     return timeblocks
 
 
 def calc_blocks(
-    day: tt_trackerday.TrackerDay, as_of_when: ut.Time = None
-) -> dict[ut.Time, object]:
+    day: tt_trackerday.TrackerDay, as_of_when: Time = None
+) -> dict[Time, object]:
     """Create a dictionary of Blocks {start:Block} for whole day."""
     if not as_of_when:
         as_of_when = day.latest_event("24:00")
@@ -187,45 +188,3 @@ def calc_blocks(
                 blk.max_here_oversize += 1
 
     return blocks
-
-'''
-    for tag, atime in day.bikes_in.items():
-        if atime > latest_time:
-            continue
-        bstart = block_start(atime)
-        blocks[bstart].ins_list += [tag]
-    for tag, atime in day.bikes_out.items():
-        if atime > latest_time:
-            continue
-        bstart = block_start(atime)
-        blocks[bstart].outs_list += [tag]
-    # For each block, see what bikes are present at some time in the block.
-    # Use a set to be able to find the set difference (ie list that's here)
-    here_set = set()
-    for blk in blocks.values():
-        blk.num_ins = len(blk.ins_list)
-        blk.num_outs = len(blk.outs_list)
-        here_set = (here_set | set(blk.ins_list)) - set(blk.outs_list)
-        blk.here_list = here_set
-        blk.num_here = len(here_set)
-    # Calculate the ins/outs and bikes here categorized by regular/oversize.
-    for blk in blocks.values():
-        for tag in blk.ins_list:
-            if tag in day.regular:
-                blk.num_ins_regular += 1
-            elif tag in day.oversize:
-                blk.num_ins_oversize += 1
-        for tag in blk.outs_list:
-            if tag in day.regular:
-                blk.num_outs_regular += 1
-            elif tag in day.oversize:
-                blk.num_outs_oversize += 1
-        for tag in blk.here_list:
-            if tag in day.regular:
-                blk.num_here_regular += 1
-            elif tag in day.oversize:
-                blk.num_here_oversize += 1
-
-
-    return blocks
-'''

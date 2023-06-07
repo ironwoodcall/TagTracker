@@ -20,7 +20,7 @@ def read_tags_OLD() -> bool:
     #FIXME: Refactor
     pathlib.Path("logs").mkdir(exist_ok = True) # make logs folder if missing
     try: # read saved stuff into dicts
-        filedir = LOG_FILEPATH
+        filedir = DATA_FILEPATH
         with open(filedir, 'r') as f:
             line = f.readline() # read check ins header
             line = f.readline() # read first tag entry if exists

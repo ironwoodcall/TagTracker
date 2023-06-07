@@ -60,7 +60,7 @@ check_ins = {}
 check_outs = {}
 
 
-def num_bikes_at_valet(as_of_when: Union[ut.Time, int] = None) -> int:
+def num_bikes_at_valet(as_of_when: Union[Time, int] = None) -> int:
     """Return count of bikes at the valet as of as_of_when."""
     as_of_when = ut.time_str(as_of_when)
     if not as_of_when:
@@ -99,7 +99,7 @@ def valet_logo():
     pr.iprint()
 
 
-def fix_2400_events() -> list[ut.Tag]:
+def fix_2400_events() -> list[Tag]:
     """Change any 24:00 events to 23:59, warn, return Tags changed."""
     changed = []
     for tag, atime in check_ins.items():
@@ -131,7 +131,7 @@ def deduce_valet_date(current_guess: str, filename: str) -> str:
     """
     if current_guess:
         return current_guess
-    r = ut.DATE_PART_RE.search(filename)
+    r = DATE_PART_RE.search(filename)
     if r:
         return f"{int(r.group(2)):04d}-{int(r.group(3)):02d}-" f"{int(r.group(4)):02d}"
     return ut.get_date()
@@ -176,21 +176,21 @@ def unpack_day_data(today_data: tt_trackerday.TrackerDay) -> None:
 
 
 def initialize_today() -> bool:
-    """Read today's info from logfile & maybe tags-config file."""
+    """Read today's info from datafile & maybe tags-config file."""
     # Does the file even exist? (If not we will just create it later)
     new_datafile = False
-    pathlib.Path(cfg.LOG_FOLDER).mkdir(exist_ok=True)  # make logs folder if missing
-    if not os.path.exists(LOG_FILEPATH):
+    pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make logs folder if missing
+    if not os.path.exists(DATA_FILEPATH):
         new_datafile = True
-        pr.iprint("Creating new datafile" f" {LOG_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
+        pr.iprint("Creating new datafile" f" {DATA_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
         today = tt_trackerday.TrackerDay()
     else:
         # Fetch data from file; errors go into error_msgs
         pr.iprint(
-            f"Reading data from {LOG_FILEPATH}...", end="", style=cfg.SUBTITLE_STYLE
+            f"Reading data from {DATA_FILEPATH}...", end="", style=cfg.SUBTITLE_STYLE
         )
         error_msgs = []
-        today = df.read_logfile(LOG_FILEPATH, error_msgs)
+        today = df.read_datafile(DATA_FILEPATH, error_msgs)
         if error_msgs:
             pr.iprint()
             for text in error_msgs:
@@ -198,7 +198,7 @@ def initialize_today() -> bool:
             return False
     # Figure out the date for this bunch of data
     if not today.date:
-        today.date = deduce_valet_date(today.date, LOG_FILEPATH)
+        today.date = deduce_valet_date(today.date, DATA_FILEPATH)
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
     # then fetch the tag reference lists from tags config
@@ -208,7 +208,7 @@ def initialize_today() -> bool:
         today.oversize = tagconfig.oversize
         today.retired = tagconfig.retired
         today.colour_letters = tagconfig.colour_letters
-    # Set UC if needed (NB: logfiles are always LC)
+    # Set UC if needed (NB: datafiles are always LC)
     if cfg.TAGS_UPPERCASE:
         today.make_uppercase()
     # On success, set today's working data
@@ -232,7 +232,7 @@ def initialize_today() -> bool:
     return True
 
 
-def find_tag_durations(include_bikes_on_hand=True) -> ut.TagDict:
+def find_tag_durations(include_bikes_on_hand=True) -> TagDict:
     """Make dict of tags with their stay duration in minutes.
 
     If include_bikes_on_hand, this will include checked in
@@ -359,7 +359,7 @@ def query_tag(args: list[str]) -> None:
         pr.iprint(f"       {fixed_target} still at valet", style=cfg.ANSWER_STYLE)
 
 
-def prompt_for_time(inp=False, prompt: str = None) -> bool or ut.Time:
+def prompt_for_time(inp=False, prompt: str = None) -> bool or Time:
     """Prompt for a time input if needed.
 
     Helper for edit_entry() & others; if no time passed in, get a valid
@@ -465,9 +465,9 @@ def multi_edit(args: list[str]):
             self.num_tokens = len(parts)
             self.tags = []  # valid Tags (though possibly not available)
             self.inout_str = ""  # what the user said
-            self.inout_value = ut.BADVALUE  # or BIKE_IN, BIKE_OUT
+            self.inout_value = BADVALUE  # or BIKE_IN, BIKE_OUT
             self.atime_str = ""  # What the user said
-            self.atime_value = ut.BADVALUE  # A valid time, or BADVALUE
+            self.atime_value = BADVALUE  # A valid time, or BADVALUE
             self.remainder = []  # whatever is left (hopefully nothing)
             if self.num_tokens == 0:
                 return
@@ -486,9 +486,9 @@ def multi_edit(args: list[str]):
             self.inout_str = self.remainder[0]
             self.remainder = self.remainder[1:]
             if self.inout_str.lower() in ["i", "in"]:
-                self.inout_value = ut.BIKE_IN
+                self.inout_value = BIKE_IN
             elif self.inout_str.lower() in ["o", "out"]:
-                self.inout_value = ut.BIKE_OUT
+                self.inout_value = BIKE_OUT
             else:
                 return
             # Anything left over?
@@ -504,21 +504,21 @@ def multi_edit(args: list[str]):
             # All done here
             return
 
-    def edit_processor(tag: ut.Tag, inout: str, target_time: ut.Time) -> bool:
+    def edit_processor(tag: Tag, inout: str, target_time: Time) -> bool:
         """Execute one edit command with all its args known.
 
         On entry:
             tag: is a valid tag id (though possibly not usable)
-            inout: is ut.BIKE_IN or ut.BIKE_OUT
-            target_time: is a valid ut.Time
+            inout: is BIKE_IN or BIKE_OUT
+            target_time: is a valid Time
         On exit, either:
             tag has been changed, msg delivered, returns True; or
             no change, error msg delivered, returns False
         """
 
-        def success(tag: ut.Tag, inout_str: str, newtime: ut.Time) -> None:
+        def success(tag: Tag, inout_str: str, newtime: Time) -> None:
             """Print change message. inout_str is 'in' or 'out."""
-            inoutflag = ut.BIKE_IN if inout_str == "in" else ut.BIKE_OUT
+            inoutflag = BIKE_IN if inout_str == "in" else BIKE_OUT
             print_tag_inout(tag, inoutflag, newtime)
             # pr.iprint(
             #    f"{tag} check-{inout_str} set to "
@@ -539,10 +539,10 @@ def multi_edit(args: list[str]):
         if ut.fix_tag(tag, ALL_TAGS, uppercase=cfg.TAGS_UPPERCASE) != tag:
             error(f"Tag '{tag}' unrecognized or not available for use")
             return False
-        if inout == ut.BIKE_IN and tag in check_outs and check_outs[tag] < target_time:
+        if inout == BIKE_IN and tag in check_outs and check_outs[tag] < target_time:
             error(f"Tag '{tag}' has check-out time earlier than {target_time}")
             return False
-        if inout == ut.BIKE_OUT:
+        if inout == BIKE_OUT:
             if tag not in check_ins:
                 error(f"Tag '{tag}' not checked in")
                 return False
@@ -553,10 +553,10 @@ def multi_edit(args: list[str]):
                 )
                 return False
         # Have checked for errors, can now commit the change
-        if inout == ut.BIKE_IN:
+        if inout == BIKE_IN:
             check_ins[tag] = target_time
             success(tag, "in", target_time)
-        elif inout == ut.BIKE_OUT:
+        elif inout == BIKE_OUT:
             check_outs[tag] = target_time
             success(tag, "out", target_time)
         else:
@@ -590,7 +590,7 @@ def multi_edit(args: list[str]):
             return
         argstring += " " + response
         cmd = TokenSet(argstring)
-    if cmd.inout_value not in [ut.BIKE_IN, ut.BIKE_OUT]:
+    if cmd.inout_value not in [BIKE_IN, BIKE_OUT]:
         error(f"Must specify IN or OUT, not '{cmd.inout_str}'. " f"{syntax}")
         return
     # Now we know we have tags and an INOUT
@@ -601,7 +601,7 @@ def multi_edit(args: list[str]):
             return
         argstring += " " + response
         cmd = TokenSet(argstring)
-    if cmd.atime_value == ut.BADVALUE:
+    if cmd.atime_value == BADVALUE:
         error(f"Bad time '{cmd.atime_str}', " f"must be HHMM or 'now'. {syntax}")
         return
     # That should be the whole command, with nothing left over.
@@ -615,11 +615,11 @@ def multi_edit(args: list[str]):
 
 def print_tag_inout(tag: str, inout: str, when: str = "") -> None:
     """Pretty-print a tag-in or tag-out message."""
-    if inout == ut.BIKE_IN:
+    if inout == BIKE_IN:
         basemsg = f"Bike {tag} checked IN"
         basemsg = f"{basemsg} at {ut.pretty_time(when,trim=True)}" if when else basemsg
         finalmsg = f"{basemsg:40} <---in---  "
-    elif inout == ut.BIKE_OUT:
+    elif inout == BIKE_OUT:
         basemsg = f"Bike {tag} checked OUT"
         basemsg = f"{basemsg} at {ut.pretty_time(when,trim=True)}" if when else basemsg
         finalmsg = f"{basemsg:55} ---out--->  "
@@ -630,7 +630,7 @@ def print_tag_inout(tag: str, inout: str, when: str = "") -> None:
     pr.iprint(finalmsg, style=cfg.ANSWER_STYLE)
 
 
-def tag_check(tag: ut.Tag) -> None:
+def tag_check(tag: Tag) -> None:
     """Check a tag in or out.
 
     This processes a prompt that's just a tag ID.
@@ -673,13 +673,13 @@ def tag_check(tag: ut.Tag) -> None:
                     sure = True
                 if sure:
                     check_outs[tag] = ut.get_time()  # check it out
-                    print_tag_inout(tag, inout=ut.BIKE_OUT)
+                    print_tag_inout(tag, inout=BIKE_OUT)
                     ##pr.iprint(f"{tag} returned OUT",style=cfg.ANSWER_STYLE)
                 else:
                     pr.iprint("Cancelled return bike out", style=cfg.WARNING_STYLE)
         else:  # if string is in neither dict
             check_ins[tag] = ut.get_time()  # check it in
-            print_tag_inout(tag, ut.BIKE_IN)
+            print_tag_inout(tag, BIKE_IN)
             ##pr.iprint(f"{tag} checked IN",style=cfg.ANSWER_STYLE)
 
 
@@ -853,7 +853,7 @@ def main():
 def datafile_name(folder: str) -> str:
     """Return the name of the data file (datafile) to read/write."""
     # Use default filename
-    return f"{folder}/{cfg.LOG_BASENAME}{ut.get_date()}.log"
+    return f"{folder}/{cfg.DATA_BASENAME}{ut.get_date()}.dat"
 
 
 def custom_datafile() -> str:
@@ -873,21 +873,21 @@ def custom_datafile() -> str:
 def save():
     """Save today's data in the datafile."""
     # Save .bak
-    df.rotate_log(LOG_FILEPATH)
+    df.rotate_log(DATA_FILEPATH)
     # Pack data into a TrackerDay object to store
     day = pack_day_data()
     # Store the data
-    df.write_logfile(LOG_FILEPATH, day)
+    df.write_datafile(DATA_FILEPATH, day)
 
 
 ABLE_TO_PUBLISH = True
 
 
-def maybe_publish(last_pub: ut.Time, force: bool = False) -> ut.Time:
+def maybe_publish(last_pub: Time, force: bool = False) -> Time:
     """Maybe save current log to 'publish' directory."""
     global ABLE_TO_PUBLISH  # pylint:disable=global-statement
     # Nothing to do if not configured to publish or can't publish
-    if not ABLE_TO_PUBLISH or not cfg.SHARE_FOLDER or not cfg.PUBLISH_FREQUENCY:
+    if not ABLE_TO_PUBLISH or not cfg.REPORTS_FOLDER or not cfg.PUBLISH_FREQUENCY:
         return last_pub
     # Is it time to re-publish?
     if not force and (
@@ -896,18 +896,18 @@ def maybe_publish(last_pub: ut.Time, force: bool = False) -> ut.Time:
         # Nothing to do yet.
         return last_pub
     # Nothing to do if publication dir does not exist
-    if not os.path.exists(cfg.SHARE_FOLDER):
+    if not os.path.exists(cfg.REPORTS_FOLDER):
         ABLE_TO_PUBLISH = False
         pr.iprint()
         pr.iprint(
-            f"Publication folder '{cfg.SHARE_FOLDER}' not found, "
+            f"Publication folder '{cfg.REPORTS_FOLDER}' not found, "
             "will not try to Publish",
             style=cfg.ERROR_STYLE,
         )
         return last_pub
     # Pack info into TrackerDay object, save the data
     day = pack_day_data()
-    df.write_logfile(datafile_name(cfg.SHARE_FOLDER), day)
+    df.write_datafile(datafile_name(cfg.REPORTS_FOLDER), day)
 
     # Now also publish updated reports
     rep.publish_reports(day)
@@ -980,7 +980,7 @@ def get_taglists_from_config() -> tt_trackerday.TrackerDay:
     # Lists of normal, oversize, retired tags
     # Return a TrackerDay object, though its bikes_in/out are meaningless.
     errs = []
-    day = df.read_logfile(TAG_CONFIG_FILE, errs)
+    day = df.read_datafile(cfg.TAG_CONFIG_FILE, errs)
     if errs:
         print(f"Errors in file, {errs=}")
         error_exit()
@@ -993,10 +993,10 @@ def get_taglists_from_config() -> tt_trackerday.TrackerDay:
 # Tags uppercase or lowercase?
 ##UC_TAGS = cfg.TAGS_UPPERCASE
 # Log file
-LOG_FILEPATH = custom_datafile()
-CUSTOM_LOG = bool(LOG_FILEPATH)
-if not CUSTOM_LOG:
-    LOG_FILEPATH = datafile_name(cfg.LOG_FOLDER)
+DATA_FILEPATH = custom_datafile()
+CUSTOM_DAT = bool(DATA_FILEPATH)
+if not CUSTOM_DAT:
+    DATA_FILEPATH = datafile_name(cfg.DATA_FOLDER)
 
 if __name__ == "__main__":
     # Possibly turn on echo
@@ -1012,11 +1012,11 @@ if __name__ == "__main__":
     pr.iprint(f"Version {ut.get_version()}")
     pr.iprint()
     # If no tags file, create one and tell them to edit it.
-    if not os.path.exists(TAG_CONFIG_FILE):
-        df.new_tag_config_file(TAG_CONFIG_FILE)
+    if not os.path.exists(cfg.TAG_CONFIG_FILE):
+        df.new_tag_config_file(cfg.TAG_CONFIG_FILE)
         pr.iprint("No tags configuration file found.", style=cfg.WARNING_STYLE)
         pr.iprint(
-            f"Creating new configuration file {TAG_CONFIG_FILE}",
+            f"Creating new configuration file {cfg.TAG_CONFIG_FILE}",
             style=cfg.WARNING_STYLE,
         )
         pr.iprint("Edit this file then re-rerun TagTracker.", style=cfg.WARNING_STYLE)

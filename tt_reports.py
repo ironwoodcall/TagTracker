@@ -109,7 +109,7 @@ def recent(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             pr.iprint(format_one(atime, tag, False))
 
 
-def later_events_warning(day: tt_trackerday.TrackerDay, when: ut.Time) -> None:
+def later_events_warning(day: tt_trackerday.TrackerDay, when: Time) -> None:
     """Warn about report that excludes later events.
 
     If  no later events, does nothing.
@@ -127,7 +127,7 @@ def later_events_warning(day: tt_trackerday.TrackerDay, when: ut.Time) -> None:
     pr.iprint(msg, style=cfg.WARNING_STYLE)
 
 
-def simplified_taglist(tags: Union[list[ut.Tag], str]) -> str:
+def simplified_taglist(tags: Union[list[Tag], str]) -> str:
     """Make a simplified str of tag names from a list of tags.
 
     E.g. "wa0,2-7,9 wb1,9,10 be4"
@@ -339,7 +339,7 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
 def publish_audit(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     """Publish the audit report."""
     fn = "audit.txt"
-    fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
+    fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(fullfn)
     audit_report(day, args)
     pr.set_output()
@@ -408,7 +408,7 @@ def csv_dump(day: tt_trackerday.TrackerDay, args) -> None:
             seq += 1
 
 
-def bike_check_ins_report(day: tt_trackerday.TrackerDay, as_of_when: ut.Time) -> None:
+def bike_check_ins_report(day: tt_trackerday.TrackerDay, as_of_when: Time) -> None:
     """Print the check-ins count part of the summary statistics.
 
     as_of_when is HH:MM time, assumed to be a correct time.
@@ -503,7 +503,7 @@ def visit_statistics_report(visits: dict) -> None:
         )
         one_line("Mode stay:", modes_str)
 
-    def make_tags_str(tags: list[ut.Tag]) -> str:
+    def make_tags_str(tags: list[Tag]) -> str:
         """Make a 'list of tags' string that is sure not to be too long."""
         tagstr = "tag: " if len(tags) == 1 else "tags: "
         tagstr = tagstr + ",".join(tags)
@@ -542,7 +542,7 @@ def highwater_report(events: dict) -> None:
 
     # High-water mark for bikes in valet at any one time
     def one_line(
-        header: str, events: dict, atime: ut.Time, highlight_field: int
+        header: str, events: dict, atime: Time, highlight_field: int
     ) -> None:
         """Print one line for highwater_report."""
         values = [
@@ -697,16 +697,16 @@ def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
 
 def busy_report(
     day: tt_trackerday.TrackerDay,
-    events: dict[ut.Time, tt_event.Event],
-    as_of_when: ut.Time,
+    events: dict[Time, tt_event.Event],
+    as_of_when: Time,
 ) -> None:
     """Report the busiest time(s) of day."""
 
-    def one_line(rank: int, num_events: int, times: list[ut.Time]) -> None:
+    def one_line(rank: int, num_events: int, times: list[Time]) -> None:
         """Format and print one line of busyness report."""
         pr.iprint(f"{rank:2d}     {num_events:3d}      ", end="")
         for time_num, start_time in enumerate(sorted(times), start=1):
-            end_time = ut.time_str(ut.time_int(start_time) + BLOCK_DURATION)
+            end_time = ut.time_str(ut.time_int(start_time) + cfg.BLOCK_DURATION)
             pr.iprint(
                 f"{ut.pretty_time(start_time,trim=True)}-"
                 f"{ut.pretty_time(end_time,trim=True)}",
@@ -741,7 +741,7 @@ def busy_report(
         one_line(rank, activity, busy_times[activity])
 
 
-def qstack_report(visits: dict[ut.Tag : tt_visit.Visit]) -> None:
+def qstack_report(visits: dict[Tag : tt_visit.Visit]) -> None:
     """Report whether visits are more queue-like or more stack-like."""
     # Make a list of tuples: start_time, end_time for all visits.
     visit_times = list(
@@ -967,8 +967,8 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             style=cfg.HIGHLIGHT_STYLE,
         )
         return
-    for which in [ut.BIKE_IN, ut.BIKE_OUT]:
-        if which == ut.BIKE_IN:
+    for which in [BIKE_IN, BIKE_OUT]:
+        if which == BIKE_IN:
             titlebit = "checked IN"
             prefix = "<<<<"
             suffix = ""
@@ -981,7 +981,7 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
         pr.iprint(title, style=cfg.SUBTITLE_STYLE)
         pr.iprint("-" * len(title), style=cfg.SUBTITLE_STYLE)
         for start, block in all_blocks.items():
-            inouts = block.ins_list if which == ut.BIKE_IN else block.outs_list
+            inouts = block.ins_list if which == BIKE_IN else block.outs_list
             end = tt_block.block_end(start)
             tagslist = simplified_taglist(inouts)
             if day.is_uppercase:
@@ -998,7 +998,7 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     publish_audit(day, [as_of_when])
 
     fn = "fullness.txt"
-    fullfn = os.path.join(cfg.SHARE_FOLDER, fn)
+    fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(fullfn)
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
@@ -1008,7 +1008,7 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     pr.set_output()
 
     fn = "busyness.txt"
-    busyfn = os.path.join(cfg.SHARE_FOLDER, fn)
+    busyfn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(busyfn)
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
@@ -1018,7 +1018,7 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     pr.set_output()
 
     fn = "activity.txt"
-    activity_fn = os.path.join(cfg.SHARE_FOLDER, fn)
+    activity_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(activity_fn)
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
@@ -1026,7 +1026,7 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     pr.set_output()
 
     fn = "day_end.txt"
-    day_end_fn = os.path.join(cfg.SHARE_FOLDER, fn)
+    day_end_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(day_end_fn)
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
@@ -1034,7 +1034,7 @@ def publish_reports(day: tt_trackerday.TrackerDay) -> None:
     pr.set_output()
 
     fn = "dataform.txt"
-    dataform_fn = os.path.join(cfg.SHARE_FOLDER, fn)
+    dataform_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(dataform_fn)
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")

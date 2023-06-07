@@ -22,21 +22,29 @@ Copyright (C) 2023 Julias Hocking
 """
 from tt_colours import Style, Fore, Back
 
-# Screen width - this will get used in some places but not necessarily everwhere
+# Screen appearance
 SCREEN_WIDTH = 80 # characters
-
-# Use colours?
 USE_COLOUR = True
+CURSOR = ">>> "
+INCLUDE_TIME_IN_PROMPT = True
+TAGS_UPPERCASE = False
 
-# Datafiles/Logfiles
-LOG_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.LOG.
-LOG_FOLDER = "logs" # Folder to keep logfiles in
-# System occasionally puts a copy of log in a publish folder
-SHARE_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_logs/"
+# This file defines what tags are available, for current-day sessions.
+TAG_CONFIG_FILE = "tags.cfg"
+# Files and folder locations
+DATA_FOLDER = "../data" # Folder to keep datafiles in
+DATA_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.dat
+# Where and how often to publish reports
+REPORTS_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
 PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
+# Echo captures full transcripts of a day's TT session
+ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
+ECHO = False
 
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30 # mins
+# Duration (minutes) for roll-up blocks (e.g. for datasheet report)
+BLOCK_DURATION = 30
 
 # Help message.  Colour styles will be applied as:
 #       First non-blank line will be in TITLE_STYLE, after which
@@ -68,21 +76,6 @@ Other
   Send reports to shared drive :   publish / pub
   Exit                         :   exit / x
 """
-# Echo everything to a file?
-ECHO = False
-
-# Format preferences for prompting user.
-CURSOR = ">>> "
-INCLUDE_TIME_IN_PROMPT = True
-
-# Tags display in uppercase or lowercase?
-# (Note: in files always stored as lowercase)
-# Discussion: tag case reflects whether the taglists and dictionaries
-# are currently uppercase or lowercase.  It is part of the TrackerDay
-# object but not stored in the data file, since (1) it's part of program
-# state not data state (arguable), and more to the point (2), because
-# datafile format is canonically all lowercase.
-TAGS_UPPERCASE = False
 
 # Styles related to colour
 STYLE = {}

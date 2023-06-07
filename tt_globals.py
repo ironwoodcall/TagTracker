@@ -1,6 +1,7 @@
 """TagTracker by Julias Hocking.
 
 Global constants for use through most or all the TagTracker modules.
+These are meant to be wildcard-imported.
 
 Copyright (C) 2023 Julias Hocking
 
@@ -18,11 +19,6 @@ Copyright (C) 2023 Julias Hocking
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import re
-
-TAG_CONFIG_FILE = "tags.txt"
-
-# Duration (minutes) for roll-up blocks (e.g. for datasheet report)
-BLOCK_DURATION = 30
 
 # Type aliases only to improve readability and IDE linting
 Tag = str
