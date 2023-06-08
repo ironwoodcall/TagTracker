@@ -29,6 +29,7 @@ import sys
 import os
 import sqlite3
 import calendar
+import datetime
 from typing import Union  # for type hints instead of (eg) int|str
 
 import tt_conf as cfg
@@ -164,6 +165,13 @@ def duration(hhmm_in:str, hhmm_out:str) -> str:
 
     return hhmm_stay
 
+def augment_datafile_count() -> None:
+    """Increment the count of processed datafiles."""
+    # pylint:disable=global-statement
+    global datafile_count
+    datafile_count += 1
+    # pylint:enable=global-statement
+
 def data_to_db(filename:str) -> None:
     """Record one datafile to the database.
     
@@ -195,9 +203,13 @@ def data_to_db(filename:str) -> None:
         day =   int(date_bits.group(3))
         weekday = calendar.weekday(year, month, day)
         return weekday
+    if not os.path.isfile(filename):
+        print(f"Error: {filename} not found")
+        return None
 
-    print(f"\nWorking on {filename}...")
+    print(f"\nWorking on {filename}")
     data = df.read_datafile(f"{filename}", err_msgs=[])
+    augment_datafile_count()
 
     if data.regular and data.oversize:
         print(" Tags: datafile tag lists loaded")
@@ -304,8 +316,8 @@ def data_to_db(filename:str) -> None:
             leftover = 'No'
         else: # no check-out recorded
             if closing:
-                print(f" Leftover: using closing time {closing} recorded in "
-                        f"'{TABLE_DAYS}' tabl for {tag}")
+                print(f" Leftover: {tag} given closing time {closing} from "
+                        f"{TABLE_DAYS} table")
                 time_out = closing
             else:
                 print(f" Leftover: using latest event time for {tag}")
@@ -371,29 +383,46 @@ def sql_do(sql_statement:str) -> None:
     except sqlite3.Error as sqlite_err:
         print("sqlite ERROR using sql_do() -- ", sqlite_err)
 
+def get_yesterday() -> str:
+    """Return yesterday's date YYYY-MM-DD.
+    
+    For targeting db updates at only the most recent complete datafiles 
+    by default.
+    """
+    yesterday = datetime.datetime.now() - datetime.timedelta(1)
+    yest_str = yesterday.strftime("%Y-%m-%d")
+    return yest_str
+
+
 if __name__ == "__main__":
     conn = create_connection(DB_FILEPATH)
 
     create_visits_table() # if none yet exists
     create_days_table() # if none yet exists
-
-    batch = f"{ut.get_date()}-{ut.get_time()}"
+    
+    date_today = ut.get_date()
+    batch = f"{date_today}-{ut.get_time()}"
     print(f"Batch / current time: '{batch}'")
-    in_files = sys.argv[1:]
-    if in_files:
-        datafiles = in_files
-    else: # if no filenames passed, grab everything in /data
+
+    datafile_count = 0
+    if len(sys.argv) == 1: # default to using yesterday's data
+        datafiles = [os.path.join(cfg.DATA_FOLDER, 
+                    f"{cfg.DATA_BASENAME}{get_yesterday()}.dat")]
+    elif sys.argv[1] == 'all':
         datafiles = [f"{cfg.DATA_FOLDER}/{filename}" for filename
                     in glob.glob('*.dat', root_dir=cfg.DATA_FOLDER)
                     if re.match(DATAFILE_RE, filename)]
+    else:
+        in_files = sys.argv[1:]
+        datafiles = in_files
 
     for datafilename in datafiles:
         data_to_db(datafilename)
 
     conn.close()
 
-    print("\n\n\n")
-    print(f"Processed {len(datafiles)} datafiles.")
+    print("\n\n")
+    print(f"Processed {datafile_count} datafiles.")
     input("Press [Enter] to exit.")
 
 #pylint: disable = pointless-string-statement
