@@ -23,7 +23,6 @@ import os
 import sys
 import time
 import pathlib
-from typing import Union  # This is for type hints instead of (eg) int|str
 
 # The readline module magically solves arrow keys creating ANSI esc codes
 # on the Chromebook.  But it isn't on all platforms.
@@ -58,17 +57,6 @@ ALL_TAGS = []
 COLOUR_LETTERS = {}
 check_ins = {}
 check_outs = {}
-
-
-def num_bikes_at_valet(as_of_when: Union[Time, int] = None) -> int:
-    """Return count of bikes at the valet as of as_of_when."""
-    as_of_when = ut.time_str(as_of_when)
-    if not as_of_when:
-        as_of_when = ut.get_time()
-    # Count bikes that came in & by the given time, and the diff
-    num_in = len([t for t in check_ins.values() if t <= as_of_when])
-    num_out = len([t for t in check_outs.values() if t <= as_of_when])
-    return max(0, num_in - num_out)
 
 
 def valet_logo():
@@ -182,7 +170,9 @@ def initialize_today() -> bool:
     pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
     if not os.path.exists(DATA_FILEPATH):
         new_datafile = True
-        pr.iprint("Creating new datafile" f" {DATA_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
+        pr.iprint(
+            "Creating new datafile" f" {DATA_FILEPATH}.", style=cfg.SUBTITLE_STYLE
+        )
         today = tt_trackerday.TrackerDay()
     else:
         # Fetch data from file; errors go into error_msgs
@@ -230,28 +220,6 @@ def initialize_today() -> bool:
             style=cfg.WARNING_STYLE,
         )
     return True
-
-
-def find_tag_durations(include_bikes_on_hand=True) -> TagDict:
-    """Make dict of tags with their stay duration in minutes.
-
-    If include_bikes_on_hand, this will include checked in
-    but not returned out.  If False, only bikes returned out.
-    """
-    timenow = ut.time_int(ut.get_time())
-    tag_durations = {}
-    for tag, in_str in check_ins.items():
-        in_minutes = ut.time_int(in_str)
-        if tag in check_outs:
-            out_minutes = ut.time_int(check_outs[tag])
-            tag_durations[tag] = out_minutes - in_minutes
-        elif include_bikes_on_hand:
-            tag_durations[tag] = timenow - in_minutes
-    # Any bike stays that are zero minutes, arbitrarily call one minute.
-    for tag, duration in tag_durations.items():
-        if duration < 1:
-            tag_durations[tag] = 1
-    return tag_durations
 
 
 def delete_entry(args: list[str]) -> None:
@@ -696,7 +664,9 @@ def parse_command(user_input: str) -> list[str]:
         user_input = user_input[0] + " " + user_input[1:]
     # Split to list, test to see if tag.
     input_tokens = user_input.split()
-    command = ut.fix_tag(input_tokens[0], must_be_in=ALL_TAGS, uppercase=cfg.TAGS_UPPERCASE)
+    command = ut.fix_tag(
+        input_tokens[0], must_be_in=ALL_TAGS, uppercase=cfg.TAGS_UPPERCASE
+    )
     if command:
         return [command]  # A tag
     # See if it is a recognized command.
@@ -743,7 +713,7 @@ def dump_data():
         if var[0] == "_":
             continue
         value = vars(cfg)[var]
-        if isinstance(value, Union[str, dict, list, set, float, int]):
+        if isinstance(value, (str, dict, list, set, float, int)):
             pr.iprint(f"{var}:  ", style=cfg.ANSWER_STYLE, end="")
             pr.iprint(value)
     pr.iprint()
@@ -752,7 +722,7 @@ def dump_data():
         if var[0] == "_":
             continue
         value = globals()[var]
-        if isinstance(value, Union[str, dict, list, set, float, int]):
+        if isinstance(value, (str, dict, list, set, float, int)):
             pr.iprint(f"{var}:  ", style=cfg.ANSWER_STYLE, end="")
             pr.iprint(value)
 
@@ -797,8 +767,10 @@ def main():
         elif cmd == cfg.CMD_LOOKBACK:
             rep.recent(pack_day_data(), args)
         elif cmd == cfg.CMD_RETIRED or cmd == cfg.CMD_COLOURS:
-            pr.iprint("This command has been replaced by the 'tags' command.",
-                      style=cfg.WARNING_STYLE)
+            pr.iprint(
+                "This command has been replaced by the 'tags' command.",
+                style=cfg.WARNING_STYLE,
+            )
         elif cmd == cfg.CMD_TAGS:
             rep.tags_config_report(pack_day_data())
         elif cmd == cfg.CMD_QUERY:
@@ -822,7 +794,7 @@ def main():
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
         elif cmd == cfg.CMD_PUBLISH:
-            rep.publish_reports(pack_day_data())
+            rep.publish_reports(pack_day_data(), args)
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
@@ -910,7 +882,7 @@ def maybe_publish(last_pub: Time, force: bool = False) -> Time:
     df.write_datafile(datafile_name(cfg.REPORTS_FOLDER), day)
 
     # Now also publish updated reports
-    rep.publish_reports(day)
+    rep.publish_reports(day,[ut.get_time()])
 
     # Return new last_published time
     return ut.get_time()

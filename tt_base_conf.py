@@ -34,6 +34,7 @@ TAG_CONFIG_FILE = "tags.cfg"
 # Files and folder locations
 DATA_FOLDER = "../data" # Folder to keep datafiles in
 DATA_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.dat
+# Persistent database is put in the REPORTS_FOLDER
 DB_FILENAME = "cityhall_bikevalet.db" # Name of persistent database
 # Where and how often to publish reports
 REPORTS_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"

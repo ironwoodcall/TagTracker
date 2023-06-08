@@ -539,11 +539,8 @@ def visit_statistics_report(visits: dict) -> None:
 
 def highwater_report(events: dict) -> None:
     """Make a highwater table as at as_of_when."""
-
     # High-water mark for bikes in valet at any one time
-    def one_line(
-        header: str, events: dict, atime: Time, highlight_field: int
-    ) -> None:
+    def one_line(header: str, events: dict, atime: Time, highlight_field: int) -> None:
         """Print one line for highwater_report."""
         values = [
             events[atime].num_here_regular,
@@ -920,7 +917,6 @@ def retired_report(day: tt_trackerday.TrackerDay) -> None:
     pr.iprint(" ".join([x for sub in ut.sort_tags(day.retired) for x in sub]))
 
 
-
 def tags_config_report(day: tt_trackerday.TrackerDay) -> None:
     """Report the current tags configuration."""
     pr.iprint()
@@ -991,9 +987,11 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             pr.iprint(f"{start}-{end} {prefix} {tagslist} {suffix}")
 
 
-def publish_reports(day: tt_trackerday.TrackerDay) -> None:
+def publish_reports(day: tt_trackerday.TrackerDay, args: list = None) -> None:
     """Publish reports to the PUBLISH directory."""
-    as_of_when = "24:00"
+    as_of_when = (args + [None])[0]
+    if not as_of_when:
+        as_of_when = ut.get_time()
 
     publish_audit(day, [as_of_when])
 

@@ -284,34 +284,6 @@ def splitline(inp: str) -> list[str]:
     tokens = [x for x in tokens if x]
     return tokens
 
-
-def build_colour_dict(file: str) -> TagDict:
-    """Create dictionary of colour names and abbreviations.
-
-    Reads them from file; if file does not exist, creates it.
-    """
-    # Create empty file if does not exist.
-    if not os.path.exists(file):
-        with open(file, "w", encoding="utf-8") as f:
-            header = (
-                "Enter each first letter(s) of a tag name corresponding to "
-                "a tag colour separated by whitespace on their own line, "
-                "eg 'b black' etc"
-            )
-            f.writelines(header)
-            return {}
-    # Read from existing file
-    with open(file, "r", encoding="utf-8") as f:
-        lines = f.readlines()[1:]  # ignore header text
-    colours = {}
-    for line in lines:
-        if len(line.rstrip().split()) == 2:
-            abbrev = line.rstrip().split()[0]
-            colour = line.rstrip().split()[1]
-            colours[abbrev] = colour  # add to dictionary
-    return colours
-
-
 def get_version() -> str:
     """Return system version number from changelog.txt.
 

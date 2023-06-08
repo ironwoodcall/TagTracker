@@ -32,9 +32,10 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 # Files and folder locations
 ##DATA_FOLDER = "../data" # Folder to keep datafiles in
 ##DATA_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.dat
-##DB_FILENAME = "cityhall_bikevalet.db" # Name of persistent database
 # Where and how often to publish reports
 ##REPORTS_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
+# Persistent database is put in the REPORTS_FOLDER
+##DB_FILENAME = "cityhall_bikevalet.db" # Name of persistent database
 ##PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 # Echo captures full transcripts of a day's TT session
 ##ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
