@@ -40,7 +40,7 @@ import tt_event as ev
 
 
 # Path for the database to be put into
-DB_FILEPATH = os.path.join(cfg.DATA_FOLDER, r"test_database.db")
+DB_FILEPATH = os.path.join(cfg.REPORTS_FOLDER, cfg.DB_FILENAME)
 
 # regex for retrieving date from filename if it isn't explicit (older files)
 DATE_RE = r"2[0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]"
@@ -347,7 +347,7 @@ def data_to_db(filename:str) -> None:
         sql_do(cmd_visit_insert) # no notes added at this stage
     try:
         conn.commit() # commit one datafile transaction
-        print(" Committed!")
+        print(f" Committed records for {total_parked} visits!")
     except sqlite3.Error as sqlite_err:
         print(f"ERR: SQL error trying to commit {filename} - {sqlite_err}")
 
