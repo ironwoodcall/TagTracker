@@ -24,31 +24,32 @@ import io
 # The readline module magically solves arrow keys creating ANSI esc codes
 # on the Chromebook.  But it isn't on all platforms.
 try:
-    import readline # pylint:disable=unused-import
+    import readline  # pylint:disable=unused-import
 except ImportError:
     pass
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
 import tt_conf as cfg
+
 ##from tt_colours import *
 # pylint:disable=unused-import
-#from tt_colours import (HAVE_COLOURS, STYLE,
+# from tt_colours import (HAVE_COLOURS, STYLE,
 #            PROMPT_STYLE, SUBPROMPT_STYLE, ANSWER_STYLE, TITLE_STYLE,
 #            SUBTITLE_STYLE, RESET_STYLE, NORMAL_STYLE, HIGHLIGHT_STYLE,
 #            WARNING_STYLE, ERROR_STYLE,Fore,Back,Style)
 # pylint:enable=unused-import
-#try:
+# try:
 #    import tt_local_config  # pylint:disable=unused-import
-#except ImportError:
+# except ImportError:
 #    pass
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
-_INDENT = '  '
+_INDENT = "  "
 
 # If use colour, try to import colorama library
-#USE_COLOUR = True
-#if USE_COLOUR and not HAVE_COLOURS:
+# USE_COLOUR = True
+# if USE_COLOUR and not HAVE_COLOURS:
 #    USE_COLOUR = False
 #    print("WARNING: No colours available, text will be in black & white.")
 
@@ -58,32 +59,35 @@ _INDENT = '  '
 # To stop it, call set_echo(False)
 
 _echo_state = False
-_echo_filename = os.path.join(cfg.ECHO_FOLDER,f"echo-{ut.get_date()}.txt")
-_echo_file = None # This is the file object
+_echo_filename = os.path.join(cfg.ECHO_FOLDER, f"echo-{ut.get_date()}.txt")
+_echo_file = None  # This is the file object
+
 
 def get_echo() -> bool:
     """Return current echo state ON or OFF."""
     return _echo_state
 
-def set_echo(state:bool) -> None:
+
+def set_echo(state: bool) -> None:
     """Set the echo state to ON or OFF."""
     global _echo_state, _echo_file
     if state == _echo_state:
         return
     _echo_state = state
     # If turning echo off, close the file
-    if not state and isinstance(_echo_file,io.TextIOWrapper):
+    if not state and isinstance(_echo_file, io.TextIOWrapper):
         _echo_file.close()
     # If turning echo on, try to open the file
     if state:
         try:
-            _echo_file = open(_echo_filename,"at",encoding="utf-8")
+            _echo_file = open(_echo_filename, "at", encoding="utf-8")
         except OSError:
             ut.squawk(f"OSError opening echo file '{_echo_filename}'")
             ut.squawk("Setting echo off.")
             _echo_state = False
 
-def echo(text:str="") -> None:
+
+def echo(text: str = "") -> None:
     """Send text to the echo log."""
     if not _echo_state:
         return
@@ -93,23 +97,27 @@ def echo(text:str="") -> None:
         return
     _echo_file.write(f"{text}")
 
+
 def echo_flush() -> None:
     """If an echo file is active, flush buffer contents to it."""
     if _echo_state and _echo_file:
         _echo_file.flush()
 
-def tt_inp(prompt:str="",style:str="") -> str:
+
+def tt_inp(prompt: str = "", style: str = "") -> str:
     """Get input, possibly echo to file."""
-    inp = input(text_style(prompt,style))
+    inp = input(text_style(prompt, style))
     if _echo_state:
         echo(f"{prompt}  {inp}\n")
     return inp
 
+
 # Output destination
-_destination:str = ""   # blank == screen
+_destination: str = ""  # blank == screen
 _destination_file = None
 
-def set_output(filename:str="") -> None:
+
+def set_output(filename: str = "") -> None:
     """Set print destination to filename or (default) screen.
 
     Only close the file if it has changed to a different filename
@@ -122,14 +130,16 @@ def set_output(filename:str="") -> None:
     if _destination:
         _destination_file.close()
     if filename:
-        _destination_file = open(filename,mode="wt",encoding="utf-8")
+        _destination_file = open(filename, mode="wt", encoding="utf-8")
     _destination = filename
+
 
 def get_output() -> str:
     """Get the current output destination (filename), or "" if screen."""
     return _destination
 
-def text_style(text:str, style=None) -> str:
+
+def text_style(text: str, style=None) -> str:
     """Return text with style 'style' applied."""
     # If redirecting to file, do not apply style
     if _destination:
@@ -144,7 +154,8 @@ def text_style(text:str, style=None) -> str:
         return "!!!???"
     return f"{cfg.STYLE[style]}{text}{cfg.STYLE[cfg.RESET_STYLE]}"
 
-def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
+
+def iprint(text: str = "", num_indents: int = 1, style=None, end="\n") -> None:
     """Print the text, indented num_indents times.
 
     Recognizes the 'end=' keyword for the print() statement.
@@ -161,14 +172,11 @@ def iprint(text:str="", num_indents:int=1, style=None,end="\n") -> None:
     else:
         # Going to screen.  Style and indent.
         if cfg.USE_COLOUR and style:
-            styled_text = text_style(text,style=style)
-            print(f"{indent}{styled_text}",end=end)
+            styled_text = text_style(text, style=style)
+            print(f"{indent}{styled_text}", end=end)
         else:
-            print(f"{indent}{text}",end=end)
+            print(f"{indent}{text}", end=end)
 
     # Also echo?
     if _echo_state and not _destination:
         echo(f"{indent}{text}{end}")
-
-
-

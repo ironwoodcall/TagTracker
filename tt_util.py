@@ -176,7 +176,7 @@ def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[
         [tag_id, colour, tag_letter, tag_number]
     If tag is not valid, then the return list is empty []
 
-    If must_be_in is notan empty list (or None) then will check whether
+    If must_be_in is not an empty list (or None) then will check whether
     this tag is in the list passed in, and if
     not in the list, will return an empty list.
 
@@ -230,7 +230,6 @@ def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
         - tags are either all uppercase or all lowercase
         - all tags are syntactically valid
     """
-
     has_uc = bool(re.search(r"[A-Z]", "".join(unsorted)))
     has_lc = bool(re.search(r"[a-z]", "".join(unsorted)))
     if has_uc == has_lc:
@@ -243,7 +242,10 @@ def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
     # Put all the tags into sets, one set for each prefix
     tagsets = {}
     for tag in unsorted:
-        bits = parse_tag(tag,uppercase=uppercase,)
+        bits = parse_tag(
+            tag,
+            uppercase=uppercase,
+        )
         prefix = f"{bits[1]}{bits[2]}"
         num = int(bits[3])
         if prefix not in tagsets:
@@ -252,7 +254,7 @@ def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
     # Make a list of lists with sorted tags
     outerlist = []
     for prefix in sorted(tagsets.keys()):
-        outerlist.append( [f"{prefix}{n}" for n in sorted(list(tagsets[prefix]))])
+        outerlist.append([f"{prefix}{n}" for n in sorted(list(tagsets[prefix]))])
     return outerlist
 
 
@@ -261,7 +263,7 @@ def tags_by_prefix(tags: list[Tag]) -> dict[str, list[Tag]]:
     prefixes = {}
     for tag in tags:
         # pylint: disable=unbalanced-tuple-unpacking
-        (t_colour, t_letter, t_number) = parse_tag(tag,uppercase=False)[1:4]
+        (t_colour, t_letter, t_number) = parse_tag(tag, uppercase=False)[1:4]
         # pylint: disable=unbalanced-tuple-unpacking
         prefix = f"{t_colour}{t_letter}"
         if prefix not in prefixes:
@@ -284,10 +286,12 @@ def splitline(inp: str) -> list[str]:
     tokens = [x for x in tokens if x]
     return tokens
 
+
 def get_version() -> str:
     """Return system version number from changelog.txt.
 
-    If it looks like a git repo, will also try to include a ref from that."""
+    If it looks like a git repo, will also try to include a ref from that.
+    """
     version_str = ""
     changelog = "changelog.txt"
     if os.path.exists(changelog):
@@ -300,7 +304,7 @@ def get_version() -> str:
                     break
 
     # Git ref
-    git_head = os.path.join(".git","HEAD")
+    git_head = os.path.join(".git", "HEAD")
     if not os.path.exists(git_head):
         return version_str
     # .git/HEAD points to the file that contains the version
@@ -312,7 +316,7 @@ def get_version() -> str:
                 ref_path = r.group(1)
         if not ref_path:
             return version_str
-    ref_full_path = os.path.join(".git",ref_path)
+    ref_full_path = os.path.join(".git", ref_path)
     if not os.path.exists(ref_full_path):
         return version_str
     git_str = ""
@@ -329,9 +333,10 @@ def get_version() -> str:
     version_str = f"{version_str} ({git_str})"
     return version_str
 
-def plural(count:int) -> str:
+
+def plural(count: int) -> str:
     """Get an "s" if count indicates one is needed."""
-    if isinstance(count,(int,float)) and count == 1:
+    if isinstance(count, (int, float)) and count == 1:
         return ""
     else:
         return "s"

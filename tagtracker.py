@@ -33,12 +33,12 @@ except ImportError:
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
-import tt_trackerday
+import tt_trackerday as td
 import tt_conf as cfg
 import tt_printer as pr
 import tt_datafile as df
 import tt_reports as rep
-
+import tt_publish as pub
 # Local connfiguration
 # try:
 #    import tt_local_config  # pylint:disable=unused-import
@@ -58,6 +58,13 @@ COLOUR_LETTERS = {}
 check_ins = {}
 check_outs = {}
 
+
+def uc_lc(txt:str) ->str:
+    """Change txt to UC or LC depending on global cfg.TAGS_UPPERCASE."""
+    if cfg.TAGS_UPPERCASE:
+        return txt.upper()
+    else:
+        return txt.lower()
 
 def valet_logo():
     """Print a cute bike valet logo using unicode."""
@@ -125,10 +132,10 @@ def deduce_valet_date(current_guess: str, filename: str) -> str:
     return ut.get_date()
 
 
-def pack_day_data() -> tt_trackerday.TrackerDay:
+def pack_day_data() -> td.TrackerDay:
     """Create a TrackerDay object loaded with today's data."""
     # Pack info into TrackerDay object
-    day = tt_trackerday.TrackerDay()
+    day = td.TrackerDay()
     day.date = VALET_DATE
     day.opening_time = VALET_OPENS
     day.closing_time = VALET_CLOSES
@@ -142,7 +149,7 @@ def pack_day_data() -> tt_trackerday.TrackerDay:
     return day
 
 
-def unpack_day_data(today_data: tt_trackerday.TrackerDay) -> None:
+def unpack_day_data(today_data: td.TrackerDay) -> None:
     """Set globals from a TrackerDay data object."""
     # pylint: disable=global-statement
     global VALET_DATE, VALET_OPENS, VALET_CLOSES
@@ -173,7 +180,7 @@ def initialize_today() -> bool:
         pr.iprint(
             "Creating new datafile" f" {DATA_FILEPATH}.", style=cfg.SUBTITLE_STYLE
         )
-        today = tt_trackerday.TrackerDay()
+        today = td.TrackerDay()
     else:
         # Fetch data from file; errors go into error_msgs
         pr.iprint(
@@ -654,7 +661,10 @@ def tag_check(tag: Tag) -> None:
 def parse_command(user_input: str) -> list[str]:
     """Parse user's input into list of [tag] or [command, command args].
 
-    Returns [] if not a recognized tag or command.
+    Return:
+        [cfg.CMD_TAG_RETIRED,args] if a tag but is retired
+        [cfg.CMD_TAG_UNUSABLE,args] if a tag but otherwise not usable
+        [cfg.CMD_UNKNOWN,args] if not a tag & not a command
     """
     user_input = user_input.lower().strip()
     if not (user_input):
@@ -664,11 +674,18 @@ def parse_command(user_input: str) -> list[str]:
         user_input = user_input[0] + " " + user_input[1:]
     # Split to list, test to see if tag.
     input_tokens = user_input.split()
-    command = ut.fix_tag(
-        input_tokens[0], must_be_in=ALL_TAGS, uppercase=cfg.TAGS_UPPERCASE
-    )
-    if command:
-        return [command]  # A tag
+    # See if it matches tag syntax
+    maybetag = ut.fix_tag(input_tokens[0], uppercase=cfg.TAGS_UPPERCASE)
+    if maybetag:
+        # This appears to be a tag
+        if maybetag in RETIRED_TAGS:
+            return [cfg.CMD_TAG_RETIRED] + input_tokens[1:]
+        # Is this tag usable?
+        if maybetag not in ALL_TAGS:
+            return [cfg.CMD_TAG_UNUSABLE] + input_tokens[1:]
+        # This appears to be a usable tag.
+        return [maybetag]
+
     # See if it is a recognized command.
     # cfg.command_aliases is dict of lists of aliases keyed by
     # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
@@ -679,10 +696,9 @@ def parse_command(user_input: str) -> list[str]:
             break
     # Is this an unrecognized command?
     if not command:
-        return [cfg.CMD_UNKNOWN]
+        return [cfg.CMD_UNKNOWN] + input_tokens[1:]
     # We have a recognized command, return it with its args.
-    input_tokens[0] = command
-    return input_tokens
+    return [command] + input_tokens[1:]
 
 
 def show_help():
@@ -754,7 +770,7 @@ def main():
             data_dirty = True
         elif cmd == cfg.CMD_AUDIT:
             rep.audit_report(pack_day_data(), args)
-            rep.publish_audit(pack_day_data(), args)
+            pub.publish_audit(pack_day_data(), args)
         elif cmd == cfg.CMD_DELETE:
             delete_entry(args)
             data_dirty = True
@@ -794,18 +810,27 @@ def main():
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
         elif cmd == cfg.CMD_PUBLISH:
-            rep.publish_reports(pack_day_data(), args)
+            pub.publish_reports(pack_day_data(), args)
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
         elif cmd == cfg.CMD_UPPERCASE or cmd == cfg.CMD_LOWERCASE:
             set_tag_case(cmd == cfg.CMD_UPPERCASE)
-        elif cmd == cfg.CMD_UNKNOWN:
+        # Check for bad input
+        elif not ut.fix_tag(cmd,uppercase=UPPERCASE):
+            # This is not a tag
+            if cmd == cfg.CMD_UNKNOWN or len(args) > 0:
+                msg = "Unrecognized command, enter 'h' for help"
+            elif cmd == cfg.CMD_TAG_RETIRED:
+                msg = f"Tag '{uc_lc(user_str)}' is retired"
+            elif cmd == cfg.CMD_TAG_UNUSABLE:
+                msg = f"Valet not configured to use tag '{uc_lc(user_str)}'"
+            else:
+                # Should never get to this point
+                msg = "Surprised by unrecognized command"
             pr.iprint()
-            pr.iprint(
-                "Unrecognized tag or command, enter 'h' for help",
-                style=cfg.WARNING_STYLE,
-            )
+            pr.iprint(msg, style=cfg.WARNING_STYLE)
+
         else:
             # This is a tag
             tag_check(cmd)
@@ -882,7 +907,7 @@ def maybe_publish(last_pub: Time, force: bool = False) -> Time:
     df.write_datafile(datafile_name(cfg.REPORTS_FOLDER), day)
 
     # Now also publish updated reports
-    rep.publish_reports(day,[ut.get_time()])
+    pub.publish_reports(day,[ut.get_time()])
 
     # Return new last_published time
     return ut.get_time()
@@ -947,7 +972,7 @@ def midnight_passed(today_is: str) -> bool:
     return True
 
 
-def get_taglists_from_config() -> tt_trackerday.TrackerDay:
+def get_taglists_from_config() -> td.TrackerDay:
     """Read tag lists (oversize, etc) from tag config file."""
     # Lists of normal, oversize, retired tags
     # Return a TrackerDay object, though its bikes_in/out are meaningless.

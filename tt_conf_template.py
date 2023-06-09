@@ -17,7 +17,7 @@ Copyright (C) 2023 Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-import
+from tt_base_conf import *  # pylint:disable=unused-wildcard-import,wildcard-import
 
 
 # Screen appearance
@@ -113,6 +113,3 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 ##COMMANDS[CMD_PUBLISH] = ["pub","publish"]
 ##COMMANDS[CMD_COLOURS] = ["col","color","colors","colour","colours"]
 ##COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
-
-
-

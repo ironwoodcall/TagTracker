@@ -20,7 +20,7 @@ Copyright (C) 2023 Julias Hocking
 from typing import Union
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
-import tt_trackerday
+import tt_trackerday as td
 
 
 class Visit:
@@ -37,18 +37,20 @@ class Visit:
 
     def dump(self) -> None:
         """Get contents of the Visit."""
-        return (f"{self.tag=},{self.time_in=},{self.time_out=},"
-                f"{self.duration=},{self.type=},{self.still_here=}")
+        return (
+            f"{self.tag=},{self.time_in=},{self.time_out=},"
+            f"{self.duration=},{self.type=},{self.still_here=}"
+        )
 
-def dump_visits(visits:dict[Visit]) -> None:
+
+def dump_visits(visits: dict[Visit]) -> None:
     """Dump whole visits dictionary."""
     print("\nvisits\n")
     for v in visits.values():
         print(v.dump())
 
-def calc_visits(
-    day: tt_trackerday.TrackerDay, as_of_when: Union[int, Time]
-) -> dict[Tag, Visit]:
+
+def calc_visits(day: td.TrackerDay, as_of_when: Union[int, Time]) -> dict[Tag, Visit]:
     """Create a dict of visits keyed by tag as of as_of_when.
 
     If as_of_when is not given, then this will use the current time.
