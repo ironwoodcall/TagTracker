@@ -165,13 +165,6 @@ def duration(hhmm_in:str, hhmm_out:str) -> str:
 
     return hhmm_stay
 
-def augment_datafile_count() -> None:
-    """Increment the count of processed datafiles."""
-    # pylint:disable=global-statement
-    global datafile_count
-    datafile_count += 1
-    # pylint:enable=global-statement
-
 def data_to_db(filename:str) -> None:
     """Record one datafile to the database.
     
@@ -183,7 +176,6 @@ def data_to_db(filename:str) -> None:
     Then calculate some things which might be based on it
     For each bike, record a row of visit data into TABLE_VISITS
     """
-
     def what_bike_type(tag:str) -> Union[str,None]:
         """Return the type 'Normal' or 'Oversize' of a tag.
         Based on each day's datafile"""
@@ -204,18 +196,22 @@ def data_to_db(filename:str) -> None:
         weekday = calendar.weekday(year, month, day)
         return weekday
     if not os.path.isfile(filename):
-        print(f"Error: {filename} not found")
+        print(f"Error - data_to_db(): {filename} not found")
         return None
 
     print(f"\nWorking on {filename}")
     data = df.read_datafile(f"{filename}", err_msgs=[])
-    augment_datafile_count()
+    if not data.bikes_in: # if no visits to record, stop now
+        print(f" No visits in {filename}")
+        globals()["EMPTY_COUNT"] += 1
+        return None
+    globals()["SUCCESS_COUNT"] += 1
 
     if data.regular and data.oversize:
         print(" Tags: datafile tag lists loaded")
         regular_tags = data.regular
         oversize_tags = data.oversize
-    else: # read tags.txt only if necessary
+    else: # read tags.txt only if necessary (prefer context of the time)
         print(f" Tags: using {cfg.TAG_CONFIG_FILE} as no tag info in datafile")
         tags_data = df.read_datafile(cfg.TAG_CONFIG_FILE, err_msgs=[])
         regular_tags = tags_data.regular
@@ -302,10 +298,6 @@ def data_to_db(filename:str) -> None:
     sql_do(cmd_day_insert)
 
     # TABLE_VISITS handling
-    if not data.bikes_in:
-        print(f" No visits in {filename}")
-        return None # if no visits to record, stop now
-
     closing = select_closing_time(date) # fetch checkout time for whole day
     sql_do(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';")
     for tag, time in data.bikes_in.items():
@@ -399,19 +391,20 @@ if __name__ == "__main__":
 
     create_visits_table() # if none yet exists
     create_days_table() # if none yet exists
-    
+
     date_today = ut.get_date()
     batch = f"{date_today}-{ut.get_time()}"
     print(f"Batch / current time: '{batch}'")
 
-    datafile_count = 0
+    SUCCESS_COUNT = 0
+    EMPTY_COUNT = 0
     if len(sys.argv) == 1: # default to using yesterday's data
-        datafiles = [os.path.join(cfg.DATA_FOLDER, 
-                    f"{cfg.DATA_BASENAME}{get_yesterday()}.dat")]
+        datafiles = [os.path.join(cfg.DATA_FOLDER,
+                     f"{cfg.DATA_BASENAME}{get_yesterday()}.dat")]
     elif sys.argv[1] == 'all':
         datafiles = [f"{cfg.DATA_FOLDER}/{filename}" for filename
-                    in glob.glob('*.dat', root_dir=cfg.DATA_FOLDER)
-                    if re.match(DATAFILE_RE, filename)]
+                     in glob.glob('*.dat', root_dir=cfg.DATA_FOLDER)
+                     if re.match(DATAFILE_RE, filename)]
     else:
         in_files = sys.argv[1:]
         datafiles = in_files
@@ -421,8 +414,8 @@ if __name__ == "__main__":
 
     conn.close()
 
-    print("\n\n")
-    print(f"Processed {datafile_count} datafiles.")
+    print(f"\n\nCommitted data from {SUCCESS_COUNT} datafiles "
+          f"({EMPTY_COUNT} empty).")
     input("Press [Enter] to exit.")
 
 #pylint: disable = pointless-string-statement
