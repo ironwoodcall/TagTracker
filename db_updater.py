@@ -1,4 +1,6 @@
-"""Database updater for TagTracker suite.
+"""TagTracker by Julias Hocking.
+
+Database updater for TagTracker suite.
 
 This is a script to update a persistent SQLite database in a configurable
 directory with data from all available (by default) or specific TagTracker
@@ -37,124 +39,8 @@ import tt_util as ut
 import tt_datafile as df
 import tt_globals as tg
 import tt_event as ev
+import db_setup as ds
 
-
-# Path for the database to be put into
-DB_FILEPATH = os.path.join(cfg.REPORTS_FOLDER, cfg.DB_FILENAME)
-
-# regex for retrieving date from filename if it isn't explicit (older files)
-DATE_RE = r"2[0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]"
-
-# Regex for recognizing datafile names
-DATAFILE_RE = re.compile(f"({cfg.DATA_BASENAME})*"
-                        r"[12][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]\.dat$")
-
-# Names for tables and columns.
-# Table of individual bike visits
-TABLE_VISITS = "visit"
-COL_ID = "id" # text date.tag PK
-COL_DATE = "date"
-COL_TAG = "tag"
-COL_BIKETYPE = "type"
-COL_TIME_IN = "time_in"
-COL_TIME_OUT = "time_out"
-COL_DURATION = "duration"
-COL_BATCH = "batch"
-COL_LEFTOVER = "leftover"
-COL_NOTES = "notes"
-
-
-
-# Table of day summaries
-TABLE_DAYS = "day"
-#COL_DATE name reused - text date PK
-COL_REGULAR = "parked_regular" # int count
-COL_OVERSIZE = "parked_oversize" # int count
-COL_TOTAL = "parked_total" # int sum of 2 above
-COL_TOTAL_LEFTOVER = "bikes_leftover" # int count
-COL_MAX_REGULAR = "max_reg" # int count of max regular bikes
-COL_MAX_REGULAR_TIME = "time_max_reg" # HHMM time
-COL_MAX_OVERSIZE = "max_over" # int count of max oversize bikes
-COL_MAX_OVERSIZE_TIME = "time_max_over" # HHMM time
-COL_MAX_TOTAL = "max_total" # int sum of 2 above
-COL_MAX_TOTAL_TIME = "time_max_total" # HHMM
-COL_TIME_OPEN = "opened" # HHMM opening time
-COL_TIME_CLOSE = "closed" # HHMM closing time
-COL_DAY_OF_WEEK = "weekday_Mon_Sun" # 0-6 day of the week
-COL_PERCIP_MM = "precip" # mm precipitation - prob bulk from Env. Can. data
-COL_TEMP_10AM = "temp_10am" # temp at 10AM - same
-COL_SUNSET = "sunset" # HHMM time at sunset - same
-COL_EVENT = "event" # text NULL or short name of event happening nearby
-COL_EVENT_PROX = "event_prox_km" # est. num of km to event
-COL_REGISTRATIONS = "registrations" # num of 529 registrations recorded
-#COL_NOTES name reused
-
-
-def create_connection(db_file) -> sqlite3.Connection:
-    """Create a database connection to a SQLite database.
-    
-    This will create a new .db database file if none yet exists at the named
-    path."""
-    connection = None
-    try:
-        connection = sqlite3.connect(db_file)
-        print(sqlite3.version)
-    except sqlite3.Error as sqlite_err:
-        print("sqlite ERROR in create_connection() -- ", sqlite_err)
-    return connection
-
-def create_visits_table() -> None:
-    """Create the table TABLE_VISITS if it doesn't exist yet."""
-    if conn:
-        try: #FIXME: try to add each column individually if it doesn't exist?
-            # that way can update DB with new columns in future which will
-            # probably be needed - likely more important for TABLE_DAYS
-            conn.execute(f"""CREATE TABLE IF NOT EXISTS {TABLE_VISITS} (
-                        {COL_ID}            TEXT PRIMARY_KEY UNIQUE,
-                        {COL_DATE}          TEXT NOT NULL,
-                        {COL_TAG}           TEXT NOT NULL,
-                        {COL_BIKETYPE}      TEXT NOT NULL,
-                        {COL_TIME_IN}       TEXT NOT NULL,
-                        {COL_TIME_OUT}      TEXT,
-                        {COL_DURATION}      TEXT,
-                        {COL_LEFTOVER}      TEXT,
-                        {COL_NOTES}         TEXT,
-                        {COL_BATCH}         TEXT NOT NULL);""")
-        except sqlite3.Error as sqlite_err:
-            print('sqlite ERROR in create_visits_table() -- ', sqlite_err)
-    else:
-        print("Error trying to create_visits_table(): no database connection")
-
-def create_days_table() -> None:
-    """Create the table TABLE_DAYS if it doesn't exist yet."""
-    if conn:
-        try:
-            conn.execute(f"""CREATE TABLE IF NOT EXISTS {TABLE_DAYS} (
-                        {COL_DATE}              TEXT PRIMARY_KEY UNIQUE,
-                        {COL_REGULAR}           INTEGER,
-                        {COL_OVERSIZE}          INTEGER,
-                        {COL_TOTAL}             INTEGER,
-                        {COL_TOTAL_LEFTOVER}    INTEGER,
-                        {COL_MAX_REGULAR}       INTEGER,
-                        {COL_MAX_REGULAR_TIME}  TEXT,
-                        {COL_MAX_OVERSIZE}      INTEGER,
-                        {COL_MAX_OVERSIZE_TIME} TEXT,
-                        {COL_MAX_TOTAL}         INTEGER,
-                        {COL_MAX_TOTAL_TIME}    TEXT,
-                        {COL_TIME_OPEN}         TEXT,
-                        {COL_TIME_CLOSE}        TEXT,
-                        {COL_DAY_OF_WEEK}       INTEGER NOT NULL,
-                        {COL_PERCIP_MM}         NUMERIC,
-                        {COL_TEMP_10AM}         NUMERIC,
-                        {COL_SUNSET}            TEXT,
-                        {COL_EVENT}             TEXT,
-                        {COL_EVENT_PROX}        NUMERIC,
-                        {COL_REGISTRATIONS}     NUMERIC,
-                        {COL_NOTES}             TEXT);""")
-        except sqlite3.Error as sqlite_err:
-            print('sqlite ERROR in create_days_table() -- ', sqlite_err)
-    else:
-        print("Error trying to create_days_table(): no database connection")
 
 def duration(hhmm_in:str, hhmm_out:str) -> str:
     """Calculate a str duration from a str time in and out."""
@@ -171,7 +57,7 @@ def data_to_db(filename:str) -> None:
     Read the datafile in question into a TrackerDay object with 
     df.read_datafile()
     
-    For the day, insert a row of day summary data into TABLE_DAYS
+    For the day, insert a row of day summary data into ds.TABLE_DAYS
 
     Then calculate some things which might be based on it
     For each bike, record a row of visit data into TABLE_VISITS
@@ -219,8 +105,8 @@ def data_to_db(filename:str) -> None:
 
     date = data.date
     if not date: # get from filename for old data formats
-        date = re.search(DATE_RE, filename).group(0)
-    # TABLE_DAYS handling
+        date = re.search(ds.DATE_RE, filename).group(0)
+    # ds.TABLE_DAYS handling
     # simple counts
     regular_parked = 0
     oversize_parked = 0
@@ -263,43 +149,43 @@ def data_to_db(filename:str) -> None:
     # int day of week
     weekday = weekday(date)
 
-    cmd_day_insert = f"""INSERT INTO {TABLE_DAYS} (
-                    {COL_DATE},
-                    {COL_REGULAR},
-                    {COL_OVERSIZE},
-                    {COL_TOTAL},
-                    {COL_TOTAL_LEFTOVER},
-                    {COL_MAX_REGULAR},
-                    {COL_MAX_REGULAR_TIME},
-                    {COL_MAX_OVERSIZE},
-                    {COL_MAX_OVERSIZE_TIME},
-                    {COL_MAX_TOTAL},
-                    {COL_MAX_TOTAL_TIME},
-                    {COL_TIME_OPEN},
-                    {COL_TIME_CLOSE},
-                    {COL_DAY_OF_WEEK}
+    cmd_day_insert = f"""INSERT INTO {ds.TABLE_DAYS} (
+                    {ds.COL_DATE},
+                    {ds.COL_REGULAR},
+                    {ds.COL_OVERSIZE},
+                    {ds.COL_TOTAL},
+                    {ds.COL_TOTAL_LEFTOVER},
+                    {ds.COL_MAX_REGULAR},
+                    {ds.COL_MAX_REGULAR_TIME},
+                    {ds.COL_MAX_OVERSIZE},
+                    {ds.COL_MAX_OVERSIZE_TIME},
+                    {ds.COL_MAX_TOTAL},
+                    {ds.COL_MAX_TOTAL_TIME},
+                    {ds.COL_TIME_OPEN},
+                    {ds.COL_TIME_CLOSE},
+                    {ds.COL_DAY_OF_WEEK}
                     ) VALUES (
                     '{date}',
-                    {regular_parked},
-                    {oversize_parked},
-                    {total_parked},
-                    {total_leftover},
-                    {max_regular_num},
+                     {regular_parked},
+                     {oversize_parked},
+                     {total_parked},
+                     {total_leftover},
+                     {max_regular_num},
                     '{max_regular_time}',
-                    {max_oversize_num},
+                     {max_oversize_num},
                     '{max_oversize_time}',
-                    {max_total_num},
+                     {max_total_num},
                     '{max_total_time}',
                     '{time_open}',
                     '{time_close}',
-                    {weekday}
+                     {weekday}
                     );"""
-    sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';")
+    sql_do(f"DELETE FROM {ds.TABLE_DAYS} WHERE date = '{date}';")
     sql_do(cmd_day_insert)
 
     # TABLE_VISITS handling
     closing = select_closing_time(date) # fetch checkout time for whole day
-    sql_do(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';")
+    sql_do(f"DELETE FROM {ds.TABLE_VISITS} WHERE date = '{date}';")
     for tag, time in data.bikes_in.items():
         tag_name = tag
         time_in = time
@@ -309,23 +195,23 @@ def data_to_db(filename:str) -> None:
         else: # no check-out recorded
             if closing:
                 print(f" Leftover: {tag} given closing time {closing} from "
-                        f"{TABLE_DAYS} table")
+                        f"{ds.TABLE_DAYS} table")
                 time_out = closing
             else:
                 print(f" Leftover: using latest event time for {tag}")
                 time_out = data.latest_event() # approx. as = to last event
             leftover = "Yes"
         time_stay = duration(time_in, time_out)
-        cmd_visit_insert = f"""INSERT INTO {TABLE_VISITS} (
-                        {COL_ID},
-                        {COL_DATE},
-                        {COL_TAG},
-                        {COL_BIKETYPE},
-                        {COL_TIME_IN},
-                        {COL_TIME_OUT},
-                        {COL_DURATION},
-                        {COL_LEFTOVER},
-                        {COL_BATCH}
+        cmd_visit_insert = f"""INSERT INTO {ds.TABLE_VISITS} (
+                        {ds.COL_ID},
+                        {ds.COL_DATE},
+                        {ds.COL_TAG},
+                        {ds.COL_BIKETYPE},
+                        {ds.COL_TIME_IN},
+                        {ds.COL_TIME_OUT},
+                        {ds.COL_DURATION},
+                        {ds.COL_LEFTOVER},
+                        {ds.COL_BATCH}
                         ) VALUES (
                         '{date}.{tag}',
                         '{date}',
@@ -345,7 +231,7 @@ def data_to_db(filename:str) -> None:
 
 
 def select_closing_time(date:str) -> Union[ut.Time, bool]:
-    """Return the closing time of a given date in TABLE_DAYS.
+    """Return the closing time of a given date in ds.TABLE_DAYS.
     
     - SELECT closing time from rows with matching dates (should be just 1)
     - If this yields no rows, return False.
@@ -354,8 +240,8 @@ def select_closing_time(date:str) -> Union[ut.Time, bool]:
     (shouldn't happen b/c of UNIQUE constraint on the date row, but in case)"""
     curs = conn.cursor()
     rows = curs.execute(
-        f"SELECT {COL_TIME_CLOSE} FROM {TABLE_DAYS} "
-        f"WHERE {COL_DATE} == '{date}'"
+        f"SELECT {ds.COL_TIME_CLOSE} FROM {ds.TABLE_DAYS} "
+        f"WHERE {ds.COL_DATE} == '{date}'"
         ).fetchall()
     num_rows = len(rows)
     if num_rows == 0:
@@ -364,7 +250,7 @@ def select_closing_time(date:str) -> Union[ut.Time, bool]:
         return rows[0][0] # needs double subscript apparently
     else:
         print(f" Database error: finding closing time on '{date}' in table "
-              "'{TABLE_DAYS}' returned multiple rows -- duplicate records?")
+              "'{ds.TABLE_DAYS}' returned multiple rows -- duplicate records?")
         return False
 
 def sql_do(sql_statement:str) -> None:
@@ -387,10 +273,7 @@ def get_yesterday() -> str:
 
 
 if __name__ == "__main__":
-    conn = create_connection(DB_FILEPATH)
-
-    create_visits_table() # if none yet exists
-    create_days_table() # if none yet exists
+    conn = ds.create_connection(ds.DB_FILEPATH)
 
     date_today = ut.get_date()
     batch = f"{date_today}-{ut.get_time()}"
@@ -404,7 +287,7 @@ if __name__ == "__main__":
     elif sys.argv[1] == 'all':
         datafiles = [f"{cfg.DATA_FOLDER}/{filename}" for filename
                      in glob.glob('*.dat', root_dir=cfg.DATA_FOLDER)
-                     if re.match(DATAFILE_RE, filename)]
+                     if re.match(ds.DATAFILE_RE, filename)]
     else:
         in_files = sys.argv[1:]
         datafiles = in_files
