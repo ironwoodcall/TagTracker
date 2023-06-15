@@ -19,10 +19,10 @@ Invocation:
 import re
 import datetime
 
-class VTime(str):
 
+class VTime(str):
     @staticmethod
-    def _time_int(maybe_time:str) -> int:
+    def _time_int(maybe_time: str) -> int:
         """Convert known-good string representation of time to int (or None)."""
         r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
         if not (r):
@@ -38,39 +38,38 @@ class VTime(str):
     @staticmethod
     def _find_time(maybe_time) -> str:
         """Get tuple (str,int) representation of maybe_time."""
-        if isinstance(maybe_time,float):
+        if isinstance(maybe_time, float):
             maybe_time = round(maybe_time)
         if isinstance(maybe_time, int):
-            if 0 <= maybe_time <= 60*24:
+            if 0 <= maybe_time <= 60 * 24:
                 h = maybe_time // 60
                 m = maybe_time % 60
-                return (f"{h:02d}:{m:02d}",maybe_time)
+                return (f"{h:02d}:{m:02d}", maybe_time)
             else:
-                return ("",None)
-        if not isinstance(maybe_time,str):
-            return ("",None)
+                return ("", None)
+        if not isinstance(maybe_time, str):
+            return ("", None)
         if maybe_time.strip().lower() == "now":
             timenow = datetime.datetime.today().strftime("%H:%M")
             return (timenow, VTime._time_int(timenow))
         # Candidate might be some kind of HHMM
         as_int = VTime._time_int(maybe_time)
         if as_int is None:
-            return ("",None)
+            return ("", None)
         return VTime._find_time(as_int)
 
     def __new__(cls, maybe_time=""):
         """Create a Valet Time string with its 'self' as canonical time."""
-        (self_string,self_int) = cls._find_time(maybe_time)
+        (self_string, self_int) = cls._find_time(maybe_time)
         instance = super().__new__(cls, self_string)
         instance.num = self_int
         instance.original = str(maybe_time)
         return instance
 
-
-    def __init__(self, maybe_time=""): #pylint:disable=unused-argument
-        #str.__init__()
+    def __init__(self, maybe_time=""):  # pylint:disable=unused-argument
+        # str.__init__()
         # On entry, {self} is "" or a valid HH:MM time
-        if False:   # pylint:disable=using-constant-test
+        if False:  # pylint:disable=using-constant-test
             self.original = ""
             self.num = 0
         if self and (self[0] == "0"):
@@ -80,19 +79,23 @@ class VTime(str):
             self.tidy = self
             self.short = self
 
-
     # Comparisons are between str representations of itself and other
     def __eq__(self, other) -> bool:
         """Define equality to mean represent same tag name."""
         return bool(str(self) == str(VTime(other)))
+
     def __lt__(self, other) -> bool:
         return bool(str(self) < str(VTime(other)))
+
     def __gt__(self, other) -> bool:
         return bool(str(self) > str(VTime(other)))
+
     def __le__(self, other) -> bool:
         return bool(str(self) <= str(VTime(other)))
+
     def __ge__(self, other) -> bool:
         return bool(str(self) >= str(VTime(other)))
+
     def __ne__(self, other) -> bool:
         return bool(str(self) != str(VTime(other)))
 
@@ -104,6 +107,3 @@ class VTime(str):
         For these, just hash the tag's string value (always lowercase!!!)
         """
         return hash(str(self))
-
-
-
