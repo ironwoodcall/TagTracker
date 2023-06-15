@@ -12,19 +12,20 @@
 
 import re
 
+
 class TagID(str):
     # _uc indicates whether to print in uppercase (otherwise lc).
     # Canonical representation is *always*
     _uc = False
 
     @classmethod
-    def uc(cls,new_state:bool=None) -> bool:
+    def uc(cls, new_state: bool = None) -> bool:
         """Set uppercase state if given; return current state."""
         if new_state is not None:
             cls._uc = bool(new_state)
         return cls._uc
 
-    def __new__(cls, string:str=""):
+    def __new__(cls, string: str = ""):
         """Create a TagID string with its 'self' as canonical tag id."""
         if not isinstance(string, str):
             selfstring = ""
@@ -50,7 +51,7 @@ class TagID(str):
             instance._prefix = ""
         return instance
 
-    def __init__(self, string:str=""): #pylint:disable=unused-argument
+    def __init__(self, string: str = ""):  # pylint:disable=unused-argument
         """Initialize attributes not done in __new__()."""
         # str.__init__("")
         # The following idiocy is to keep pylint happy
@@ -67,19 +68,23 @@ class TagID(str):
         else:
             self._full = ""
 
-    def __eq__(self, otherstring:str) -> bool:
+    def __eq__(self, otherstring: str) -> bool:
         """Define equality to mean represent same tag name."""
         return bool(str(self) == str(TagID(otherstring)))
 
-    def __le__(self,otherstring:str) -> bool:
+    def __le__(self, otherstring: str) -> bool:
         return bool(self._full <= (TagID(otherstring)._full))
-    def __lt__(self,otherstring:str) -> bool:
+
+    def __lt__(self, otherstring: str) -> bool:
         return bool(self._full < TagID(otherstring)._full)
+
     def __ge__(self, otherstring: str) -> bool:
         return bool(self._full >= (TagID(otherstring)._full))
-    def __gt__(self,otherstring:str) -> bool:
+
+    def __gt__(self, otherstring: str) -> bool:
         return bool(self._full > (TagID(otherstring)._full))
-    def __ne__(self,otherstring:str) -> bool:
+
+    def __ne__(self, otherstring: str) -> bool:
         return bool(str(self) != str(TagID(otherstring)))
 
     def __bool__(self):
@@ -91,16 +96,19 @@ class TagID(str):
         if TagID._uc:
             return self._prefix.upper()
         return self._prefix
+
     @property
     def letter(self) -> str:
         if TagID._uc:
             return self._letter.upper()
         return self._letter
+
     @property
     def colour(self) -> str:
         if TagID._uc:
             return self._colour.upper()
         return self._colour
+
     @property
     def full(self) -> str:
         if TagID._uc:
@@ -129,4 +137,5 @@ class TagID(str):
         else:
             return self.lower()
 
-    __repr__ = __str__
+    def __repr__(self) -> str:
+        return f"'{self.__str__()}'"
