@@ -1,4 +1,4 @@
-"""This is a semi-experimental TagID class
+"""This is the TagID class.
 
 
     A TagID is the name of a tag; it might be a correct tag name or not.
@@ -12,7 +12,68 @@ import re
 
 
 class TagID(str):
-    """The label for a tag."""
+    """The label for a tag.
+
+    Attributes & methods:
+        original:   The string that was passed in to maybe be a TagID
+        valid:      bool: is this a valid TagID?
+        full:       The full version of the tagid E.g. for wa1, is wa001
+        prefix:     The tag prefix. E.g. for wa1, is "wa"
+        colour:     The tag colour. E.g. for wa1, is "w"
+        letter:     The tag letter. E.g. for wa1, is "a"
+        num:        The tag number (as int). E.g. for wa1, is 1
+        cased:      The tag as a string, uc or lc depending on uc() state
+        uc():       Sets uppercase representation on or off.
+                    Returns current state. Can be called empty
+
+        If the string passed in does not form a valid tag, all the str
+        attributes will be "", the num attribute will be None, and
+        valid will be False.
+
+        Comparisons are made as if comparing full versions of the
+        calculated TagID with case folded the same way, so:
+            >>> TagID("wa1") == "   wA01"
+            True
+            >>> TagID("wa10") > TagID("wa3")
+            True
+        and even:
+            >>> TagID("wa10") > "wa3"
+            True
+            >>> "wa3" < TagID("wa10")
+            True
+
+        uc() sets whether to represent the tag in uppercase.  String
+        representations will always respect the uc() state, but there
+        are some oddball cases.
+        E.g.:
+            >>> a.uc(True)
+            True
+            >>> a
+            'WA1'
+            >>> print(a)
+            WA1
+            >>> ' ' + a
+            ' wa1'
+            >>> type(' ' + a)
+            <class 'str'>
+            >>> str(' ' + a)
+            ' wa1'
+            >>> ' ' + str(a)
+            ' WA1'
+            >>> print(' ' + a)
+            wa1
+            >>> print(' ', a)
+            WA1
+        The moral seems to be: if in doubt, use str() or f-strings:
+            >>> x = [TagID(s) for s in ["wa1","bf3","ob12"]]
+            >>> x
+            ['WA1', 'BF3', 'OB12']
+            >>> " ".join(x)
+            'wa1 bf3 ob12'
+            >>> " ".join([str(tag) for tag in x])
+            'WA1 BF3 OB12'
+            >>>
+    """
 
     # _uc indicates whether to print in uppercase (otherwise lc).
     # Canonical representation is *always* lowercase.
