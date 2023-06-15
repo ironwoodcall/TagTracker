@@ -39,6 +39,7 @@ import tt_printer as pr
 import tt_datafile as df
 import tt_reports as rep
 import tt_publish as pub
+
 # Local connfiguration
 # try:
 #    import tt_local_config  # pylint:disable=unused-import
@@ -59,12 +60,13 @@ check_ins = {}
 check_outs = {}
 
 
-def uc_lc(txt:str) ->str:
+def uc_lc(txt: str) -> str:
     """Change txt to UC or LC depending on global cfg.TAGS_UPPERCASE."""
     if cfg.TAGS_UPPERCASE:
         return txt.upper()
     else:
         return txt.lower()
+
 
 def valet_logo():
     """Print a cute bike valet logo using unicode."""
@@ -747,7 +749,7 @@ def main():
     """Run main program loop and dispatcher."""
     done = False
     todays_date = ut.get_date()
-    last_published = "00:00"
+    publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     while not done:
         pr.iprint()
         if cfg.INCLUDE_TIME_IN_PROMPT:
@@ -794,7 +796,8 @@ def main():
         elif cmd == cfg.CMD_STATS:
             rep.day_end_report(pack_day_data(), args)
             # Force publication when do day-end reports
-            last_published = maybe_publish(last_published, force=True)
+            publishment.publish(pack_day_data())
+            ##last_published = maybe_publish(last_published, force=True)
         elif cmd == cfg.CMD_BUSY:
             rep.more_stats_report(pack_day_data(), args)
         elif cmd == cfg.CMD_CHART:
@@ -817,7 +820,7 @@ def main():
         elif cmd == cfg.CMD_UPPERCASE or cmd == cfg.CMD_LOWERCASE:
             set_tag_case(cmd == cfg.CMD_UPPERCASE)
         # Check for bad input
-        elif not ut.fix_tag(cmd,uppercase=UPPERCASE):
+        elif not ut.fix_tag(cmd, uppercase=UPPERCASE):
             # This is not a tag
             if cmd == cfg.CMD_UNKNOWN or len(args) > 0:
                 msg = "Unrecognized command, enter 'h' for help"
@@ -842,15 +845,13 @@ def main():
         if data_dirty:
             data_dirty = False
             save()
-            last_published = maybe_publish(last_published)
+            publishment.maybe_publish(pack_day_data())
+            ##last_published = maybe_publish(last_published)
         # Flush any echo buffer
         pr.echo_flush()
-
-
-def datafile_name(folder: str) -> str:
-    """Return the name of the data file (datafile) to read/write."""
-    # Use default filename
-    return f"{folder}/{cfg.DATA_BASENAME}{ut.get_date()}.dat"
+    # Exiting; one last save and publishing
+    save()
+    publishment.publish(pack_day_data())
 
 
 def custom_datafile() -> str:
@@ -875,42 +876,6 @@ def save():
     day = pack_day_data()
     # Store the data
     df.write_datafile(DATA_FILEPATH, day)
-
-
-ABLE_TO_PUBLISH = True
-
-
-def maybe_publish(last_pub: Time, force: bool = False) -> Time:
-    """Maybe save current data to 'publish' directory."""
-    global ABLE_TO_PUBLISH  # pylint:disable=global-statement
-    # Nothing to do if not configured to publish or can't publish
-    if not ABLE_TO_PUBLISH or not cfg.REPORTS_FOLDER or not cfg.PUBLISH_FREQUENCY:
-        return last_pub
-    # Is it time to re-publish?
-    if not force and (
-        ut.time_int(ut.get_time()) < (ut.time_int(last_pub) + cfg.PUBLISH_FREQUENCY)
-    ):
-        # Nothing to do yet.
-        return last_pub
-    # Nothing to do if publication dir does not exist
-    if not os.path.exists(cfg.REPORTS_FOLDER):
-        ABLE_TO_PUBLISH = False
-        pr.iprint()
-        pr.iprint(
-            f"Publication folder '{cfg.REPORTS_FOLDER}' not found, "
-            "will not try to Publish",
-            style=cfg.ERROR_STYLE,
-        )
-        return last_pub
-    # Pack info into TrackerDay object, save the data
-    day = pack_day_data()
-    df.write_datafile(datafile_name(cfg.REPORTS_FOLDER), day)
-
-    # Now also publish updated reports
-    pub.publish_reports(day,[ut.get_time()])
-
-    # Return new last_published time
-    return ut.get_time()
 
 
 def error_exit() -> None:
@@ -993,7 +958,8 @@ def get_taglists_from_config() -> td.TrackerDay:
 DATA_FILEPATH = custom_datafile()
 CUSTOM_DAT = bool(DATA_FILEPATH)
 if not CUSTOM_DAT:
-    DATA_FILEPATH = datafile_name(cfg.DATA_FOLDER)
+    DATA_FILEPATH = df.datafile_name(cfg.DATA_FOLDER)
+
 
 if __name__ == "__main__":
     # Possibly turn on echo
@@ -1039,8 +1005,6 @@ if __name__ == "__main__":
 
     valet_logo()
     main()
-    # Exiting now; one last save
-    save()
-    maybe_publish("", force=True)
+
     pr.set_echo(False)
 # ==========================================
