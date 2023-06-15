@@ -5,16 +5,17 @@ represent duration (<=24 hours)
 
 Attributes:
     {self}  canonical time string "HH:MM" since midnight
-    pretty  pretty version of itself (e.g. " 6:30" instead of "06:30")
+    tidy    pretty version of itself (e.g. " 6:30" instead of "06:30")
     short   shortened pretty version (e.g. "6:30" instead of "06:30")
     num     integer minutes since midnight
     original    string representation of whatever was passed in
 
 Invocation:
     string as HMM, HHMM, HH:MM, H:MM; or
-    int/float as minutes since midnight; or
-    the keyword "now"
-        return datetime.datetime.today().strftime("%H:%M")
+    int/float as minutes since midnight (or of duration); or
+    the keyword "now", which sets it to the current locale time
+
+Invalid input results in a blank VTime object.
 """
 import re
 import datetime
@@ -31,9 +32,9 @@ class VTime(str):
         m = int(r.group(2))
         as_int = h * 60 + m
         # Test for an impossible time
-        if h > 24 or m > 59 or as_int > 1440:
-            return None
-        return as_int
+        if 0 <= h <= 24 and 0 <= m <= 59:
+            return as_int
+        return None
 
     @staticmethod
     def _find_time(maybe_time) -> str:
@@ -104,6 +105,7 @@ class VTime(str):
 
         Not a simple object so not hashable (ie not usable as a dict key)
         so must provide own hash method that can be used as a dict key.
-        For these, just hash the tag's string value (always lowercase!!!)
+        For these, just hash the tag's string value. Case folding
+        not necessary since it will never contain alpha characters.
         """
         return hash(str(self))
