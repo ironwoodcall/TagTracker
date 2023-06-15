@@ -235,15 +235,9 @@ def audit_report(day: td.TrackerDay, args: list[str]) -> None:
     On entry: as_of_when_args is a list that can optionally
     have a first element that's a time at which to make this for.
 
-    This is smart about any checkouts that are alter than as_of_when.
+    This is smart about any checkouts that are later than as_of_when.
     If as_of_when is missing, then counts as of current time.
-    (This is replacement for existing show_audit function.)
-    Reads:
-        check_ins
-        check_outs
-        COLOUR_LETTERS
-        NORMAL_TAGS
-        OVERSIZE_TAGS
+
     """
     as_of_when = (args + [""])[0]
     as_of_when = ut.time_str(as_of_when, allow_now=True, default_now=True)
@@ -639,9 +633,9 @@ def busy_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
         insize = round(blk.num_ins / scale_factor)
         outsize = round(blk.num_outs / scale_factor)
 
-        # pr.iprint(f"{start} {' ' * (ins_field_width-insize)}{(in_marker * insize)}  {out_marker * outsize}")
         pr.iprint(
-            f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  {start}  {out_marker * outsize}"
+            f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  "
+            f"{start}  {out_marker * outsize}"
         )
 
 
@@ -676,7 +670,6 @@ def fullness_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
     for start in sorted(blocks.keys()):
         b: tt_block.Block
         b = blocks[start]
-        ##pr.iprint(f"{start} {b.max_here=} {b.max_here_regular=} {b.max_here_oversize=}")
         regs = round(b.max_here_regular / scale_factor)
         overs = round(b.max_here_oversize / scale_factor)
         pr.iprint(f"{start} {regular_marker * regs}{oversize_marker * overs}")
@@ -701,7 +694,7 @@ def busy_report(
                 end="",
             )
             if time_num < len(times):
-                print(", ", end="")
+                pr.iprint(", ", end="")
         pr.iprint()
 
     # Make an empty dict of busyness of timeblocks.

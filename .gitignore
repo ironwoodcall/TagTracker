@@ -17,3 +17,5 @@ tt_conf.py
 tags*.txt
 tags*.cfg
 *.db
+test*.*
+settings.json

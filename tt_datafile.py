@@ -30,6 +30,7 @@ import os
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
 import tt_trackerday as td
+import tt_conf as cfg
 
 # Header strings to use in datafile and tags- config file
 # These are used when writing & also for string-matching when reading.
@@ -42,6 +43,13 @@ HEADER_OVERSIZE = "Oversize-bike tags:"
 HEADER_REGULAR = "Regular-bike tags:"
 HEADER_RETIRED = "Retired tags:"
 HEADER_COLOURS = "Colour codes:"
+
+
+
+def datafile_name(folder: str) -> str:
+    """Return the name of the data file (datafile) to read/write."""
+    # Use default filename
+    return f"{folder}/{cfg.DATA_BASENAME}{ut.get_date()}.dat"
 
 
 def rotate_datafile(filename: str) -> None:
