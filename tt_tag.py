@@ -6,16 +6,16 @@
     tag representation (e.g. "wa1").  TagIDs with identical representation
     are considered equal, even though the 'original' attribute
     might not be the same.
-
-
 """
 
 import re
 
 
 class TagID(str):
+    """The label for a tag."""
+
     # _uc indicates whether to print in uppercase (otherwise lc).
-    # Canonical representation is *always*
+    # Canonical representation is *always* lowercase.
     _uc = False
 
     @classmethod
@@ -93,24 +93,28 @@ class TagID(str):
 
     @property
     def prefix(self) -> str:
+        """Return the tag's prefix. E.g. in WA01, the prefix is "WA"."""
         if TagID._uc:
             return self._prefix.upper()
         return self._prefix
 
     @property
     def letter(self) -> str:
+        """Return the tag's letter. E.g. in WA01, the letter is "A"."""
         if TagID._uc:
             return self._letter.upper()
         return self._letter
 
     @property
     def colour(self) -> str:
+        """Return the tag's colour. E.g. in WA01, the colour is "W"."""
         if TagID._uc:
             return self._colour.upper()
         return self._colour
 
     @property
     def full(self) -> str:
+        """Return the full tag id - e.g. "WA001"."""
         if TagID._uc:
             return self._full.upper()
         return self._full
@@ -132,6 +136,7 @@ class TagID(str):
         return hash(self.lower())
 
     def __str__(self) -> str:
+        """Show as a string, respecting uppercase flag."""
         if self._uc:
             return self.upper()
         else:
