@@ -19,7 +19,7 @@ Copyright (C) 2023 Julias Hocking
 """
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
-import tt_trackerday
+import tt_trackerday as td
 
 
 class Event:
@@ -35,11 +35,11 @@ class Event:
         self.bikes_out = []
         self.num_ins = 0  # This is just len(self.bikes_in).
         self.num_outs = 0  # This is just len(self.bikes_out).
-        self.bikes_here = [] # List of all bikes here
+        self.bikes_here = []  # List of all bikes here
 
 
 def calc_events(
-    day: tt_trackerday.TrackerDay, as_of_when: (int or Time) = None
+    day: td.TrackerDay, as_of_when: (int or Time) = None
 ) -> dict[Time, Event]:
     """Create a dict of events keyed by HH:MM time.
 
@@ -79,14 +79,10 @@ def calc_events(
         ev.num_ins = len(ev.bikes_in)
         ev.num_outs = len(ev.bikes_out)
         # How many regular & oversize bikes have we added or lost?
-        delta_regular = len(
-            [x for x in ev.bikes_in if x in day.regular]
-            ) - len(
+        delta_regular = len([x for x in ev.bikes_in if x in day.regular]) - len(
             [x for x in ev.bikes_out if x in day.regular]
         )
-        delta_oversize = len(
-            [x for x in ev.bikes_in if x in day.oversize]
-            ) - len(
+        delta_oversize = len([x for x in ev.bikes_in if x in day.oversize]) - len(
             [x for x in ev.bikes_out if x in day.oversize]
         )
         num_regular += delta_regular

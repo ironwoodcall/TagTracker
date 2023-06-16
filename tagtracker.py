@@ -23,7 +23,6 @@ import os
 import sys
 import time
 import pathlib
-from typing import Union  # This is for type hints instead of (eg) int|str
 
 # The readline module magically solves arrow keys creating ANSI esc codes
 # on the Chromebook.  But it isn't on all platforms.
@@ -34,11 +33,12 @@ except ImportError:
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
-import tt_trackerday
+import tt_trackerday as td
 import tt_conf as cfg
 import tt_printer as pr
 import tt_datafile as df
 import tt_reports as rep
+import tt_publish as pub
 
 # Local connfiguration
 # try:
@@ -60,15 +60,12 @@ check_ins = {}
 check_outs = {}
 
 
-def num_bikes_at_valet(as_of_when: Union[Time, int] = None) -> int:
-    """Return count of bikes at the valet as of as_of_when."""
-    as_of_when = ut.time_str(as_of_when)
-    if not as_of_when:
-        as_of_when = ut.get_time()
-    # Count bikes that came in & by the given time, and the diff
-    num_in = len([t for t in check_ins.values() if t <= as_of_when])
-    num_out = len([t for t in check_outs.values() if t <= as_of_when])
-    return max(0, num_in - num_out)
+def uc_lc(txt: str) -> str:
+    """Change txt to UC or LC depending on global cfg.TAGS_UPPERCASE."""
+    if cfg.TAGS_UPPERCASE:
+        return txt.upper()
+    else:
+        return txt.lower()
 
 
 def valet_logo():
@@ -137,10 +134,10 @@ def deduce_valet_date(current_guess: str, filename: str) -> str:
     return ut.get_date()
 
 
-def pack_day_data() -> tt_trackerday.TrackerDay:
+def pack_day_data() -> td.TrackerDay:
     """Create a TrackerDay object loaded with today's data."""
     # Pack info into TrackerDay object
-    day = tt_trackerday.TrackerDay()
+    day = td.TrackerDay()
     day.date = VALET_DATE
     day.opening_time = VALET_OPENS
     day.closing_time = VALET_CLOSES
@@ -154,7 +151,7 @@ def pack_day_data() -> tt_trackerday.TrackerDay:
     return day
 
 
-def unpack_day_data(today_data: tt_trackerday.TrackerDay) -> None:
+def unpack_day_data(today_data: td.TrackerDay) -> None:
     """Set globals from a TrackerDay data object."""
     # pylint: disable=global-statement
     global VALET_DATE, VALET_OPENS, VALET_CLOSES
@@ -182,8 +179,10 @@ def initialize_today() -> bool:
     pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
     if not os.path.exists(DATA_FILEPATH):
         new_datafile = True
-        pr.iprint("Creating new datafile" f" {DATA_FILEPATH}.", style=cfg.SUBTITLE_STYLE)
-        today = tt_trackerday.TrackerDay()
+        pr.iprint(
+            "Creating new datafile" f" {DATA_FILEPATH}.", style=cfg.SUBTITLE_STYLE
+        )
+        today = td.TrackerDay()
     else:
         # Fetch data from file; errors go into error_msgs
         pr.iprint(
@@ -230,28 +229,6 @@ def initialize_today() -> bool:
             style=cfg.WARNING_STYLE,
         )
     return True
-
-
-def find_tag_durations(include_bikes_on_hand=True) -> TagDict:
-    """Make dict of tags with their stay duration in minutes.
-
-    If include_bikes_on_hand, this will include checked in
-    but not returned out.  If False, only bikes returned out.
-    """
-    timenow = ut.time_int(ut.get_time())
-    tag_durations = {}
-    for tag, in_str in check_ins.items():
-        in_minutes = ut.time_int(in_str)
-        if tag in check_outs:
-            out_minutes = ut.time_int(check_outs[tag])
-            tag_durations[tag] = out_minutes - in_minutes
-        elif include_bikes_on_hand:
-            tag_durations[tag] = timenow - in_minutes
-    # Any bike stays that are zero minutes, arbitrarily call one minute.
-    for tag, duration in tag_durations.items():
-        if duration < 1:
-            tag_durations[tag] = 1
-    return tag_durations
 
 
 def delete_entry(args: list[str]) -> None:
@@ -686,7 +663,10 @@ def tag_check(tag: Tag) -> None:
 def parse_command(user_input: str) -> list[str]:
     """Parse user's input into list of [tag] or [command, command args].
 
-    Returns [] if not a recognized tag or command.
+    Return:
+        [cfg.CMD_TAG_RETIRED,args] if a tag but is retired
+        [cfg.CMD_TAG_UNUSABLE,args] if a tag but otherwise not usable
+        [cfg.CMD_UNKNOWN,args] if not a tag & not a command
     """
     user_input = user_input.lower().strip()
     if not (user_input):
@@ -696,9 +676,18 @@ def parse_command(user_input: str) -> list[str]:
         user_input = user_input[0] + " " + user_input[1:]
     # Split to list, test to see if tag.
     input_tokens = user_input.split()
-    command = ut.fix_tag(input_tokens[0], must_be_in=ALL_TAGS, uppercase=cfg.TAGS_UPPERCASE)
-    if command:
-        return [command]  # A tag
+    # See if it matches tag syntax
+    maybetag = ut.fix_tag(input_tokens[0], uppercase=cfg.TAGS_UPPERCASE)
+    if maybetag:
+        # This appears to be a tag
+        if maybetag in RETIRED_TAGS:
+            return [cfg.CMD_TAG_RETIRED] + input_tokens[1:]
+        # Is this tag usable?
+        if maybetag not in ALL_TAGS:
+            return [cfg.CMD_TAG_UNUSABLE] + input_tokens[1:]
+        # This appears to be a usable tag.
+        return [maybetag]
+
     # See if it is a recognized command.
     # cfg.command_aliases is dict of lists of aliases keyed by
     # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
@@ -709,10 +698,9 @@ def parse_command(user_input: str) -> list[str]:
             break
     # Is this an unrecognized command?
     if not command:
-        return [cfg.CMD_UNKNOWN]
+        return [cfg.CMD_UNKNOWN] + input_tokens[1:]
     # We have a recognized command, return it with its args.
-    input_tokens[0] = command
-    return input_tokens
+    return [command] + input_tokens[1:]
 
 
 def show_help():
@@ -743,7 +731,7 @@ def dump_data():
         if var[0] == "_":
             continue
         value = vars(cfg)[var]
-        if isinstance(value, Union[str, dict, list, set, float, int]):
+        if isinstance(value, (str, dict, list, set, float, int)):
             pr.iprint(f"{var}:  ", style=cfg.ANSWER_STYLE, end="")
             pr.iprint(value)
     pr.iprint()
@@ -752,7 +740,7 @@ def dump_data():
         if var[0] == "_":
             continue
         value = globals()[var]
-        if isinstance(value, Union[str, dict, list, set, float, int]):
+        if isinstance(value, (str, dict, list, set, float, int)):
             pr.iprint(f"{var}:  ", style=cfg.ANSWER_STYLE, end="")
             pr.iprint(value)
 
@@ -761,7 +749,7 @@ def main():
     """Run main program loop and dispatcher."""
     done = False
     todays_date = ut.get_date()
-    last_published = "00:00"
+    publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     while not done:
         pr.iprint()
         if cfg.INCLUDE_TIME_IN_PROMPT:
@@ -784,7 +772,7 @@ def main():
             data_dirty = True
         elif cmd == cfg.CMD_AUDIT:
             rep.audit_report(pack_day_data(), args)
-            rep.publish_audit(pack_day_data(), args)
+            pub.publish_audit(pack_day_data(), args)
         elif cmd == cfg.CMD_DELETE:
             delete_entry(args)
             data_dirty = True
@@ -797,8 +785,10 @@ def main():
         elif cmd == cfg.CMD_LOOKBACK:
             rep.recent(pack_day_data(), args)
         elif cmd == cfg.CMD_RETIRED or cmd == cfg.CMD_COLOURS:
-            pr.iprint("This command has been replaced by the 'tags' command.",
-                      style=cfg.WARNING_STYLE)
+            pr.iprint(
+                "This command has been replaced by the 'tags' command.",
+                style=cfg.WARNING_STYLE,
+            )
         elif cmd == cfg.CMD_TAGS:
             rep.tags_config_report(pack_day_data())
         elif cmd == cfg.CMD_QUERY:
@@ -806,7 +796,8 @@ def main():
         elif cmd == cfg.CMD_STATS:
             rep.day_end_report(pack_day_data(), args)
             # Force publication when do day-end reports
-            last_published = maybe_publish(last_published, force=True)
+            publishment.publish(pack_day_data())
+            ##last_published = maybe_publish(last_published, force=True)
         elif cmd == cfg.CMD_BUSY:
             rep.more_stats_report(pack_day_data(), args)
         elif cmd == cfg.CMD_CHART:
@@ -822,18 +813,27 @@ def main():
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
         elif cmd == cfg.CMD_PUBLISH:
-            rep.publish_reports(pack_day_data())
+            pub.publish_reports(pack_day_data(), args)
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
         elif cmd == cfg.CMD_UPPERCASE or cmd == cfg.CMD_LOWERCASE:
             set_tag_case(cmd == cfg.CMD_UPPERCASE)
-        elif cmd == cfg.CMD_UNKNOWN:
+        # Check for bad input
+        elif not ut.fix_tag(cmd, uppercase=UPPERCASE):
+            # This is not a tag
+            if cmd == cfg.CMD_UNKNOWN or len(args) > 0:
+                msg = "Unrecognized command, enter 'h' for help"
+            elif cmd == cfg.CMD_TAG_RETIRED:
+                msg = f"Tag '{uc_lc(user_str)}' is retired"
+            elif cmd == cfg.CMD_TAG_UNUSABLE:
+                msg = f"Valet not configured to use tag '{uc_lc(user_str)}'"
+            else:
+                # Should never get to this point
+                msg = "Surprised by unrecognized command"
             pr.iprint()
-            pr.iprint(
-                "Unrecognized tag or command, enter 'h' for help",
-                style=cfg.WARNING_STYLE,
-            )
+            pr.iprint(msg, style=cfg.WARNING_STYLE)
+
         else:
             # This is a tag
             tag_check(cmd)
@@ -845,15 +845,13 @@ def main():
         if data_dirty:
             data_dirty = False
             save()
-            last_published = maybe_publish(last_published)
+            publishment.maybe_publish(pack_day_data())
+            ##last_published = maybe_publish(last_published)
         # Flush any echo buffer
         pr.echo_flush()
-
-
-def datafile_name(folder: str) -> str:
-    """Return the name of the data file (datafile) to read/write."""
-    # Use default filename
-    return f"{folder}/{cfg.DATA_BASENAME}{ut.get_date()}.dat"
+    # Exiting; one last save and publishing
+    save()
+    publishment.publish(pack_day_data())
 
 
 def custom_datafile() -> str:
@@ -878,42 +876,6 @@ def save():
     day = pack_day_data()
     # Store the data
     df.write_datafile(DATA_FILEPATH, day)
-
-
-ABLE_TO_PUBLISH = True
-
-
-def maybe_publish(last_pub: Time, force: bool = False) -> Time:
-    """Maybe save current data to 'publish' directory."""
-    global ABLE_TO_PUBLISH  # pylint:disable=global-statement
-    # Nothing to do if not configured to publish or can't publish
-    if not ABLE_TO_PUBLISH or not cfg.REPORTS_FOLDER or not cfg.PUBLISH_FREQUENCY:
-        return last_pub
-    # Is it time to re-publish?
-    if not force and (
-        ut.time_int(ut.get_time()) < (ut.time_int(last_pub) + cfg.PUBLISH_FREQUENCY)
-    ):
-        # Nothing to do yet.
-        return last_pub
-    # Nothing to do if publication dir does not exist
-    if not os.path.exists(cfg.REPORTS_FOLDER):
-        ABLE_TO_PUBLISH = False
-        pr.iprint()
-        pr.iprint(
-            f"Publication folder '{cfg.REPORTS_FOLDER}' not found, "
-            "will not try to Publish",
-            style=cfg.ERROR_STYLE,
-        )
-        return last_pub
-    # Pack info into TrackerDay object, save the data
-    day = pack_day_data()
-    df.write_datafile(datafile_name(cfg.REPORTS_FOLDER), day)
-
-    # Now also publish updated reports
-    rep.publish_reports(day)
-
-    # Return new last_published time
-    return ut.get_time()
 
 
 def error_exit() -> None:
@@ -975,7 +937,7 @@ def midnight_passed(today_is: str) -> bool:
     return True
 
 
-def get_taglists_from_config() -> tt_trackerday.TrackerDay:
+def get_taglists_from_config() -> td.TrackerDay:
     """Read tag lists (oversize, etc) from tag config file."""
     # Lists of normal, oversize, retired tags
     # Return a TrackerDay object, though its bikes_in/out are meaningless.
@@ -996,7 +958,8 @@ def get_taglists_from_config() -> tt_trackerday.TrackerDay:
 DATA_FILEPATH = custom_datafile()
 CUSTOM_DAT = bool(DATA_FILEPATH)
 if not CUSTOM_DAT:
-    DATA_FILEPATH = datafile_name(cfg.DATA_FOLDER)
+    DATA_FILEPATH = df.datafile_name(cfg.DATA_FOLDER)
+
 
 if __name__ == "__main__":
     # Possibly turn on echo
@@ -1042,8 +1005,6 @@ if __name__ == "__main__":
 
     valet_logo()
     main()
-    # Exiting now; one last save
-    save()
-    maybe_publish("", force=True)
+
     pr.set_echo(False)
 # ==========================================

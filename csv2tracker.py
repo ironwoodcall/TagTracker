@@ -15,7 +15,14 @@ import random
 ##from typing import Union
 from tt_globals import *
 import tt_util as ut
+from typing import Tuple
+from tt_tag import TagID
+from tt_time import VTime
 
+
+HEADER_VALET_DATE = "Valet date:"
+HEADER_VALET_OPENS = "Valet opens:"
+HEADER_VALET_CLOSES = "Valet closes:"
 
 # If set, RANDOMIZE_TIMES will randomize times within their block.
 # To keep things crazy simple, this assumes blocks are 30 minutes.
@@ -54,42 +61,12 @@ def isadate(maybe:str ) -> str:
     else:
         return ""
 
-def isatime(maybe:str) ->str:
-    """Return maybe as a canonical HH:MM time (or "")."""
-    if not (re.match(r"^ *([0-2]?[0-9]):([0-5][0-9])", maybe)):
-        return ""
-    bits = maybe.strip().split(":")
-    if len(bits) < 2:
-        return ""
-    h=int(bits[0])
-    m=int(bits[1])
-    return f"{h:02d}:{m:02d}"
 
-def isatag(maybe:str) -> str:
-    """Test maybe as a tag, return it as canonical str (or "").
 
-    Canonical tag id is a concatenation of
-        tag_colour: 1+ lc letters representing the tag's colour,
-                as defined in cfg.colour_letters
-        tag_letter: 1 lc letter, the first character on the tag
-        tag_number: a sequence number, without lead zeroes.
-    """
-    maybe = maybe.lower()
-    if not bool(r := PARSE_TAG_RE.match(maybe)):
-        return []
-
-    tag_colour = r.group(1)
-    tag_letter = r.group(2)
-    tag_number = r.group(3)
-    tag_id = f"{tag_colour}{tag_letter}{tag_number}"
-
-    return tag_id
-
-def readafile( file:str ) -> list[str, dict,dict]:
-    """Read one file's tags, return as date, check_ins, check_outs list."""
+def readafile( file:str ) -> Tuple[dict,dict]:
+    """Read one file's tags, return as check_ins, check_outs list."""
     # Read one file.
     inout = ""
-    this_date = ""
     check_ins = {}
     check_outs = {}
     lnum = 0
@@ -110,9 +87,6 @@ def readafile( file:str ) -> list[str, dict,dict]:
                 chunks = chunks[1:]
             if not chunks:
                 continue
-            # Find the date -- must be above "check-in" and "check-out" lines.
-            if not inout and isadate(chunks[0]):
-                this_date = chunks[0]
             # Is this a "check-in" or "check-out" header line?
             if re.match(r"^Tag given out",chunks[0]):
                 inout = BIKE_IN
@@ -123,17 +97,13 @@ def readafile( file:str ) -> list[str, dict,dict]:
             # Ignore non-date junk at top of the file
             if not inout:
                 continue
-            # We should have a date by now.
-            if not this_date:
-                message(file,"Found no date",ERROR_MSG)
-                return ["",dict(),dict()]
             # This line is a line of tags in a block (presumably).
             # Timeblocks might start in col 1 or col 2. (!!!!!)
             if not chunks[0]:
                 chunks = chunks[1:]
             if not chunks:
                 continue
-            if not (block_start := isatime(chunks[0])):
+            if not (block_start := VTime(chunks[0])):
                 message( file, f"ignoring line {lnum}: '{line}", WARNING_MSG)
                 continue
             # Looks like a legit line. Read the tags.
@@ -141,7 +111,7 @@ def readafile( file:str ) -> list[str, dict,dict]:
             for cell in chunks[3:]:
                 if not cell:
                     continue    # Ignore empty cells
-                if not (tag := isatag(cell)):
+                if not (tag := TagID(cell)):
                     # Warn about poorly formed maybe-tags
                     message(file,f"Unrecognized tag '{cell}' in line {lnum}",
                             WARNING_MSG)
@@ -158,7 +128,7 @@ def readafile( file:str ) -> list[str, dict,dict]:
                     check_ins[tag] = ut.time_str(check_time)
                 elif inout == BIKE_OUT:
                     check_outs[tag] = ut.time_str(check_time)
-    return [this_date, dict(check_ins), dict(check_outs)]
+    return (dict(check_ins), dict(check_outs))
 
 def clean(file:str, check_ins:dict, check_outs:dict) -> None:
     """Remove bad tag records from the check_in/out dicts.
@@ -198,7 +168,7 @@ def clean(file:str, check_ins:dict, check_outs:dict) -> None:
         check_outs.pop(tag)
         check_ins.pop(tag)
 
-def write_file(oldf:str, newf:str, filedate:str,
+def write_file(oldf:str, newf:str, filedate:str, hours:tuple,
         check_ins:dict, check_outs:dict ) ->None:
     """Write the records to a tagtracker-complians file."""
     with open(newf , 'w',encoding='utf-8') as f: # write stored lines to file
@@ -209,6 +179,9 @@ def write_file(oldf:str, newf:str, filedate:str,
             f.write("# These issues detected during conversion:\n")
             for msg in messages[ oldf ]:
                 f.write(f"# {msg}\n")
+        f.write(f"{HEADER_VALET_DATE} {filedate}\n")
+        f.write(f"{HEADER_VALET_OPENS} {hours[0]}\n")
+        f.write(f"{HEADER_VALET_CLOSES} {hours[1]}\n")
         f.write(f"{BIKE_IN_HEADER}\n")
         for tag,time in check_ins.items():
             f.write(f"{tag},{time}\n")
@@ -216,17 +189,69 @@ def write_file(oldf:str, newf:str, filedate:str,
         for tag,time in check_outs.items():
             f.write(f"{tag},{time}\n")
 
+def filename_to_date(filename:str) -> str:
+    """Convert filename to a string of the day *before* the filename."""
+    # Assumes filenames are YYYY-MM-DD.csv
+
+    bits = re.search(r"(2023-[0-9][0-9]-[0-9][0-9])",filename)
+    if not bits:
+        return ""
+    date_string = bits.group(1)
+    this_day = datetime.datetime.strptime(date_string, '%Y-%m-%d')
+    prev_day = this_day - datetime.timedelta(1)
+    return datetime.datetime.strftime(prev_day, '%Y-%m-%d')
+
+def valet_hours(date:str) -> Tuple[VTime,VTime]:
+    """Report what time the valet opened this date."""
+    day = datetime.datetime.strptime(date,"%Y-%m-%d")
+    day_of_week = datetime.datetime.weekday(day) # 0..6
+    spring = {
+        0: ("10:00","17:00"),   # sunday
+        1: ("07:30", "18:00"),
+        2: ("07:30", "18:00"),
+        3: ("07:30", "18:00"),
+        4: ("07:30", "18:00"),
+        5: ("07:30", "20:00"),
+        6: ("10:00", "18:00"),
+    }
+    summer = {  # summer hours start May 1
+        0: ("10:00","17:00"),   # sunday
+        1: ("07:30", "18:00"),
+        2: ("07:30", "18:00"),
+        3: ("07:30", "20:00"),
+        4: ("07:30", "20:00"),
+        5: ("07:30", "22:00"),
+        6: ("10:00", "12:00"),
+    }
+    if date == "2023-06-11":    # Unknown special day
+        return ("10:00","18:30")
+    elif date == "2023-05-22": # Victoria Day
+        return ("09:00","17:00")
+    elif date >= "2023-05-01":
+        return summer[day_of_week]
+    elif date >= "2023-03-17":   # opening day
+        return spring[day_of_week]
+    else:
+        return ("","")
+
 in_files = sys.argv[1:]
 for oldfile in in_files:
-    print( f"\nReading file {oldfile}...")
-    (date, bikes_in, bikes_out) = readafile(oldfile)
+    # Data's date is the day before the day represented by the filename
+    # (I mean really.... !!!!????)
+    date = filename_to_date(oldfile)
     if not date:
+        print(f"Error: can not determine date from filename {oldfile}")
         continue
+    hours = valet_hours(date)
+    if not hours[0]:
+        print(f"Error: have no hours known for {date}")
+    print( f"\nReading file {oldfile}, data for {date}...")
+    (bikes_in, bikes_out) = readafile(oldfile)
     # Check for errors
     print("   ...checking for errors...")
     clean(oldfile, bikes_in, bikes_out)
     # Write the file
     newfile = f"cityhall_{date}.dat"
     print(f"   ...writing tags to {newfile}")
-    write_file(oldfile, newfile, date, bikes_in, bikes_out)
+    write_file(oldfile, newfile, date, hours, bikes_in, bikes_out)
     print("   ...done")

@@ -40,7 +40,7 @@ BIKE_OUT = chr(0x2192) + "bike_out"
 INOUT = chr(0x2192) + "inout"
 REGULAR = chr(0x2192) + "regular"
 OVERSIZE = chr(0x2192) + "oversize"
-MIXED  = chr(0x2192) + "mixed"
+MIXED = chr(0x2192) + "mixed"
 RETIRED = chr(0x2192) + "retired"
 TOTAL = chr(0x2192) + "total"
 COUNT = chr(0x2192) + "count"
@@ -55,7 +55,7 @@ ON = chr(0x2192) + "on"
 OFF = chr(0x2192) + "off"
 
 # Here's how I really want to do it, but then pylint won't know they're defined
-#for keyword in [
+# for keyword in [
 #    "TAG", "TIME",
 #    "BIKE_IN","BIKE_OUT","INOUT",
 #    "REGULAR","OVERSIZE","RETIRED",
@@ -66,7 +66,7 @@ OFF = chr(0x2192) + "off"
 #    "UPPERCASE","LOWERCASE",
 #   "UNKNOWN",
 #    "ON","OFF"
-#]:
+# ]:
 #   globals()[keyword] = chr(0x2192) + keyword.lower()
 
 

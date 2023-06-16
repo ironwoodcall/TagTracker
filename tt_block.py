@@ -21,9 +21,10 @@ Copyright (C) 2023 Julias Hocking
 from typing import Union
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
-import tt_trackerday
+import tt_trackerday as td
 import tt_event
 import tt_conf as cfg
+
 
 class Block:
     """Class to help with reporting.
@@ -49,14 +50,13 @@ class Block:
         self.num_here = 0  # Number of bikes in valet at end of block.
         self.num_here_regular = 0
         self.num_here_oversize = 0
-        self.max_here_list = [] # Tags at time max bikes here during the block
-        self.max_here = 0 # Mxx number of bikes here any time in this block
+        self.max_here_list = []  # Tags at time max bikes here during the block
+        self.max_here = 0  # Mxx number of bikes here any time in this block
         self.max_here_regular = 0
         self.max_here_oversize = 0
 
-def block_start(
-    atime: Union[int, Time], as_number: bool = False
-) -> Union[Time, int]:
+
+def block_start(atime: Union[int, Time], as_number: bool = False) -> Union[Time, int]:
     """Return the start time of the block that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
@@ -71,9 +71,7 @@ def block_start(
     return ut.time_str(block_start_min)
 
 
-def block_end(
-    atime: Union[int, Time], as_number: bool = False
-) -> Union[Time, int]:
+def block_end(atime: Union[int, Time], as_number: bool = False) -> Union[Time, int]:
     """Return the last minute of the timeblock that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
@@ -89,9 +87,7 @@ def block_end(
     return ut.time_str(end)
 
 
-def get_timeblock_list(
-    day: tt_trackerday.TrackerDay, as_of_when: Time
-) -> list[Time]:
+def get_timeblock_list(day: td.TrackerDay, as_of_when: Time) -> list[Time]:
     """Build a list of timeblocks from beg of day until as_of_when.
 
     Latest block of the day will be the latest timeblock that
@@ -112,14 +108,14 @@ def get_timeblock_list(
     max_block_min = block_start(max(transx), as_number=True)
     # Create list of timeblocks for the the whole day.
     timeblocks = []
-    for t in range(min_block_min, max_block_min + cfg.BLOCK_DURATION, cfg.BLOCK_DURATION):
+    for t in range(
+        min_block_min, max_block_min + cfg.BLOCK_DURATION, cfg.BLOCK_DURATION
+    ):
         timeblocks.append(ut.time_str(t))
     return timeblocks
 
 
-def calc_blocks(
-    day: tt_trackerday.TrackerDay, as_of_when: Time = None
-) -> dict[Time, object]:
+def calc_blocks(day: td.TrackerDay, as_of_when: Time = None) -> dict[Time, object]:
     """Create a dictionary of Blocks {start:Block} for whole day."""
     if not as_of_when:
         as_of_when = day.latest_event("24:00")
@@ -139,12 +135,12 @@ def calc_blocks(
     # Load check-ins & check-outs into the blocks to which they belong
     # This has to happen carefully, in the order in which they occurred,
     # thus processing as Events rather than reading check_ins & _outs
-    events = tt_event.calc_events(day,as_of_when=as_of_when)
+    events = tt_event.calc_events(day, as_of_when=as_of_when)
     for evtime in sorted(events.keys()):
-        ev:tt_event.Event
+        ev: tt_event.Event
         ev = events[evtime]
         bstart = block_start(ev.event_time)
-        blk:Block
+        blk: Block
         blk = blocks[bstart]
         if ev.event_time > latest_time:
             continue

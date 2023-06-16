@@ -29,7 +29,8 @@ import os
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
-import tt_trackerday
+import tt_trackerday as td
+import tt_conf as cfg
 
 # Header strings to use in datafile and tags- config file
 # These are used when writing & also for string-matching when reading.
@@ -44,6 +45,13 @@ HEADER_RETIRED = "Retired tags:"
 HEADER_COLOURS = "Colour codes:"
 
 
+
+def datafile_name(folder: str) -> str:
+    """Return the name of the data file (datafile) to read/write."""
+    # Use default filename
+    return f"{folder}/{cfg.DATA_BASENAME}{ut.get_date()}.dat"
+
+
 def rotate_datafile(filename: str) -> None:
     """Rename the current datafile to <itself>.bak."""
     backuppath = f"{filename}.bak"
@@ -56,7 +64,7 @@ def rotate_datafile(filename: str) -> None:
 
 def read_datafile(
     filename: str, err_msgs: list[str], usable_tags: list[Tag] = None
-) -> tt_trackerday.TrackerDay:
+) -> td.TrackerDay:
     """Fetch tag data from file into a TrackerDay object.
 
     Read data from a pre-existing data file, returns the info in a
@@ -94,7 +102,7 @@ def read_datafile(
         message_list.append(text)
         return errs + 1
 
-    data = tt_trackerday.TrackerDay()
+    data = td.TrackerDay()
     errors = 0  # How many errors found reading datafile?
     section = None
     with open(filename, "r", encoding="utf-8") as f:
@@ -203,7 +211,7 @@ def read_datafile(
             if section in [REGULAR, OVERSIZE, RETIRED]:
                 # Break each line into 0 or more tags
                 bits = ut.splitline(line)
-                taglist = [ut.fix_tag(x,uppercase=False) for x in bits]
+                taglist = [ut.fix_tag(x, uppercase=False) for x in bits]
                 taglist = [x for x in taglist if x]  # remove blanks
                 # Any errors?
                 if len(taglist) != len(bits):
@@ -243,7 +251,7 @@ def read_datafile(
                     fline=line_num,
                 )
                 continue
-            this_tag = ut.fix_tag(cells[0],uppercase=False)
+            this_tag = ut.fix_tag(cells[0], uppercase=False)
             if not (this_tag):
                 errors = data_read_error(
                     "String does not appear to be a tag",
@@ -338,7 +346,7 @@ def read_datafile(
 
 
 def write_datafile(
-    filename: str, data: tt_trackerday.TrackerDay, header_lines: list = None
+    filename: str, data: td.TrackerDay, header_lines: list = None
 ) -> None:
     """Write current data to today's data file."""
     lines = []
@@ -411,4 +419,3 @@ def new_tag_config_file(filename: str):
     if not os.path.exists(filename):  # make new tags config file only if needed
         with open(filename, "w", encoding="utf-8") as f:
             f.writelines(template)
-

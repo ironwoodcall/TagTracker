@@ -20,13 +20,11 @@ Copyright (C) 2023 Julias Hocking
 
 import statistics
 from typing import Union
-import os
-
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
 import tt_event
-import tt_trackerday
+import tt_trackerday as td
 import tt_visit
 import tt_block
 import tt_printer as pr
@@ -50,7 +48,7 @@ MODE_ROUND_TO_NEAREST = 30  # mins
 BUSIEST_RANKS = 4
 
 
-def recent(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
+def recent(day: td.TrackerDay, args: list[str]) -> None:
     """Display a look back at recent activity.
 
     Args are: start_time, end_time
@@ -109,7 +107,7 @@ def recent(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             pr.iprint(format_one(atime, tag, False))
 
 
-def later_events_warning(day: tt_trackerday.TrackerDay, when: Time) -> None:
+def later_events_warning(day: td.TrackerDay, when: Time) -> None:
     """Warn about report that excludes later events.
 
     If  no later events, does nothing.
@@ -190,7 +188,7 @@ def simplified_taglist(tags: Union[list[Tag], str]) -> str:
     return simple_str
 
 
-def inout_summary(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
+def inout_summary(day: td.TrackerDay, as_of_when: str = "") -> None:
     """Print summary table of # of bikes in, out and still at valet."""
     # Count the totals
     visits = tt_visit.calc_visits(day, as_of_when=as_of_when)
@@ -231,21 +229,15 @@ def inout_summary(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
         ut.squawk(f"inout_summary() {num_bikes_on_hand=} != {sum_on_hand=}")
 
 
-def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
+def audit_report(day: td.TrackerDay, args: list[str]) -> None:
     """Create & display audit report as at a particular time.
 
     On entry: as_of_when_args is a list that can optionally
     have a first element that's a time at which to make this for.
 
-    This is smart about any checkouts that are alter than as_of_when.
+    This is smart about any checkouts that are later than as_of_when.
     If as_of_when is missing, then counts as of current time.
-    (This is replacement for existing show_audit function.)
-    Reads:
-        check_ins
-        check_outs
-        COLOUR_LETTERS
-        NORMAL_TAGS
-        OVERSIZE_TAGS
+
     """
     as_of_when = (args + [""])[0]
     as_of_when = ut.time_str(as_of_when, allow_now=True, default_now=True)
@@ -336,16 +328,7 @@ def audit_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
     return
 
 
-def publish_audit(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
-    """Publish the audit report."""
-    fn = "audit.txt"
-    fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(fullfn)
-    audit_report(day, args)
-    pr.set_output()
-
-
-def csv_dump(day: tt_trackerday.TrackerDay, args) -> None:
+def csv_dump(day: td.TrackerDay, args) -> None:
     """Dump a few stats into csv for pasting into spreadsheets."""
     filename = (args + [None])[0]
     if not filename:
@@ -408,7 +391,7 @@ def csv_dump(day: tt_trackerday.TrackerDay, args) -> None:
             seq += 1
 
 
-def bike_check_ins_report(day: tt_trackerday.TrackerDay, as_of_when: Time) -> None:
+def bike_check_ins_report(day: td.TrackerDay, as_of_when: Time) -> None:
     """Print the check-ins count part of the summary statistics.
 
     as_of_when is HH:MM time, assumed to be a correct time.
@@ -541,9 +524,7 @@ def highwater_report(events: dict) -> None:
     """Make a highwater table as at as_of_when."""
 
     # High-water mark for bikes in valet at any one time
-    def one_line(
-        header: str, events: dict, atime: Time, highlight_field: int
-    ) -> None:
+    def one_line(header: str, events: dict, atime: Time, highlight_field: int) -> None:
         """Print one line for highwater_report."""
         values = [
             events[atime].num_here_regular,
@@ -588,7 +569,7 @@ def highwater_report(events: dict) -> None:
     one_line("Most combined:", events, max_total_time, 2)
 
 
-def full_chart(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
+def full_chart(day: td.TrackerDay, as_of_when: str = "") -> None:
     """Make chart of main stats by timeblock."""
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
@@ -617,7 +598,7 @@ def full_chart(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
         )
 
 
-def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
+def busy_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of busyness."""
     in_marker = "+"  # OØ OX  <>  ↓↑
     out_marker = "x"
@@ -652,13 +633,13 @@ def busy_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
         insize = round(blk.num_ins / scale_factor)
         outsize = round(blk.num_outs / scale_factor)
 
-        # pr.iprint(f"{start} {' ' * (ins_field_width-insize)}{(in_marker * insize)}  {out_marker * outsize}")
         pr.iprint(
-            f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  {start}  {out_marker * outsize}"
+            f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  "
+            f"{start}  {out_marker * outsize}"
         )
 
 
-def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
+def fullness_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of how full the valet is."""
     regular_marker = "r"
     oversize_marker = "O"
@@ -689,14 +670,13 @@ def fullness_graph(day: tt_trackerday.TrackerDay, as_of_when: str = "") -> None:
     for start in sorted(blocks.keys()):
         b: tt_block.Block
         b = blocks[start]
-        ##pr.iprint(f"{start} {b.max_here=} {b.max_here_regular=} {b.max_here_oversize=}")
         regs = round(b.max_here_regular / scale_factor)
         overs = round(b.max_here_oversize / scale_factor)
         pr.iprint(f"{start} {regular_marker * regs}{oversize_marker * overs}")
 
 
 def busy_report(
-    day: tt_trackerday.TrackerDay,
+    day: td.TrackerDay,
     events: dict[Time, tt_event.Event],
     as_of_when: Time,
 ) -> None:
@@ -714,7 +694,7 @@ def busy_report(
                 end="",
             )
             if time_num < len(times):
-                print(", ", end="")
+                pr.iprint(", ", end="")
         pr.iprint()
 
     # Make an empty dict of busyness of timeblocks.
@@ -773,7 +753,7 @@ def qstack_report(visits: dict[Tag : tt_visit.Visit]) -> None:
             else:
                 neutralish += 1
 
-    print("")
+    pr.iprint()
     pr.iprint(
         "Were today's stays more queue-like or stack-like?",
         style=cfg.SUBTITLE_STYLE,
@@ -802,7 +782,7 @@ def qstack_report(visits: dict[Tag : tt_visit.Visit]) -> None:
     )
 
 
-def day_end_report(day: tt_trackerday.TrackerDay, args: list) -> None:
+def day_end_report(day: td.TrackerDay, args: list) -> None:
     """Report summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
@@ -836,7 +816,7 @@ def day_end_report(day: tt_trackerday.TrackerDay, args: list) -> None:
     visit_statistics_report(visits)
 
 
-def more_stats_report(day: tt_trackerday.TrackerDay, args: list) -> None:
+def more_stats_report(day: td.TrackerDay, args: list) -> None:
     """Report more summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
@@ -867,7 +847,7 @@ def more_stats_report(day: tt_trackerday.TrackerDay, args: list) -> None:
     qstack_report(visits)
 
 
-def colours_report(day: tt_trackerday.TrackerDay) -> None:
+def colours_report(day: td.TrackerDay) -> None:
     """List colours in use."""
     type_names = {
         UNKNOWN: "None",
@@ -910,7 +890,7 @@ def colours_report(day: tt_trackerday.TrackerDay) -> None:
         )
 
 
-def retired_report(day: tt_trackerday.TrackerDay) -> None:
+def retired_report(day: td.TrackerDay) -> None:
     """List retired tags."""
     pr.iprint()
     pr.iprint("Retired tags", style=cfg.SUBTITLE_STYLE)
@@ -920,8 +900,7 @@ def retired_report(day: tt_trackerday.TrackerDay) -> None:
     pr.iprint(" ".join([x for sub in ut.sort_tags(day.retired) for x in sub]))
 
 
-
-def tags_config_report(day: tt_trackerday.TrackerDay) -> None:
+def tags_config_report(day: td.TrackerDay) -> None:
     """Report the current tags configuration."""
     pr.iprint()
     pr.iprint("Current tags configuration", style=cfg.TITLE_STYLE)
@@ -929,7 +908,7 @@ def tags_config_report(day: tt_trackerday.TrackerDay) -> None:
     retired_report(day)
 
 
-def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
+def dataform_report(day: td.TrackerDay, args: list[str]) -> None:
     """Print days activity in timeblocks.
 
     This is to match the (paper/google) data tracking sheets.
@@ -989,54 +968,3 @@ def dataform_report(day: tt_trackerday.TrackerDay, args: list[str]) -> None:
             else:
                 tagslist = tagslist.lower()
             pr.iprint(f"{start}-{end} {prefix} {tagslist} {suffix}")
-
-
-def publish_reports(day: tt_trackerday.TrackerDay) -> None:
-    """Publish reports to the PUBLISH directory."""
-    as_of_when = "24:00"
-
-    publish_audit(day, [as_of_when])
-
-    fn = "fullness.txt"
-    fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(fullfn)
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    highwater_report(tt_event.calc_events(day))
-    pr.iprint()
-    fullness_graph(day, as_of_when)
-    pr.set_output()
-
-    fn = "busyness.txt"
-    busyfn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(busyfn)
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    inout_summary(day, as_of_when)
-    pr.iprint()
-    busy_graph(day, as_of_when)
-    pr.set_output()
-
-    fn = "activity.txt"
-    activity_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(activity_fn)
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    full_chart(day, as_of_when=as_of_when)
-    pr.set_output()
-
-    fn = "day_end.txt"
-    day_end_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(day_end_fn)
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    day_end_report(day, [as_of_when])
-    pr.set_output()
-
-    fn = "dataform.txt"
-    dataform_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(dataform_fn)
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    dataform_report(day, [])
-    pr.set_output()
