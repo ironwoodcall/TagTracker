@@ -216,9 +216,24 @@ def write_file(oldf:str, newf:str, filedate:str,
         for tag,time in check_outs.items():
             f.write(f"{tag},{time}\n")
 
+def filename_to_date(filename:str) -> str:
+    """Convert filename to a string of the day *before* the filename."""
+    # Assumes filenames are YYYY-MM-DD.csv
+
+    bits = re.search(r"2023-([0-9][0-9])-([0-9][0-9])",filename)
+    if not bits:
+        return ""
+    year = "2023"
+    month = bits.group(1)
+    day = bits.group(2)
+
+
 in_files = sys.argv[1:]
 for oldfile in in_files:
     print( f"\nReading file {oldfile}...")
+    # Data's date is the day before the day represented by the filename
+    # (I mean really.... !!!!????)
+
     (date, bikes_in, bikes_out) = readafile(oldfile)
     if not date:
         continue

@@ -1,4 +1,108 @@
-"""This is a semi-experimental TagID class
+"""This file has experiments.
+
+    Possible evolution of the TrackerDay class to include TagsConfig object
+    RealTag & some variants
+"""
+
+
+#pylint:disable=pointless-string-statement
+"""TrackerDay and TagsConfig (& such)
+
+Why would I be doing this?
+1) So that can read a config file into a TagsConfig object
+    without expecting the transactions or valet-opening stuff
+2) So that valet hours can be a mutable (passed by reference)
+    object - meaning that can do something like
+        read datafile into trackerday obj td
+        if today is today:
+            read tags.cfg stuff into conf pzipart of td
+        RETIRED_TAGS = td.retired
+        (etc)
+        ALL_TAGS = (this is one-time, ALL_TAGS is read-only)
+            ==> this could be a frozen set!
+
+
+Current TrackerDay:
+        TrackerDay      tagtracker.py       type    tags.cfg
+        date            VALET_DATE          str
+        opening_time    VALET_OPENS         str
+        closing_time    VALET_CLOSES        str
+        bikes_in        check_ins           dict
+        bikes_out       check_outs          dict
+        regular         NORMAL_TAGS         list        *
+        oversize        OVERSIZE_TAGS       list        *
+        retired         RETIRED_TAGS        list        *
+        colour_letters  COLOUR_LETTERS      dict        *
+        is_uppercase    ...                 bool
+        all_tags()      ALL_TAGS            list       (*)
+
+New TrackerDay:
+    VOpen class.
+        Data class; 3 members:
+            .opening_time
+            .closing_time
+            .date
+        Why?  tagtracker proper can make its globals
+        point to elements in a TagTracker object;
+        these can then get updated without the globals
+        statment, and will then (by regerence) update the
+        TrakerDay object.
+        So: no more pack* and unpack* required.
+    TagsConfig class
+        Data class.  Members:
+            regular
+            oversize
+            retired
+            colour_letters
+            all_tags <-- only needs updating when the lists change
+                so prob do something funny with @property for
+                the lists, and a 'dirty' flag
+    TrackerDay class.
+        Mostly data class.
+        Might inherit from TagsConfig and ValetOpen
+            TagsConfig
+            ValetOpen
+            bikes_in
+            bikes_out
+            tag() - might return a Visit() object
+
+
+"""
+class ValetOpen():
+    def __init__(self) -> None:
+        self.date = ""
+        self.opening_time = ""
+        self.closing_time = ""
+
+class TagsConfig():
+    def __init__(self) -> None:
+        self.regular = []
+        self.oversize = []
+        self.all_tags = []
+        self.colour_letters = {}
+        self._tester = ['starter']
+    @property
+    def tester(self):
+        return self._tester
+    @tester.setter
+    def tester(self,val):
+        print(f"adding {val} to _tester {self._tester}")
+        self._tester.append(val)
+
+class TrackerDay(TagsConfig,ValetOpen):
+    def  __init__(self) -> None:
+        TagsConfig.__init__(self)
+        ValetOpen.__init__(self)
+        self.bikes_in = {'wa1':'07:53'}
+
+    def xx__init__(self) -> None:
+        super().__init__()
+        self.date = "2023-06-15"
+        print("TrackerDay init")
+
+
+
+"""This is a semi-experimental RealTag class
 
 
     A TagID is the name of a tag; it might be a correct tag name or not.
