@@ -32,12 +32,9 @@ class Block:
     Each instance is a timeblock of duration cfg.BLOCK_DURATION.
     """
 
-    def __init__(self, start_time: Union[Time, int]) -> None:
+    def __init__(self, start_time: Union[VTime, int]) -> None:
         """Initialize. Assumes that start_time is valid."""
-        if isinstance(start_time, str):
-            self.start = ut.time_str(start_time)
-        else:
-            self.start = ut.time_str(start_time)
+        self.start = VTime(start_time)  # in case it's a str not a VTime
         self.ins_list = []  # Tags of bikes that came in.
         self.num_ins = 0  # Number of bikes that came in.
         self.num_ins_regular = 0
@@ -56,44 +53,42 @@ class Block:
         self.max_here_oversize = 0
 
 
-def block_start(atime: Union[int, Time], as_number: bool = False) -> Union[Time, int]:
+def block_start(atime: Union[int, str]) -> VTime:
     """Return the start time of the block that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
-    Returns HHMM unless as_number is True, in which case returns int.
     """
     # Get time in minutes
-    atime = ut.time_int(atime) if isinstance(atime, str) else atime
+    atime = VTime(atime)
+    if atime is None:
+        return ""
     # which block of time does it fall in?
-    block_start_min = (atime // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
-    if as_number:
-        return block_start_min
-    return ut.time_str(block_start_min)
+    block_start_min = (atime.num // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
+    return VTime(block_start_min)
 
 
-def block_end(atime: Union[int, Time], as_number: bool = False) -> Union[Time, int]:
+def block_end(atime: Union[int, str]) -> VTime:
     """Return the last minute of the timeblock that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
-    Returns HHMM unless as_number is True, in which case returns int.
     """
     # Get block start
-    start = block_start(atime, as_number=True)
+    start = block_start(atime)
     # Calculate block end
-    end = start + cfg.BLOCK_DURATION - 1
+    end = start.num + cfg.BLOCK_DURATION - 1
     # Return as minutes or HHMM
-    if as_number:
-        return end
-    return ut.time_str(end)
+    return VTime(end)
 
 
-def get_timeblock_list(day: td.TrackerDay, as_of_when: Time) -> list[Time]:
+def get_timeblock_list(day: td.TrackerDay, as_of_when: str) -> list[VTime]:
     """Build a list of timeblocks from beg of day until as_of_when.
 
     Latest block of the day will be the latest timeblock that
     had any transactions at or before as_of_when.
     """
-    as_of_when = as_of_when if as_of_when else ut.get_time()
+
+    as_of_when = as_of_when if as_of_when else "now"
+    as_of_when = VTime(as_of_when)
     # Make list of transactions <= as_of_when
     transx = [
         x
@@ -104,23 +99,26 @@ def get_timeblock_list(day: td.TrackerDay, as_of_when: Time) -> list[Time]:
     if not transx:
         return []
     # Find earliest and latest block of the day
-    min_block_min = block_start(min(transx), as_number=True)
-    max_block_min = block_start(max(transx), as_number=True)
+    min_block_min = block_start(min(transx)).num
+    max_block_min = block_start(max(transx)).num
     # Create list of timeblocks for the the whole day.
     timeblocks = []
     for t in range(
         min_block_min, max_block_min + cfg.BLOCK_DURATION, cfg.BLOCK_DURATION
     ):
-        timeblocks.append(ut.time_str(t))
+        timeblocks.append(VTime(t))
     return timeblocks
 
 
-def calc_blocks(day: td.TrackerDay, as_of_when: Time = None) -> dict[Time, object]:
+def calc_blocks(
+    day: td.TrackerDay, as_of_when: str = None
+) -> dict[Time, object]:
     """Create a dictionary of Blocks {start:Block} for whole day."""
     if not as_of_when:
         as_of_when = day.latest_event("24:00")
         if as_of_when < day.closing_time:
             as_of_when = day.closing_time
+    as_of_when = VTime(as_of_when)
     ##as_of_when = as_of_when if as_of_when else "18:00"
     # Create dict with all the blocktimes as keys (None as values)
     blocktimes = get_timeblock_list(day, as_of_when=as_of_when)
@@ -131,7 +129,7 @@ def calc_blocks(day: td.TrackerDay, as_of_when: Time = None) -> dict[Time, objec
     for t in timeblock_list:
         blocks[t] = Block(t)
     # latest_time is the end of the latest block that interests us
-    latest_time = block_end(max(timeblock_list), as_number=False)
+    latest_time = block_end(max(timeblock_list))
     # Load check-ins & check-outs into the blocks to which they belong
     # This has to happen carefully, in the order in which they occurred,
     # thus processing as Events rather than reading check_ins & _outs

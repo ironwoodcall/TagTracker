@@ -103,34 +103,6 @@ def publish_reports(day: td.TrackerDay, args: list = None) -> None:
     publish_audit(day, [as_of_when])
     publish_city_report(day, as_of_when=as_of_when)
 
-    fn = "fullness.txt"
-    fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(fullfn)
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    rep.highwater_report(tt_event.calc_events(day))
-    pr.iprint()
-    rep.fullness_graph(day, as_of_when)
-    pr.set_output()
-
-    fn = "busyness.txt"
-    busyfn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(busyfn)
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    rep.inout_summary(day, as_of_when)
-    pr.iprint()
-    rep.busy_graph(day, as_of_when)
-    pr.set_output()
-
-    fn = "activity.txt"
-    activity_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    pr.set_output(activity_fn)
-    pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    rep.full_chart(day, as_of_when=as_of_when)
-    pr.set_output()
-
     fn = "day_end.txt"
     day_end_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(day_end_fn)
@@ -138,15 +110,6 @@ def publish_reports(day: td.TrackerDay, args: list = None) -> None:
     pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
     rep.day_end_report(day, [as_of_when])
     pr.set_output()
-
-    ##fn = "dataform.txt"
-    ##ataform_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
-    ##pr.set_output(dataform_fn)
-    ##pr.iprint(ut.long_date(day.date))
-    ##pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
-    ##rep.dataform_report(day, [])
-    ##pr.set_output()
-
 
 '''
 ABLE_TO_PUBLISH = True

@@ -25,7 +25,7 @@ import tt_trackerday as td
 class Event:
     """What happened at each discrete atime of day (that something happened)."""
 
-    def __init__(self, event_time: Time) -> None:
+    def __init__(self, event_time: VTime) -> None:
         """Create empty Event, attributes initialized to type."""
         self.event_time = event_time
         self.num_here_total = None  # will be int
@@ -39,8 +39,8 @@ class Event:
 
 
 def calc_events(
-    day: td.TrackerDay, as_of_when: (int or Time) = None
-) -> dict[Time, Event]:
+    day: td.TrackerDay, as_of_when: (int or VTime) = None
+) -> dict[VTime, Event]:
     """Create a dict of events keyed by HH:MM time.
 
     If as_of_when is not given, then this will choose the latest
@@ -54,7 +54,7 @@ def calc_events(
         if day.bikes_in:
             as_of_when = day.latest_event()
         else:
-            as_of_when = "now"
+            as_of_when = VTime("now")
     as_of_when = ut.time_str(as_of_when, allow_now=True)
     # First pass, create all the Events and list their tags in & out.
     events = {}

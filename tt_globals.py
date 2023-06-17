@@ -23,7 +23,10 @@ import re
 # Type aliases only to improve readability and IDE linting
 Tag = str
 Time = str
-TagDict = dict[Tag, Time]
+
+from tt_tag import TagID
+from tt_time import VTime
+
 
 # Constants to use as dictionary keys.
 # E.g. rather than something[this_time]["tag"] = "whatever",

@@ -21,7 +21,9 @@ Copyright (C) 2023 Julias Hocking
 import os
 import datetime
 import re
-from typing import Union  # This is for type hints instead of (eg) int|str
+from typing import (
+    Union,
+)  # This is for type hints instead of (eg) int|str
 from inspect import currentframe, getframeinfo
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
@@ -37,6 +39,12 @@ def squawk(whatever="") -> None:
     lineno = cf.f_back.f_lineno
     print(f"{filename}:{lineno}: {whatever}")
 
+def decomment(string:str) -> str:
+    """Remove any part of the string that starts with '#'."""
+    r = re.match(r"^([^#]*) *#",string)
+    if r:
+        return r.group(1)
+    return string
 
 def get_date(long: bool = False) -> str:
     """Return current date as string YYYY-MM-DD or a longer str if long=True."""
@@ -47,7 +55,9 @@ def get_date(long: bool = False) -> str:
 
 def long_date(date: str) -> str:
     """Convert YYYY-MM-DD to a long statement of the date."""
-    return datetime.datetime.fromisoformat(date).strftime("%A %B %d (%Y-%m-%d)")
+    return datetime.datetime.fromisoformat(date).strftime(
+        "%A %B %d (%Y-%m-%d)"
+    )
 
 
 def date_str(maybe_date: str) -> str:
@@ -168,7 +178,9 @@ def pretty_time(atime: Union[int, str, float], trim: bool = False) -> str:
     return atime
 
 
-def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[str]:
+def parse_tag(
+    maybe_tag: str, must_be_in=None, uppercase: bool = False
+) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -207,7 +219,9 @@ def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[
     return [tag_id, tag_colour, tag_letter, tag_number]
 
 
-def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) -> Tag:
+def fix_tag(
+    maybe_tag: str, must_be_in: list = None, uppercase: bool = False
+) -> Tag:
     """Turn 'str' into a canonical tag name.
 
     If must_be_in is exists & not an empty list then, will force
@@ -219,11 +233,11 @@ def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) ->
     return bits[0] if bits else ""
 
 
-def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
+def old_group_by_prefix(unsorted: list[TagID]) -> list[list[Tag]]:
     """Get tags sorted into lists by their prefix.
 
     Return a list of lists of tags, sorted and de-duped. E.g.
-        sort_tags(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
+        taglists_by_prefix(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
         --> [['be1','be9','be10],['wa5','wa12'],['wd15']]
 
     Preconditions:
@@ -233,7 +247,9 @@ def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
     has_uc = bool(re.search(r"[A-Z]", "".join(unsorted)))
     has_lc = bool(re.search(r"[a-z]", "".join(unsorted)))
     if has_uc == has_lc:
-        squawk(f"error call to sort_tags(), list is mixed case: '{unsorted=}'")
+        squawk(
+            f"error call to taglists_by_prefix(), list is mixed case: '{unsorted=}'"
+        )
         unsorted = [x.upper() for x in unsorted]
         uppercase = True
     else:
@@ -242,33 +258,48 @@ def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
     # Put all the tags into sets, one set for each prefix
     tagsets = {}
     for tag in unsorted:
-        bits = parse_tag(
-            tag,
-            uppercase=uppercase,
-        )
-        prefix = f"{bits[1]}{bits[2]}"
-        num = int(bits[3])
-        if prefix not in tagsets:
-            tagsets[prefix] = set()
-        tagsets[prefix].add(num)
+        if tag.prefix not in tagsets:
+            tagsets[tag.prefix] = set()
+        tagsets[tag.prefix].add(tag.number)
     # Make a list of lists with sorted tags
     outerlist = []
     for prefix in sorted(tagsets.keys()):
-        outerlist.append([f"{prefix}{n}" for n in sorted(list(tagsets[prefix]))])
+        outerlist.append(
+            [f"{prefix.lower()}{n}" for n in sorted(list(tagsets[prefix]))]
+        )
     return outerlist
 
 
-def tags_by_prefix(tags: list[Tag]) -> dict[str, list[Tag]]:
+def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
+    """Get tags sorted into lists by their prefix.
+
+    Return a list of lists of tags, sorted and de-duped. E.g.
+        taglists_by_prefix(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
+        --> [['be1','be9','be10],['wa5','wa12'],['wd15']]
+
+    Preconditions:
+        - tags are either all uppercase or all lowercase
+        - all tags are syntactically valid
+    """
+
+    # Make a dictionary of all tags keyed by their prefixes
+    prefixed_tags = dict(
+        zip([tag.prefix for tag in unsorted], [[] for _ in range(0, 100)])
+    )
+    for tag in unsorted:
+        prefixed_tags[tag.prefix].append(tag)
+    outerlist = []
+    for prefix in sorted(prefixed_tags.keys()):
+        outerlist.append(sorted(prefixed_tags[prefix]))
+    return outerlist
+
+def tagnums_by_prefix(tags: list[TagID]) -> dict[str, list[int]]:
     """Return a dict of tag prefixes with lists of associated tag numbers."""
     prefixes = {}
     for tag in tags:
-        # pylint: disable=unbalanced-tuple-unpacking
-        (t_colour, t_letter, t_number) = parse_tag(tag, uppercase=False)[1:4]
-        # pylint: disable=unbalanced-tuple-unpacking
-        prefix = f"{t_colour}{t_letter}"
-        if prefix not in prefixes:
-            prefixes[prefix] = []
-        prefixes[prefix].append(int(t_number))
+        if tag.prefix not in prefixes:
+            prefixes[tag.prefix] = []
+        prefixes[tag.prefix].append(tag.number)
     for numbers in prefixes.values():
         numbers.sort()
     return prefixes

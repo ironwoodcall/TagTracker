@@ -33,7 +33,6 @@ Current TrackerDay:
         oversize        OVERSIZE_TAGS       list        *
         retired         RETIRED_TAGS        list        *
         colour_letters  COLOUR_LETTERS      dict        *
-        is_uppercase    ...                 bool
         all_tags()      ALL_TAGS            list       (*)
 
 New TrackerDay:

@@ -22,6 +22,7 @@ import datetime
 
 
 class VTime(str):
+    _always_false = False
     @staticmethod
     def _time_int(maybe_time: str) -> int:
         """Convert known-good string representation of time to int (or None)."""
@@ -70,7 +71,7 @@ class VTime(str):
     def __init__(self, maybe_time=""):  # pylint:disable=unused-argument
         # str.__init__()
         # On entry, {self} is "" or a valid HH:MM time
-        if False:  # pylint:disable=using-constant-test
+        if self._always_false:
             self.original = ""
             self.num = 0
         if self and (self[0] == "0"):
