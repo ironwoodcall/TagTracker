@@ -1,5 +1,9 @@
 TagTracker by Julias Hocking
 
+0.8.2:
++ TagID and VTime classes
+~ various format & usability tweaks
+
 0.8.1:
 + more reports
 + usability tweaks & bug fixes

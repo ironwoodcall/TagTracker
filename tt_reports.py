@@ -99,9 +99,7 @@ def recent(day: td.TrackerDay, args: list[str]) -> None:
         if not current_block_end:
             current_block_end = tt_block.block_end(atime)
         if atime > current_block_end:
-            pr.iprint(
-                f"{tt_block.block_start(atime).tidy}-------------"
-            )
+            pr.iprint(f"{tt_block.block_start(atime).tidy}-------------")
             current_block_end = tt_block.block_end(atime)
         # Print all the activity that happened at this time.
         for tag in sorted(events[atime].bikes_in):
@@ -122,9 +120,7 @@ def later_events_warning(day: td.TrackerDay, when: VTime) -> None:
     later_events = day.num_later_events(when)
     if not later_events:
         return
-    msg = (
-        f"Report excludes {later_events} events later than {when.short}"
-    )
+    msg = f"Report excludes {later_events} events later than {when.short}"
     pr.iprint(msg, style=cfg.WARNING_STYLE)
 
 
@@ -135,6 +131,7 @@ def simplified_taglist(tags: Union[list[Tag], str]) -> str:
     The tags list can be a string separated by whitespace or comma.
     or it can be a list of tags.
     """
+
     # FIXME: not adjusting this one to VTime/TagID yet, may not need to
     def hyphenize(nums: list[int]) -> str:
         """Convert a list of ints into a hypenated list."""
@@ -537,9 +534,7 @@ def visit_statistics_report(visits: dict) -> None:
     shortest = min(list(duration_tags.keys()))
     short_tags = make_tags_str(duration_tags[shortest])
     one_line(f"Longest {noun}:", f"{VTime(longest).tidy}  ({long_tags})")
-    one_line(
-        f"Shortest {noun}:", f"{VTime(shortest).tidy}  ({short_tags})"
-    )
+    one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}  ({short_tags})")
     # Make a list of stay-lengths (for mean, median, mode)
     durations_list = [x.duration for x in visits.values()]
     one_line(f"Mean {noun}:", ut.pretty_time(statistics.mean(durations_list)))
@@ -922,7 +917,7 @@ def colours_report(day: td.TrackerDay) -> None:
     )
     # Count and categorize the tags (all available for use)
     for tag in day.all_tags():
-        code = ut.parse_tag(tag, [], uppercase=False)[1]
+        code = tag.colour.lower()
         if code not in colours:
             ut.squawk(f"bad colour for {tag}: '{code}' in colours_report()")
             continue
@@ -955,7 +950,7 @@ def retired_report(day: td.TrackerDay) -> None:
         return
     pr.iprint(
         " ".join(
-            [x for sub in ut.taglists_by_prefix(day.retired) for x in sub]
+            [x.cased for sub in ut.taglists_by_prefix(day.retired) for x in sub]
         )
     )
 

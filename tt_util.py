@@ -201,6 +201,7 @@ def parse_tag(
         tag_letter: 1 lc letter, the first character on the tag
         tag_number: a sequence number, without lead zeroes.
     """
+    # FIXME:  parse_tag fn is now deprecated
     maybe_tag = maybe_tag.lower()
     r = PARSE_TAG_RE.match(maybe_tag)
     if not bool(r):
@@ -229,6 +230,7 @@ def fix_tag(
 
     If uppercase then returns the tag in uppercase, default is lowercase.
     """
+    # FIXME fix_tag fn is now deprecated
     bits = parse_tag(maybe_tag, must_be_in=must_be_in, uppercase=uppercase)
     return bits[0] if bits else ""
 
