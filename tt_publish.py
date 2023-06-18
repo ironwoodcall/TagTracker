@@ -55,11 +55,11 @@ class Publisher:
             return
         publish_datafile(day,self.destination)
         publish_reports(day,[as_of_when])
-        self.last_publish = ut.get_time()
+        self.last_publish = VTime("now")
 
     def maybe_publish(self,day:td.TrackerDay,as_of_when:str="") -> bool:
         """Maybe publish.  Return T if did a publish."""
-        timenow = ut.get_time()
+        timenow = VTime("now")
         time_since_last = ut.time_int(timenow) - ut.time_int(self.last_publish)
         if time_since_last >= self.frequency:
             self.publish(day,as_of_when)
@@ -79,7 +79,8 @@ def publish_datafile(day: td.TrackerDay, destination:str) -> None:
 
 def publish_city_report(day: td.TrackerDay, as_of_when: str = "") -> None:
     """Publish a report for daily insight to the City."""
-    as_of_when = as_of_when if as_of_when else ut.get_time()
+    as_of_when = as_of_when if as_of_when else "now"
+    as_of_when:VTime = VTime(as_of_when)
     fullfn = os.path.join(cfg.REPORTS_FOLDER, "city.txt")
     pr.set_output(fullfn)
     rep.day_end_report(day, [as_of_when])
@@ -98,7 +99,8 @@ def publish_reports(day: td.TrackerDay, args: list = None) -> None:
     """Publish reports to the PUBLISH directory."""
     as_of_when = (args + [None])[0]
     if not as_of_when:
-        as_of_when = ut.get_time()
+        as_of_when = "now"
+    as_of_when:VTime = VTime(as_of_when)
 
     publish_audit(day, [as_of_when])
     publish_city_report(day, as_of_when=as_of_when)
@@ -107,44 +109,7 @@ def publish_reports(day: td.TrackerDay, args: list = None) -> None:
     day_end_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(day_end_fn)
     pr.iprint(ut.long_date(day.date))
-    pr.iprint(f"Report generated {ut.get_date()} {ut.get_time()}")
+    pr.iprint(f"Report generated {ut.get_date()} {VTime('now')}")
     rep.day_end_report(day, [as_of_when])
     pr.set_output()
 
-'''
-ABLE_TO_PUBLISH = True
-
-
-def maybe_publish(last_pub: Time, force: bool = False) -> Time:
-    """Maybe save current data to 'publish' directory."""
-    global ABLE_TO_PUBLISH  # pylint:disable=global-statement
-    # Nothing to do if not configured to publish or can't publish
-    if not ABLE_TO_PUBLISH or not cfg.REPORTS_FOLDER or not cfg.PUBLISH_FREQUENCY:
-        return last_pub
-    # Is it time to re-publish?
-    if not force and (
-        ut.time_int(ut.get_time()) < (ut.time_int(last_pub) + cfg.PUBLISH_FREQUENCY)
-    ):
-        # Nothing to do yet.
-        return last_pub
-    # Nothing to do if publication dir does not exist
-    if not os.path.exists(cfg.REPORTS_FOLDER):
-        ABLE_TO_PUBLISH = False
-        pr.iprint()
-        pr.iprint(
-            f"Publication folder '{cfg.REPORTS_FOLDER}' not found, "
-            "will not try to Publish",
-            style=cfg.ERROR_STYLE,
-        )
-        return last_pub
-    # Pack info into TrackerDay object, save the data
-    day = pack_day_data()
-    df.write_datafile(datafile_name(cfg.REPORTS_FOLDER), day)
-
-    # Now also publish updated reports
-    pub.publish_reports(day,[ut.get_time()])
-
-    # Return new last_published time
-    return ut.get_time()
-
-'''

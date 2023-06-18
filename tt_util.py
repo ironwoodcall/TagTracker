@@ -29,6 +29,7 @@ from inspect import currentframe, getframeinfo
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 
 
+
 def squawk(whatever="") -> None:
     """Print whatever with file & linenumber in front of it.
 
@@ -76,9 +77,10 @@ def date_str(maybe_date: str) -> str:
     return f"{y:04d}-{m:02d}-{d:02d}"
 
 
-def get_time() -> Time:
+def get_time() -> VTime:
     """Return current time as string: HH:MM."""
-    return datetime.datetime.today().strftime("%H:%M")
+    # FIXME: get_time() deprecated, use VTime("now") instead
+    return VTime(datetime.datetime.today().strftime("%H:%M"))
 
 
 def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
@@ -95,6 +97,7 @@ def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
     might be a legitimate time, test for the type of the return or
     test whether "is None".
     """
+    # FIXME: time_int() deprecated, use VTime() instead
     if isinstance(maybe_time, float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time, str):
@@ -123,7 +126,7 @@ def time_str(
     maybe_time: Union[int, str, float, None],
     allow_now: bool = False,
     default_now: bool = False,
-) -> Time:
+) -> VTime:
     """Return maybe_time as HH:MM (or "").
 
     Input can be int/float (duration or minutes since midnight),
@@ -137,38 +140,40 @@ def time_str(
     Return is either "" (doesn't look like a valid time) or
     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
     """
+    # FIXME: time_str() deprecated, use VTime() object
     if not maybe_time and default_now:
-        return get_time()
+        return VTime("now")
     if isinstance(maybe_time, float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time, str):
         if maybe_time.lower() == "now" and allow_now:
-            return get_time()
+            return VTime("now")
         r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
         if not (r):
-            return ""
+            return VTime("")
         h = int(r.group(1))
         m = int(r.group(2))
         # Test for an impossible time
         if h > 24 or m > 59 or (h * 60 + m) > 1440:
-            return ""
+            return VTime("")
     elif maybe_time is None:
-        return ""
+        return VTime("")
     elif not isinstance(maybe_time, int):
         squawk(f"PROGRAM ERROR: called time_str({maybe_time=})")
-        return ""
+        return VTime("")
     elif isinstance(maybe_time, int):
         # Test for impossible time.
         if not (0 <= maybe_time <= 1440):
-            return ""
+            return VTime("")
         h = maybe_time // 60
         m = maybe_time % 60
     # Return 5-digit time string
-    return f"{h:02d}:{m:02d}"
+    return VTime(f"{h:02d}:{m:02d}")
 
 
 def pretty_time(atime: Union[int, str, float], trim: bool = False) -> str:
     """Replace lead 0 in HH:MM with blank (or remove, if 'trim' )."""
+    # FIXME: pretty_time() deprecated; use VTime().tidy or VTime().short
     atime = time_str(atime)
     if not atime:
         return ""
@@ -201,7 +206,7 @@ def parse_tag(
         tag_letter: 1 lc letter, the first character on the tag
         tag_number: a sequence number, without lead zeroes.
     """
-    # FIXME:  parse_tag fn is now deprecated
+    # FIXME: parse_tag() is  deprecated, use TagID()
     maybe_tag = maybe_tag.lower()
     r = PARSE_TAG_RE.match(maybe_tag)
     if not bool(r):
@@ -222,7 +227,7 @@ def parse_tag(
 
 def fix_tag(
     maybe_tag: str, must_be_in: list = None, uppercase: bool = False
-) -> Tag:
+) -> str:
     """Turn 'str' into a canonical tag name.
 
     If must_be_in is exists & not an empty list then, will force
@@ -230,46 +235,9 @@ def fix_tag(
 
     If uppercase then returns the tag in uppercase, default is lowercase.
     """
-    # FIXME fix_tag fn is now deprecated
+    # FIXME fix_tag fn is now deprecated, useTagID()
     bits = parse_tag(maybe_tag, must_be_in=must_be_in, uppercase=uppercase)
     return bits[0] if bits else ""
-
-
-def old_group_by_prefix(unsorted: list[TagID]) -> list[list[Tag]]:
-    """Get tags sorted into lists by their prefix.
-
-    Return a list of lists of tags, sorted and de-duped. E.g.
-        taglists_by_prefix(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
-        --> [['be1','be9','be10],['wa5','wa12'],['wd15']]
-
-    Preconditions:
-        - tags are either all uppercase or all lowercase
-        - all tags are syntactically valid
-    """
-    has_uc = bool(re.search(r"[A-Z]", "".join(unsorted)))
-    has_lc = bool(re.search(r"[a-z]", "".join(unsorted)))
-    if has_uc == has_lc:
-        squawk(
-            f"error call to taglists_by_prefix(), list is mixed case: '{unsorted=}'"
-        )
-        unsorted = [x.upper() for x in unsorted]
-        uppercase = True
-    else:
-        uppercase = has_uc
-
-    # Put all the tags into sets, one set for each prefix
-    tagsets = {}
-    for tag in unsorted:
-        if tag.prefix not in tagsets:
-            tagsets[tag.prefix] = set()
-        tagsets[tag.prefix].add(tag.number)
-    # Make a list of lists with sorted tags
-    outerlist = []
-    for prefix in sorted(tagsets.keys()):
-        outerlist.append(
-            [f"{prefix.lower()}{n}" for n in sorted(list(tagsets[prefix]))]
-        )
-    return outerlist
 
 
 def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:

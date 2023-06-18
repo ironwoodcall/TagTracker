@@ -1,11 +1,69 @@
 """This file has experiments.
 
+    Looking at an all-tags overview
     Possible evolution of the TrackerDay class to include TagsConfig object
     RealTag & some variants
+
 """
+from tt_globals import *
+import tt_printer as pr
+from tt_realtag import RealTag,Stay
+from tt_trackerday import TrackerDay
+
+# pylint:disable=pointless-string-statement
 
 
-#pylint:disable=pointless-string-statement
+"""
+All tags overview
+
+Symbols for:
+- unknown (like, a missing member)  '  '
+- available                         '--'
+- bike in                           '<<'
+- bike out                          '>>'
+- retired                           ' ●'
+
+"""
+def tag_inventory_matrix(day:TrackerDay, as_of_when:str="now") -> None:
+    unknown_str =   '  '
+    available_str = '--'
+    bike_in_str =   '<<'
+    bike_out_str =  '>>'
+    retired_str =   ' ●'
+
+    max_tag_num = 0
+    prefixes = set()
+    for tag in day.retired|day.regular|day.oversize:
+        if tag.num > max_tag_num:
+            max_tag_num = tag.num
+        prefixes.add(tag.prefix)
+    pr.iprint(f"{' ':3s} ",end="")
+    for i in range(0,max_tag_num+1):
+        pr.iprint(f" {i:02d}",end="")
+    pr.iprint()
+    for prefix in sorted(prefixes):
+        pr.iprint(f"{prefix:3s} ",end="")
+        for i in range(0,max_tag_num+1):
+            this_tag = Stay(f"{prefix}{i}",day,as_of_when)
+            if not this_tag:
+                s = unknown_str
+            elif this_tag.state == USABLE:
+                s = available_str
+            elif this_tag.state == BIKE_IN:
+                s = bike_in_str
+            elif this_tag.state == BIKE_OUT:
+                s = bike_out_str
+            elif this_tag.state == RETIRED:
+                s = retired_str
+            else:
+                s = "??"
+            pr.iprint(f" {s}",end="")
+        pr.iprint()
+
+
+
+
+
 """TrackerDay and TagsConfig (& such)
 
 Why would I be doing this?
@@ -67,38 +125,43 @@ New TrackerDay:
 
 
 """
-class ValetOpen():
+
+
+class ValetOpen:
     def __init__(self) -> None:
         self.date = ""
         self.opening_time = ""
         self.closing_time = ""
 
-class TagsConfig():
+
+class TagsConfig:
     def __init__(self) -> None:
         self.regular = []
         self.oversize = []
         self.all_tags = []
         self.colour_letters = {}
-        self._tester = ['starter']
+        self._tester = ["starter"]
+
     @property
     def tester(self):
         return self._tester
+
     @tester.setter
-    def tester(self,val):
+    def tester(self, val):
         print(f"adding {val} to _tester {self._tester}")
         self._tester.append(val)
 
-class TrackerDay(TagsConfig,ValetOpen):
-    def  __init__(self) -> None:
+
+class TrackerDay(TagsConfig, ValetOpen):
+    def __init__(self) -> None:
         TagsConfig.__init__(self)
         ValetOpen.__init__(self)
-        self.bikes_in = {'wa1':'07:53'}
+        self.bikes_in = {"wa1": "07:53"}
 
     def xx__init__(self) -> None:
         super().__init__()
         self.date = "2023-06-15"
         print("TrackerDay init")
-
 
 
 """This is a semi-experimental RealTag class
@@ -157,34 +220,67 @@ class TrackerDay(TagsConfig,ValetOpen):
 from tt_globals import *
 import tt_util as ut
 import tt_trackerday as td
-from tt_tag import TagID
 
 
 class RealTag:
-    """A deployed or deployable tag (but including retired tags)
+    """A tag with attributes that reflect info in the Tags Config (only).
+
+    Arguments:
+        tag_string: a string that may or may not represent a valid TagID
+        config: a TrackerDay with (presumably) tags config info in it.
+            Only the tags config portion of the TrackerDay is used
+            (.retired, .oversize, .regular sets of TagIDs)
 
     Attributes:
-        assigned: None, RETIRED, OVERSIZE, REGULAR
-        status: None, AVAILABLE, IN_USE, RETURNED
+        type: None, OVERSIZE, REGULAR
+        state: None, USABLE, RETIRED
+    """
+
+    def __init__(self, tag_string="", config: TrackerDay = None):
+        # self.tag = TagID(tag_string)
+        self.type = None
+        self.state = None
+        self.tagid = TagID(tag_string)
+        if not self.tagid or not config:
+            return
+        assert isinstance(
+            config, TrackerDay
+        ), f"bad config in call to RealTag({tag_string})"
+        if self.tagid in config.regular:
+            self.type = REGULAR
+        elif self.tagid in config.oversize:
+            self.type = OVERSIZE
+        if self.tagid in config.retired:
+            self.state = RETIRED
+        elif self.tagid in (config.oversize|config.regular):
+            self.state = USABLE
+
+
+
+class YetOtherRealTag:
+    """A tag with attributes that reflect info in the Tags Config (only).
+
+    Attributes:
+        type: None, OVERSIZE, REGULAR
+        state: None, USABLE, RETIRED
 
 
     """
 
     _everyTag = {}  # dict[str(TagID),RealTag]
 
-    def __new__(cls, maybe_tag: str = "", tag_type: str = UNKNOWN):
+    def __new__(cls, maybe_tag: str = "", config: TrackerDay = None):
         the_tag = TagID(maybe_tag)
         if not the_tag:
             return None
         if the_tag in cls._everyTag:
             return cls._everyTag[the_tag]
         instance = super().__new__(cls)
-        ##print(f"{type(super())=}; {super()=}, {type(instance)=}")
         instance.tag = the_tag
         cls._everyTag[the_tag] = instance
         return instance
 
-    def __init__(self, tag_string="", tag_type: str = UNKNOWN):
+    def __init__(self, tag_string="", config: TrackerDay = None):
         # self.tag = TagID(tag_string)
         assert tag_type in [
             UNKNOWN,
@@ -210,7 +306,7 @@ class RealTag:
             # No time out.  Need to fabricate a latest time.
             # Use the earliest of latest event, current time, closing time
             latest_event = max(
-                ["00:00"]   # This just so there will never be an empty list
+                ["00:00"]  # This just so there will never be an empty list
                 + [rt.time_in for rt in RealTag._everyTag if rt.time_in]
                 + [rt.time_out for rt in RealTag._everyTag if rt.time_out]
             )
@@ -223,7 +319,9 @@ class RealTag:
 
     @classmethod
     def oversize_tags(cls) -> list:
-        return [x.tag for x in cls._everyTag.values() if x._tagtype == OVERSIZE]
+        return [
+            x.tag for x in cls._everyTag.values() if x._tagtype == OVERSIZE
+        ]
 
     @classmethod
     def regular_tags(cls) -> list:
@@ -232,7 +330,9 @@ class RealTag:
     @classmethod
     def active_tags(cls) -> list:
         return [
-            x.tag for x in cls._everyTag.values() if x._tagtype in [OVERSIZE, REGULAR]
+            x.tag
+            for x in cls._everyTag.values()
+            if x._tagtype in [OVERSIZE, REGULAR]
         ]
 
     @classmethod

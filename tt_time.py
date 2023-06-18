@@ -110,3 +110,11 @@ class VTime(str):
         not necessary since it will never contain alpha characters.
         """
         return hash(str(self))
+
+    @property
+    def as_at(self) -> str:
+        """pretty string to say 'as at {time}'; or equivalent."""
+        if str(self) == "24:00":
+            return "projected to end of day"
+        else:
+            return f"as at {self.short}"

@@ -39,6 +39,7 @@ import tt_printer as pr
 import tt_datafile as df
 import tt_reports as rep
 import tt_publish as pub
+import tt_tag_inv as inv
 
 # Local connfiguration
 # try:
@@ -88,7 +89,7 @@ def valet_logo():
     pr.iprint()
 
 
-def fix_2400_events() -> list[Tag]:
+def fix_2400_events() -> list[TagID]:
     """Change any 24:00 events to 23:59, warn, return Tags changed."""
     changed = []
     for tag, atime in check_ins.items():
@@ -645,14 +646,14 @@ def tag_check(tag: TagID) -> None:
                 query_tag([tag])
                 pr.iprint(
                     f"Overwrite {check_outs[tag]} check-out with "
-                    f"current time ({ut.get_time()})? "
+                    f"current time ({VTime('now')})? "
                     f"(y/N) {cfg.CURSOR}",
                     style=cfg.SUBPROMPT_STYLE,
                     end="",
                 )
                 sure = pr.tt_inp().lower() in ["y", "yes"]
                 if sure:
-                    multi_edit([tag, "o", ut.get_time()])
+                    multi_edit([tag, "o", VTime("now")])
                 else:
                     pr.iprint("Cancelled", style=cfg.WARNING_STYLE)
             else:  # checked in only
@@ -789,7 +790,7 @@ def main():
     while not done:
         pr.iprint()
         if cfg.INCLUDE_TIME_IN_PROMPT:
-            pr.iprint(f"{ut.pretty_time(ut.get_time(),trim=True)}", end="")
+            pr.iprint(f"{VTime('now').short}", end="")
         pr.iprint(
             f"Bike tag or command {cfg.CURSOR}", style=cfg.PROMPT_STYLE, end=""
         )
@@ -828,7 +829,7 @@ def main():
                 style=cfg.WARNING_STYLE,
             )
         elif cmd == cfg.CMD_TAGS:
-            rep.tags_config_report(pack_day_data())
+            inv.tags_config_report(pack_day_data(),args)
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:

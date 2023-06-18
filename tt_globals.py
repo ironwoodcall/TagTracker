@@ -20,13 +20,15 @@ Copyright (C) 2023 Julias Hocking
 """
 import re
 
-# Type aliases only to improve readability and IDE linting
-Tag = str
-Time = str
-
 from tt_tag import TagID
 from tt_time import VTime
+#from tt_trackerday import TrackerDay
+#from tt_visit import Visit
+#from tt_event import Event
 
+# Type aliases only to improve readability and IDE linting
+##Tag = str
+Time = VTime
 
 # Constants to use as dictionary keys.
 # E.g. rather than something[this_time]["tag"] = "whatever",
@@ -45,6 +47,7 @@ REGULAR = chr(0x2192) + "regular"
 OVERSIZE = chr(0x2192) + "oversize"
 MIXED = chr(0x2192) + "mixed"
 RETIRED = chr(0x2192) + "retired"
+USABLE = chr(0x2192) + "usable"
 TOTAL = chr(0x2192) + "total"
 COUNT = chr(0x2192) + "count"
 TIME = chr(0x2192) + "time"

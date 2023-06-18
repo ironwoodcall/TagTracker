@@ -63,7 +63,7 @@ def rotate_datafile(filename: str) -> None:
 
 
 def read_datafile(
-    filename: str, err_msgs: list[str], usable_tags: list[Tag] = None
+    filename: str, err_msgs: list[str], usable_tags: list[TagID] = None
 ) -> td.TrackerDay:
     """Fetch tag data from file into a TrackerDay object.
 
@@ -155,10 +155,10 @@ def read_datafile(
                 r = re.match(
                     rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES}) *(.+)", line
                 )
-                maybetime = ut.time_str(r.group(2))
+                maybetime = VTime(r.group(2))
                 if not maybetime:
                     errors = data_read_error(
-                        "Unable to read valet open/close time",
+                        f"Unable to understand valet open/close time '{maybetime.original}'",
                         err_msgs,
                         errs=errors,
                         fname=filename,
@@ -353,7 +353,7 @@ def write_datafile(
     else:
         lines.append(
             "# TagTracker datafile (data file) created on "
-            f"{ut.get_date()} {ut.get_time()}"
+            f"{ut.get_date()} {VTime('now')}"
         )
         lines.append(f"# TagTracker version {ut.get_version()}")
     # Valet data, opening & closing hours

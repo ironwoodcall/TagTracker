@@ -112,7 +112,7 @@ def get_timeblock_list(day: td.TrackerDay, as_of_when: str) -> list[VTime]:
 
 def calc_blocks(
     day: td.TrackerDay, as_of_when: str = None
-) -> dict[Time, object]:
+) -> dict[VTime, object]:
     """Create a dictionary of Blocks {start:Block} for whole day."""
     if not as_of_when:
         as_of_when = day.latest_event("24:00")

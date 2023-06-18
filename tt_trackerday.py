@@ -199,7 +199,7 @@ class TrackerDay:
         return latest
 
     def num_later_events(
-        self, after_when: Union[Time, int, None] = None
+        self, after_when: Union[VTime, int, None] = None
     ) -> int:
         """Get count of events that are later than after_when."""
         if not after_when:

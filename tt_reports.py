@@ -28,7 +28,7 @@ import tt_trackerday as td
 import tt_visit
 import tt_block
 import tt_printer as pr
-
+import tt_tag_inv
 import tt_conf as cfg
 
 # try:
@@ -124,7 +124,7 @@ def later_events_warning(day: td.TrackerDay, when: VTime) -> None:
     pr.iprint(msg, style=cfg.WARNING_STYLE)
 
 
-def simplified_taglist(tags: Union[list[Tag], str]) -> str:
+def simplified_taglist(tags: Union[list[TagID], str]) -> str:
     """Make a simplified str of tag names from a list of tags.
 
     E.g. "wa0,2-7,9 wb1,9,10 be4"
@@ -248,19 +248,18 @@ def audit_report(day: td.TrackerDay, args: list[str]) -> None:
     If as_of_when is missing, then counts as of current time.
 
     """
-    as_of_when = (args + [""])[0]
-    as_of_when = ut.time_str(as_of_when, allow_now=True, default_now=True)
 
     # What time will this audit report reflect?
-    as_of_when = ut.time_str(as_of_when)
+    as_of_when = (args + ["now"])[0]
+    as_of_when = VTime(as_of_when)
     if not as_of_when:
         pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return False
 
-    # Audit report header.
+    # Audit report header. Special case if request is for "24:00"
     pr.iprint()
     pr.iprint(
-        f"Audit report as at {ut.pretty_time(as_of_when,trim=True)}",
+        f"Audit report for {ut.get_date()} {as_of_when.as_at}",
         style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
@@ -295,18 +294,25 @@ def audit_report(day: td.TrackerDay, args: list[str]) -> None:
         else:
             returns_by_colour[colour_code] += len(numbers)
 
-    no_item_str = "  "  # what to show when there's no tag
+    NO_ITEM_STR = "  "  # what to show when there's no tag
+    RETIRED_TAG_STR = " ●"
     pr.iprint()
     # Bikes returned out -- tags matrix.
     pr.iprint(
-        f"Bikes still in valet at {ut.pretty_time(as_of_when,trim=True)}",
+        f"Bikes still in valet at {as_of_when.short}"
+        f" ({RETIRED_TAG_STR} --> retired tag)",
         style=cfg.SUBTITLE_STYLE,
     )
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix.upper():3>} "
-        for i in range(0, max(numbers) + 1):
-            s = f"{i:02d}" if i in numbers else no_item_str
+        for i in range(0, max(numbers) + 1):  # FIXME: can numbers ever be []?
+            if i in numbers:
+                s = f"{i:02d}"
+            elif TagID(f"{prefix}{i}") in day.retired:
+                s = RETIRED_TAG_STR
+            else:
+                s = NO_ITEM_STR
             line = f"{line} {s}"
         pr.iprint(line)
     if not prefixes_on_hand:
@@ -329,7 +335,12 @@ def audit_report(day: td.TrackerDay, args: list[str]) -> None:
         numbers = prefixes_returned_out[prefix]
         line = f"{prefix.upper():3>} "
         for i in range(0, max(numbers) + 1):
-            s = f"{i:02d}" if i in numbers else no_item_str
+            if i in numbers:
+                s = f"{i:02d}"
+            elif TagID(f"{prefix}{i}") in day.retired:
+                s = RETIRED_TAG_STR
+            else:
+                s = NO_ITEM_STR
             line = f"{line} {s}"
         pr.iprint(line)
     if not prefixes_returned_out:
@@ -408,7 +419,7 @@ def csv_dump(day: td.TrackerDay, args) -> None:
             seq += 1
 
 
-def bike_check_ins_report(day: td.TrackerDay, as_of_when: Time) -> None:
+def bike_check_ins_report(day: td.TrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
 
     as_of_when is HH:MM time, assumed to be a correct time.
@@ -550,7 +561,7 @@ def highwater_report(events: dict) -> None:
 
     # High-water mark for bikes in valet at any one time
     def one_line(
-        header: str, events: dict, atime: Time, highlight_field: int
+        header: str, events: dict, atime: VTime, highlight_field: int
     ) -> None:
         """Print one line for highwater_report."""
         values = [
@@ -570,7 +581,7 @@ def highwater_report(events: dict) -> None:
     pr.iprint()
     pr.iprint("Most bikes at valet at any one time", style=cfg.SUBTITLE_STYLE)
     if not events:
-        pr.iprint("(No bikes)")
+        pr.iprint("-no bikes-")
         return
     # Find maximum bikes on hand for the categories
     max_regular_num = max([x.num_here_regular for x in events.values()])
@@ -607,7 +618,7 @@ def full_chart(day: td.TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("No bikes in, nothing to report", style=cfg.WARNING_STYLE)
+        pr.iprint("-no bikes-", style=cfg.WARNING_STYLE)
         return
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
@@ -641,12 +652,12 @@ def busy_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("No bikes in, nothing to report", style=cfg.WARNING_STYLE)
+        pr.iprint("-no bikes-", style=cfg.WARNING_STYLE)
         return
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
-    max_ins = max([b.num_ins for b in blocks.values()])
-    max_outs = max([b.num_outs for b in blocks.values()])
+    max_ins = max([b.num_ins for b in blocks.values()] + [0])
+    max_outs = max([b.num_outs for b in blocks.values()] + [0])
     max_needed = max_ins + max_outs + 10
     available_width = cfg.SCREEN_WIDTH
     scale_factor = (max_needed // available_width) + 1
@@ -684,10 +695,10 @@ def fullness_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("No bikes in, nothing to report", style=cfg.WARNING_STYLE)
+        pr.iprint("-no bikes-", style=cfg.WARNING_STYLE)
         return
 
-    max_full = max([b.num_here for b in blocks.values()])
+    max_full = max([b.num_here for b in blocks.values()] + [0])
     available_width = cfg.SCREEN_WIDTH - 10
     scale_factor = round((max_full / available_width))
     scale_factor = max(scale_factor, 1)
@@ -712,21 +723,18 @@ def fullness_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
 
 def busy_report(
     day: td.TrackerDay,
-    events: dict[Time, tt_event.Event],
-    as_of_when: Time,
+    events: dict[VTime, tt_event.Event],
+    as_of_when: VTime,
 ) -> None:
     """Report the busiest time(s) of day."""
 
-    def one_line(rank: int, num_events: int, times: list[Time]) -> None:
+    def one_line(rank: int, num_events: int, times: list[VTime]) -> None:
         """Format and print one line of busyness report."""
         pr.iprint(f"{rank:2d}     {num_events:3d}      ", end="")
         for time_num, start_time in enumerate(sorted(times), start=1):
-            end_time = ut.time_str(
-                ut.time_int(start_time) + cfg.BLOCK_DURATION
-            )
+            end_time = VTime(start_time.num + cfg.BLOCK_DURATION)
             pr.iprint(
-                f"{ut.pretty_time(start_time,trim=True)}-"
-                f"{ut.pretty_time(end_time,trim=True)}",
+                f"{start_time.short}-{end_time.short}",
                 num_indents=0,
                 end="",
             )
@@ -763,7 +771,7 @@ def busy_report(
         one_line(rank, activity, busy_times[activity])
 
 
-def qstack_report(visits: dict[Tag : tt_visit.Visit]) -> None:
+def qstack_report(visits: dict[TagID : tt_visit.Visit]) -> None:
     """Report whether visits are more queue-like or more stack-like."""
     # Make a list of tuples: start_time, end_time for all visits.
     visit_times = list(
@@ -832,12 +840,12 @@ def day_end_report(day: td.TrackerDay, args: list) -> None:
 
     If not time given, calculates as of latest checkin/out of the day.
     """
-    rightnow = ut.get_time()
+    rightnow = VTime("now")
     as_of_when = (args + [None])[0]
     if not as_of_when:
         as_of_when = rightnow
     else:
-        as_of_when = ut.time_str(as_of_when, allow_now=True)
+        as_of_when = VTime(as_of_when)
         if not (as_of_when):
             pr.iprint(
                 f"Unrecognized time passed to visits summary ({args[0]})",
@@ -846,7 +854,7 @@ def day_end_report(day: td.TrackerDay, args: list) -> None:
             return
     pr.iprint()
     pr.iprint(
-        f"Summary statistics as at {ut.pretty_time(as_of_when,trim=True)}",
+        f"Summary statistics {as_of_when.as_at}",
         style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
@@ -870,7 +878,7 @@ def more_stats_report(day: td.TrackerDay, args: list) -> None:
     """
     # rightnow = ut.get_time()
     as_of_when = (args + [None])[0]
-    as_of_when = ut.time_str(as_of_when, allow_now=True, default_now=True)
+    as_of_when = VTime(as_of_when)
     if not (as_of_when):
         pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return
@@ -895,74 +903,6 @@ def more_stats_report(day: td.TrackerDay, args: list) -> None:
     visits = tt_visit.calc_visits(day, as_of_when)
     qstack_report(visits)
 
-
-def colours_report(day: td.TrackerDay) -> None:
-    """List colours in use."""
-    type_names = {
-        UNKNOWN: "None",
-        REGULAR: "Regular",
-        OVERSIZE: "Oversize",
-        MIXED: "Mixed",
-    }
-
-    # Make a dict of the colour letters that's all lowercase
-    colours = {k.lower(): v for k, v in day.colour_letters.items()}
-    # Dict of bike types for tags: UNKNOWN, OVERSIZE, REGULAR or MIXED
-    tag_type = dict(
-        zip(list(day.colour_letters.keys()), [UNKNOWN for _ in range(0, 100)])
-    )
-    # Dictionary of how many tags are of each colour.
-    tag_count = dict(
-        zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)])
-    )
-    # Count and categorize the tags (all available for use)
-    for tag in day.all_tags():
-        code = tag.colour.lower()
-        if code not in colours:
-            ut.squawk(f"bad colour for {tag}: '{code}' in colours_report()")
-            continue
-        # Tag type
-        btype = REGULAR if tag in day.regular else OVERSIZE
-        if tag_type[code] == UNKNOWN:
-            tag_type[code] = btype
-        elif tag_type[code] != btype:
-            tag_type[code] = MIXED
-        # Tag count
-        tag_count[code] += 1
-
-    pr.iprint()
-    pr.iprint("Code Colour   Bike type  Count", style=cfg.SUBTITLE_STYLE)
-    for code in sorted(colours):
-        name = colours[code].title()
-        code_str = code.upper() if TagID.uc() else code
-        pr.iprint(
-            f" {code_str:>2}  {name:8} {type_names[tag_type[code]]:8}  "
-            f"{tag_count[code]:4d} tags"
-        )
-
-
-def retired_report(day: td.TrackerDay) -> None:
-    """List retired tags."""
-    pr.iprint()
-    pr.iprint("Retired tags", style=cfg.SUBTITLE_STYLE)
-    if not day.retired:
-        pr.iprint("--no retired tags--")
-        return
-    pr.iprint(
-        " ".join(
-            [x.cased for sub in ut.taglists_by_prefix(day.retired) for x in sub]
-        )
-    )
-
-
-def tags_config_report(day: td.TrackerDay) -> None:
-    """Report the current tags configuration."""
-    pr.iprint()
-    pr.iprint("Current tags configuration", style=cfg.TITLE_STYLE)
-    colours_report(day)
-    retired_report(day)
-
-
 def dataform_report(day: td.TrackerDay, args: list[str]) -> None:
     """Print days activity in timeblocks.
 
@@ -971,12 +911,11 @@ def dataform_report(day: td.TrackerDay, args: list[str]) -> None:
     If end_time is missing, runs to current time.
     If start_time is missing, starts one hour before end_time.
     """
-    end_time = (args + [None])[0]
+    end_time = VTime((args + ["now"])[0])
     if not end_time:
-        end_time = ut.get_time()
-    end_time = ut.time_str(end_time, allow_now=True)
-    if not end_time:
-        pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
+        pr.iprint(
+            f"Unrecognized time {end_time.original}", style=cfg.WARNING_STYLE
+        )
         return
     # Special case: allow "24:00"
     if end_time != "24:00":
@@ -997,8 +936,8 @@ def dataform_report(day: td.TrackerDay, args: list[str]) -> None:
     if not all_blocks:
         earliest = day.earliest_event()
         pr.iprint(
-            f"No bikes came in before {end_time} "
-            f"(earliest came in at {earliest})",
+            f"No bikes checked in before {end_time} "
+            f"(earliest in at {earliest})",
             style=cfg.HIGHLIGHT_STYLE,
         )
         return

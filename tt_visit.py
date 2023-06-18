@@ -50,7 +50,9 @@ def dump_visits(visits: dict[Visit]) -> None:
         print(v.dump())
 
 
-def calc_visits(day: td.TrackerDay, as_of_when: Union[int, Time]) -> dict[Tag, Visit]:
+def calc_visits(
+    day: td.TrackerDay, as_of_when: Union[int, VTime]
+) -> dict[TagID, Visit]:
     """Create a dict of visits keyed by tag as of as_of_when.
 
     If as_of_when is not given, then this will use the current time.
@@ -65,7 +67,7 @@ def calc_visits(day: td.TrackerDay, as_of_when: Union[int, Time]) -> dict[Tag, V
     mean the current time.
     """
     as_of_when = "now" if not as_of_when else as_of_when
-    as_of_when = ut.time_str(as_of_when, allow_now=True)
+    as_of_when = VTime(as_of_when)
 
     # If a bike isn't checked out or its checkout is after the requested
     # time, then use what as its checkout time?
@@ -85,7 +87,11 @@ def calc_visits(day: td.TrackerDay, as_of_when: Union[int, Time]) -> dict[Tag, V
             this_visit.time_out = missing_checkout_time
             this_visit.still_here = True
         this_visit.duration = max(
-            1, (ut.time_int(this_visit.time_out) - ut.time_int(this_visit.time_in))
+            1,
+            (
+                ut.time_int(this_visit.time_out)
+                - ut.time_int(this_visit.time_in)
+            ),
         )
         if tag in day.regular:
             this_visit.type = REGULAR

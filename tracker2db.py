@@ -92,7 +92,7 @@ COL_REGISTRATIONS = "registrations" # num of 529 registrations recorded
 
 def create_connection(db_file) -> sqlite3.Connection:
     """Create a database connection to a SQLite database.
-    
+
     This will create a new .db database file if none yet exists at the named
     path."""
     connection = None
@@ -167,10 +167,10 @@ def duration(hhmm_in:str, hhmm_out:str) -> str:
 
 def data_to_db(filename:str) -> None:
     """Record one datafile to the database.
-    
-    Read the datafile in question into a TrackerDay object with 
+
+    Read the datafile in question into a TrackerDay object with
     df.read_datafile()
-    
+
     For the day, insert a row of day summary data into TABLE_DAYS
 
     Then calculate some things which might be based on it
@@ -346,7 +346,7 @@ def data_to_db(filename:str) -> None:
 
 def select_closing_time(date:str) -> Union[ut.Time, bool]:
     """Return the closing time of a given date in TABLE_DAYS.
-    
+
     - SELECT closing time from rows with matching dates (should be just 1)
     - If this yields no rows, return False.
     - If this yields 1 row, return the closing time as a str HHMM.
@@ -377,8 +377,8 @@ def sql_do(sql_statement:str) -> None:
 
 def get_yesterday() -> str:
     """Return yesterday's date YYYY-MM-DD.
-    
-    For targeting db updates at only the most recent complete datafiles 
+
+    For targeting db updates at only the most recent complete datafiles
     by default.
     """
     yesterday = datetime.datetime.now() - datetime.timedelta(1)
@@ -423,7 +423,7 @@ if __name__ == "__main__":
 Add checks for integrity - DB and datafiles(?)
 - missing dates
 - new data incoming that has many fewer records than what is already there
-- unusual open/close times (which might indicate sloppy operators, 
+- unusual open/close times (which might indicate sloppy operators,
 or a corrupt file)
 --- flag guessed open close times?
 - days with identical data

@@ -54,8 +54,8 @@ def calc_events(
         if day.bikes_in:
             as_of_when = day.latest_event()
         else:
-            as_of_when = VTime("now")
-    as_of_when = ut.time_str(as_of_when, allow_now=True)
+            as_of_when = "now"
+    as_of_when = VTime(as_of_when)
     # First pass, create all the Events and list their tags in & out.
     events = {}
     for tag, atime in day.bikes_in.items():
