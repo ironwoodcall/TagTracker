@@ -17,19 +17,24 @@ import tt_util as ut
 
 
 def tag_inventory_matrix(day: td.TrackerDay, as_of_when: str = "now") -> None:
-    unknown_str = "  "
-    available_str = " -"
-    bike_in_str = "<<"
-    bike_out_str = ">>"
-    retired_str = " ●"
+    """Print a matrix of status of all known tags.
+
+    This reads these variables from config:
+        TAG_INV_UNKNOWN
+        TAG_INV_AVAILABLE
+        TAG_INV_BIKE_IN
+        TAG_INV_BIKE_OUT
+        TAG_INV_RETIRED
+
+    """
 
     as_of_when = VTime(as_of_when)
     pr.iprint()
     pr.iprint(f"Tags status {as_of_when.as_at}", style=cfg.TITLE_STYLE)
     pr.iprint(
-        f"Key: '{available_str.strip()}'=Available; '{bike_in_str}'=Bike In; "
-        f"'{bike_out_str}'=Bike Out; '{retired_str.strip()}'=Retired",
-        style=cfg.SUBTITLE_STYLE,
+        f"Key: '{cfg.TAG_INV_AVAILABLE.strip()}'=Available; '{cfg.TAG_INV_BIKE_IN}'=Bike In; "
+        f"'{cfg.TAG_INV_BIKE_OUT}'=Bike Out; '{cfg.TAG_INV_RETIRED.strip()}'=Retired",
+        style=cfg.NORMAL_STYLE,
     )
     pr.iprint()
     max_tag_num = 0
@@ -38,24 +43,24 @@ def tag_inventory_matrix(day: td.TrackerDay, as_of_when: str = "now") -> None:
         if tag.number > max_tag_num:
             max_tag_num = tag.number
         prefixes.add(tag.prefix)
-    pr.iprint(f"{' ':3s} ", end="")
+    pr.iprint(f"{' ':3s} ", style=cfg.HIGHLIGHT_STYLE,end="")
     for i in range(0, max_tag_num + 1):
-        pr.iprint(f" {i:02d}", end="")
+        pr.iprint(f" {i:02d}", style=cfg.HIGHLIGHT_STYLE,end="")
     pr.iprint()
     for prefix in sorted(prefixes):
-        pr.iprint(f"{prefix:3s} ", end="")
+        pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE,end="")
         for i in range(0, max_tag_num + 1):
             this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not this_tag or not this_tag.state:
-                s = unknown_str
+                s = cfg.TAG_INV_UNKNOWN
             elif this_tag.state == USABLE:
-                s = available_str
+                s = cfg.TAG_INV_AVAILABLE
             elif this_tag.state == BIKE_IN:
-                s = bike_in_str
+                s = cfg.TAG_INV_BIKE_IN
             elif this_tag.state == BIKE_OUT:
-                s = bike_out_str
+                s = cfg.TAG_INV_BIKE_OUT
             elif this_tag.state == RETIRED:
-                s = retired_str
+                s = cfg.TAG_INV_RETIRED
             else:
                 s = " ?"
             pr.iprint(f" {s}", end="")

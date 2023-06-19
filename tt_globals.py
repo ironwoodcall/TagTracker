@@ -75,9 +75,6 @@ OFF = chr(0x2192) + "off"
 # ]:
 #   globals()[keyword] = chr(0x2192) + keyword.lower()
 
-
-# Regular expression for parsing tags -- here & in main program.
-PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
 # Date re checks for date that might be in another string
 _DATE_RE = r"(2[0-9][0-9][0-9])[/-]([01]?[0-9])[/-]([0123]?[0-9])"
 # Match a date within another string

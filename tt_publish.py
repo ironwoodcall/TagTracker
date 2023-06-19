@@ -85,7 +85,7 @@ def publish_city_report(day: td.TrackerDay, as_of_when: str = "") -> None:
     pr.set_output(fullfn)
     rep.day_end_report(day, [as_of_when])
     pr.iprint()
-    rep.more_stats_report(day, [as_of_when])
+    rep.busyness_report(day, [as_of_when])
     pr.iprint()
     rep.busy_graph(day, as_of_when=as_of_when)
     pr.iprint()

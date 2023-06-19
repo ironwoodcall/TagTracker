@@ -28,7 +28,6 @@ import tt_trackerday as td
 import tt_visit
 import tt_block
 import tt_printer as pr
-import tt_tag_inv
 import tt_conf as cfg
 
 # try:
@@ -509,12 +508,7 @@ def visit_statistics_report(visits: dict) -> None:
             round(x / MODE_ROUND_TO_NEAREST) * MODE_ROUND_TO_NEAREST
             for x in durations_list
         ]
-        modes_str = ",".join(
-            [
-                ut.pretty_time(x, trim=False)
-                for x in statistics.multimode(rounded)
-            ]
-        )
+        modes_str = ",".join([VTime(x).tidy for x in statistics.multimode(rounded)])
         modes_str = (
             f"{modes_str}  (times "
             f"rounded to {MODE_ROUND_TO_NEAREST} minutes)"
@@ -548,10 +542,10 @@ def visit_statistics_report(visits: dict) -> None:
     one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}  ({short_tags})")
     # Make a list of stay-lengths (for mean, median, mode)
     durations_list = [x.duration for x in visits.values()]
-    one_line(f"Mean {noun}:", ut.pretty_time(statistics.mean(durations_list)))
+    one_line(f"Mean {noun}:", VTime(statistics.mean(durations_list)).tidy)
     one_line(
         f"Median {noun}:",
-        ut.pretty_time(statistics.median(list(duration_tags.keys()))),
+        VTime(statistics.median(list(duration_tags.keys()))).tidy,
     )
     visits_mode(durations_list)
 
@@ -637,7 +631,7 @@ def full_chart(day: td.TrackerDay, as_of_when: str = "") -> None:
         blk: tt_block.Block
         blk = blocks[blk_start]
         pr.iprint(
-            f"{ut.pretty_time(blk_start,trim=False)}    "
+            f"{blk_start.tidy}    "
             f"{blk.num_ins:3}   {blk.num_outs:3}    "
             f"{blk.num_here_regular:4}  {blk.num_here_oversize:4}  {blk.num_here:4}    "
             f"{blk.max_here:4}"
@@ -871,20 +865,19 @@ def day_end_report(day: td.TrackerDay, args: list) -> None:
     visit_statistics_report(visits)
 
 
-def more_stats_report(day: td.TrackerDay, args: list) -> None:
+def busyness_report(day: td.TrackerDay, args: list) -> None:
     """Report more summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
     """
     # rightnow = ut.get_time()
-    as_of_when = (args + [None])[0]
-    as_of_when = VTime(as_of_when)
+    as_of_when = VTime((args + ["now"])[0])
     if not (as_of_when):
         pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
         return
     pr.iprint()
     pr.iprint(
-        f"Busyness report, as at {ut.pretty_time(as_of_when,trim=True)}",
+        f"Busyness report {as_of_when.as_at}",
         style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
@@ -902,6 +895,7 @@ def more_stats_report(day: td.TrackerDay, args: list) -> None:
     # Queue-like vs stack-like
     visits = tt_visit.calc_visits(day, as_of_when)
     qstack_report(visits)
+
 
 def dataform_report(day: td.TrackerDay, args: list[str]) -> None:
     """Print days activity in timeblocks.
@@ -927,8 +921,7 @@ def dataform_report(day: td.TrackerDay, args: list[str]) -> None:
 
     pr.iprint()
     pr.iprint(
-        "Tracking form data from start of day until "
-        f"{ut.pretty_time(end_time,trim=True)}",
+        f"Tracking form data from start of day until {end_time.short}",
         style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, end_time)

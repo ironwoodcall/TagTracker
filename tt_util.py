@@ -208,6 +208,8 @@ def parse_tag(
     """
     # FIXME: parse_tag() is  deprecated, use TagID()
     maybe_tag = maybe_tag.lower()
+    # Regular expression for parsing tags
+    PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
     r = PARSE_TAG_RE.match(maybe_tag)
     if not bool(r):
         return []

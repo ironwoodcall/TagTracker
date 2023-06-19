@@ -40,6 +40,7 @@ import tt_datafile as df
 import tt_reports as rep
 import tt_publish as pub
 import tt_tag_inv as inv
+from tt_realtag import RealTag, Stay
 
 # Local connfiguration
 # try:
@@ -302,53 +303,86 @@ def delete_entry(args: list[str]) -> None:
     pr.iprint("Deleted.", style=cfg.ANSWER_STYLE)
 
 
-def query_tag(args: list[str]) -> None:
-    """Query the check in/out times of a specific tag."""
-    target = (args + [None])[0]
-    if not target:  # only do dialog if no target passed
+def query_one_tag(maybe_tag: str, day: td.TrackerDay,multi_line:bool=False) -> None:
+    """Print a summary of one tag's status.
+
+    If multi_line is true, then this *may* print the status on multiple lines;
+    otherwise will always put it on a single line.
+    """
+    tagid = TagID(maybe_tag)
+    if not tagid:
         pr.iprint(
-            f"Query which tag? (tag name) {cfg.CURSOR}",
+            f"Input '{tagid.original}' is not a tag name",
+            style=cfg.WARNING_STYLE,
+        )
+        return
+    tag = Stay(tagid, day)
+    if not tag.state:
+        pr.iprint(
+            f"Tag {tag.tagid} is not available",
+            style=cfg.WARNING_STYLE,
+        )
+        return
+    if tag.state == RETIRED:
+        pr.iprint(f"Tag {tag.tagid} is retired", style=cfg.WARNING_STYLE)
+        return
+    if tag.state == BIKE_OUT:
+        if multi_line:
+            pr.iprint(
+                f"{tag.time_in.tidy}  " f"{tag.tagid} checked IN",
+                style=cfg.ANSWER_STYLE,
+            )
+            pr.iprint(
+                f"{tag.time_out.tidy}  " f"{tag.tagid} checked OUT",
+                style=cfg.ANSWER_STYLE,
+            )
+        else:
+            pr.iprint(
+                f"Tag {tag.tagid} bike in at {tag.time_in.short}; "
+                f"out at {tag.time_out.short}",
+                style=cfg.ANSWER_STYLE,
+            )
+        return
+    if tag.state == BIKE_IN:
+        if multi_line:
+            pr.iprint(
+                f"{tag.time_in.tidy}  " f"{tag.tagid} checked IN",
+                style=cfg.ANSWER_STYLE,
+            )
+            pr.iprint(
+                f"       {tag.tagid} still at valet", style=cfg.ANSWER_STYLE
+            )
+        else:
+            pr.iprint(
+                f"Tag {tag.tagid} bike in at {tag.time_in.short}; still in",
+                style=cfg.ANSWER_STYLE,
+            )
+        return
+    if tag.state == USABLE:
+        pr.iprint(
+            f"Tag {tag.tagid} not used yet today",
+            style=cfg.ANSWER_STYLE,
+        )
+        return
+    pr.iprint(f"Tag {tag.tagid} has unknown state", style=cfg.ERROR_STYLE)
+
+def query_tag(targets: list[str]) -> None:
+    """Query one or more tags"""
+    if len(targets) == 0:
+        # Have to prompt
+        pr.iprint(
+            f"Query which tags? (tag name) {cfg.CURSOR}",
             style=cfg.SUBPROMPT_STYLE,
             end="",
         )
-        target = pr.tt_inp().lower()
+        targets = ut.splitline(pr.tt_inp())
+        if not targets:
+            pr.iprint("Query cancelled", style=cfg.HIGHLIGHT_STYLE)
+            return
+    day = pack_day_data()
     pr.iprint()
-    fixed_target = TagID(target)
-    if not fixed_target:
-        pr.iprint(
-            f"'{target}' does not look like a tag name",
-            style=cfg.WARNING_STYLE,
-        )
-        return
-    if fixed_target in RETIRED_TAGS:
-        pr.iprint(f"Tag '{fixed_target}' is retired", style=cfg.ANSWER_STYLE)
-        return
-    if fixed_target not in ALL_TAGS:
-        pr.iprint(
-            f"Tag '{fixed_target}' is not available for use",
-            style=cfg.WARNING_STYLE,
-        )
-        return
-    if fixed_target not in check_ins:
-        pr.iprint(
-            f"Tag '{fixed_target}' not used yet today", style=cfg.WARNING_STYLE
-        )
-        return
-    pr.iprint(
-        f"{ut.pretty_time(check_ins[fixed_target])}  "
-        f"{fixed_target} checked IN",
-        style=cfg.ANSWER_STYLE,
-    )
-    if fixed_target in check_outs:
-        pr.iprint(
-            f"{ut.pretty_time(check_outs[fixed_target])}  "
-            f"{fixed_target} checked OUT",
-            style=cfg.ANSWER_STYLE,
-        )
-    else:
-        pr.iprint(
-            f"       {fixed_target} still at valet", style=cfg.ANSWER_STYLE
-        )
+    for maybe_tag in targets:
+        query_one_tag(maybe_tag, day, multi_line=len(targets)==1)
 
 
 def prompt_for_time(inp=False, prompt: str = None) -> VTime:
@@ -513,11 +547,6 @@ def multi_edit(args: list[str]):
             """Print change message. inout_str is 'in' or 'out."""
             inoutflag = BIKE_IN if inout_str == "in" else BIKE_OUT
             print_tag_inout(tag, inoutflag, newtime)
-            # pr.iprint(
-            #    f"{tag} check-{inout_str} set to "
-            #    f"{ut.pretty_time(newtime,trim=True)}",
-            #    style=cfg.ANSWER_STYLE,
-            # )
 
         # Error conditions to test for
         # Unusable tag (not known, retired)
@@ -829,7 +858,7 @@ def main():
                 style=cfg.WARNING_STYLE,
             )
         elif cmd == cfg.CMD_TAGS:
-            inv.tags_config_report(pack_day_data(),args)
+            inv.tags_config_report(pack_day_data(), args)
         elif cmd == cfg.CMD_QUERY:
             query_tag(args)
         elif cmd == cfg.CMD_STATS:
@@ -838,7 +867,7 @@ def main():
             publishment.publish(pack_day_data())
             ##last_published = maybe_publish(last_published, force=True)
         elif cmd == cfg.CMD_BUSY:
-            rep.more_stats_report(pack_day_data(), args)
+            rep.busyness_report(pack_day_data(), args)
         elif cmd == cfg.CMD_CHART:
             rep.full_chart(pack_day_data())
         elif cmd == cfg.CMD_BUSY_CHART:
