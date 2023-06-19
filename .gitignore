@@ -19,3 +19,5 @@ tags*.cfg
 *.db
 test*.*
 settings.json
+.vscode
+.mypy_cache
