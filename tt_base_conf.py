@@ -105,13 +105,14 @@ STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
 STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
 
 # These are the symbols & styles used in the tag inventory matrix.
-# Each should be 2 characters wide.  Warning if using fancy unicode
+# Each is a tuple of (symbol,style).
+# Each symbol should be 2 characters wide.  Warning if using fancy unicode
 # that those characters come in various widths, platform-dependent.
-TAG_INV_UNKNOWN = "  "
-TAG_INV_AVAILABLE = " -"
-TAG_INV_BIKE_IN = f"{STYLE[ANSWER_STYLE]}In{STYLE[RESET_STYLE]}"
-TAG_INV_BIKE_OUT = f"{STYLE[PROMPT_STYLE]}Ot{STYLE[RESET_STYLE]}"
-TAG_INV_RETIRED = f"{STYLE[WARNING_STYLE]}Rt{STYLE[RESET_STYLE]}"
+TAG_INV_UNKNOWN = ("  ",NORMAL_STYLE)
+TAG_INV_AVAILABLE = (" -",NORMAL_STYLE)
+TAG_INV_BIKE_IN = ("In",ANSWER_STYLE)
+TAG_INV_BIKE_OUT = ("Ou",PROMPT_STYLE)
+TAG_INV_RETIRED = ("Re",WARNING_STYLE)
 
 # Command keys and aliases.
 CMD_AUDIT = "audit"

@@ -230,39 +230,63 @@ def initialize_today() -> bool:
     return True
 
 
-def delete_entry(args: list[str]) -> None:
-    """Perform tag entry deletion dialogue."""
+def delete_entry(
+    maybe_target: str = "",
+    maybe_what: str = "",
+    maybe_confirm: str = "",
+    *extra,
+) -> None:
+    """Perform tag entry deletion dialogue.
+
+    Delete syntax is:
+        delete <tag> <in|out|both> <confirm>
+    """
 
     def arg_prompt(maybe: str, prompt: str, optional: bool = False) -> str:
         """Prompt for one command argument (token)."""
         if optional or maybe:
             maybe = "" if maybe is None else f"{maybe}".strip().lower()
             return maybe
-        prompt = f"{prompt} {cfg.CURSOR}"
-        return pr.tt_inp(prompt, style=cfg.PROMPT_STYLE).strip().lower()
+        pr.iprint(
+            f"{prompt} {cfg.CURSOR}",
+            style=cfg.SUBPROMPT_STYLE,
+            end="",
+        )
+        return pr.tt_inp().strip().lower()
 
-    def nogood(msg: str = "", syntax: bool = True) -> None:
+    def nogood(
+        msg: str = "", syntax: bool = True, severe: bool = True
+    ) -> None:
         """Print the nogood msg + syntax msg."""
+        style = cfg.WARNING_STYLE if severe else cfg.HIGHLIGHT_STYLE
         if msg:
-            pr.iprint(msg, style=cfg.WARNING_STYLE)
+            pr.iprint(msg, style=style)
         if syntax:
             pr.iprint(
                 "Syntax: delete <tag> <in|out|both> <y|n|!>",
-                style=cfg.WARNING_STYLE,
+                style=style,
             )
 
-    (maybe_target, maybe_what, maybe_confirm) = (args + ["", "", ""])[:3]
+    def cancel():
+        """Give a 'delete cancelled' message."""
+        nogood("Delete cancelled", syntax=False, severe=False)
+
+    if extra:
+        nogood("", syntax=True, severe=True)
+        return
+
+    ##(maybe_target, maybe_what, maybe_confirm) = (args + ["", "", ""])[:3]
     # What tag are we to delete parts of?
     maybe_target = arg_prompt(maybe_target, "Delete entries for what tag?")
     if not maybe_target:
-        nogood()
+        cancel()
         return
     target = TagID(maybe_target)
     if not target:
-        nogood(f"'{maybe_target}' is not a tag")
+        nogood(f"'{maybe_target}' is not a tag", syntax=False)
         return
     if target not in ALL_TAGS:
-        nogood(f"'{maybe_target}' is not a tag in use")
+        nogood(f"'{maybe_target}' is not a tag in use", syntax=False)
         return
     if target not in check_ins:
         nogood(
@@ -278,7 +302,7 @@ def delete_entry(args: list[str]) -> None:
         maybe_what, "Delete check-IN, check-OUT or BOTH (i/o/b)?"
     )
     if not what:
-        nogood()
+        cancel()
         return
     if what not in ["i", "in", "o", "out", "b", "both"]:
         nogood("Must indicate in, out or both")
@@ -292,8 +316,15 @@ def delete_entry(args: list[str]) -> None:
         return
     # Get a confirmation
     confirm = arg_prompt(maybe_confirm, "Are you sure (y/N)?")
+    if confirm not in ["n", "no", "!", "y", "yes"]:
+        nogood(
+            f"Confirmation must be 'y' or 'n', not '{confirm}'",
+            severe=True,
+            syntax=True,
+        )
+        return
     if confirm not in ["y", "yes", "!"]:
-        nogood("Delete cancelled", syntax=False)
+        cancel()
         return
     # Perform the delete
     if what in ["b", "both", "o", "out"] and target in check_outs:
@@ -303,7 +334,9 @@ def delete_entry(args: list[str]) -> None:
     pr.iprint("Deleted.", style=cfg.ANSWER_STYLE)
 
 
-def query_one_tag(maybe_tag: str, day: td.TrackerDay,multi_line:bool=False) -> None:
+def query_one_tag(
+    maybe_tag: str, day: td.TrackerDay, multi_line: bool = False
+) -> None:
     """Print a summary of one tag's status.
 
     If multi_line is true, then this *may* print the status on multiple lines;
@@ -366,6 +399,7 @@ def query_one_tag(maybe_tag: str, day: td.TrackerDay,multi_line:bool=False) -> N
         return
     pr.iprint(f"Tag {tag.tagid} has unknown state", style=cfg.ERROR_STYLE)
 
+
 def query_tag(targets: list[str]) -> None:
     """Query one or more tags"""
     if len(targets) == 0:
@@ -382,7 +416,7 @@ def query_tag(targets: list[str]) -> None:
     day = pack_day_data()
     pr.iprint()
     for maybe_tag in targets:
-        query_one_tag(maybe_tag, day, multi_line=len(targets)==1)
+        query_one_tag(maybe_tag, day, multi_line=len(targets) == 1)
 
 
 def prompt_for_time(inp=False, prompt: str = None) -> VTime:
@@ -824,16 +858,16 @@ def main():
             f"Bike tag or command {cfg.CURSOR}", style=cfg.PROMPT_STYLE, end=""
         )
         user_str = pr.tt_inp()
-        # If midnight has passed then need to restart
-        if midnight_passed(todays_date):
-            done = True
-            continue
         # Break command into tokens, parse as command
         tokens = parse_command(user_str)
         if not tokens:
             continue  # No input, ignore
         (cmd, *args) = tokens
         # Dispatcher
+        # If midnight has passed then need to restart
+        if midnight_passed(todays_date) and cmd != cfg.CMD_EXIT:
+            done = True
+            continue
         data_dirty = False
         if cmd == cfg.CMD_EDIT:
             multi_edit(args)
@@ -842,7 +876,7 @@ def main():
             rep.audit_report(pack_day_data(), args)
             pub.publish_audit(pack_day_data(), args)
         elif cmd == cfg.CMD_DELETE:
-            delete_entry(args)
+            delete_entry(*args)
             data_dirty = True
         elif cmd == cfg.CMD_EXIT:
             done = True
