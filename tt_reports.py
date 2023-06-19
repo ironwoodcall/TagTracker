@@ -22,10 +22,12 @@ import statistics
 from typing import Union
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_time import VTime
+from tt_tag import TagID
+from tt_realtag import Stay
+from tt_trackerday import TrackerDay
 import tt_util as ut
-import tt_event
-import tt_trackerday as td
-import tt_visit
+from tt_event import Event
 import tt_block
 import tt_printer as pr
 import tt_conf as cfg
@@ -47,7 +49,7 @@ MODE_ROUND_TO_NEAREST = 30  # mins
 BUSIEST_RANKS = 4
 
 
-def recent(day: td.TrackerDay, args: list[str]) -> None:
+def recent(day: TrackerDay, args: list[str]) -> None:
     """Display a look back at recent activity.
 
     Args are: start_time, end_time
@@ -88,7 +90,7 @@ def recent(day: td.TrackerDay, args: list[str]) -> None:
     pr.iprint()
     pr.iprint("Time  BikeIn BikeOut", style=cfg.SUBTITLE_STYLE)
     # Collect & print any bike-in/bike-out events in the time period.
-    events = tt_event.calc_events(day, end_time)
+    events = Event.calc_events(day, end_time)
     current_block_end = None
     for atime in sorted(events.keys()):
         # Ignore events outside the desired time range.
@@ -107,7 +109,7 @@ def recent(day: td.TrackerDay, args: list[str]) -> None:
             pr.iprint(format_one(atime, tag, False))
 
 
-def later_events_warning(day: td.TrackerDay, when: VTime) -> None:
+def later_events_warning(day: TrackerDay, when: VTime) -> None:
     """Warn about report that excludes later events.
 
     If  no later events, does nothing.
@@ -193,10 +195,10 @@ def simplified_taglist(tags: Union[list[TagID], str]) -> str:
     return simple_str
 
 
-def inout_summary(day: td.TrackerDay, as_of_when: VTime = VTime("")) -> None:
+def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
     """Print summary table of # of bikes in, out and still at valet."""
     # Count the totals
-    visits = tt_visit.calc_visits(day, as_of_when=as_of_when)
+    visits = Stay.calc_stays(day, as_of_when=as_of_when)
     bikes_on_hand = [v.tag for v in visits.values() if v.still_here]
     num_bikes_on_hand = len(bikes_on_hand)
     regular_in = 0
@@ -237,7 +239,7 @@ def inout_summary(day: td.TrackerDay, as_of_when: VTime = VTime("")) -> None:
         ut.squawk(f"inout_summary() {num_bikes_on_hand=} != {sum_on_hand=}")
 
 
-def audit_report(day: td.TrackerDay, args: list[str]) -> None:
+def audit_report(day: TrackerDay, args: list[str]) -> None:
     """Create & display audit report as at a particular time.
 
     On entry: as_of_when_args is a list that can optionally
@@ -348,7 +350,7 @@ def audit_report(day: td.TrackerDay, args: list[str]) -> None:
     return
 
 
-def csv_dump(day: td.TrackerDay, args) -> None:
+def csv_dump(day: TrackerDay, args) -> None:
     """Dump a few stats into csv for pasting into spreadsheets."""
     filename = (args + [None])[0]
     if not filename:
@@ -362,7 +364,7 @@ def csv_dump(day: td.TrackerDay, args) -> None:
 
     as_of_when = "24:00"
 
-    events = tt_event.calc_events(day, as_of_when)
+    events = Event.calc_events(day, as_of_when)
     # detailed fullness
     pr.iprint()
     print("Time, Regular, Oversize, Total")
@@ -401,7 +403,7 @@ def csv_dump(day: td.TrackerDay, args) -> None:
     pr.iprint()
 
     # stay_start(hrs),duration(hrs),stay_end(hrs)
-    visits = tt_visit.calc_visits(day, as_of_when)  # keyed by tag
+    visits = Stay.calc_stays(day, as_of_when)  # keyed by tag
     # make list of stays keyed by start time
     visits_by_start = {}
     for v in visits.values():
@@ -418,7 +420,7 @@ def csv_dump(day: td.TrackerDay, args) -> None:
             seq += 1
 
 
-def bike_check_ins_report(day: td.TrackerDay, as_of_when: VTime) -> None:
+def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
 
     as_of_when is HH:MM time, assumed to be a correct time.
@@ -607,7 +609,7 @@ def highwater_report(events: dict) -> None:
     one_line("Most combined:", events, max_total_time, 2)
 
 
-def full_chart(day: td.TrackerDay, as_of_when: str = "") -> None:
+def full_chart(day: TrackerDay, as_of_when: str = "") -> None:
     """Make chart of main stats by timeblock."""
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
@@ -638,7 +640,7 @@ def full_chart(day: td.TrackerDay, as_of_when: str = "") -> None:
         )
 
 
-def busy_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
+def busy_graph(day: TrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of busyness."""
     in_marker = "+"  # OØ OX  <>  ↓↑
     out_marker = "x"
@@ -679,7 +681,7 @@ def busy_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
         )
 
 
-def fullness_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
+def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of how full the valet is."""
     regular_marker = "r"
     oversize_marker = "O"
@@ -716,8 +718,8 @@ def fullness_graph(day: td.TrackerDay, as_of_when: str = "") -> None:
 
 
 def busy_report(
-    day: td.TrackerDay,
-    events: dict[VTime, tt_event.Event],
+    day: TrackerDay,
+    events: dict[VTime, Event],
     as_of_when: VTime,
 ) -> None:
     """Report the busiest time(s) of day."""
@@ -765,7 +767,7 @@ def busy_report(
         one_line(rank, activity, busy_times[activity])
 
 
-def qstack_report(visits: dict[TagID : tt_visit.Visit]) -> None:
+def qstack_report(visits: dict[TagID : Stay]) -> None:
     """Report whether visits are more queue-like or more stack-like."""
     # Make a list of tuples: start_time, end_time for all visits.
     visit_times = list(
@@ -829,7 +831,7 @@ def qstack_report(visits: dict[TagID : tt_visit.Visit]) -> None:
     )
 
 
-def day_end_report(day: td.TrackerDay, args: list) -> None:
+def day_end_report(day: TrackerDay, args: list) -> None:
     """Report summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
@@ -860,12 +862,12 @@ def day_end_report(day: td.TrackerDay, args: list) -> None:
     # Bikes in, in various categories.
     bike_check_ins_report(day, as_of_when)
     # Stats that use visits (stays)
-    visits = tt_visit.calc_visits(day, as_of_when)
+    visits = Stay.calc_stays(day, as_of_when)
     visit_lengths_by_category_report(visits)
     visit_statistics_report(visits)
 
 
-def busyness_report(day: td.TrackerDay, args: list) -> None:
+def busyness_report(day: TrackerDay, args: list) -> None:
     """Report more summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
@@ -887,17 +889,17 @@ def busyness_report(day: td.TrackerDay, args: list) -> None:
         )
         return
     # Dict of time (events)
-    events = tt_event.calc_events(day, as_of_when)
+    events = Event.calc_events(day, as_of_when)
     highwater_report(events)
     # Busiest times of day
     busy_report(day, events, as_of_when)
 
     # Queue-like vs stack-like
-    visits = tt_visit.calc_visits(day, as_of_when)
+    visits = Stay.calc_stays(day, as_of_when)
     qstack_report(visits)
 
 
-def dataform_report(day: td.TrackerDay, args: list[str]) -> None:
+def dataform_report(day: TrackerDay, args: list[str]) -> None:
     """Print days activity in timeblocks.
 
     This is to match the (paper/google) data tracking sheets.

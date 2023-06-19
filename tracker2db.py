@@ -36,7 +36,7 @@ import tt_conf as cfg
 import tt_util as ut
 import tt_datafile as df
 import tt_globals as tg
-import tt_event as ev
+from tt_event import Event
 
 
 # Path for the database to be put into
@@ -235,7 +235,7 @@ def data_to_db(filename:str) -> None:
     if total_leftover < 0:
         print(f"**WEIRD: negative leftovers calculated for {filename}")
     # highwater values
-    events = ev.calc_events(data)
+    events = Event.calc_events(data)
     max_regular_num = max([x.num_here_regular for x in events.values()])
     max_oversize_num = max([x.num_here_oversize for x in events.values()])
     max_total_num = max([x.num_here_total for x in events.values()])

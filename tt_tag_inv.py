@@ -10,13 +10,15 @@ Symbols for:
 """
 from tt_globals import *
 import tt_printer as pr
+from tt_time import VTime
+from tt_tag import TagID
 from tt_realtag import Stay
-import tt_trackerday as td
+from tt_trackerday import TrackerDay
 import tt_conf as cfg
 import tt_util as ut
 
 
-def tag_inventory_matrix(day: td.TrackerDay, as_of_when: str = "now") -> None:
+def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
     """Print a matrix of status of all known tags.
 
     This reads these variables from config, each is a symbol/style tuple:
@@ -71,7 +73,7 @@ def tag_inventory_matrix(day: td.TrackerDay, as_of_when: str = "now") -> None:
             pr.iprint(f" {s}", end="")
         pr.iprint()
 
-def colours_report(day: td.TrackerDay) -> None:
+def colours_report(day: TrackerDay) -> None:
     """List colours in use."""
     type_names = {
         UNKNOWN: "None",
@@ -116,7 +118,7 @@ def colours_report(day: td.TrackerDay) -> None:
         )
 
 
-def retired_report(day: td.TrackerDay) -> None:
+def retired_report(day: TrackerDay) -> None:
     """List retired tags."""
     pr.iprint()
     pr.iprint("Retired tags", style=cfg.SUBTITLE_STYLE)
@@ -134,7 +136,7 @@ def retired_report(day: td.TrackerDay) -> None:
     )
 
 
-def tags_config_report(day: td.TrackerDay,args:list) -> None:
+def tags_config_report(day: TrackerDay,args:list) -> None:
     """Report the current tags configuration."""
     as_of_when = (args + ["now"])[0]
     as_of_when = VTime(as_of_when)

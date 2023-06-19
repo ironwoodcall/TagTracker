@@ -21,13 +21,16 @@ Copyright (C) 2023 Julias Hocking
 import os
 import datetime
 import re
+# This is for type hints instead of (eg) int|str
 from typing import (
     Union,
-)  # This is for type hints instead of (eg) int|str
+)
+# This is for squawk()
 from inspect import currentframe, getframeinfo
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
-
+from tt_time import VTime
+from tt_tag import TagID
 
 
 def squawk(whatever="") -> None:

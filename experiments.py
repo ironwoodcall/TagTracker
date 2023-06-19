@@ -7,7 +7,8 @@
 """
 from tt_globals import *
 import tt_printer as pr
-from tt_realtag import RealTag,Stay
+from tt_tag import TagID
+from tt_realtag import Stay
 from tt_trackerday import TrackerDay
 
 # pylint:disable=pointless-string-statement
@@ -121,7 +122,7 @@ New TrackerDay:
             ValetOpen
             bikes_in
             bikes_out
-            tag() - might return a Visit() object
+            tag() - might return a Stay() object
 
 
 """

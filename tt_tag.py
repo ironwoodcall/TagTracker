@@ -9,6 +9,7 @@
 """
 
 import re
+from tt_globals import *
 
 
 class TagID(str):
@@ -211,3 +212,5 @@ class TagID(str):
 
     def __repr__(self) -> str:
         return f"'{self.__str__()}'"
+
+

@@ -32,6 +32,9 @@ except ImportError:
     pass
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_tag import TagID
+from tt_realtag import Stay
+from tt_time import VTime
 import tt_util as ut
 import tt_trackerday as td
 import tt_conf as cfg
@@ -40,7 +43,6 @@ import tt_datafile as df
 import tt_reports as rep
 import tt_publish as pub
 import tt_tag_inv as inv
-from tt_realtag import RealTag, Stay
 
 # Local connfiguration
 # try:
@@ -352,26 +354,26 @@ def query_one_tag(
     tag = Stay(tagid, day)
     if not tag.state:
         pr.iprint(
-            f"Tag {tag.tagid} is not available",
+            f"Tag {tag.tag} is not available",
             style=cfg.WARNING_STYLE,
         )
         return
     if tag.state == RETIRED:
-        pr.iprint(f"Tag {tag.tagid} is retired", style=cfg.WARNING_STYLE)
+        pr.iprint(f"Tag {tag.tag} is retired", style=cfg.WARNING_STYLE)
         return
     if tag.state == BIKE_OUT:
         if multi_line:
             pr.iprint(
-                f"{tag.time_in.tidy}  " f"{tag.tagid} checked IN",
+                f"{tag.time_in.tidy}  " f"{tag.tag} checked IN",
                 style=cfg.ANSWER_STYLE,
             )
             pr.iprint(
-                f"{tag.time_out.tidy}  " f"{tag.tagid} checked OUT",
+                f"{tag.time_out.tidy}  " f"{tag.tag} checked OUT",
                 style=cfg.ANSWER_STYLE,
             )
         else:
             pr.iprint(
-                f"Tag {tag.tagid} bike in at {tag.time_in.short}; "
+                f"Tag {tag.tag} bike in at {tag.time_in.short}; "
                 f"out at {tag.time_out.short}",
                 style=cfg.ANSWER_STYLE,
             )
@@ -379,25 +381,25 @@ def query_one_tag(
     if tag.state == BIKE_IN:
         if multi_line:
             pr.iprint(
-                f"{tag.time_in.tidy}  " f"{tag.tagid} checked IN",
+                f"{tag.time_in.tidy}  " f"{tag.tag} checked IN",
                 style=cfg.ANSWER_STYLE,
             )
             pr.iprint(
-                f"       {tag.tagid} still at valet", style=cfg.ANSWER_STYLE
+                f"       {tag.tag} still at valet", style=cfg.ANSWER_STYLE
             )
         else:
             pr.iprint(
-                f"Tag {tag.tagid} bike in at {tag.time_in.short}; still in",
+                f"Tag {tag.tag} bike in at {tag.time_in.short}; still in",
                 style=cfg.ANSWER_STYLE,
             )
         return
     if tag.state == USABLE:
         pr.iprint(
-            f"Tag {tag.tagid} not used yet today",
+            f"Tag {tag.tag} not used yet today",
             style=cfg.ANSWER_STYLE,
         )
         return
-    pr.iprint(f"Tag {tag.tagid} has unknown state", style=cfg.ERROR_STYLE)
+    pr.iprint(f"Tag {tag.tag} has unknown state", style=cfg.ERROR_STYLE)
 
 
 def query_tag(targets: list[str]) -> None:

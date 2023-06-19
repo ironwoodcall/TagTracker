@@ -20,15 +20,9 @@ Copyright (C) 2023 Julias Hocking
 """
 import re
 
-from tt_tag import TagID
-from tt_time import VTime
-#from tt_trackerday import TrackerDay
-#from tt_visit import Visit
-#from tt_event import Event
-
 # Type aliases only to improve readability and IDE linting
-##Tag = str
-Time = VTime
+MaybeTag = str
+MaybeTime = str
 
 # Constants to use as dictionary keys.
 # E.g. rather than something[this_time]["tag"] = "whatever",

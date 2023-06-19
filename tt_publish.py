@@ -22,9 +22,9 @@ import os
 
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_time import VTime
 import tt_util as ut
-import tt_event
-import tt_trackerday as td
+from tt_trackerday import TrackerDay
 import tt_datafile as df
 import tt_printer as pr
 import tt_reports as rep
@@ -49,7 +49,7 @@ class Publisher:
                 style=cfg.ERROR_STYLE,
             )
 
-    def publish(self,day:td.TrackerDay,as_of_when:str="") -> None:
+    def publish(self,day:TrackerDay,as_of_when:str="") -> None:
         """Publish."""
         if not self.able_to_publish:
             return
@@ -57,14 +57,14 @@ class Publisher:
         publish_reports(day,[as_of_when])
         self.last_publish = VTime("now")
 
-    def maybe_publish(self,day:td.TrackerDay,as_of_when:str="") -> bool:
+    def maybe_publish(self,day:TrackerDay,as_of_when:str="") -> bool:
         """Maybe publish.  Return T if did a publish."""
         timenow = VTime("now")
         time_since_last = ut.time_int(timenow) - ut.time_int(self.last_publish)
         if time_since_last >= self.frequency:
             self.publish(day,as_of_when)
 
-def publish_audit(day: td.TrackerDay, args: list[str]) -> None:
+def publish_audit(day: TrackerDay, args: list[str]) -> None:
     """Publish the audit report."""
     fn = "audit.txt"
     fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
@@ -72,12 +72,12 @@ def publish_audit(day: td.TrackerDay, args: list[str]) -> None:
     rep.audit_report(day, args)
     pr.set_output()
 
-def publish_datafile(day: td.TrackerDay, destination:str) -> None:
+def publish_datafile(day: TrackerDay, destination:str) -> None:
     """Publish a copy of today's datafile."""
     df.write_datafile(df.datafile_name(destination), day)
 
 
-def publish_city_report(day: td.TrackerDay, as_of_when: str = "") -> None:
+def publish_city_report(day: TrackerDay, as_of_when: str = "") -> None:
     """Publish a report for daily insight to the City."""
     as_of_when = as_of_when if as_of_when else "now"
     as_of_when:VTime = VTime(as_of_when)
@@ -95,7 +95,7 @@ def publish_city_report(day: td.TrackerDay, as_of_when: str = "") -> None:
     pr.set_output()
 
 
-def publish_reports(day: td.TrackerDay, args: list = None) -> None:
+def publish_reports(day: TrackerDay, args: list = None) -> None:
     """Publish reports to the PUBLISH directory."""
     as_of_when = (args + [None])[0]
     if not as_of_when:

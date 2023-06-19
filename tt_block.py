@@ -20,9 +20,9 @@ Copyright (C) 2023 Julias Hocking
 
 from typing import Union
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
-import tt_util as ut
-import tt_trackerday as td
-import tt_event
+from tt_trackerday import TrackerDay
+from tt_time import VTime
+from tt_event import Event
 import tt_conf as cfg
 
 
@@ -80,7 +80,7 @@ def block_end(atime: Union[int, str]) -> VTime:
     return VTime(end)
 
 
-def get_timeblock_list(day: td.TrackerDay, as_of_when: str) -> list[VTime]:
+def get_timeblock_list(day: TrackerDay, as_of_when: str) -> list[VTime]:
     """Build a list of timeblocks from beg of day until as_of_when.
 
     Latest block of the day will be the latest timeblock that
@@ -111,7 +111,7 @@ def get_timeblock_list(day: td.TrackerDay, as_of_when: str) -> list[VTime]:
 
 
 def calc_blocks(
-    day: td.TrackerDay, as_of_when: str = None
+    day: TrackerDay, as_of_when: str = None
 ) -> dict[VTime, object]:
     """Create a dictionary of Blocks {start:Block} for whole day."""
     if not as_of_when:
@@ -133,9 +133,9 @@ def calc_blocks(
     # Load check-ins & check-outs into the blocks to which they belong
     # This has to happen carefully, in the order in which they occurred,
     # thus processing as Events rather than reading check_ins & _outs
-    events = tt_event.calc_events(day, as_of_when=as_of_when)
+    events = Event.calc_events(day, as_of_when=as_of_when)
     for evtime in sorted(events.keys()):
-        ev: tt_event.Event
+        ev: Event
         ev = events[evtime]
         bstart = block_start(ev.event_time)
         blk: Block

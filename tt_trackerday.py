@@ -21,6 +21,8 @@ Copyright (C) 2023 Julias Hocking
 
 from typing import Union
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_tag import TagID
+from tt_time import VTime
 import tt_util as ut
 
 

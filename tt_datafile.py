@@ -28,8 +28,10 @@ Copyright (C) 2023 Julias Hocking
 import os
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_tag import TagID
+from tt_time import VTime
 import tt_util as ut
-import tt_trackerday as td
+from tt_trackerday import TrackerDay
 import tt_conf as cfg
 
 # Header strings to use in datafile and tags- config file
@@ -64,7 +66,7 @@ def rotate_datafile(filename: str) -> None:
 
 def read_datafile(
     filename: str, err_msgs: list[str], usable_tags: list[TagID] = None
-) -> td.TrackerDay:
+) -> TrackerDay:
     """Fetch tag data from file into a TrackerDay object.
 
     Read data from a pre-existing data file, returns the info in a
@@ -102,7 +104,7 @@ def read_datafile(
         message_list.append(text)
         return errs + 1
 
-    data = td.TrackerDay()
+    data = TrackerDay()
     errors = 0  # How many errors found reading datafile?
     section = None
     with open(filename, "r", encoding="utf-8") as f:
@@ -344,7 +346,7 @@ def read_datafile(
 
 
 def write_datafile(
-    filename: str, data: td.TrackerDay, header_lines: list = None
+    filename: str, data: TrackerDay, header_lines: list = None
 ) -> None:
     """Write current data to today's data file."""
     lines = []
