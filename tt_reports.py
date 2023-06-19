@@ -735,7 +735,7 @@ def busy_report(
                 end="",
             )
             if time_num < len(times):
-                pr.iprint(", ", end="")
+                pr.iprint(", ", end="",num_indents=0)
         pr.iprint()
 
     # Make an empty dict of busyness of timeblocks.
