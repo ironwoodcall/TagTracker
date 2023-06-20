@@ -1,5 +1,15 @@
 TagTracker by Julias Hocking
 
+0.8.3:
++ RealTag & Stay classes
++ tags inventory matrix
++ show retired tags in audit report
++ improvements to audit report & other headers
+
+0.8.2:
++ TagID and VTime classes
+~ various format & usability tweaks
+
 0.8.1:
 + more reports
 + usability tweaks & bug fixes

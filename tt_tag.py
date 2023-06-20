@@ -9,6 +9,7 @@
 """
 
 import re
+from tt_globals import *
 
 
 class TagID(str):
@@ -21,13 +22,14 @@ class TagID(str):
         prefix:     The tag prefix. E.g. for wa1, is "wa"
         colour:     The tag colour. E.g. for wa1, is "w"
         letter:     The tag letter. E.g. for wa1, is "a"
-        num:        The tag number (as int). E.g. for wa1, is 1
+        number:     The tag number (as int). E.g. for wa1, is 1
         cased:      The tag as a string, uc or lc depending on uc() state
+        canon:      Canonical tagid (always lowercase)
         uc():       Sets uppercase representation on or off.
                     Returns current state. Can be called empty
 
         If the string passed in does not form a valid tag, all the str
-        attributes will be "", the num attribute will be None, and
+        attributes will be "", the number attribute will be None, and
         valid will be False.
 
         Comparisons are made as if comparing full versions of the
@@ -75,6 +77,9 @@ class TagID(str):
             >>>
     """
 
+    # This ugly dodge is to deal with the linter
+    _always_False = False
+
     # _uc indicates whether to print in uppercase (otherwise lc).
     # Canonical representation is *always* lowercase.
     _uc = False
@@ -97,6 +102,7 @@ class TagID(str):
             else:
                 selfstring = ""
         instance = super().__new__(cls, selfstring)
+        instance.canon = selfstring
         instance.original = str(string)
         if bool(selfstring):
             instance.valid = True
@@ -116,8 +122,9 @@ class TagID(str):
         """Initialize attributes not done in __new__()."""
         # str.__init__("")
         # The following idiocy is to keep pylint happy
-        if False:  # pylint:disable=using-constant-test
+        if self._always_False:  # pylint:disable=using-constant-test
             self.original = ""
+            self.canon = ""
             self.valid = False
             self._colour = ""
             self._letter = ""
@@ -205,3 +212,5 @@ class TagID(str):
 
     def __repr__(self) -> str:
         return f"'{self.__str__()}'"
+
+

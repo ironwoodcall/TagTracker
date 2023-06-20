@@ -28,8 +28,10 @@ Copyright (C) 2023 Julias Hocking
 import os
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_tag import TagID
+from tt_time import VTime
 import tt_util as ut
-import tt_trackerday as td
+from tt_trackerday import TrackerDay
 import tt_conf as cfg
 
 # Header strings to use in datafile and tags- config file
@@ -63,8 +65,8 @@ def rotate_datafile(filename: str) -> None:
 
 
 def read_datafile(
-    filename: str, err_msgs: list[str], usable_tags: list[Tag] = None
-) -> td.TrackerDay:
+    filename: str, err_msgs: list[str], usable_tags: list[TagID] = None
+) -> TrackerDay:
     """Fetch tag data from file into a TrackerDay object.
 
     Read data from a pre-existing data file, returns the info in a
@@ -102,10 +104,11 @@ def read_datafile(
         message_list.append(text)
         return errs + 1
 
-    data = td.TrackerDay()
+    data = TrackerDay()
     errors = 0  # How many errors found reading datafile?
     section = None
     with open(filename, "r", encoding="utf-8") as f:
+
         for line_num, line in enumerate(f, start=1):
             # ignore blank or # comment lines
             line = re.sub(r"\s*#.*", "", line)
@@ -154,10 +157,10 @@ def read_datafile(
                 r = re.match(
                     rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES}) *(.+)", line
                 )
-                maybetime = ut.time_str(r.group(2))
+                maybetime = VTime(r.group(2))
                 if not maybetime:
                     errors = data_read_error(
-                        "Unable to read valet open/close time",
+                        f"Unable to understand valet open/close time '{maybetime.original}'",
                         err_msgs,
                         errs=errors,
                         fname=filename,
@@ -211,7 +214,7 @@ def read_datafile(
             if section in [REGULAR, OVERSIZE, RETIRED]:
                 # Break each line into 0 or more tags
                 bits = ut.splitline(line)
-                taglist = [ut.fix_tag(x, uppercase=False) for x in bits]
+                taglist = [TagID(x) for x in bits]
                 taglist = [x for x in taglist if x]  # remove blanks
                 # Any errors?
                 if len(taglist) != len(bits):
@@ -225,11 +228,11 @@ def read_datafile(
                     continue
                 # Looks like we have some tags
                 if section == REGULAR:
-                    data.regular += taglist
+                    data.regular |= set(taglist)
                 elif section == OVERSIZE:
-                    data.oversize += taglist
+                    data.oversize |= set(taglist)
                 elif section == RETIRED:
-                    data.retired += taglist
+                    data.retired |= set(taglist)
                 else:
                     ut.squawk(f"Bad section value in read_datafile(), '{section}")
                     return
@@ -251,7 +254,7 @@ def read_datafile(
                     fline=line_num,
                 )
                 continue
-            this_tag = ut.fix_tag(cells[0], uppercase=False)
+            this_tag = TagID(cells[0])
             if not (this_tag):
                 errors = data_read_error(
                     "String does not appear to be a tag",
@@ -270,7 +273,7 @@ def read_datafile(
                     fline=line_num,
                 )
                 continue
-            this_time = ut.time_str(cells[1])
+            this_time = VTime(cells[1])
             if not (this_time):
                 errors = data_read_error(
                     "Poorly formed time value",
@@ -335,18 +338,15 @@ def read_datafile(
                 ut.squawk("PROGRAM ERROR: should not reach this code spot")
                 errors += 1
                 continue
+
     if errors:
         err_msgs.append(f"Found {errors} errors in datafile {filename}")
-    # remove duplicates from tag reference lists
-    data.regular = sorted(list(set(data.regular)))
-    data.oversize = sorted(list(set(data.oversize)))
-    data.retired = sorted(list(set(data.retired)))
     # Return today's working data.
     return data
 
 
 def write_datafile(
-    filename: str, data: td.TrackerDay, header_lines: list = None
+    filename: str, data: TrackerDay, header_lines: list = None
 ) -> None:
     """Write current data to today's data file."""
     lines = []
@@ -355,7 +355,7 @@ def write_datafile(
     else:
         lines.append(
             "# TagTracker datafile (data file) created on "
-            f"{ut.get_date()} {ut.get_time()}"
+            f"{ut.get_date()} {VTime('now')}"
         )
         lines.append(f"# TagTracker version {ut.get_version()}")
     # Valet data, opening & closing hours
@@ -368,24 +368,24 @@ def write_datafile(
 
     lines.append(HEADER_BIKES_IN)
     for tag, atime in data.bikes_in.items():  # for each bike checked in
-        lines.append(f"{tag.lower()},{atime}")  # add a line "tag,time"
+        lines.append(f"{tag.canon},{atime}")  # add a line "tag,time"
     lines.append(HEADER_BIKES_OUT)
     for tag, atime in data.bikes_out.items():  # for each  checked
-        lines.append(f"{tag.lower()},{atime}")  # add a line "tag,time"
+        lines.append(f"{tag.canon},{atime}")  # add a line "tag,time"
     # Also write tag info of which bikes are oversize, which are regular.
     # This to make complete bundles for historic information
     lines.append("# Following sections are context for the check-ins/outs")
     lines.append(HEADER_REGULAR)
-    for group in ut.sort_tags([t.lower() for t in data.regular]):
-        lines.append(" ".join(group))
+    for group in ut.taglists_by_prefix(data.regular):
+        lines.append(" ".join(group).lower())
     lines.append(HEADER_OVERSIZE)
-    for group in ut.sort_tags([t.lower() for t in data.oversize]):
-        lines.append(" ".join(group))
+    for group in ut.taglists_by_prefix(data.oversize):
+        lines.append(" ".join(group).lower())
     lines.append(HEADER_RETIRED)
-    lines.append(" ".join([t.lower() for t in data.retired]))
+    lines.append(" ".join(data.retired).lower())
     lines.append(HEADER_COLOURS)
     for letter, name in data.colour_letters.items():
-        lines.append(f"{letter},{name}")
+        lines.append(f"{letter.lower()},{name}")
     lines.append("# Normal end of file")
     # Write the data to the file.
     with open(filename, "w", encoding="utf-8") as f:  # write stored lines to file

@@ -21,9 +21,8 @@ Copyright (C) 2023 Julias Hocking
 import re
 
 # Type aliases only to improve readability and IDE linting
-Tag = str
-Time = str
-TagDict = dict[Tag, Time]
+MaybeTag = str
+MaybeTime = str
 
 # Constants to use as dictionary keys.
 # E.g. rather than something[this_time]["tag"] = "whatever",
@@ -42,6 +41,7 @@ REGULAR = chr(0x2192) + "regular"
 OVERSIZE = chr(0x2192) + "oversize"
 MIXED = chr(0x2192) + "mixed"
 RETIRED = chr(0x2192) + "retired"
+USABLE = chr(0x2192) + "usable"
 TOTAL = chr(0x2192) + "total"
 COUNT = chr(0x2192) + "count"
 TIME = chr(0x2192) + "time"
@@ -69,9 +69,6 @@ OFF = chr(0x2192) + "off"
 # ]:
 #   globals()[keyword] = chr(0x2192) + keyword.lower()
 
-
-# Regular expression for parsing tags -- here & in main program.
-PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
 # Date re checks for date that might be in another string
 _DATE_RE = r"(2[0-9][0-9][0-9])[/-]([01]?[0-9])[/-]([0123]?[0-9])"
 # Match a date within another string

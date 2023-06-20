@@ -125,9 +125,9 @@ def readafile( file:str ) -> Tuple[dict,dict]:
                     check_time = (ut.time_int(block_start)
                             + offset)
                 if inout == BIKE_IN:
-                    check_ins[tag] = ut.time_str(check_time)
+                    check_ins[tag] = VTime(check_time)
                 elif inout == BIKE_OUT:
-                    check_outs[tag] = ut.time_str(check_time)
+                    check_outs[tag] = VTime(check_time)
     return (dict(check_ins), dict(check_outs))
 
 def clean(file:str, check_ins:dict, check_outs:dict) -> None:
@@ -168,7 +168,7 @@ def clean(file:str, check_ins:dict, check_outs:dict) -> None:
         check_outs.pop(tag)
         check_ins.pop(tag)
 
-def write_file(oldf:str, newf:str, filedate:str, hours:tuple,
+def write_file(oldf:str, newf:str, filedate:str, the_hours:tuple,
         check_ins:dict, check_outs:dict ) ->None:
     """Write the records to a tagtracker-complians file."""
     with open(newf , 'w',encoding='utf-8') as f: # write stored lines to file
@@ -180,8 +180,8 @@ def write_file(oldf:str, newf:str, filedate:str, hours:tuple,
             for msg in messages[ oldf ]:
                 f.write(f"# {msg}\n")
         f.write(f"{HEADER_VALET_DATE} {filedate}\n")
-        f.write(f"{HEADER_VALET_OPENS} {hours[0]}\n")
-        f.write(f"{HEADER_VALET_CLOSES} {hours[1]}\n")
+        f.write(f"{HEADER_VALET_OPENS} {the_hours[0]}\n")
+        f.write(f"{HEADER_VALET_CLOSES} {the_hours[1]}\n")
         f.write(f"{BIKE_IN_HEADER}\n")
         for tag,time in check_ins.items():
             f.write(f"{tag},{time}\n")
@@ -201,9 +201,9 @@ def filename_to_date(filename:str) -> str:
     prev_day = this_day - datetime.timedelta(1)
     return datetime.datetime.strftime(prev_day, '%Y-%m-%d')
 
-def valet_hours(date:str) -> Tuple[VTime,VTime]:
-    """Report what time the valet opened this date."""
-    day = datetime.datetime.strptime(date,"%Y-%m-%d")
+def valet_hours(the_date:str) -> Tuple[VTime,VTime]:
+    """Report what time the valet opened this the_date."""
+    day = datetime.datetime.strptime(the_date,"%Y-%m-%d")
     day_of_week = datetime.datetime.weekday(day) # 0..6
     spring = {
         0: ("10:00","17:00"),   # sunday
@@ -223,13 +223,13 @@ def valet_hours(date:str) -> Tuple[VTime,VTime]:
         5: ("07:30", "22:00"),
         6: ("10:00", "12:00"),
     }
-    if date == "2023-06-11":    # Unknown special day
+    if the_date == "2023-06-11":    # Unknown special day
         return ("10:00","18:30")
-    elif date == "2023-05-22": # Victoria Day
+    elif the_date == "2023-05-22": # Victoria Day
         return ("09:00","17:00")
-    elif date >= "2023-05-01":
+    elif the_date >= "2023-05-01":
         return summer[day_of_week]
-    elif date >= "2023-03-17":   # opening day
+    elif the_date >= "2023-03-17":   # opening day
         return spring[day_of_week]
     else:
         return ("","")

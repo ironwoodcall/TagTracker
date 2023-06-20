@@ -21,10 +21,16 @@ Copyright (C) 2023 Julias Hocking
 import os
 import datetime
 import re
-from typing import Union  # This is for type hints instead of (eg) int|str
+# This is for type hints instead of (eg) int|str
+from typing import (
+    Union,
+)
+# This is for squawk()
 from inspect import currentframe, getframeinfo
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_time import VTime
+from tt_tag import TagID
 
 
 def squawk(whatever="") -> None:
@@ -37,6 +43,12 @@ def squawk(whatever="") -> None:
     lineno = cf.f_back.f_lineno
     print(f"{filename}:{lineno}: {whatever}")
 
+def decomment(string:str) -> str:
+    """Remove any part of the string that starts with '#'."""
+    r = re.match(r"^([^#]*) *#",string)
+    if r:
+        return r.group(1)
+    return string
 
 def get_date(long: bool = False) -> str:
     """Return current date as string YYYY-MM-DD or a longer str if long=True."""
@@ -47,7 +59,9 @@ def get_date(long: bool = False) -> str:
 
 def long_date(date: str) -> str:
     """Convert YYYY-MM-DD to a long statement of the date."""
-    return datetime.datetime.fromisoformat(date).strftime("%A %B %d (%Y-%m-%d)")
+    return datetime.datetime.fromisoformat(date).strftime(
+        "%A %B %d (%Y-%m-%d)"
+    )
 
 
 def date_str(maybe_date: str) -> str:
@@ -66,9 +80,10 @@ def date_str(maybe_date: str) -> str:
     return f"{y:04d}-{m:02d}-{d:02d}"
 
 
-def get_time() -> Time:
+def get_time() -> VTime:
     """Return current time as string: HH:MM."""
-    return datetime.datetime.today().strftime("%H:%M")
+    # FIXME: get_time() deprecated, use VTime("now") instead
+    return VTime(datetime.datetime.today().strftime("%H:%M"))
 
 
 def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
@@ -85,6 +100,7 @@ def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
     might be a legitimate time, test for the type of the return or
     test whether "is None".
     """
+    # FIXME: time_int() deprecated, use VTime() instead
     if isinstance(maybe_time, float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time, str):
@@ -113,7 +129,7 @@ def time_str(
     maybe_time: Union[int, str, float, None],
     allow_now: bool = False,
     default_now: bool = False,
-) -> Time:
+) -> VTime:
     """Return maybe_time as HH:MM (or "").
 
     Input can be int/float (duration or minutes since midnight),
@@ -127,38 +143,40 @@ def time_str(
     Return is either "" (doesn't look like a valid time) or
     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
     """
+    # FIXME: time_str() deprecated, use VTime() object
     if not maybe_time and default_now:
-        return get_time()
+        return VTime("now")
     if isinstance(maybe_time, float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time, str):
         if maybe_time.lower() == "now" and allow_now:
-            return get_time()
+            return VTime("now")
         r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
         if not (r):
-            return ""
+            return VTime("")
         h = int(r.group(1))
         m = int(r.group(2))
         # Test for an impossible time
         if h > 24 or m > 59 or (h * 60 + m) > 1440:
-            return ""
+            return VTime("")
     elif maybe_time is None:
-        return ""
+        return VTime("")
     elif not isinstance(maybe_time, int):
         squawk(f"PROGRAM ERROR: called time_str({maybe_time=})")
-        return ""
+        return VTime("")
     elif isinstance(maybe_time, int):
         # Test for impossible time.
         if not (0 <= maybe_time <= 1440):
-            return ""
+            return VTime("")
         h = maybe_time // 60
         m = maybe_time % 60
     # Return 5-digit time string
-    return f"{h:02d}:{m:02d}"
+    return VTime(f"{h:02d}:{m:02d}")
 
 
 def pretty_time(atime: Union[int, str, float], trim: bool = False) -> str:
     """Replace lead 0 in HH:MM with blank (or remove, if 'trim' )."""
+    # FIXME: pretty_time() deprecated; use VTime().tidy or VTime().short
     atime = time_str(atime)
     if not atime:
         return ""
@@ -168,7 +186,9 @@ def pretty_time(atime: Union[int, str, float], trim: bool = False) -> str:
     return atime
 
 
-def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[str]:
+def parse_tag(
+    maybe_tag: str, must_be_in=None, uppercase: bool = False
+) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -189,7 +209,10 @@ def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[
         tag_letter: 1 lc letter, the first character on the tag
         tag_number: a sequence number, without lead zeroes.
     """
+    # FIXME: parse_tag() is  deprecated, use TagID()
     maybe_tag = maybe_tag.lower()
+    # Regular expression for parsing tags
+    PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
     r = PARSE_TAG_RE.match(maybe_tag)
     if not bool(r):
         return []
@@ -207,7 +230,9 @@ def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[
     return [tag_id, tag_colour, tag_letter, tag_number]
 
 
-def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) -> Tag:
+def fix_tag(
+    maybe_tag: str, must_be_in: list = None, uppercase: bool = False
+) -> str:
     """Turn 'str' into a canonical tag name.
 
     If must_be_in is exists & not an empty list then, will force
@@ -215,60 +240,41 @@ def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) ->
 
     If uppercase then returns the tag in uppercase, default is lowercase.
     """
+    # FIXME fix_tag fn is now deprecated, useTagID()
     bits = parse_tag(maybe_tag, must_be_in=must_be_in, uppercase=uppercase)
     return bits[0] if bits else ""
 
 
-def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
+def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
     """Get tags sorted into lists by their prefix.
 
     Return a list of lists of tags, sorted and de-duped. E.g.
-        sort_tags(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
+        taglists_by_prefix(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
         --> [['be1','be9','be10],['wa5','wa12'],['wd15']]
 
     Preconditions:
         - tags are either all uppercase or all lowercase
         - all tags are syntactically valid
     """
-    has_uc = bool(re.search(r"[A-Z]", "".join(unsorted)))
-    has_lc = bool(re.search(r"[a-z]", "".join(unsorted)))
-    if has_uc == has_lc:
-        squawk(f"error call to sort_tags(), list is mixed case: '{unsorted=}'")
-        unsorted = [x.upper() for x in unsorted]
-        uppercase = True
-    else:
-        uppercase = has_uc
 
-    # Put all the tags into sets, one set for each prefix
-    tagsets = {}
+    # Make a dictionary of all tags keyed by their prefixes
+    prefixed_tags = dict(
+        zip([tag.prefix for tag in unsorted], [[] for _ in range(0, 100)])
+    )
     for tag in unsorted:
-        bits = parse_tag(
-            tag,
-            uppercase=uppercase,
-        )
-        prefix = f"{bits[1]}{bits[2]}"
-        num = int(bits[3])
-        if prefix not in tagsets:
-            tagsets[prefix] = set()
-        tagsets[prefix].add(num)
-    # Make a list of lists with sorted tags
+        prefixed_tags[tag.prefix].append(tag)
     outerlist = []
-    for prefix in sorted(tagsets.keys()):
-        outerlist.append([f"{prefix}{n}" for n in sorted(list(tagsets[prefix]))])
+    for prefix in sorted(prefixed_tags.keys()):
+        outerlist.append(sorted(prefixed_tags[prefix]))
     return outerlist
 
-
-def tags_by_prefix(tags: list[Tag]) -> dict[str, list[Tag]]:
+def tagnums_by_prefix(tags: list[TagID]) -> dict[str, list[int]]:
     """Return a dict of tag prefixes with lists of associated tag numbers."""
     prefixes = {}
     for tag in tags:
-        # pylint: disable=unbalanced-tuple-unpacking
-        (t_colour, t_letter, t_number) = parse_tag(tag, uppercase=False)[1:4]
-        # pylint: disable=unbalanced-tuple-unpacking
-        prefix = f"{t_colour}{t_letter}"
-        if prefix not in prefixes:
-            prefixes[prefix] = []
-        prefixes[prefix].append(int(t_number))
+        if tag.prefix not in prefixes:
+            prefixes[tag.prefix] = []
+        prefixes[tag.prefix].append(tag.number)
     for numbers in prefixes.values():
         numbers.sort()
     return prefixes
