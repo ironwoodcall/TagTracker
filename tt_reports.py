@@ -60,8 +60,8 @@ def recent(day: TrackerDay, args: list[str]) -> None:
 
     def format_one(atime: VTime, tag: TagID, check_in: bool) -> str:
         """Format one line of output."""
-        in_tag = tag if check_in else ""
-        out_tag = "" if check_in else tag
+        in_tag = f"{tag}" if check_in else ""
+        out_tag = "" if check_in else f"{tag}"
         return f"{atime.tidy}   {in_tag:<5s} {out_tag:<5s}"
 
     (start_time, end_time) = (args + [None, None])[:2]
@@ -306,7 +306,7 @@ def audit_report(day: TrackerDay, args: list[str]) -> None:
     )
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
-        line = f"{prefix.upper():3>} "
+        line = f"{prefix:3>} "
         for i in range(0, max(numbers) + 1):  # FIXME: can numbers ever be []?
             if i in numbers:
                 s = f"{i:02d}"
@@ -334,7 +334,7 @@ def audit_report(day: TrackerDay, args: list[str]) -> None:
     pr.iprint(bikes_out_title, style=cfg.SUBTITLE_STYLE)
     for prefix in sorted(prefixes_returned_out.keys()):
         numbers = prefixes_returned_out[prefix]
-        line = f"{prefix.upper():3>} "
+        line = f"{prefix:3>} "
         for i in range(0, max(numbers) + 1):
             if i in numbers:
                 s = f"{i:02d}"
