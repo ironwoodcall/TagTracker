@@ -133,8 +133,8 @@ def set_output(filename: str = "") -> None:
         try:
             _destination_file = open(filename, mode="wt", encoding="utf-8")
         except OSError:
-            ut.squawk(f"OSError opening destination file '{_destination}'")
-            ut.squawk("Setting print redirect off.")
+            ut.squawk(f"OSError opening destination file '{filename}'")
+            ut.squawk("Ignoring print redirect request.")
             _destination = ""
             return
     _destination = filename

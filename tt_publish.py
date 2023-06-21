@@ -74,6 +74,8 @@ def publish_audit(day: TrackerDay, args: list[str]) -> None:
     fn = "audit.txt"
     fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(fullfn)
+    if not pr.get_output(): # changing the file destination failed
+        return
     rep.audit_report(day, args)
     pr.set_output()
 
@@ -90,6 +92,8 @@ def publish_city_report(day: TrackerDay, as_of_when: str = "") -> None:
     as_of_when:VTime = VTime(as_of_when)
     fullfn = os.path.join(cfg.REPORTS_FOLDER, "city.txt")
     pr.set_output(fullfn)
+    if not pr.get_output(): # changing the file destination failed
+        return
     rep.day_end_report(day, [as_of_when])
     pr.iprint()
     rep.busyness_report(day, [as_of_when])
@@ -115,6 +119,9 @@ def publish_reports(day: TrackerDay, args: list = None) -> None:
     fn = "day_end.txt"
     day_end_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
     pr.set_output(day_end_fn)
+    if not pr.get_output(): # changing the file destination failed
+      return
+
     pr.iprint(ut.long_date(day.date))
     pr.iprint(f"Report generated {ut.get_date()} {VTime('now')}")
     rep.day_end_report(day, [as_of_when])
