@@ -3,6 +3,12 @@ TagTracker by Julias Hocking
 0.8.3.3:
 + Slightly better file-write error management
 
+0.8.3.2:
+~ minor uc/loc bugs issue #196
+
+0.8.3.1
++ squawk bug issue 188
+
 0.8.3:
 + RealTag & Stay classes
 + tags inventory matrix

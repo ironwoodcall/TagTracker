@@ -19,29 +19,31 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import os
+import sys
 import datetime
 import re
 # This is for type hints instead of (eg) int|str
-from typing import (
-    Union,
-)
-# This is for squawk()
-from inspect import currentframe, getframeinfo
+from typing import Union
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_time import VTime
 from tt_tag import TagID
 
-
-def squawk(whatever="") -> None:
+def squawk(whatever:str="") -> None:
     """Print whatever with file & linenumber in front of it.
 
     This is intended for programming errors not prettiness.
+
+    Additional caller info:
+        caller_path = f.f_globals['__file__'] (though fails if squawk()
+            called from interpreter, as __file__ not in globals at that point)
+        caller_file = os.path.basename(caller_path)
     """
-    cf = currentframe()
-    filename = os.path.basename(getframeinfo(cf).filename)
-    lineno = cf.f_back.f_lineno
-    print(f"{filename}:{lineno}: {whatever}")
+    f = sys._getframe(1) #pylint:disable=protected-access
+    caller_module = f.f_globals['__name__']
+    caller_function = f.f_code.co_name
+    caller_line_no = f.f_lineno
+    print(f"{caller_module}:{caller_function}():{caller_line_no: {whatever}}")
 
 def decomment(string:str) -> str:
     """Remove any part of the string that starts with '#'."""
