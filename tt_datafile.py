@@ -397,7 +397,7 @@ def write_datafile(
                 f.write(line)
                 f.write("\n")
     except OSError:
-        ut.squawk(f"ERROR: Unable to create datafile '{filename}'")
+        ut.squawk(f"PROBLEM: Unable to create datafile '{filename}'")
         return False
     return True
 

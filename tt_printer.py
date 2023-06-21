@@ -117,27 +117,31 @@ _destination: str = ""  # blank == screen
 _destination_file = None
 
 
-def set_output(filename: str = "") -> None:
+def set_output(filename: str = "") -> bool:
     """Set print destination to filename or (default) screen.
 
     Only close the file if it has changed to a different filename
     (ie not just to screen).
 
+    Returns True/False if able to change to the new filename.
+    (Always True if returning output to screen.)
     """
     global _destination, _destination_file
     if filename == _destination:
-        return
+        return True
     if _destination:
         _destination_file.close()
     if filename:
         try:
             _destination_file = open(filename, mode="wt", encoding="utf-8")
         except OSError:
-            ut.squawk(f"OSError opening destination file '{filename}'")
-            ut.squawk("Ignoring print redirect request.")
+            iprint(f"OSError opening destination file '{filename}'",
+                   style=cfg.ERROR_STYLE)
+            iprint("Ignoring print redirect request.",style=cfg.ERROR_STYLE)
             _destination = ""
-            return
+            return False
     _destination = filename
+    return True
 
 
 def get_output() -> str:
