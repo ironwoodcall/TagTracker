@@ -104,7 +104,7 @@ def create_connection(db_file) -> sqlite3.Connection:
     connection = None
     try:
         connection = sqlite3.connect(db_file)
-        print(sqlite3.version)
+        print(f"SQLite version {sqlite3.version}")
     except sqlite3.Error as sqlite_err:
         print("sqlite ERROR in create_connection() -- ", sqlite_err)
     return connection
@@ -143,42 +143,39 @@ def data_to_db(filename: str) -> None:
             print(f" Bike type parsing problem for {tag}")
             return None
 
-    def weekday(date_str):
-        """Return int 0-6 day of the week; Mon-Sun."""
-        date_bits = re.match(tg.DATE_FULL_RE, date_str)
-        year = int(date_bits.group(1))
-        month = int(date_bits.group(2))
-        day = int(date_bits.group(3))
-        weekday = calendar.weekday(year, month, day)
-        return weekday
-
     if not os.path.isfile(filename):
         print(f"File not found (data_to_db()): {filename}")
         return None
 
     print(f"\nWorking on {filename}")
     data = df.read_datafile(f"{filename}", err_msgs=[])
+
+    date = data.date
+    if not date:  # get from filename for old data formats (hopefully never)
+        print(f" WARN: needed filename date for {filename}")
+        date = re.search(DATE_RE, filename).group(0)
+
     if not data.bikes_in:  # if no visits to record, stop now
         print(f" No visits in {filename}")
         globals()["EMPTY_COUNT"] += 1
-        return None
+        return
     globals()["SUCCESS_COUNT"] += 1
 
     if data.regular and data.oversize:
         print(" Tags: datafile tag lists loaded")
         regular_tags = data.regular
         oversize_tags = data.oversize
-    else:  # read tags.txt only if necessary (prefer context of the time)
-        print(f" Tags: using {cfg.TAG_CONFIG_FILE} as no tag info in datafile")
-        tags_data = df.read_datafile(cfg.TAG_CONFIG_FILE, err_msgs=[])
-        regular_tags = tags_data.regular
-        oversize_tags = tags_data.oversize
+    else:  # ask for appropriate tags context and stop now for this datafile
+        print(f" ERROR: no tags context found in datafile {filename}")
+        print("  This is likely to create bad data!")
+        print(
+            "  Please add appropriate tags context to this file, "
+            "then try again."
+        )
+        return
 
-    date = data.date
-    if not date:  # get from filename for old data formats
-        date = re.search(DATE_RE, filename).group(0)
     # TABLE_DAYS handling
-    # simple counts
+    # Simple counts
     regular_parked = 0
     oversize_parked = 0
     for tag in data.bikes_in.keys():
@@ -190,8 +187,9 @@ def data_to_db(filename: str) -> None:
     total_parked = regular_parked + oversize_parked
     total_leftover = len(data.bikes_in) - len(data.bikes_out)
     if total_leftover < 0:
-        print(f"**WEIRD: negative leftovers calculated for {filename}")
-    # highwater values
+        print(f"WARN: negative leftovers calculated for {filename}")
+
+    # Highwater values
     events = ev.calc_events(data)
     max_regular_num = max([x.num_here_regular for x in events.values()])
     max_oversize_num = max([x.num_here_oversize for x in events.values()])
@@ -216,51 +214,61 @@ def data_to_db(filename: str) -> None:
             and not max_total_time
         ):
             max_total_time = atime
-    # open and close times
+
+    # Open and close times
     if data.opening_time and data.closing_time:
         time_open = data.opening_time
         time_close = data.closing_time
     else:  # guess with bike check-ins
         time_open = data.earliest_event()
         time_close = data.latest_event()
-    # int day of week
-    weekday = weekday(date)
 
-    cmd_day_insert = f"""INSERT INTO {TABLE_DAYS} (
-                    {COL_DATE},
-                    {COL_REGULAR},
-                    {COL_OVERSIZE},
-                    {COL_TOTAL},
-                    {COL_TOTAL_LEFTOVER},
-                    {COL_MAX_REGULAR},
-                    {COL_MAX_REGULAR_TIME},
-                    {COL_MAX_OVERSIZE},
-                    {COL_MAX_OVERSIZE_TIME},
-                    {COL_MAX_TOTAL},
-                    {COL_MAX_TOTAL_TIME},
-                    {COL_TIME_OPEN},
-                    {COL_TIME_CLOSE},
-                    {COL_DAY_OF_WEEK},
-                    {COL_BATCH}
-                    ) VALUES (
-                    '{date}',
-                    {regular_parked},
-                    {oversize_parked},
-                    {total_parked},
-                    {total_leftover},
-                    {max_regular_num},
-                    '{max_regular_time}',
-                    {max_oversize_num},
-                    '{max_oversize_time}',
-                    {max_total_num},
-                    '{max_total_time}',
-                    '{time_open}',
-                    '{time_close}',
-                    {weekday},
-                    {batch}
-                    );"""
-    sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';")
-    sql_do(cmd_day_insert)
+    # Find int day of week
+    date_bits = re.match(tg.DATE_FULL_RE, date)
+    year = int(date_bits.group(1))
+    month = int(date_bits.group(2))
+    day = int(date_bits.group(3))
+    weekday = calendar.weekday(year, month, day)
+
+    if not sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';"):
+        print(f"ERROR: delete day summary failed for date '{date}'")
+
+    if not sql_do(
+        f"""INSERT INTO {TABLE_DAYS} (
+                {COL_DATE},
+                {COL_REGULAR},
+                {COL_OVERSIZE},
+                {COL_TOTAL},
+                {COL_TOTAL_LEFTOVER},
+                {COL_MAX_REGULAR},
+                {COL_MAX_REGULAR_TIME},
+                {COL_MAX_OVERSIZE},
+                {COL_MAX_OVERSIZE_TIME},
+                {COL_MAX_TOTAL},
+                {COL_MAX_TOTAL_TIME},
+                {COL_TIME_OPEN},
+                {COL_TIME_CLOSE},
+                {COL_DAY_OF_WEEK},
+                {COL_BATCH}
+                ) VALUES (
+                '{date}',
+                {regular_parked},
+                {oversize_parked},
+                {total_parked},
+                {total_leftover},
+                {max_regular_num},
+                '{max_regular_time}',
+                {max_oversize_num},
+                '{max_oversize_time}',
+                {max_total_num},
+                '{max_total_time}',
+                '{time_open}',
+                '{time_close}',
+                {weekday},
+                '{batch}'
+                );"""
+    ):
+        print("ERROR: failed to insert day summary")
 
     # TABLE_VISITS handling
     closing = select_closing_time(date)  # fetch checkout time for whole day
@@ -270,7 +278,7 @@ def data_to_db(filename: str) -> None:
         time_in = time
         if tag_name in data.bikes_out.keys():
             time_out = data.bikes_out[tag]
-            leftover = "No"
+            leftover = "no"
         else:  # no check-out recorded
             if closing:
                 print(
@@ -281,29 +289,31 @@ def data_to_db(filename: str) -> None:
             else:
                 print(f" Leftover: using latest event time for {tag}")
                 time_out = data.latest_event()  # approx. as = to last event
-            leftover = "Yes"
+            leftover = "yes"
         time_stay = duration(time_in, time_out)
-        cmd_visit_insert = f"""INSERT INTO {TABLE_VISITS} (
-                        {COL_ID},
-                        {COL_DATE},
-                        {COL_TAG},
-                        {COL_BIKETYPE},
-                        {COL_TIME_IN},
-                        {COL_TIME_OUT},
-                        {COL_DURATION},
-                        {COL_LEFTOVER},
-                        {COL_BATCH}
-                        ) VALUES (
-                        '{date}.{tag}',
-                        '{date}',
-                        '{tag}',
-                        '{what_bike_type(tag)}',
-                        '{time_in}',
-                        '{time_out}',
-                        '{time_stay}',
-                        '{leftover}',
-                        '{batch}');"""
-        sql_do(cmd_visit_insert)  # no notes added at this stage
+        if not sql_do(
+            f"""INSERT INTO {TABLE_VISITS} (
+                    {COL_ID},
+                    {COL_DATE},
+                    {COL_TAG},
+                    {COL_BIKETYPE},
+                    {COL_TIME_IN},
+                    {COL_TIME_OUT},
+                    {COL_DURATION},
+                    {COL_LEFTOVER},
+                    {COL_BATCH}
+                    ) VALUES (
+                    '{date}.{tag}',
+                    '{date}',
+                    '{tag}',
+                    '{what_bike_type(tag)}',
+                    '{time_in}',
+                    '{time_out}',
+                    '{time_stay}',
+                    '{leftover}',
+                    '{batch}');"""
+        ):
+            print(f"failed to insert a stay for {tag}")
     try:
         conn.commit()  # commit one datafile transaction
         print(f" Committed records for {total_parked} visits!")
@@ -337,13 +347,15 @@ def select_closing_time(date: str) -> Union[ut.Time, bool]:
         return False
 
 
-def sql_do(sql_statement: str) -> None:
+def sql_do(sql_statement: str) -> bool:
     """Execute a SQL statement, or print the slite3 error."""
     try:
         curs = conn.cursor()
         curs.execute(sql_statement)
+        return True
     except sqlite3.Error as sqlite_err:
-        print("sqlite ERROR using sql_do() -- ", sqlite_err)
+        print("SQLite ERROR using sql_do() -- ", sqlite_err)
+        return False
 
 
 def get_yesterday() -> str:
@@ -358,12 +370,17 @@ def get_yesterday() -> str:
 
 
 if __name__ == "__main__":
-    print(f"Connecting to database at {DB_FILEPATH}...")    
+    print(f"Connecting to database at {DB_FILEPATH}...")
     conn = create_connection(DB_FILEPATH)
 
+    if sql_do("PRAGMA foreign_keys=ON;"):
+        print("Enabled foreign keys")
+    else:
+        print("")
+
     date_today = ut.get_date()
-    batch = f"{date_today}-{ut.get_time()}"
-    print(f"Batch / current time: '{batch}'")
+    batch = f"{date_today}T{ut.get_time()}"
+    print(f"Batch: '{batch}'")
 
     SUCCESS_COUNT = 0
     EMPTY_COUNT = 0
@@ -389,15 +406,13 @@ if __name__ == "__main__":
     conn.close()
 
     print(
-        f"\n\nCommitted data from {SUCCESS_COUNT} datafiles "
+        f"\n\nProcessed data from {SUCCESS_COUNT} datafiles "
         f"({EMPTY_COUNT} empty)."
     )
-    input("Press [Enter] to exit.")
 
 # pylint: disable = pointless-string-statement
 """
 Add checks for integrity - DB and datafiles(?)
-- missing dates
 - new data incoming that has many fewer records than what is already there
 - unusual open/close times (which might indicate sloppy operators, 
 or a corrupt file)
