@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.8.3.3:
++ Slightly better file-write error management
+
 0.8.3:
 + RealTag & Stay classes
 + tags inventory matrix
