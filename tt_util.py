@@ -306,7 +306,7 @@ def get_version() -> str:
         # Read startup header from changelog.
         with open(changelog, "r", encoding="utf-8") as f:
             for line in f:
-                r = re.match(r"^ *([0-9]+\.[0-9]+\.[0-9]+): *$", line)
+                r = re.match(r"^ *([0-9]+\.[0-9\.]+\.[0-9]+): *$", line)
                 if r:
                     version_str = r.group(1)
                     break

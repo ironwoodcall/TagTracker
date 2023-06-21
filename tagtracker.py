@@ -876,7 +876,7 @@ def main():
             data_dirty = True
         elif cmd == cfg.CMD_AUDIT:
             rep.audit_report(pack_day_data(), args)
-            pub.publish_audit(pack_day_data(), args)
+            publishment.publish_audit(pack_day_data(), args)
         elif cmd == cfg.CMD_DELETE:
             delete_entry(*args)
             data_dirty = True
@@ -917,7 +917,7 @@ def main():
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
         elif cmd == cfg.CMD_PUBLISH:
-            pub.publish_reports(pack_day_data(), args)
+            publishment.publish_reports(pack_day_data(), args)
         elif cmd == cfg.CMD_VALET_HOURS:
             set_valet_hours(args)
             data_dirty = True
@@ -979,7 +979,9 @@ def save():
     # Pack data into a TrackerDay object to store
     day = pack_day_data()
     # Store the data
-    df.write_datafile(DATA_FILEPATH, day)
+    if not df.write_datafile(DATA_FILEPATH, day):
+        ut.squawk("CRITICAL ERROR. Can not continue")
+        error_exit()
 
 
 def error_exit() -> None:
