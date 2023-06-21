@@ -979,7 +979,9 @@ def save():
     # Pack data into a TrackerDay object to store
     day = pack_day_data()
     # Store the data
-    df.write_datafile(DATA_FILEPATH, day)
+    if not df.write_datafile(DATA_FILEPATH, day):
+        ut.squawk("CRITICAL ERROR. Can not continue")
+        error_exit()
 
 
 def error_exit() -> None:

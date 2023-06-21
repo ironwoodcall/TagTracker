@@ -53,7 +53,12 @@ class Publisher:
         """Publish."""
         if not self.able_to_publish:
             return
-        publish_datafile(day,self.destination)
+        if not publish_datafile(day,self.destination):
+            pr.iprint("ERROR PUBLISHING DATAFILE",style=cfg.ERROR_STYLE)
+            pr.iprint("REPORT PUBLISHING TURNED OFF",style=cfg.ERROR_STYLE)
+            self.able_to_publish = False
+            return
+
         publish_reports(day,[as_of_when])
         self.last_publish = VTime("now")
 
@@ -72,9 +77,11 @@ def publish_audit(day: TrackerDay, args: list[str]) -> None:
     rep.audit_report(day, args)
     pr.set_output()
 
-def publish_datafile(day: TrackerDay, destination:str) -> None:
-    """Publish a copy of today's datafile."""
-    df.write_datafile(df.datafile_name(destination), day)
+def publish_datafile(day: TrackerDay, destination:str) -> bool:
+    """Publish a copy of today's datafile.
+    Returns False if failed.
+    """
+    return df.write_datafile(df.datafile_name(destination), day)
 
 
 def publish_city_report(day: TrackerDay, as_of_when: str = "") -> None:
