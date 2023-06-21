@@ -21,8 +21,6 @@ Copyright (C) 2023 Julias Hocking
 */
 
 
-
-
 -- Create bike types table - referenced by visit constraints
 CREATE TABLE IF NOT EXISTS bike_type_codes (
     code  TEXT PRIMARY KEY NOT NULL,
@@ -38,40 +36,42 @@ CREATE TABLE IF NOT EXISTS visit (
     id          TEXT PRIMARY KEY UNIQUE,
     date        TEXT CHECK (date IS strftime('%Y-%m-%d', date)),
     tag         TEXT , -- also foreign key to a table of many many many tags? maybe regex instead
-    type        TEXT NOT NULL, -- needs foreign keys to always be on - how?
-    time_in     TEXT CHECK (time_in IS strftime('%H:%M', time_in)),
+    type        TEXT NOT NULL, -- see foreign key below
+    time_in     TEXT CHECK (time_in  IS strftime('%H:%M', time_in)),
     time_out    TEXT CHECK (time_out IS strftime('%H:%M', time_out)),
-    duration    TEXT , -- check against same time? probably
+    duration    TEXT CHECK (duration IS strftime('%H:%M', duration)),
     leftover    TEXT CHECK (leftover IN ('yes', 'no')),
-    notes       TEXT, -- no constraints necessary
+    notes       TEXT,
     batch       TEXT CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch)),
     -- Constrain column `type` to only allow `code` values in bike_type_codes
+    -- needs PRAGMA foreign_keys=ON to work
     FOREIGN KEY (type) REFERENCES bike_type_codes(code)
 );
---********************************How to force PRAGMA foreign_keys = ON when updating?? is this necessary?
+
 
 -- Create table for daily summaries of visit data.
 CREATE TABLE IF NOT EXISTS day (
     date            TEXT PRIMARY_KEY UNIQUE,
-    parked_regular  INTEGER NOT NULL,
-    parked_oversize INTEGER NOT NULL,
-    parked_total    INTEGER NOT NULL,
-    leftover        INTEGER NOT NULL,
-    max_reg         INTEGER NOT NULL,
-    time_max_reg    TEXT CHECK (time_max_reg   IS strftime('%H:%M', time_max_reg)),
-    max_over        INTEGER NOT NULL,
-    time_max_over   TEXT CHECK (time_max_over  IS strftime('%H:%M', time_max_over)),
-    max_total       INTEGER NOT NULL,
-    time_max_total  TEXT CHECK (time_max_total IS strftime('%H:%M', time_max_total)),
-    time_open       TEXT CHECK (time_open      IS strftime('%H:%M', time_open)),
-    time_closed     TEXT CHECK (time_closed    IS strftime('%H:%M', time_closed)),
-    day_of_week     INTEGER NOT NULL,
-    precip_mm       NUMERIC CHECK (precip_mm < 20), -- max daily precip is 11.4mm
-    temp_10am       NUMERIC CHECK (temp_10am < 50),
-    sunset          TEXT CHECK (sunset         IS strftime('%H:%M', sunset)),
-    event           TEXT, -- no constraints needed since is note
-    event_prox_km   NUMERIC, -- not always used so also unconstrained
-    registrations   NUMERIC, -- insert separately (TBD)
+    parked_regular  INTEGER NOT NULL    CHECK (parked_regular >= 0),
+    parked_oversize INTEGER NOT NULL    CHECK (parked_oversize >= 0),
+    parked_total    INTEGER NOT NULL    CHECK (parked_total >= 0),
+    leftover        INTEGER NOT NULL    CHECK (leftover >= 0),
+    max_reg         INTEGER NOT NULL    CHECK (max_reg >= 0),
+    time_max_reg    TEXT                CHECK   (time_max_reg IS strftime('%H:%M', time_max_reg)),
+    max_over        INTEGER NOT NULL    CHECK (max_over >= 0),
+    time_max_over   TEXT                CHECK  (time_max_over IS strftime('%H:%M', time_max_over)),
+    max_total       INTEGER NOT NULL    CHECK (max_total >= 0),
+    time_max_total  TEXT                CHECK (time_max_total IS strftime('%H:%M', time_max_total)),
+    time_open       TEXT                CHECK      (time_open IS strftime('%H:%M', time_open)),
+    time_closed     TEXT                CHECK    (time_closed IS strftime('%H:%M', time_closed)),
+    day_of_week     INTEGER NOT NULL    CHECK (0 <= max_reg <= 6),
+    precip_mm       NUMERIC             CHECK (precip_mm < 20), -- max ever daily precip is 11.4mm
+    temp_10am       NUMERIC             CHECK (temp_10am < 50),
+    sunset          TEXT                CHECK         (sunset IS strftime('%H:%M', sunset)),
+    event           TEXT,
+    event_prox_km   NUMERIC,
+    registrations   NUMERIC,
     notes           TEXT,
-    batch           TEXT NOT NULL -- same batch check as above
+    batch           TEXT                CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch))
 );
+-- only weirder constraints left
