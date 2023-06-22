@@ -1,5 +1,9 @@
 TagTracker by Julias Hocking
 
+0.8.3.202306231330:
+~ added datestamp to city.text
++ sets initial valet hours based on date
+
 0.8.3.202306211253:
 ~ TagID syntax check corrected
 
