@@ -347,8 +347,11 @@ def read_datafile(
 
 def write_datafile(
     filename: str, data: TrackerDay, header_lines: list = None
-) -> None:
-    """Write current data to today's data file."""
+) -> bool:
+    """Write current data to today's data file.
+
+    Return True if succeeded, False if failed.
+    """
     lines = []
     if header_lines:
         lines = header_lines
@@ -388,10 +391,15 @@ def write_datafile(
         lines.append(f"{letter.lower()},{name}")
     lines.append("# Normal end of file")
     # Write the data to the file.
-    with open(filename, "w", encoding="utf-8") as f:  # write stored lines to file
-        for line in lines:
-            f.write(line)
-            f.write("\n")
+    try:
+        with open(filename, "w", encoding="utf-8") as f:  # write stored lines to file
+            for line in lines:
+                f.write(line)
+                f.write("\n")
+    except OSError:
+        ut.squawk(f"PROBLEM: Unable to create datafile '{filename}'")
+        return False
+    return True
 
 
 def new_tag_config_file(filename: str):
@@ -417,5 +425,10 @@ def new_tag_config_file(filename: str):
         "Colour codes:\n\n",
     ]
     if not os.path.exists(filename):  # make new tags config file only if needed
-        with open(filename, "w", encoding="utf-8") as f:
-            f.writelines(template)
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.writelines(template)
+        except OSError:
+            ut.squawk(f"ERROR: Unable to write file {filename}")
+            ut.squawk("exiting")
+            exit(1)
