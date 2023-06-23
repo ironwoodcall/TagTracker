@@ -187,7 +187,12 @@ def data_to_db(filename: str) -> None:
     total_parked = regular_parked + oversize_parked
     total_leftover = len(data.bikes_in) - len(data.bikes_out)
     if total_leftover < 0:
-        print(f"WARN: negative leftovers calculated for {filename}")
+        print(
+            f" ERROR: calculated negative value ({total_leftover})"
+            " of leftover bikes"
+        )
+        print(" No data committed for this file.")
+        return
 
     # Highwater values
     events = ev.calc_events(data)
@@ -268,7 +273,8 @@ def data_to_db(filename: str) -> None:
                 '{batch}'
                 );"""
     ):
-        print("ERROR: failed to insert day summary")
+        print("ERROR: failed to insert day summary. Aborting file")
+        return
 
     # TABLE_VISITS handling
     closing = select_closing_time(date)  # fetch checkout time for whole day
@@ -282,12 +288,15 @@ def data_to_db(filename: str) -> None:
         else:  # no check-out recorded
             if closing:
                 print(
-                    f" Leftover: {tag} given closing time {closing} from "
-                    f"{TABLE_DAYS} table"
+                    f" (normal leftover): {tag} given closing time "
+                    f"{closing} from {TABLE_DAYS} table"
                 )
                 time_out = closing
             else:
-                print(f" Leftover: using latest event time for {tag}")
+                print(
+                    " Datafile missing closing time: using latest "
+                    f"event time for leftover with tag {tag}"
+                )
                 time_out = data.latest_event()  # approx. as = to last event
             leftover = "yes"
         time_stay = duration(time_in, time_out)
