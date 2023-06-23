@@ -1,5 +1,7 @@
 TagTracker by Julias Hocking
 
+0.8.3.202306211253:
+~ TagID syntax check corrected
 
 0.8.3.4:
 ~ misreporting of future-timed check-ins  #199
