@@ -99,6 +99,9 @@ class Publisher:
         fullfn = os.path.join(cfg.REPORTS_FOLDER, "city.txt")
         if not pr.set_output(fullfn):
             return
+        pr.iprint(f"Overall valet report for {day.date}")
+        pr.iprint(f"Generated {ut.get_date()} {ut.get_time()}")
+
         rep.day_end_report(day, [as_of_when])
         pr.iprint()
         rep.busyness_report(day, [as_of_when])
