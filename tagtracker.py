@@ -1111,14 +1111,18 @@ if __name__ == "__main__":
 
     # Get/set valet date & time
     if not VALET_OPENS or not VALET_CLOSES:
-        pr.iprint()
-        pr.iprint(
-            "Please enter today's opening/closing times.",
-            style=cfg.ERROR_STYLE,
-        )
-        set_valet_hours([VALET_OPENS, VALET_CLOSES])
-        if VALET_OPENS or VALET_CLOSES:
-            save()
+        (opens,closes) = ut.valet_hours(VALET_DATE)
+        VALET_OPENS = VALET_OPENS if VALET_OPENS else opens
+        VALET_CLOSES = VALET_CLOSES if VALET_CLOSES else closes
+
+    pr.iprint()
+    pr.iprint(
+        "Please check today's opening/closing times.",
+        style=cfg.ERROR_STYLE,
+    )
+    set_valet_hours(["",""])
+    if VALET_OPENS or VALET_CLOSES:
+        save()
 
     valet_logo()
     main()
