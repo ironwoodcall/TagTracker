@@ -87,6 +87,7 @@ class Stay(RealTag):
             self.tag in day.bikes_out
             and day.bikes_out[self.tag] <= self.as_of_when
         ):
+            # Bike came and went before as_of_when
             self.state = BIKE_OUT
             self.time_out = day.bikes_out[self.tag]
             self.time_in = day.bikes_in[self.tag]
@@ -97,6 +98,7 @@ class Stay(RealTag):
             self.tag in day.bikes_in
             and day.bikes_in[self.tag] <= self.as_of_when
         ):
+            # Bike came in before as_of_when
             self.state = BIKE_IN
             self.time_in = day.bikes_in[self.tag]
             self.duration = as_of_when.num - self.time_in.num

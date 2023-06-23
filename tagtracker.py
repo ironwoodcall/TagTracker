@@ -351,7 +351,7 @@ def query_one_tag(
             style=cfg.WARNING_STYLE,
         )
         return
-    tag = Stay(tagid, day)
+    tag = Stay(tagid, day, as_of_when="24:00")
     if not tag.state:
         pr.iprint(
             f"Tag {tag.tag} is not available",
@@ -364,11 +364,11 @@ def query_one_tag(
     if tag.state == BIKE_OUT:
         if multi_line:
             pr.iprint(
-                f"{tag.time_in.tidy}  " f"{tag.tag} checked IN",
+                f"{tag.time_in.tidy}  " f"{tag.tag} checked in",
                 style=cfg.ANSWER_STYLE,
             )
             pr.iprint(
-                f"{tag.time_out.tidy}  " f"{tag.tag} checked OUT",
+                f"{tag.time_out.tidy}  " f"{tag.tag} checked out",
                 style=cfg.ANSWER_STYLE,
             )
         else:
@@ -379,19 +379,30 @@ def query_one_tag(
             )
         return
     if tag.state == BIKE_IN:
+        # Bike has come in sometime today but gone out
+        dur = VTime("now").num - tag.time_in.num
         if multi_line:
             pr.iprint(
-                f"{tag.time_in.tidy}  " f"{tag.tag} checked IN",
+                f"{tag.time_in.tidy}  " f"{tag.tag} checked in",
                 style=cfg.ANSWER_STYLE,
             )
             pr.iprint(
-                f"       {tag.tag} still at valet", style=cfg.ANSWER_STYLE
+                f"       {tag.tag} not checked out", style=cfg.ANSWER_STYLE
             )
         else:
+            if dur >= 60:
+                dur_str = f"(in valet for {VTime(dur).short})"
+            elif dur >= 0:
+                dur_str = f"(in valet for {dur} minutes)"
+            else:
+                # a future time
+                dur_str = f"({VTime(abs(dur)).short} in the future)"
+
             pr.iprint(
-                f"Tag {tag.tag} bike in at {tag.time_in.short}; still in",
+                f"Tag {tag.tag} bike in at {tag.time_in.short} {dur_str}",
                 style=cfg.ANSWER_STYLE,
             )
+
         return
     if tag.state == USABLE:
         pr.iprint(
@@ -402,7 +413,7 @@ def query_one_tag(
     pr.iprint(f"Tag {tag.tag} has unknown state", style=cfg.ERROR_STYLE)
 
 
-def query_tag(targets: list[str]) -> None:
+def query_tag(targets: list[str], multi_line: bool = None) -> None:
     """Query one or more tags"""
     if len(targets) == 0:
         # Have to prompt
@@ -417,8 +428,11 @@ def query_tag(targets: list[str]) -> None:
             return
     day = pack_day_data()
     pr.iprint()
+    if multi_line is None:
+        multi_line = len(targets) == 1
+
     for maybe_tag in targets:
-        query_one_tag(maybe_tag, day, multi_line=len(targets) == 1)
+        query_one_tag(maybe_tag, day, multi_line=multi_line)
 
 
 def prompt_for_time(inp=False, prompt: str = None) -> VTime:
@@ -684,11 +698,11 @@ def multi_edit(args: list[str]):
 def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
     """Pretty-print a tag-in or tag-out message."""
     if inout == BIKE_IN:
-        basemsg = f"Bike {tag} checked IN"
+        basemsg = f"Bike {tag} checked in"
         basemsg = f"{basemsg} at {when.short}" if when else basemsg
         finalmsg = f"{basemsg:40} <---in---  "
     elif inout == BIKE_OUT:
-        basemsg = f"Bike {tag} checked OUT"
+        basemsg = f"Bike {tag} checked out"
         basemsg = f"{basemsg} at {when.short}" if when else basemsg
         finalmsg = f"{basemsg:55} ---out--->  "
     else:
@@ -708,10 +722,10 @@ def tag_check(tag: TagID) -> None:
     else:  # must not be retired so handle as normal
         if tag in check_ins:
             if tag in check_outs:  # if tag has checked in & out
-                query_tag([tag])
+                query_tag([tag], multi_line=False)
                 pr.iprint(
                     f"Overwrite {check_outs[tag]} check-out with "
-                    f"current time ({VTime('now')})? "
+                    f"current time ({VTime('now').short})? "
                     f"(y/N) {cfg.CURSOR}",
                     style=cfg.SUBPROMPT_STYLE,
                     end="",
@@ -724,13 +738,16 @@ def tag_check(tag: TagID) -> None:
             else:  # checked in only
                 # How long ago checked in? Maybe ask operator to confirm.
                 rightnow = VTime("now")
-                time_diff_mins = VTime("now").num - VTime(check_ins[tag]).num
-                if time_diff_mins < cfg.CHECK_OUT_CONFIRM_TIME:
+                time_diff_mins = rightnow.num - VTime(check_ins[tag]).num
+                if time_diff_mins < 0:
+                    query_tag([tag], multi_line=False)
                     pr.iprint(
-                        "This bike checked in at "
-                        f"{check_ins[tag]} ({time_diff_mins} mins ago)",
-                        style=cfg.SUBPROMPT_STYLE,
+                        "Check-in is in the future; check out cancelled",
+                        style=cfg.WARNING_STYLE,
                     )
+                    return
+                if time_diff_mins < cfg.CHECK_OUT_CONFIRM_TIME:
+                    query_tag([tag], multi_line=False)
                     pr.iprint(
                         "Do you want to check it out? " f"(y/N) {cfg.CURSOR}",
                         style=cfg.SUBPROMPT_STYLE,
@@ -740,17 +757,14 @@ def tag_check(tag: TagID) -> None:
                 else:  # don't check for long stays
                     sure = True
                 if sure:
-                    check_outs[tag] = rightnow
-                    print_tag_inout(tag, inout=BIKE_OUT)
-                    ##pr.iprint(f"{tag} checked OUT",style=cfg.ANSWER_STYLE)
+                    multi_edit([tag, "o", rightnow])
                 else:
                     pr.iprint(
-                        "Cancelled return bike out", style=cfg.WARNING_STYLE
+                        "Cancelled bike check out", style=cfg.WARNING_STYLE
                     )
         else:  # if string is in neither dict
             check_ins[tag] = VTime("now")
             print_tag_inout(tag, BIKE_IN)
-            ##pr.iprint(f"{tag} checked IN",style=cfg.ANSWER_STYLE)
 
 
 def parse_command(user_input: str) -> list[str]:

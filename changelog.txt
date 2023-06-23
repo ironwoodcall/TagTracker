@@ -3,6 +3,9 @@ TagTracker by Julias Hocking
 0.8.3.202306211253:
 ~ TagID syntax check corrected
 
+0.8.3.4:
+~ misreporting of future-timed check-ins  #199
+
 0.8.3.3:
 + Slightly better file-write error management
 
@@ -11,6 +14,7 @@ TagTracker by Julias Hocking
 
 0.8.3.1
 + squawk bug issue 188
+
 
 0.8.3:
 + RealTag & Stay classes
