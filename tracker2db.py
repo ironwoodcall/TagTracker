@@ -69,25 +69,25 @@ COL_BATCH = "batch"
 # Table of day summaries
 TABLE_DAYS = "day"
 # COL_DATE name reused - text date PK
-COL_REGULAR = "parked_regular"  # int count
-COL_OVERSIZE = "parked_oversize"  # int count
-COL_TOTAL = "parked_total"  # int sum of 2 above
-COL_TOTAL_LEFTOVER = "leftover"  # int count
-COL_MAX_REGULAR = "max_reg"  # int count of max regular bikes
-COL_MAX_REGULAR_TIME = "time_max_reg"  # HHMM time
-COL_MAX_OVERSIZE = "max_over"  # int count of max oversize bikes
+COL_REGULAR           = "parked_regular"  # int count
+COL_OVERSIZE          = "parked_oversize"  # int count
+COL_TOTAL             = "parked_total"  # int sum of 2 above
+COL_TOTAL_LEFTOVER    = "leftover"  # int count
+COL_MAX_REGULAR       = "max_reg"  # int count of max regular bikes
+COL_MAX_REGULAR_TIME  = "time_max_reg"  # HHMM time
+COL_MAX_OVERSIZE      = "max_over"  # int count of max oversize bikes
 COL_MAX_OVERSIZE_TIME = "time_max_over"  # HHMM time
-COL_MAX_TOTAL = "max_total"  # int sum of 2 above
-COL_MAX_TOTAL_TIME = "time_max_total"  # HHMM
-COL_TIME_OPEN = "time_open"  # HHMM opening time
-COL_TIME_CLOSE = "time_closed"  # HHMM closing time
-COL_DAY_OF_WEEK = "day_of_week"  # 0-6 day of the week
-COL_PRECIP_MM = "precip_mm"  # mm precipitation - prob bulk from Env. Can. data
-COL_TEMP_10AM = "temp_10am"  # temp at 10AM - same
-COL_SUNSET = "sunset"  # HHMM time at sunset - same
-COL_EVENT = "event"  # text NULL or short name of event happening nearby
-COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
-COL_REGISTRATIONS = "registrations"  # num of 529 registrations recorded
+COL_MAX_TOTAL         = "max_total"  # int sum of 2 above
+COL_MAX_TOTAL_TIME    = "time_max_total"  # HHMM
+COL_TIME_OPEN         = "time_open"  # HHMM opening time
+COL_TIME_CLOSE        = "time_closed"  # HHMM closing time
+COL_DAY_OF_WEEK       = "weekday"  # 0-6 day of the week
+COL_PRECIP_MM         = "precip_mm"  # mm (bulk pop from EnvCan dat)
+COL_TEMP_10AM         = "temp_10am"  # temp at 10AM - same
+COL_SUNSET            = "sunset"  # HHMM time at sunset - same
+COL_EVENT             = "event"  # text NULL or brief name of nearby event
+COL_EVENT_PROX        = "event_prox_km"  # est. num of km to event
+COL_REGISTRATIONS     = "registrations"  # num of 529 registrations recorded
 # COL_NOTES name reused
 # COL_BATCH name reused
 

@@ -75,20 +75,18 @@ INSERT INTO tags (tag_id) VALUES -- All valid tags evr used downtown to check ag
 CREATE TABLE IF NOT EXISTS visit (
     id          TEXT PRIMARY KEY UNIQUE,
     date        TEXT CHECK (date IS strftime('%Y-%m-%d', date)),
-    tag         TEXT NOT NULL, -- FK
-    type        TEXT NOT NULL, -- FK
+    tag         TEXT NOT NULL,
+    type        TEXT NOT NULL,
     time_in     TEXT CHECK (time_in  IS strftime('%H:%M', time_in)),
     time_out    TEXT CHECK (time_out IS strftime('%H:%M', time_out)),
     duration    TEXT CHECK (duration IS strftime('%H:%M', duration)),
     leftover    TEXT CHECK (leftover IN ('yes', 'no')),
     notes       TEXT,
     batch       TEXT CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch)),
-    -- Constrain column `type` to only allow `code` values in types
-    -- This and next need PRAGMA foreign_keys=ON to work
-    FOREIGN KEY (type) REFERENCES types(code)
 
-    -- Constrain column `tags` to only allow `tag` values in tags
+    CHECK (time_out >= time_in)
     FOREIGN KEY (tag) REFERENCES tags(tag_id)
+    FOREIGN KEY (type) REFERENCES types(code)
 );
 
 
@@ -110,14 +108,18 @@ CREATE TABLE IF NOT EXISTS day (
     weekday         INTEGER NOT NULL CHECK (0 <= weekday <= 6),
     precip_mm       NUMERIC          CHECK (precip_mm < 90), -- global record daily precip is 11.4mm
     temp_10am       NUMERIC          CHECK (temp_10am < 50),
-    sunset          TEXT             CHECK         (sunset IS strftime('%H:%M', sunset)),
+    sunset          TEXT             CHECK (sunset IS strftime('%H:%M', sunset)),
     event           TEXT,
     event_prox_km   NUMERIC,
     registrations   INTEGER,
     notes           TEXT,
-    batch           TEXT             CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch))
+    batch           TEXT             CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch)),
+
+    CHECK (time_closed > time_open)
 );
 
 
--- View for data that is only from as recently as yesterday (account for partial days)
-CREATE VIEW visits_except_today AS SELECT * FROM visit WHERE date < strftime('%Y-%m-%d');
+-- Views for data that is only from as recently as yesterday (account for partial days)
+CREATE VIEW visit_except_today AS SELECT * FROM visit WHERE date < strftime('%Y-%m-%d');
+
+CREATE VIEW day_except_today AS SELECT * FROM day WHERE date < strftime('%Y-%m-%d');
