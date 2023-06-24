@@ -32,6 +32,7 @@ import os
 import sqlite3
 import calendar
 import datetime
+import argparse
 from typing import Union  # for type hints instead of (eg) int|str
 
 import tt_conf as cfg
@@ -69,25 +70,25 @@ COL_BATCH = "batch"
 # Table of day summaries
 TABLE_DAYS = "day"
 # COL_DATE name reused - text date PK
-COL_REGULAR           = "parked_regular"  # int count
-COL_OVERSIZE          = "parked_oversize"  # int count
-COL_TOTAL             = "parked_total"  # int sum of 2 above
-COL_TOTAL_LEFTOVER    = "leftover"  # int count
-COL_MAX_REGULAR       = "max_reg"  # int count of max regular bikes
-COL_MAX_REGULAR_TIME  = "time_max_reg"  # HHMM time
-COL_MAX_OVERSIZE      = "max_over"  # int count of max oversize bikes
+COL_REGULAR = "parked_regular"  # int count
+COL_OVERSIZE = "parked_oversize"  # int count
+COL_TOTAL = "parked_total"  # int sum of 2 above
+COL_TOTAL_LEFTOVER = "leftover"  # int count
+COL_MAX_REGULAR = "max_reg"  # int count of max regular bikes
+COL_MAX_REGULAR_TIME = "time_max_reg"  # HHMM time
+COL_MAX_OVERSIZE = "max_over"  # int count of max oversize bikes
 COL_MAX_OVERSIZE_TIME = "time_max_over"  # HHMM time
-COL_MAX_TOTAL         = "max_total"  # int sum of 2 above
-COL_MAX_TOTAL_TIME    = "time_max_total"  # HHMM
-COL_TIME_OPEN         = "time_open"  # HHMM opening time
-COL_TIME_CLOSE        = "time_closed"  # HHMM closing time
-COL_DAY_OF_WEEK       = "weekday"  # 0-6 day of the week
-COL_PRECIP_MM         = "precip_mm"  # mm (bulk pop from EnvCan dat)
-COL_TEMP_10AM         = "temp_10am"  # temp at 10AM - same
-COL_SUNSET            = "sunset"  # HHMM time at sunset - same
-COL_EVENT             = "event"  # text NULL or brief name of nearby event
-COL_EVENT_PROX        = "event_prox_km"  # est. num of km to event
-COL_REGISTRATIONS     = "registrations"  # num of 529 registrations recorded
+COL_MAX_TOTAL = "max_total"  # int sum of 2 above
+COL_MAX_TOTAL_TIME = "time_max_total"  # HHMM
+COL_TIME_OPEN = "time_open"  # HHMM opening time
+COL_TIME_CLOSE = "time_closed"  # HHMM closing time
+COL_DAY_OF_WEEK = "weekday"  # 0-6 day of the week
+COL_PRECIP_MM = "precip_mm"  # mm (bulk pop from EnvCan dat)
+COL_TEMP_10AM = "temp_10am"  # temp at 10AM - same
+COL_SUNSET = "sunset"  # HHMM time at sunset - same
+COL_EVENT = "event"  # text NULL or brief name of nearby event
+COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
+COL_REGISTRATIONS = "registrations"  # num of 529 registrations recorded
 # COL_NOTES name reused
 # COL_BATCH name reused
 
@@ -237,6 +238,7 @@ def data_to_db(filename: str) -> None:
 
     if not sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';"):
         print(f"ERROR: delete day summary failed for date '{date}'")
+        return  # stop now for this datafile
 
     if not sql_do(
         f"""INSERT INTO {TABLE_DAYS} (
@@ -274,7 +276,7 @@ def data_to_db(filename: str) -> None:
                 );"""
     ):
         print("ERROR: failed to insert day summary. Aborting file")
-        return
+        return  # stop now for this datafile
 
     # TABLE_VISITS handling
     closing = select_closing_time(date)  # fetch checkout time for whole day
@@ -379,6 +381,12 @@ def get_yesterday() -> str:
 
 
 if __name__ == "__main__":
+    '''parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "infile", nargs="?", type=argparse.FileType("r"), default=sys.stdin
+    )
+    parser.add_argument()'''
+
     print(f"Connecting to database at {DB_FILEPATH}...")
     conn = create_connection(DB_FILEPATH)
 
