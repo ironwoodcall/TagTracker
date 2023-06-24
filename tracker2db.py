@@ -147,7 +147,7 @@ def data_to_db(filename: str) -> None:
         print(f"File not found (data_to_db()): {filename}")
         return None
 
-    print(f"\nWorking on {filename}")
+    print(f"\n Working on {filename}")
     data = df.read_datafile(f"{filename}", err_msgs=[])
 
     date = data.date
