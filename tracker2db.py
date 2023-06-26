@@ -63,7 +63,7 @@ COL_BIKETYPE = "type"
 COL_TIME_IN = "time_in"
 COL_TIME_OUT = "time_out"
 COL_DURATION = "duration"
-COL_LEFTOVER = "leftover"
+COL_CHECKED_OUT = "checked_out"
 COL_NOTES = "notes"
 COL_BATCH = "batch"
 
@@ -281,26 +281,29 @@ def data_to_db(filename: str) -> None:
     # TABLE_VISITS handling
     closing = select_closing_time(date)  # fetch checkout time for whole day
     sql_do(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';")
+
+    visit_commit_count = total_parked
+    visit_fail_count = 0
     for tag, time in data.bikes_in.items():
         tag_name = tag
         time_in = time
         if tag_name in data.bikes_out.keys():
             time_out = data.bikes_out[tag]
-            leftover = "no"
+            checked_out = "TRUE"
         else:  # no check-out recorded
             if closing:
+                time_out = closing
                 print(
                     f" (normal leftover): {tag} given closing time "
                     f"{closing} from {TABLE_DAYS} table"
                 )
-                time_out = closing
             else:
+                time_out = data.latest_event()  # approx. as = to last event
                 print(
                     " Datafile missing closing time: using latest "
                     f"event time for leftover with tag {tag}"
                 )
-                time_out = data.latest_event()  # approx. as = to last event
-            leftover = "yes"
+            checked_out = "FALSE"
         time_stay = duration(time_in, time_out)
         if not sql_do(
             f"""INSERT INTO {TABLE_VISITS} (
@@ -311,7 +314,7 @@ def data_to_db(filename: str) -> None:
                     {COL_TIME_IN},
                     {COL_TIME_OUT},
                     {COL_DURATION},
-                    {COL_LEFTOVER},
+                    {COL_CHECKED_OUT},
                     {COL_BATCH}
                     ) VALUES (
                     '{date}.{tag}',
@@ -321,13 +324,18 @@ def data_to_db(filename: str) -> None:
                     '{time_in}',
                     '{time_out}',
                     '{time_stay}',
-                    '{leftover}',
+                    {checked_out},
                     '{batch}');"""
         ):
             print(f"failed to insert a stay for {tag}")
+            visit_commit_count -= 1
+            visit_fail_count += 1
     try:
         conn.commit()  # commit one datafile transaction
-        print(f" Committed records for {total_parked} visits!")
+        print(
+            f" Committed records for {visit_commit_count} visits! "
+            f"({visit_fail_count} failed)"
+        )
     except sqlite3.Error as sqlite_err:
         print(f"ERR: SQL error trying to commit {filename} - {sqlite_err}")
 
@@ -381,12 +389,12 @@ def get_yesterday() -> str:
 
 
 if __name__ == "__main__":
-    '''parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "infile", nargs="?", type=argparse.FileType("r"), default=sys.stdin
     )
-    parser.add_argument()'''
-
+    parser.add_argument("db_file", nargs="?", type=str)
+#FIXME: in the middle of adding parser functionality
     print(f"Connecting to database at {DB_FILEPATH}...")
     conn = create_connection(DB_FILEPATH)
 
