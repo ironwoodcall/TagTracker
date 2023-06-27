@@ -43,7 +43,7 @@ def squawk(whatever:str="") -> None:
     caller_module = f.f_globals['__name__']
     caller_function = f.f_code.co_name
     caller_line_no = f.f_lineno
-    print(f"{caller_module}:{caller_function}():{caller_line_no: {whatever}}")
+    print(f"{caller_module}:{caller_function}():{caller_line_no}: {whatever}")
 
 def decomment(string:str) -> str:
     """Remove any part of the string that starts with '#'."""

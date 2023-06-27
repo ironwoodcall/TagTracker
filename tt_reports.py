@@ -201,19 +201,24 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
     visits = Stay.calc_stays(day, as_of_when=as_of_when)
     bikes_on_hand = [v.tag for v in visits.values() if v.still_here]
     num_bikes_on_hand = len(bikes_on_hand)
+    ut.squawk(f"{len(visits)=};{len(bikes_on_hand)=}; {num_bikes_on_hand=}")
     regular_in = 0
     regular_out = 0
     oversize_in = 0
     oversize_out = 0
     for v in visits.values():
         if v.type == REGULAR:
+            ut.squawk(f"  got {REGULAR} {v.tag}")
             regular_in += 1
             if not v.still_here:
                 regular_out += 1
         elif v.type == OVERSIZE:
+            ut.squawk(f"  got {OVERSIZE} {v.tag}")
             oversize_in += 1
             if not v.still_here:
                 oversize_out += 1
+        else:
+            ut.squawk(f"  got !!?? '{v.type=}' {v.tag}")
     sum_in = regular_in + oversize_in
     sum_out = regular_out + oversize_out
     sum_on_hand = regular_in + oversize_in - regular_out - oversize_out
@@ -260,7 +265,7 @@ def audit_report(day: TrackerDay, args: list[str]) -> None:
     # Audit report header. Special case if request is for "24:00"
     pr.iprint()
     pr.iprint(
-        f"Audit report for {ut.get_date()} {as_of_when.as_at}",
+        f"Audit report for {day.date} {as_of_when.as_at}",
         style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
