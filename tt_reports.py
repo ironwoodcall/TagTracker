@@ -214,6 +214,7 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
             oversize_in += 1
             if not v.still_here:
                 oversize_out += 1
+
     sum_in = regular_in + oversize_in
     sum_out = regular_out + oversize_out
     sum_on_hand = regular_in + oversize_in - regular_out - oversize_out
@@ -260,7 +261,7 @@ def audit_report(day: TrackerDay, args: list[str]) -> None:
     # Audit report header. Special case if request is for "24:00"
     pr.iprint()
     pr.iprint(
-        f"Audit report for {ut.get_date()} {as_of_when.as_at}",
+        f"Audit report for {day.date} {as_of_when.as_at}",
         style=cfg.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)

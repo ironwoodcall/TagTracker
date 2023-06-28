@@ -19,7 +19,7 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import os
-
+import pathlib
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_time import VTime
@@ -88,7 +88,13 @@ class Publisher:
         """
         if not self.able_to_publish:
             return
-        return df.write_datafile(df.datafile_name(destination), day)
+        filepath = df.datafile_name(destination)
+        result = df.write_datafile(filepath, day)
+        if not result:
+            return False
+        # Now save a copy to "latest.dat" in the same folder
+        latestpath = f"{pathlib.Path(filepath).parent}/latest.dat"
+        return df.write_datafile(latestpath, day)
 
 
     def publish_city_report(self, day: TrackerDay, as_of_when: MaybeTime = "now") -> None:

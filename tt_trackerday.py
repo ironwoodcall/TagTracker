@@ -68,6 +68,29 @@ class TrackerDay:
         else:
             self.DISABLED__make_lowercase()
 
+    def make_fake_tag_lists(self) -> None:
+        """Fake up regular/oversized tag ists based on City Hall use in 2023."""
+        regulars = set()
+        oversizes = set()
+        for tag in set(self.bikes_in.keys()) | set(self.bikes_out.keys()):
+            tag: TagID
+            if tag.colour in ["o", "p", "w"]:
+                regulars.add(tag)
+            elif tag.colour == "b":
+                oversizes.add(tag)
+        self.regular = frozenset(regulars)
+        self.oversize = frozenset(oversizes)
+
+    def make_fake_colour_dict(self) -> None:
+        """Fake up a colour dictionary in day from existing tags."""
+        letters = set()
+        for tag in self.bikes_in:
+            letters.add(tag.colour)
+        colour_dict = {}
+        for c in letters:
+            colour_dict[c] = f"colour {c}"
+        self.colour_letters = colour_dict
+
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
         """Generate a list of logic error messages for TrackerDay object.
 
