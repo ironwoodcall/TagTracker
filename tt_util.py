@@ -361,7 +361,7 @@ def valet_hours(the_date: str) -> Tuple[str, str]:
         3: ("07:30", "18:00"),
         4: ("07:30", "18:00"),
         5: ("07:30", "20:00"),
-        6: ("10:00", "18:00"),
+        6: ("10:00", "20:00"),
     }
     summer = {  # summer hours start May 1
         0: ("10:00", "17:00"),  # sunday
@@ -370,16 +370,26 @@ def valet_hours(the_date: str) -> Tuple[str, str]:
         3: ("07:30", "20:00"),
         4: ("07:30", "20:00"),
         5: ("07:30", "22:00"),
-        6: ("10:00", "12:00"),
+        6: ("10:00", "22:00"),
     }
+    fall = {
+        0: ("10:00", "17:00"),  # sunday
+        1: ("07:30", "18:00"),
+        2: ("07:30", "18:00"),
+        3: ("07:30", "18:00"),
+        4: ("07:30", "18:00"),
+        5: ("07:30", "20:00"),
+        6: ("10:00", "20:00"),
+    }
+
     if the_date == "2023-06-11":  # Unknown special day
         return ("10:00", "18:30")
     elif the_date == "2023-05-22":  # Victoria Day
         return ("09:00", "17:00")
+
     elif the_date >= "2023-10-01":   # fall/winter hours start
-        # Not defined yet
-        return ("","")
-    elif the_date >= "2023-05-01":
+        return fall[day_of_week]
+    elif the_date >= "2023-05-01":  # summer hours start
         return summer[day_of_week]
     elif the_date >= "2023-03-17":  # opening day
         return spring[day_of_week]
