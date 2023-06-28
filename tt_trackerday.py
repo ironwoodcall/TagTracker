@@ -68,6 +68,19 @@ class TrackerDay:
         else:
             self.DISABLED__make_lowercase()
 
+    def make_fake_tag_lists(self) -> None:
+        """Fake up regular/oversized tag ists based on City Hall use in 2023."""
+        regulars = set()
+        oversizes = set()
+        for tag in set(self.bikes_in.keys()) | set(self.bikes_out.keys()):
+            tag: TagID
+            if tag.colour in ["o", "p", "w"]:
+                regulars.add(tag)
+            elif tag.colour == "b":
+                oversizes.add(tag)
+        self.regular = frozenset(regulars)
+        self.oversize = frozenset(oversizes)
+
     def make_fake_colour_dict(self) -> None:
         """Fake up a colour dictionary in day from existing tags."""
         letters = set()

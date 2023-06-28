@@ -33,12 +33,12 @@ def form(
     ttdb: sqlite3.Connection,
     title: str = "TagTracker",
     default_what: str = "",
-    default_when: str = "",
+    default_date: str = "",
     default_tag: str = "",
 ):
     latest_date = db_last_date(ttdb)
-    if not default_when:
-        default_when = latest_date
+    if not default_date:
+        default_date = latest_date
 
     choices = {
         "oneday": "Tags in/out on a particular day [specify Date]",
@@ -75,7 +75,7 @@ def form(
     <br />
           <i>Reports marked with (*) currently return incorrect information</i>
     <br /><br />
-    Date: <input name="when" type="text" value="{default_when}" />
+    Date: <input name="date" type="text" value="{default_date}" />
     <br />
     Tag: <input name="tag" type="text" value="{default_tag}" />
     <br />
@@ -129,6 +129,8 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
         day.bikes_in[tag] = time_in
         if time_out and not still_out:
             day.bikes_out[tag] = time_out
+    # Fake up regular/oversize lists
+    day.make_fake_tag_lists()
     # Fake up a colour dictionary
     day.make_fake_colour_dict()
     return day
@@ -148,7 +150,7 @@ def show_help():
         f"""
 Parameters
 
-what        when     tag    description
+what        date     tag    description
 ----        ----            -----------
 overall                     List a few stats about all days in database
 abandoned                   List of all abandoned bikes
@@ -157,7 +159,7 @@ datafile    <date>          Reconstruct a datafile from the database
 last_use             <tag>  Last time a particular tag was used
 
 - Construct URLs thus: <server/cgi-bin/tt>?parameter=val&parameter=value...
-  E.g. myserver.org/cgi-bin/tt?what=oneday&when=2023-04-29
+  E.g. myserver.org/cgi-bin/tt?what=oneday&date=2023-04-29
 - <date> can be YYYY-MM-DD, 'today', or 'yesterday'
       """
     )
@@ -373,11 +375,11 @@ def oneday(ttdb: sqlite3.Connection, whatday: str = ""):
     print("</pre></body></html>")
 
 
-def datafile(ttdb: sqlite3.Connection, when: str = ""):
+def datafile(ttdb: sqlite3.Connection, date: str = ""):
     """Print a reconstructed datafile for the given date."""
-    thisday = whatday(when)
+    thisday = whatday(date)
     if not thisday:
-        bad_date(when)
+        bad_date(date)
 
     print("<pre>")
 
@@ -427,41 +429,39 @@ def bad_date(bad_date:str=""):
     error_out(f"Bad date '{untaint(bad_date)}'. "
               "Use YYYY-MM-DD or 'today' or 'yesterday'.")
 
-def audit_report(ttdb:sqlite3.Connection,when:str):
+def audit_report(ttdb:sqlite3.Connection,thisday:str,whattime:VTime):
     """Print audit report."""
-    thisday = whatday(when)
     if not thisday:
-        bad_date(when)
+        bad_date(thisday)
     print("<pre>")
     day = db2day(ttdb,thisday)
-    rep.audit_report(day,[VTime("now")])
+    rep.audit_report(day,[VTime(whattime)])
 
 
-def one_day_chart(ttdb:sqlite3.Connection, when:str):
+def one_day_chart(ttdb:sqlite3.Connection, date:str):
     """One-day chart."""
-    thisday = whatday(when)
+    thisday = whatday(date)
     if not thisday:
-        bad_date(when)
+        bad_date(date)
     print("<pre>")
     rep.full_chart(db2day(ttdb,thisday),["now"])
 
 
-def one_day_busy_graph(ttdb:sqlite3.Connection, when:str):
+def one_day_busy_graph(ttdb:sqlite3.Connection, date:str):
     """One-day chart."""
-    thisday = whatday(when)
+    thisday = whatday(date)
     if not thisday:
-        bad_date(when)
+        bad_date(date)
     print("<pre>")
     rep.busy_graph(db2day(ttdb,thisday),["now"])
 
 
-def busyness_report(ttdb:sqlite3.Connection, when:str):
+def busyness_report(ttdb:sqlite3.Connection, thisday:str, qtime:VTime):
     """One-day busy report."""
-    thisday = whatday(when)
     if not thisday:
-        bad_date(when)
+        bad_date(thisday)
     print("<pre>")
-    rep.busyness_report(db2day(ttdb,thisday),["now"])
+    rep.busyness_report(db2day(ttdb,thisday),[qtime])
 
 #=================================================================
 print("Content-type: text/html\n\n\n")
@@ -473,10 +473,24 @@ database = create_connection(DBFILE)
 query_string = untaint(os.environ.get("QUERY_STRING", ""))
 query_params = urllib.parse.parse_qs(query_string)
 what = query_params.get("what", [""])[0]
-when = query_params.get("when", [""])[0]
+maybedate = query_params.get("date", [""])[0]
+maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
 
-form(database, default_what=what, default_when=when, default_tag=tag)
+# Date will be 'today' or 'yesterday' or ...
+# Time of day will be 24:00 unless it's today (or specified)
+qdate = whatday(maybedate)
+if not maybetime:
+    if qdate == whatday("today"):
+        qtime = VTime("now")
+    else:
+        qtime = VTime("24:00")
+else:
+    qtime = VTime(maybetime)
+if not qtime:
+    error_out(f"Bad time: '{untaint(maybetime)}")
+print(f"xxx {maybetime=};{maybedate=} ==> {qtime=}; {qdate=}")
+form(database, default_what=what, default_date=maybedate, default_tag=tag)
 if not what:
     exit()
 if what == "last_use":
@@ -486,17 +500,17 @@ elif what == "overall":
 elif what == "abandoned":
     lost_tags(database)
 elif what == "oneday":
-    oneday(database, when)
+    oneday(database, qdate)
 elif what == "datafile":
-    datafile(database, when)
+    datafile(database, qdate)
 elif what == "audit":
-    audit_report(database,when)
+    audit_report(database,qdate,qtime)
 elif what == "busyness":
-    busyness_report(database,when)
+    busyness_report(database,qdate,qtime)
 elif what == "chart":
-    one_day_chart(database,when)
+    one_day_chart(database,qdate)
 elif what == "busy-graph":
-    one_day_busy_graph(database,when)
+    one_day_busy_graph(database,qdate)
 else:
     error_out(f"Unknown request: {untaint(what)}")
     exit(1)
