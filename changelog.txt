@@ -1,5 +1,42 @@
 TagTracker by Julias Hocking
 
+0.8.4:
++ cgi Reporting
+~ various tweaks & bits & bobs
+
+0.8.3.202306231330:
+~ added datestamp to city.text
++ sets initial valet hours based on date
+
+0.8.3.202306211253:
+~ TagID syntax check corrected
+
+0.8.3.202306211253:
+~ TagID syntax check corrected
+
+0.8.3.4:
+~ misreporting of future-timed check-ins  #199
+
+0.8.3.3:
++ Slightly better file-write error management
+
+0.8.3.2:
+~ minor uc/loc bugs issue #196
+
+0.8.3.1
++ squawk bug issue 188
+
+
+0.8.3:
++ RealTag & Stay classes
++ tags inventory matrix
++ show retired tags in audit report
++ improvements to audit report & other headers
+
+0.8.2:
++ TagID and VTime classes
+~ various format & usability tweaks
+
 0.8.1:
 + more reports
 + usability tweaks & bug fixes

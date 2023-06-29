@@ -38,7 +38,7 @@ import tt_conf as cfg
 import tt_util as ut
 import tt_datafile as df
 import tt_globals as tg
-import tt_event as ev
+from tt_event import Event
 
 
 # Path for the database to be put into
@@ -194,7 +194,7 @@ def data_to_db(filename: str) -> None:
         return
 
     # Highwater values
-    events = ev.calc_events(data)
+    events = Event.calc_events(data)
     max_regular_num = max([x.num_here_regular for x in events.values()])
     max_oversize_num = max([x.num_here_oversize for x in events.values()])
     max_total_num = max([x.num_here_total for x in events.values()])
@@ -451,7 +451,7 @@ if __name__ == "__main__":
 """
 Add checks for integrity - DB and datafiles(?)
 - new data incoming that has many fewer records than what is already there
-- unusual open/close times (which might indicate sloppy operators, 
+- unusual open/close times (which might indicate sloppy operators,
 or a corrupt file)
 - days with identical data
 - days with more than x bikes left at the end of the data entries

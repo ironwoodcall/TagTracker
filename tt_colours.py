@@ -102,4 +102,3 @@ else:
     Fore = _ForeClass()
     Back = _BackClass()
     Style = _StyleClass()
-

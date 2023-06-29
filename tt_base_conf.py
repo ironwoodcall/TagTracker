@@ -23,7 +23,7 @@ Copyright (C) 2023 Julias Hocking
 from tt_colours import Style, Fore, Back
 
 # Screen appearance
-SCREEN_WIDTH = 80 # characters
+SCREEN_WIDTH = 80  # characters
 USE_COLOUR = True
 CURSOR = ">>> "
 INCLUDE_TIME_IN_PROMPT = True
@@ -32,18 +32,19 @@ TAGS_UPPERCASE = False
 # This file defines what tags are available, for current-day sessions.
 TAG_CONFIG_FILE = "tags.cfg"
 # Files and folder locations
-DATA_FOLDER = "../data" # Folder to keep datafiles in
-DATA_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.dat
-DB_FILENAME = "cityhall_bikevalet.db" # Name of persistent database
+DATA_FOLDER = "../data"  # Folder to keep datafiles in
+DATA_BASENAME = "cityhall_"  # Files will be {BASENAME}YY-MM-DD.dat
+# Persistent database is put in the REPORTS_FOLDER
+DB_FILENAME = "cityhall_bikevalet.db"  # Name of persistent database
 # Where and how often to publish reports
 REPORTS_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
-PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
+PUBLISH_FREQUENCY = 15  # minutes. "0" means do not publish
 # Echo captures full transcripts of a day's TT session
 ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
 ECHO = False
 
 # Ask confirmatino for checkouts when visits less than this duration.
-CHECK_OUT_CONFIRM_TIME = 30 # mins
+CHECK_OUT_CONFIRM_TIME = 30  # mins
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
 BLOCK_DURATION = 30
 
@@ -103,18 +104,26 @@ STYLE[HIGHLIGHT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
 STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
 STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
 
-
+# These are the symbols & styles used in the tag inventory matrix.
+# Each is a tuple of (symbol,style).
+# Each symbol should be 2 characters wide.  Warning if using fancy unicode
+# that those characters come in various widths, platform-dependent.
+TAG_INV_UNKNOWN = ("  ",NORMAL_STYLE)
+TAG_INV_AVAILABLE = (" -",NORMAL_STYLE)
+TAG_INV_BIKE_IN = ("In",ANSWER_STYLE)
+TAG_INV_BIKE_OUT = ("Ou",PROMPT_STYLE)
+TAG_INV_RETIRED = ("Re",WARNING_STYLE)
 
 # Command keys and aliases.
 CMD_AUDIT = "audit"
 CMD_DELETE = "delete"
 CMD_EDIT = "edit"
-CMD_EXIT ="exit"
+CMD_EXIT = "exit"
 CMD_BLOCK = "block"
-CMD_HELP ="help"
+CMD_HELP = "help"
 CMD_LOOKBACK = "lookback"
-CMD_QUERY ="query"
-CMD_STATS ="stats"
+CMD_QUERY = "query"
+CMD_STATS = "stats"
 CMD_BUSY = "busy"
 CMD_VALET_HOURS = "valet_hours"
 CMD_CSV = "csv"
@@ -126,36 +135,36 @@ CMD_BUSY_CHART = "busy_chart"
 CMD_FULL_CHART = "full_chart"
 CMD_CHART = "chart"
 CMD_PUBLISH = "publish"
-CMD_COLOURS = "colours" # FIXME: remove in a while. Now "tags"
-CMD_RETIRED = "retired" # FIXME: remove in a while.  Now "tags"
+CMD_COLOURS = "colours"  # FIXME: remove in a while. Now "tags"
+CMD_RETIRED = "retired"  # FIXME: remove in a while.  Now "tags"
 CMD_TAGS = "tags"
 
 
 COMMANDS = {}
-COMMANDS[CMD_AUDIT] = ['audit','a','aud']
-COMMANDS[CMD_DELETE] = ['del','delete','d']
-COMMANDS[CMD_EDIT] = ['edit','e','ed']
-COMMANDS[CMD_EXIT] = ['quit','exit','stop','x','bye']
-COMMANDS[CMD_BLOCK] = ['log', 'l', 'form', 'f']
-COMMANDS[CMD_HELP] = ['help','h']
-COMMANDS[CMD_LOOKBACK] = ['recent', 'r']
-COMMANDS[CMD_QUERY] = ['query','q','?','/']
-COMMANDS[CMD_STATS] = ['s','stat','stats','statistics']
-COMMANDS[CMD_BUSY] = ["b", "busy","busyness","business"]
-COMMANDS[CMD_VALET_HOURS] = ["v","valet"]
+COMMANDS[CMD_AUDIT] = ["audit", "a", "aud"]
+COMMANDS[CMD_DELETE] = ["del", "delete", "d"]
+COMMANDS[CMD_EDIT] = ["edit", "e", "ed"]
+COMMANDS[CMD_EXIT] = ["quit", "exit", "stop", "x", "bye"]
+COMMANDS[CMD_BLOCK] = ["log", "l", "form", "f"]
+COMMANDS[CMD_HELP] = ["help", "h"]
+COMMANDS[CMD_LOOKBACK] = ["recent", "r"]
+COMMANDS[CMD_QUERY] = ["query", "q", "?", "/"]
+COMMANDS[CMD_STATS] = ["s", "stat", "stats", "statistics"]
+COMMANDS[CMD_BUSY] = ["b", "busy", "busyness", "business"]
+COMMANDS[CMD_VALET_HOURS] = ["v", "valet"]
 COMMANDS[CMD_CSV] = ["csv"]
-COMMANDS[CMD_UPPERCASE] = ["uc","uppercase", "upper"]
-COMMANDS[CMD_LOWERCASE] = ["lc","lowercase", "lower"]
-COMMANDS[CMD_RETIRED] = ["retired","ret"]
-COMMANDS[CMD_LINT] = ["consistency","consistent","cons","con"]
+COMMANDS[CMD_UPPERCASE] = ["uc", "uppercase", "upper"]
+COMMANDS[CMD_LOWERCASE] = ["lc", "lowercase", "lower"]
+COMMANDS[CMD_RETIRED] = ["retired", "ret"]
+COMMANDS[CMD_LINT] = ["consistency", "consistent", "cons", "con"]
 COMMANDS[CMD_DUMP] = ["dump"]
-COMMANDS[CMD_BUSY_CHART] = ["chart-busy","graph-busy","busy-chart","busy-graph"]
-COMMANDS[CMD_FULL_CHART] = ["chart-full","graph-full","full-chart","full-graph"]
-COMMANDS[CMD_CHART] = ["chart","c"]
-COMMANDS[CMD_PUBLISH] = ["pub","publish"]
-COMMANDS[CMD_COLOURS] = ["col","color","colors","colour","colours"]
+COMMANDS[CMD_BUSY_CHART] = ["chart-busy", "graph-busy", "busy-chart", "busy-graph"]
+COMMANDS[CMD_FULL_CHART] = ["chart-full", "graph-full", "full-chart", "full-graph"]
+COMMANDS[CMD_CHART] = ["chart", "c"]
+COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
+COMMANDS[CMD_COLOURS] = ["col", "color", "colors", "colour", "colours"]
 COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
-CMD_UNKNOWN = -1 # special value to mean unrecognized command
-
-
-
+# These are for commands that are not recognized so *maybe* are a tag
+CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
+CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)
+CMD_TAG_UNUSABLE = "tag_unusable" + chr(12345)

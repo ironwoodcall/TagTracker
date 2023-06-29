@@ -16,3 +16,8 @@ tt_local_config.py
 tt_conf.py
 tags*.txt
 tags*.cfg
+*.db
+test*.*
+settings.json
+.vscode
+.mypy_cache

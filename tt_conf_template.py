@@ -17,7 +17,7 @@ Copyright (C) 2023 Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-import
+from tt_base_conf import *  # pylint:disable=unused-wildcard-import,wildcard-import
 
 
 # Screen appearance
@@ -32,9 +32,10 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 # Files and folder locations
 ##DATA_FOLDER = "../data" # Folder to keep datafiles in
 ##DATA_BASENAME = "cityhall_" # Files will be {BASENAME}YY-MM-DD.dat
-##DB_FILENAME = "cityhall_bikevalet.db" # Name of persistent database
 # Where and how often to publish reports
 ##REPORTS_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
+# Persistent database is put in the REPORTS_FOLDER
+##DB_FILENAME = "cityhall_bikevalet.db" # Name of persistent database
 ##PUBLISH_FREQUENCY = 15 # minutes. "0" means do not publish
 # Echo captures full transcripts of a day's TT session
 ##ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
@@ -88,6 +89,16 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 ##STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
 ##STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
 
+# These are the symbols & styles used in the tag inventory matrix.
+# Each is a tuple of (symbol,style).
+# Each symbol should be 2 characters wide.  Warning if using fancy unicode
+# that those characters come in various widths, platform-dependent.
+##TAG_INV_UNKNOWN = ("  ",NORMAL_STYLE)
+##TAG_INV_AVAILABLE = (" -",NORMAL_STYLE)
+##TAG_INV_BIKE_IN = ("In",ANSWER_STYLE)
+##TAG_INV_BIKE_OUT = ("Ou",PROMPT_STYLE)
+##TAG_INV_RETIRED = ("Re",WARNING_STYLE)
+
 # Surely you don't want to change these.  Which strings activate which commands.
 ##COMMANDS[CMD_AUDIT] = ['audit','a','aud']
 ##COMMANDS[CMD_DELETE] = ['del','delete','d']
@@ -112,6 +123,3 @@ from tt_base_conf import * #pylint:disable=unused-wildcard-import,wildcard-impor
 ##COMMANDS[CMD_PUBLISH] = ["pub","publish"]
 ##COMMANDS[CMD_COLOURS] = ["col","color","colors","colour","colours"]
 ##COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
-
-
-

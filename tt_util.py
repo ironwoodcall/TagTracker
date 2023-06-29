@@ -19,24 +19,38 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import os
+import sys
 import datetime
 import re
-from typing import Union  # This is for type hints instead of (eg) int|str
-from inspect import currentframe, getframeinfo
+# This is for type hints instead of (eg) int|str
+from typing import Union,Tuple
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_time import VTime
+from tt_tag import TagID
 
-
-def squawk(whatever="") -> None:
+def squawk(whatever:str="") -> None:
     """Print whatever with file & linenumber in front of it.
 
     This is intended for programming errors not prettiness.
-    """
-    cf = currentframe()
-    filename = os.path.basename(getframeinfo(cf).filename)
-    lineno = cf.f_back.f_lineno
-    print(f"{filename}:{lineno}: {whatever}")
 
+    Additional caller info:
+        caller_path = f.f_globals['__file__'] (though fails if squawk()
+            called from interpreter, as __file__ not in globals at that point)
+        caller_file = os.path.basename(caller_path)
+    """
+    f = sys._getframe(1) #pylint:disable=protected-access
+    caller_module = f.f_globals['__name__']
+    caller_function = f.f_code.co_name
+    caller_line_no = f.f_lineno
+    print(f"{caller_module}:{caller_function}():{caller_line_no}: {whatever}")
+
+def decomment(string:str) -> str:
+    """Remove any part of the string that starts with '#'."""
+    r = re.match(r"^([^#]*) *#",string)
+    if r:
+        return r.group(1)
+    return string
 
 def get_date(long: bool = False) -> str:
     """Return current date as string YYYY-MM-DD or a longer str if long=True."""
@@ -47,7 +61,9 @@ def get_date(long: bool = False) -> str:
 
 def long_date(date: str) -> str:
     """Convert YYYY-MM-DD to a long statement of the date."""
-    return datetime.datetime.fromisoformat(date).strftime("%A %B %d (%Y-%m-%d)")
+    return datetime.datetime.fromisoformat(date).strftime(
+        "%A %B %d (%Y-%m-%d)"
+    )
 
 
 def date_str(maybe_date: str) -> str:
@@ -66,9 +82,10 @@ def date_str(maybe_date: str) -> str:
     return f"{y:04d}-{m:02d}-{d:02d}"
 
 
-def get_time() -> Time:
+def get_time() -> VTime:
     """Return current time as string: HH:MM."""
-    return datetime.datetime.today().strftime("%H:%M")
+    # FIXME: get_time() deprecated, use VTime("now") instead
+    return VTime(datetime.datetime.today().strftime("%H:%M"))
 
 
 def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
@@ -85,6 +102,7 @@ def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
     might be a legitimate time, test for the type of the return or
     test whether "is None".
     """
+    # FIXME: time_int() deprecated, use VTime() instead
     if isinstance(maybe_time, float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time, str):
@@ -113,7 +131,7 @@ def time_str(
     maybe_time: Union[int, str, float, None],
     allow_now: bool = False,
     default_now: bool = False,
-) -> Time:
+) -> VTime:
     """Return maybe_time as HH:MM (or "").
 
     Input can be int/float (duration or minutes since midnight),
@@ -127,38 +145,40 @@ def time_str(
     Return is either "" (doesn't look like a valid time) or
     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
     """
+    # FIXME: time_str() deprecated, use VTime() object
     if not maybe_time and default_now:
-        return get_time()
+        return VTime("now")
     if isinstance(maybe_time, float):
         maybe_time = round(maybe_time)
     if isinstance(maybe_time, str):
         if maybe_time.lower() == "now" and allow_now:
-            return get_time()
+            return VTime("now")
         r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
         if not (r):
-            return ""
+            return VTime("")
         h = int(r.group(1))
         m = int(r.group(2))
         # Test for an impossible time
         if h > 24 or m > 59 or (h * 60 + m) > 1440:
-            return ""
+            return VTime("")
     elif maybe_time is None:
-        return ""
+        return VTime("")
     elif not isinstance(maybe_time, int):
         squawk(f"PROGRAM ERROR: called time_str({maybe_time=})")
-        return ""
+        return VTime("")
     elif isinstance(maybe_time, int):
         # Test for impossible time.
         if not (0 <= maybe_time <= 1440):
-            return ""
+            return VTime("")
         h = maybe_time // 60
         m = maybe_time % 60
     # Return 5-digit time string
-    return f"{h:02d}:{m:02d}"
+    return VTime(f"{h:02d}:{m:02d}")
 
 
 def pretty_time(atime: Union[int, str, float], trim: bool = False) -> str:
     """Replace lead 0 in HH:MM with blank (or remove, if 'trim' )."""
+    # FIXME: pretty_time() deprecated; use VTime().tidy or VTime().short
     atime = time_str(atime)
     if not atime:
         return ""
@@ -168,7 +188,9 @@ def pretty_time(atime: Union[int, str, float], trim: bool = False) -> str:
     return atime
 
 
-def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[str]:
+def parse_tag(
+    maybe_tag: str, must_be_in=None, uppercase: bool = False
+) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -176,7 +198,7 @@ def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[
         [tag_id, colour, tag_letter, tag_number]
     If tag is not valid, then the return list is empty []
 
-    If must_be_in is notan empty list (or None) then will check whether
+    If must_be_in is not an empty list (or None) then will check whether
     this tag is in the list passed in, and if
     not in the list, will return an empty list.
 
@@ -189,7 +211,10 @@ def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[
         tag_letter: 1 lc letter, the first character on the tag
         tag_number: a sequence number, without lead zeroes.
     """
+    # FIXME: parse_tag() is  deprecated, use TagID()
     maybe_tag = maybe_tag.lower()
+    # Regular expression for parsing tags
+    PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
     r = PARSE_TAG_RE.match(maybe_tag)
     if not bool(r):
         return []
@@ -207,7 +232,9 @@ def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[
     return [tag_id, tag_colour, tag_letter, tag_number]
 
 
-def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) -> Tag:
+def fix_tag(
+    maybe_tag: str, must_be_in: list = None, uppercase: bool = False
+) -> str:
     """Turn 'str' into a canonical tag name.
 
     If must_be_in is exists & not an empty list then, will force
@@ -215,15 +242,16 @@ def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) ->
 
     If uppercase then returns the tag in uppercase, default is lowercase.
     """
+    # FIXME fix_tag fn is now deprecated, useTagID()
     bits = parse_tag(maybe_tag, must_be_in=must_be_in, uppercase=uppercase)
     return bits[0] if bits else ""
 
 
-def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
+def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
     """Get tags sorted into lists by their prefix.
 
     Return a list of lists of tags, sorted and de-duped. E.g.
-        sort_tags(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
+        taglists_by_prefix(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
         --> [['be1','be9','be10],['wa5','wa12'],['wd15']]
 
     Preconditions:
@@ -231,42 +259,24 @@ def sort_tags(unsorted: list[Tag]) -> list[list[Tag]]:
         - all tags are syntactically valid
     """
 
-    has_uc = bool(re.search(r"[A-Z]", "".join(unsorted)))
-    has_lc = bool(re.search(r"[a-z]", "".join(unsorted)))
-    if has_uc == has_lc:
-        squawk(f"error call to sort_tags(), list is mixed case: '{unsorted=}'")
-        unsorted = [x.upper() for x in unsorted]
-        uppercase = True
-    else:
-        uppercase = has_uc
-
-    # Put all the tags into sets, one set for each prefix
-    tagsets = {}
+    # Make a dictionary of all tags keyed by their prefixes
+    prefixed_tags = dict(
+        zip([tag.prefix for tag in unsorted], [[] for _ in range(0, 100)])
+    )
     for tag in unsorted:
-        bits = parse_tag(tag,uppercase=uppercase,)
-        prefix = f"{bits[1]}{bits[2]}"
-        num = int(bits[3])
-        if prefix not in tagsets:
-            tagsets[prefix] = set()
-        tagsets[prefix].add(num)
-    # Make a list of lists with sorted tags
+        prefixed_tags[tag.prefix].append(tag)
     outerlist = []
-    for prefix in sorted(tagsets.keys()):
-        outerlist.append( [f"{prefix}{n}" for n in sorted(list(tagsets[prefix]))])
+    for prefix in sorted(prefixed_tags.keys()):
+        outerlist.append(sorted(prefixed_tags[prefix]))
     return outerlist
 
-
-def tags_by_prefix(tags: list[Tag]) -> dict[str, list[Tag]]:
+def tagnums_by_prefix(tags: list[TagID]) -> dict[str, list[int]]:
     """Return a dict of tag prefixes with lists of associated tag numbers."""
     prefixes = {}
     for tag in tags:
-        # pylint: disable=unbalanced-tuple-unpacking
-        (t_colour, t_letter, t_number) = parse_tag(tag,uppercase=False)[1:4]
-        # pylint: disable=unbalanced-tuple-unpacking
-        prefix = f"{t_colour}{t_letter}"
-        if prefix not in prefixes:
-            prefixes[prefix] = []
-        prefixes[prefix].append(int(t_number))
+        if tag.prefix not in prefixes:
+            prefixes[tag.prefix] = []
+        prefixes[tag.prefix].append(tag.number)
     for numbers in prefixes.values():
         numbers.sort()
     return prefixes
@@ -285,50 +295,24 @@ def splitline(inp: str) -> list[str]:
     return tokens
 
 
-def build_colour_dict(file: str) -> TagDict:
-    """Create dictionary of colour names and abbreviations.
-
-    Reads them from file; if file does not exist, creates it.
-    """
-    # Create empty file if does not exist.
-    if not os.path.exists(file):
-        with open(file, "w", encoding="utf-8") as f:
-            header = (
-                "Enter each first letter(s) of a tag name corresponding to "
-                "a tag colour separated by whitespace on their own line, "
-                "eg 'b black' etc"
-            )
-            f.writelines(header)
-            return {}
-    # Read from existing file
-    with open(file, "r", encoding="utf-8") as f:
-        lines = f.readlines()[1:]  # ignore header text
-    colours = {}
-    for line in lines:
-        if len(line.rstrip().split()) == 2:
-            abbrev = line.rstrip().split()[0]
-            colour = line.rstrip().split()[1]
-            colours[abbrev] = colour  # add to dictionary
-    return colours
-
-
 def get_version() -> str:
     """Return system version number from changelog.txt.
 
-    If it looks like a git repo, will also try to include a ref from that."""
+    If it looks like a git repo, will also try to include a ref from that.
+    """
     version_str = ""
     changelog = "changelog.txt"
     if os.path.exists(changelog):
         # Read startup header from changelog.
         with open(changelog, "r", encoding="utf-8") as f:
             for line in f:
-                r = re.match(r"^ *([0-9]+\.[0-9]+\.[0-9]+): *$", line)
+                r = re.match(r"^ *([0-9]+\.[0-9\.]+\.[0-9]+): *$", line)
                 if r:
                     version_str = r.group(1)
                     break
 
     # Git ref
-    git_head = os.path.join(".git","HEAD")
+    git_head = os.path.join(".git", "HEAD")
     if not os.path.exists(git_head):
         return version_str
     # .git/HEAD points to the file that contains the version
@@ -340,7 +324,7 @@ def get_version() -> str:
                 ref_path = r.group(1)
         if not ref_path:
             return version_str
-    ref_full_path = os.path.join(".git",ref_path)
+    ref_full_path = os.path.join(".git", ref_path)
     if not os.path.exists(ref_full_path):
         return version_str
     git_str = ""
@@ -357,9 +341,67 @@ def get_version() -> str:
     version_str = f"{version_str} ({git_str})"
     return version_str
 
-def plural(count:int) -> str:
+
+def plural(count: int) -> str:
     """Get an "s" if count indicates one is needed."""
-    if isinstance(count,(int,float)) and count == 1:
+    if isinstance(count, (int, float)) and count == 1:
         return ""
     else:
         return "s"
+
+
+def valet_hours(the_date: str) -> Tuple[str, str]:
+    """Report what time the valet opened this the_date."""
+    day = datetime.datetime.strptime(the_date, "%Y-%m-%d")
+    day_of_week = datetime.datetime.weekday(day)  # 0..6
+    spring = {
+        0: ("10:00", "17:00"),  # sunday
+        1: ("07:30", "18:00"),
+        2: ("07:30", "18:00"),
+        3: ("07:30", "18:00"),
+        4: ("07:30", "18:00"),
+        5: ("07:30", "20:00"),
+        6: ("10:00", "20:00"),
+    }
+    summer = {  # summer hours start May 1
+        0: ("10:00", "17:00"),  # sunday
+        1: ("07:30", "18:00"),
+        2: ("07:30", "18:00"),
+        3: ("07:30", "20:00"),
+        4: ("07:30", "20:00"),
+        5: ("07:30", "22:00"),
+        6: ("10:00", "22:00"),
+    }
+    fall = {
+        0: ("10:00", "17:00"),  # sunday
+        1: ("07:30", "18:00"),
+        2: ("07:30", "18:00"),
+        3: ("07:30", "18:00"),
+        4: ("07:30", "18:00"),
+        5: ("07:30", "20:00"),
+        6: ("10:00", "20:00"),
+    }
+    specials = {
+        "2023-04-07": ("10:00","20:00"),
+        "2023-04-10": ("10:00","17:00"),
+        "2023-05-22": ("09:00","17:00"),
+        "2023-06-11": ("10:00","18:30"),    # unknown special day
+        "2023-07-01": ("10:00","17:00"),
+        "2023-08-07": ("10:00","17:00"),
+        "2023-09-04": ("10:00","17:00"),
+        "2023-09-30": ("10:00","22:00"),
+        "2023-10-09": ("10:00","17:00"),
+        "2023-11-11": ("10:00","20:00"),
+    }
+
+    if the_date in specials:
+        return specials[the_date]
+    elif the_date >= "2023-10-01":   # fall/winter hours start
+        return fall[day_of_week]
+    elif the_date >= "2023-05-01":  # summer hours start
+        return summer[day_of_week]
+    elif the_date >= "2023-03-17":  # opening day
+        return spring[day_of_week]
+    else:
+        return ("", "")
+
