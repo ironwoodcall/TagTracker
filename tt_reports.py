@@ -200,6 +200,7 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
     # Count the totals
     visits = Stay.calc_stays(day, as_of_when=as_of_when)
     bikes_on_hand = [v.tag for v in visits.values() if v.still_here]
+    ##print(' '.join(bikes_on_hand))
     num_bikes_on_hand = len(bikes_on_hand)
     regular_in = 0
     regular_out = 0

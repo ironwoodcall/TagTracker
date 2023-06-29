@@ -74,9 +74,9 @@ class TrackerDay:
         oversizes = set()
         for tag in set(self.bikes_in.keys()) | set(self.bikes_out.keys()):
             tag: TagID
-            if tag.colour in ["o", "p", "w"]:
+            if tag.colour.lower() in ["o", "p", "w"]:
                 regulars.add(tag)
-            elif tag.colour == "b":
+            elif tag.colour.lower() == "b":
                 oversizes.add(tag)
         self.regular = frozenset(regulars)
         self.oversize = frozenset(oversizes)
@@ -85,7 +85,7 @@ class TrackerDay:
         """Fake up a colour dictionary in day from existing tags."""
         letters = set()
         for tag in self.bikes_in:
-            letters.add(tag.colour)
+            letters.add(tag.colour.lower())
         colour_dict = {}
         for c in letters:
             colour_dict[c] = f"colour {c}"
