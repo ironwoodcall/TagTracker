@@ -391,7 +391,11 @@ def setup_parser() -> None:
     """Add relevant arguments to the ArgumentParser."""
 
     parser.add_argument(  # optional database filepath specification
-        "dbfile", nargs="?", type=str, default=DB_FILEPATH
+        "-d",
+        "--dbfile",
+        nargs="?",
+        type=str,
+        default=DB_FILEPATH
     )
     parser.add_argument(
         "datafiles",
@@ -404,7 +408,12 @@ def setup_parser() -> None:
             )
         ],
     )
-    parser.add_argument("-a", "--alldata", action="store_const", const=True)
+    parser.add_argument(
+        "-a",
+        "--alldata",
+        action="store_const",
+        const=True
+    )
 
 
 if __name__ == "__main__":
