@@ -78,9 +78,8 @@ CREATE TABLE IF NOT EXISTS visit (
     tag         TEXT NOT NULL,
     type        TEXT NOT NULL,
     time_in     TEXT CHECK (time_in  IS strftime('%H:%M', time_in)),
-    time_out    TEXT CHECK (time_out IS strftime('%H:%M', time_out)),
+    time_out    TEXT CHECK ((time_out IS strftime('%H:%M', time_out)) OR (time_out is NULL)),
     duration    TEXT CHECK (duration IS strftime('%H:%M', duration)),
-    checked_out BOOLEAN NOT NULL,
     notes       TEXT,
     batch       TEXT CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch)),
 

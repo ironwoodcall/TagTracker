@@ -27,7 +27,6 @@ Copyright (C) 2023 Julias Hocking
 
 import glob
 import re
-import sys
 import os
 import sqlite3
 import calendar
@@ -63,7 +62,6 @@ COL_BIKETYPE = "type"
 COL_TIME_IN = "time_in"
 COL_TIME_OUT = "time_out"
 COL_DURATION = "duration"
-COL_CHECKED_OUT = "checked_out"
 COL_NOTES = "notes"
 COL_BATCH = "batch"
 
@@ -111,7 +109,7 @@ def create_connection(db_file) -> sqlite3.Connection:
     return connection
 
 
-def duration(hhmm_in: str, hhmm_out: str) -> str:
+def calc_duration(hhmm_in: str, hhmm_out: str) -> str:
     """Calculate a str duration from a str time in and out."""
     t_in = ut.time_int(hhmm_in)
     t_out = ut.time_int(hhmm_out)
@@ -284,18 +282,19 @@ def data_to_db(filename: str) -> None:
 
     visit_commit_count = total_parked
     visit_fail_count = 0
+
     for tag, time in data.bikes_in.items():
         tag_name = tag
         time_in = time
         if tag_name in data.bikes_out.keys():
             time_out = data.bikes_out[tag]
-            checked_out = "TRUE"
+            db_time_out = f"'{time_out}'"
         else:  # no check-out recorded
             if closing:
                 time_out = closing
                 print(
-                    f" (normal leftover): {tag} given closing time "
-                    f"{closing} from {TABLE_DAYS} table"
+                    f" (normal leftover): {tag} stay time found using closing "
+                    f"time {closing} from table '{TABLE_DAYS}'"
                 )
             else:
                 time_out = data.latest_event()  # approx. as = to last event
@@ -303,8 +302,8 @@ def data_to_db(filename: str) -> None:
                     " Datafile missing closing time: using latest "
                     f"event time for leftover with tag {tag}"
                 )
-            checked_out = "FALSE"
-        time_stay = duration(time_in, time_out)
+            db_time_out = "NULL"  # won't add quotes later so will be true NULL
+        time_stay = calc_duration(time_in, time_out)
         if not sql_do(
             f"""INSERT INTO {TABLE_VISITS} (
                     {COL_ID},
@@ -314,7 +313,6 @@ def data_to_db(filename: str) -> None:
                     {COL_TIME_IN},
                     {COL_TIME_OUT},
                     {COL_DURATION},
-                    {COL_CHECKED_OUT},
                     {COL_BATCH}
                     ) VALUES (
                     '{date}.{tag}',
@@ -322,9 +320,8 @@ def data_to_db(filename: str) -> None:
                     '{tag}',
                     '{what_bike_type(tag)}',
                     '{time_in}',
-                    '{time_out}',
+                    {db_time_out},
                     '{time_stay}',
-                    {checked_out},
                     '{batch}');"""
         ):
             print(f"failed to insert a stay for {tag}")
@@ -388,20 +385,50 @@ def get_yesterday() -> str:
     return yest_str
 
 
+def setup_parser() -> None:
+    """Add relevant arguments to the ArgumentParser."""
+
+    parser.add_argument(  # optional database filepath specification
+        "dbfile", nargs="?", type=str, default=DB_FILEPATH
+    )
+    parser.add_argument(
+        "datafiles",
+        nargs="*",
+        type=str,
+        default=[
+            os.path.join(
+                cfg.DATA_FOLDER,
+                f"{cfg.DATA_BASENAME}{get_yesterday()}.dat"
+            )
+        ],
+    )
+    parser.add_argument("-a", "--alldata", action="store_const", const=True)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "infile", nargs="?", type=argparse.FileType("r"), default=sys.stdin
-    )
-    parser.add_argument("db_file", nargs="?", type=str)
-#FIXME: in the middle of adding parser functionality
+    setup_parser()
+    args = parser.parse_args()
+
+    if args.dbfile:
+        DB_FILEPATH = args.dbfile
+
+    if args.alldata:  # search for all data if told
+        datafiles = [
+            f"{cfg.DATA_FOLDER}/{filename}"
+            for filename in glob.glob("*.dat", root_dir=cfg.DATA_FOLDER)
+            if re.match(DATAFILE_RE, filename)
+        ]
+    else:
+        datafiles = args.datafiles
+
     print(f"Connecting to database at {DB_FILEPATH}...")
     conn = create_connection(DB_FILEPATH)
 
     if sql_do("PRAGMA foreign_keys=ON;"):
-        print("Enabled foreign keys")
+        print("Successfully enabled foreign keys")
     else:
-        print("")
+        print("WARN: couldn't enable use of foreign keys")
 
     date_today = ut.get_date()
     batch = f"{date_today}T{ut.get_time()}"
@@ -409,21 +436,6 @@ if __name__ == "__main__":
 
     SUCCESS_COUNT = 0
     EMPTY_COUNT = 0
-    if len(sys.argv) == 1:  # default to using yesterday's data
-        datafiles = [
-            os.path.join(
-                cfg.DATA_FOLDER, f"{cfg.DATA_BASENAME}{get_yesterday()}.dat"
-            )
-        ]
-    elif sys.argv[1] == "all":
-        datafiles = [
-            f"{cfg.DATA_FOLDER}/{filename}"
-            for filename in glob.glob("*.dat", root_dir=cfg.DATA_FOLDER)
-            if re.match(DATAFILE_RE, filename)
-        ]
-    else:
-        in_files = sys.argv[1:]
-        datafiles = in_files
 
     for datafilename in datafiles:
         data_to_db(datafilename)
@@ -441,7 +453,6 @@ Add checks for integrity - DB and datafiles(?)
 - new data incoming that has many fewer records than what is already there
 - unusual open/close times (which might indicate sloppy operators, 
 or a corrupt file)
---- flag guessed open close times?
 - days with identical data
 - days with more than x bikes left at the end of the data entries
 """
