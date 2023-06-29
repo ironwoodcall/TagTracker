@@ -38,7 +38,9 @@ import tt_conf as cfg
 import tt_util as ut
 import tt_datafile as df
 import tt_globals as tg
+
 from tt_event import Event
+from tt_time import VTime
 
 
 # Path for the database to be put into
@@ -337,7 +339,7 @@ def data_to_db(filename: str) -> None:
         print(f"ERR: SQL error trying to commit {filename} - {sqlite_err}")
 
 
-def select_closing_time(date: str) -> Union[ut.Time, bool]:
+def select_closing_time(date: str) -> Union[VTime, bool]:
     """Return the closing time of a given date in TABLE_DAYS.
 
     - SELECT closing time from rows with matching dates (should be just 1)
@@ -354,7 +356,7 @@ def select_closing_time(date: str) -> Union[ut.Time, bool]:
     if num_rows == 0:
         return False  # will now use last event instead
     elif num_rows == 1:
-        return rows[0][0]  # needs double subscript apparently
+        return VTime(rows[0][0])  # needs double subscript apparently
     else:
         print(
             f" Database error: finding closing time on '{date}' in table "
