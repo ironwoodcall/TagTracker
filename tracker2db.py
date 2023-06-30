@@ -391,7 +391,7 @@ def setup_parser() -> None:
     """Add relevant arguments to the ArgumentParser."""
 
     parser.add_argument(  # optional database filepath specification
-        "dbfile", nargs="?", type=str, default=DB_FILEPATH
+        "-d", "--dbfile", nargs="?", type=str, default=DB_FILEPATH
     )
     parser.add_argument(
         "datafiles",
@@ -399,8 +399,7 @@ def setup_parser() -> None:
         type=str,
         default=[
             os.path.join(
-                cfg.DATA_FOLDER,
-                f"{cfg.DATA_BASENAME}{get_yesterday()}.dat"
+                cfg.DATA_FOLDER, f"{cfg.DATA_BASENAME}{get_yesterday()}.dat"
             )
         ],
     )
