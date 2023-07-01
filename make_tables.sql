@@ -78,12 +78,12 @@ CREATE TABLE IF NOT EXISTS visit (
     tag         TEXT NOT NULL,
     type        TEXT NOT NULL,
     time_in     TEXT CHECK (time_in  IS strftime('%H:%M', time_in)),
-    time_out    TEXT CHECK ((time_out IS strftime('%H:%M', time_out)) OR (time_out is NULL)),
+    time_out    TEXT CHECK ((time_out IS strftime('%H:%M', time_out)) OR (time_out IS '')),
     duration    TEXT CHECK (duration IS strftime('%H:%M', duration)),
     notes       TEXT,
     batch       TEXT CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch)),
 
-    CHECK (time_out >= time_in)
+    CHECK ((time_out >= time_in) OR (time_out IS ''))
     FOREIGN KEY (tag) REFERENCES tags(tag_id)
     FOREIGN KEY (type) REFERENCES types(code)
 );
