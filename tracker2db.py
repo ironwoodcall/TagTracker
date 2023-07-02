@@ -25,13 +25,14 @@ Copyright (C) 2023 Julias Hocking
 """
 
 
-import glob
-import re
-import os
-import sqlite3
+import argparse
 import calendar
 import datetime
-import argparse
+import glob
+import os
+import re
+import sqlite3
+import sys
 from typing import Union  # for type hints instead of (eg) int|str
 
 import tt_conf as cfg
@@ -45,9 +46,6 @@ from tt_time import VTime
 
 # Path for the database to be put into
 DB_FILEPATH = os.path.join(cfg.REPORTS_FOLDER, cfg.DB_FILENAME)
-
-# regex for retrieving date from filename if it isn't explicit (older files)
-DATE_RE = r"2[0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]"
 
 # Regex for recognizing datafile names
 DATAFILE_RE = re.compile(
@@ -86,7 +84,7 @@ COL_DAY_OF_WEEK = "weekday"  # 0-6 day of the week
 COL_PRECIP_MM = "precip_mm"  # mm (bulk pop from EnvCan dat)
 COL_TEMP_10AM = "temp_10am"  # temp at 10AM - same
 COL_SUNSET = "sunset"  # HHMM time at sunset - same
-COL_EVENT = "event"  # text NULL or brief name of nearby event
+COL_EVENT = "event"  # brief name of nearby event
 COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
 COL_REGISTRATIONS = "registrations"  # num of 529 registrations recorded
 # COL_NOTES name reused
@@ -105,9 +103,11 @@ def create_connection(db_file) -> sqlite3.Connection:
     connection = None
     try:
         connection = sqlite3.connect(db_file)
-        print(f"SQLite version {sqlite3.version}")
+        if args.verbose:
+            print(f"SQLite version {sqlite3.version}")
     except sqlite3.Error as sqlite_err:
-        print("sqlite ERROR in create_connection() -- ", sqlite_err)
+        print("Error (SQLite) trying to create_connection(): ", sqlite_err)
+        sys.exit(1)
     return connection
 
 
@@ -141,38 +141,36 @@ def data_to_db(filename: str) -> None:
         elif tag in oversize_tags:
             return OVERSIZE
         else:
-            print(f" Bike type parsing problem for {tag}")
-            return None
+            print(f"Error: couldn't parse bike type for {tag} in {filename}")
+            sys.exit(1)
 
     if not os.path.isfile(filename):
-        print(f"File not found (data_to_db()): {filename}")
-        return None
+        print(f"Error: couldn't find file: {filename}")
+        return
 
-    print(f"\n Working on {filename}")
+    if args.verbose:
+        print(f"\nWorking on {filename}")
+
     data = df.read_datafile(f"{filename}", err_msgs=[])
 
     date = data.date
     if not date:  # get from filename for old data formats (hopefully never)
-        print(f" WARN: needed filename date for {filename}")
-        date = re.search(DATE_RE, filename).group(0)
+        print(f"Error: unable to read valet date from file {filename}")
+        return
 
     if not data.bikes_in:  # if no visits to record, stop now
-        print(f" No visits in {filename}")
+        print(f"No visits in {filename}")
         globals()["EMPTY_COUNT"] += 1
         return
     globals()["SUCCESS_COUNT"] += 1
 
     if data.regular and data.oversize:
-        print(" Tags: datafile tag lists loaded")
         regular_tags = data.regular
         oversize_tags = data.oversize
-    else:  # ask for appropriate tags context and stop now for this datafile
-        print(f" ERROR: no tags context found in datafile {filename}")
-        print("  This is likely to create bad data!")
-        print(
-            "  Please add appropriate tags context to this file, "
-            "then try again."
-        )
+        if args.verbose:
+            print("Tags: datafile tag lists loaded")
+    else:  # if no context
+        print(f"Error: unable to read tags context from file {filename}")
         return
 
     # TABLE_DAYS handling
@@ -189,10 +187,10 @@ def data_to_db(filename: str) -> None:
     total_leftover = len(data.bikes_in) - len(data.bikes_out)
     if total_leftover < 0:
         print(
-            f" ERROR: calculated negative value ({total_leftover})"
-            " of leftover bikes"
+            f"Error: calculated negative value ({total_leftover})"
+            f" of leftover bikes for {date}"
         )
-        print(" No data committed for this file.")
+        print(f"Aborting {filename}")
         return
 
     # Highwater values
@@ -237,8 +235,8 @@ def data_to_db(filename: str) -> None:
     weekday = calendar.weekday(year, month, day)
 
     if not sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';"):
-        print(f"ERROR: delete day summary failed for date '{date}'")
-        return  # stop now for this datafile
+        print(f"Error: delete day summary failed for date '{date}'")
+        sys.exit(1)
 
     if not sql_do(
         f"""INSERT INTO {TABLE_DAYS} (
@@ -275,8 +273,8 @@ def data_to_db(filename: str) -> None:
                 '{batch}'
                 );"""
     ):
-        print("ERROR: failed to insert day summary. Aborting file")
-        return  # stop now for this datafile
+        print(f"Error: failed to insert day summary for {filename}. Aborting.")
+        sys.exit(1)
 
     # TABLE_VISITS handling
     closing = select_closing_time(date)  # fetch checkout time for whole day
@@ -292,16 +290,18 @@ def data_to_db(filename: str) -> None:
         else:  # no check-out recorded
             if closing:
                 dur_end = closing
-                print(
-                    f" (normal leftover): {tag} stay time found using closing "
-                    f"time {closing} from table '{TABLE_DAYS}'"
-                )
+                if args.verbose:
+                    print(
+                        f" (normal leftover): {tag} stay time found using "
+                        f"closing time {closing} from table '{TABLE_DAYS}'"
+                    )
             else:
                 dur_end = data.latest_event()  # approx. as = to last event
-                print(
-                    " Datafile missing closing time: using latest "
-                    f"event time for leftover with tag {tag}"
-                )
+                if not args.quiet:
+                    print(
+                        " Datafile missing closing time: using latest "
+                        f"event time for leftover with tag {tag}"
+                    )
             time_out = ""  # empty str for no time
         time_stay = calc_duration(time_in, dur_end)
         if not sql_do(
@@ -329,10 +329,11 @@ def data_to_db(filename: str) -> None:
             visit_fail_count += 1
     try:
         conn.commit()  # commit one datafile transaction
-        print(
-            f" Committed records for {visit_commit_count} visits! "
-            f"({visit_fail_count} failed)"
-        )
+        if not args.quiet:
+            print(
+                f" --> Committed records for {visit_commit_count} visits on {date}"
+                f" ({visit_fail_count} failed)"
+            )
     except sqlite3.Error as sqlite_err:
         print(f"ERR: SQL error trying to commit {filename} - {sqlite_err}")
 
@@ -386,22 +387,104 @@ def get_yesterday() -> str:
 
 
 def setup_parser() -> None:
-    """Add relevant arguments to the ArgumentParser."""
+    """Add relevant arguments to the ArgumentParser.
 
-    parser.add_argument(  # optional database filepath specification
-        "-d", "--dbfile", nargs="?", type=str, default=DB_FILEPATH
+    Includes:
+    datafiles: discrete datafile paths to use
+    -a, --alldata <path>: look for all datafiles in this dir matching a glob
+    -g, --glob <glob>: optional glob to use for datafiles
+    -d, --dbfile <path>: path to database file
+    """
+
+    parser.add_argument(
+        "dbfile", type=str, help="path of destination database file"
     )
     parser.add_argument(
-        "datafiles",
+        "datafolder",
+        type=str,
+        help="folder to look for data in. "
+        "Additionally, please use >= 1 of: --datafiles, --glob",
+    )
+    parser.add_argument(
+        "--datafiles",
         nargs="*",
         type=str,
-        default=[
-            os.path.join(
-                cfg.DATA_FOLDER, f"{cfg.DATA_BASENAME}{get_yesterday()}.dat"
-            )
-        ],
+        help="discrete datafiles to target",
     )
-    parser.add_argument("-a", "--alldata", action="store_const", const=True)
+    parser.add_argument(
+        "--glob",
+        nargs=1,
+        type=str,
+        help="glob to find datafiles with",
+    )  # fileglob
+    parser.add_argument(
+        "--yesterday",
+        action="store_const",
+        const=True,
+        help="to look for a datafile from yesterday?",  # FIXME: functionality of several commands not done, especially this one
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_const",
+        const=True,
+        help="suppresses all non-error output",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_const",
+        const=True,
+        help="provides most detailed output",
+    )
+
+
+def find_datafiles(args) -> list:
+    """Use provided args to assemble a list of datafiles.
+
+    Needs at least 1 of:
+    - specific file to target
+    - glob to search with in specified directory
+
+    If provided both, returns the set union of all datafiles found.
+    """
+
+    globbed_files = []
+    if args.glob:  # glob for data if told
+        folder = args.datafolder[0]
+        fileglob = args.glob[0]
+        globbed_files = [
+            os.path.join(folder, filename)
+            for filename in glob.glob(fileglob, root_dir=folder)
+        ]
+        if len(globbed_files) < 1:  # if still empty after globbing
+            print(
+                f"Error: no files found in dir {folder} "
+                f"matching glob '{fileglob}'"
+            )
+            sys.exit(1)
+
+    indiv_files = []
+    if args.datafiles:  # if specific files, add them on
+        indiv_files = [
+            os.path.join(args.datafolder[0], filename)
+            for filename in args.datafiles
+        ]
+        if indiv_files == []:
+            print(
+                "Error (shouldn't ever reach here) - find_datafiles()"
+                ": indiv_files still empty despite provided args ??"
+            )
+
+    if indiv_files == [] and globbed_files == []:
+        print(
+            "Error - find_datafiles(): please provide either a fileglob"
+            " or one or more discrete filenames to use"
+        )
+        sys.exit(1)
+
+    all_targeted = set().union(globbed_files, indiv_files)
+    return all_targeted
 
 
 if __name__ == "__main__":
@@ -409,29 +492,23 @@ if __name__ == "__main__":
     setup_parser()
     args = parser.parse_args()
 
-    if args.dbfile:
-        DB_FILEPATH = args.dbfile
+    DB_FILEPATH = args.dbfile[0]
+    datafiles = find_datafiles(args)
 
-    if args.alldata:  # search for all data if told
-        datafiles = [
-            f"{cfg.DATA_FOLDER}/{filename}"
-            for filename in glob.glob("*.dat", root_dir=cfg.DATA_FOLDER)
-            if re.match(DATAFILE_RE, filename)
-        ]
-    else:
-        datafiles = args.datafiles
-
-    print(f"Connecting to database at {DB_FILEPATH}...")
+    if args.verbose:
+        print(f"Connecting to database at {DB_FILEPATH}...")
     conn = create_connection(DB_FILEPATH)
 
     if sql_do("PRAGMA foreign_keys=ON;"):
-        print("Successfully enabled foreign keys")
+        if args.verbose:
+            print("Successfully enabled foreign keys")
     else:
-        print("WARN: couldn't enable use of foreign keys")
+        print("Error: couldn't enable SQLite use of foreign keys")
 
     date_today = ut.get_date()
     batch = f"{date_today}T{ut.get_time()}"
-    print(f"Batch: '{batch}'")
+    if not args.quiet:
+        print(f"Batch: {batch}")
 
     SUCCESS_COUNT = 0
     EMPTY_COUNT = 0
@@ -441,10 +518,11 @@ if __name__ == "__main__":
 
     conn.close()
 
-    print(
-        f"\n\nProcessed data from {SUCCESS_COUNT} datafiles "
-        f"({EMPTY_COUNT} empty)."
-    )
+    if not args.quiet:
+        print(
+            f"\n\nProcessed data from {SUCCESS_COUNT} datafiles "
+            f"({EMPTY_COUNT} empty)."
+        )
 
 # pylint: disable = pointless-string-statement
 """
