@@ -35,7 +35,8 @@ import sqlite3
 import sys
 from typing import Union  # for type hints instead of (eg) int|str
 
-import tt_conf as cfg
+#import tt_conf as cfg
+# FIXME: remove with "yesterday" functionality
 import tt_util as ut
 import tt_datafile as df
 import tt_globals as tg
@@ -43,16 +44,15 @@ import tt_globals as tg
 from tt_event import Event
 from tt_time import VTime
 
-
-# Path for the database to be put into
-DB_FILEPATH = os.path.join(cfg.REPORTS_FOLDER, cfg.DB_FILENAME)
-
+# FIXME: remove this if "yesterday" functionality is also going
+'''
 # Regex for recognizing datafile names
 DATAFILE_RE = re.compile(
     f"({cfg.DATA_BASENAME})*" r"[12][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]\.dat$"
 )
+'''
 
-# Names for tables and columns.
+# Names for tables and columns.s
 # Table of individual bike visits
 TABLE_VISITS = "visit"
 COL_ID = "id"  # text date.tag PK
@@ -331,8 +331,8 @@ def data_to_db(filename: str) -> None:
         conn.commit()  # commit one datafile transaction
         if not args.quiet:
             print(
-                f" --> Committed records for {visit_commit_count} visits on {date}"
-                f" ({visit_fail_count} failed)"
+                f" --> Committed records for {visit_commit_count} "
+                f"visits on {date} ({visit_fail_count} failed)"
             )
     except sqlite3.Error as sqlite_err:
         print(f"ERR: SQL error trying to commit {filename} - {sqlite_err}")
@@ -375,6 +375,8 @@ def sql_do(sql_statement: str) -> bool:
         return False
 
 
+# FIXME: curently unused -- decide whether keeping this functionality at all
+# or if should be handled outside
 def get_yesterday() -> str:
     """Return yesterday's date YYYY-MM-DD.
 
@@ -397,31 +399,25 @@ def setup_parser() -> None:
     """
 
     parser.add_argument(
-        "dbfile", type=str, help="path of destination database file"
+        "dbfile", type=str, help="path of destination SQLite3 database file"
     )
     parser.add_argument(
         "datafolder",
         type=str,
         help="folder to look for data in. "
-        "Additionally, please use >= 1 of: --datafiles, --glob",
+        "Must also use >= 1 of: --datafiles, --glob",
     )
     parser.add_argument(
         "--datafiles",
         nargs="*",
         type=str,
-        help="discrete datafiles to target",
+        help="filenames of discrete datafiles to target",
     )
     parser.add_argument(
         "--glob",
         nargs=1,
         type=str,
-        help="glob to find datafiles with",
-    )  # fileglob
-    parser.add_argument(
-        "--yesterday",
-        action="store_const",
-        const=True,
-        help="to look for a datafile from yesterday?",  # FIXME: functionality of several commands not done, especially this one
+        help="glob string to find datafiles with, ie 'cityhall_*.dat'",
     )
     parser.add_argument(
         "-q",
@@ -439,7 +435,7 @@ def setup_parser() -> None:
     )
 
 
-def find_datafiles(args) -> list:
+def find_datafiles(arguments:argparse.Namespace) -> list:
     """Use provided args to assemble a list of datafiles.
 
     Needs at least 1 of:
@@ -450,9 +446,9 @@ def find_datafiles(args) -> list:
     """
 
     globbed_files = []
-    if args.glob:  # glob for data if told
-        folder = args.datafolder[0]
-        fileglob = args.glob[0]
+    if arguments.glob:  # glob for data if told
+        folder = arguments.datafolder
+        fileglob = arguments.glob[0]
         globbed_files = [
             os.path.join(folder, filename)
             for filename in glob.glob(fileglob, root_dir=folder)
@@ -465,15 +461,15 @@ def find_datafiles(args) -> list:
             sys.exit(1)
 
     indiv_files = []
-    if args.datafiles:  # if specific files, add them on
+    if arguments.datafiles:  # if specific files, add them on
         indiv_files = [
-            os.path.join(args.datafolder[0], filename)
-            for filename in args.datafiles
+            os.path.join(arguments.datafolder, filename)
+            for filename in arguments.datafiles
         ]
         if indiv_files == []:
             print(
                 "Error (shouldn't ever reach here) - find_datafiles()"
-                ": indiv_files still empty despite provided args ??"
+                ": indiv_files still empty despite provided args. !?"
             )
 
     if indiv_files == [] and globbed_files == []:
@@ -483,7 +479,7 @@ def find_datafiles(args) -> list:
         )
         sys.exit(1)
 
-    all_targeted = set().union(globbed_files, indiv_files)
+    all_targeted = sorted(list(set().union(globbed_files, indiv_files)))
     return all_targeted
 
 
@@ -492,7 +488,7 @@ if __name__ == "__main__":
     setup_parser()
     args = parser.parse_args()
 
-    DB_FILEPATH = args.dbfile[0]
+    DB_FILEPATH = args.dbfile
     datafiles = find_datafiles(args)
 
     if args.verbose:
@@ -501,9 +497,10 @@ if __name__ == "__main__":
 
     if sql_do("PRAGMA foreign_keys=ON;"):
         if args.verbose:
-            print("Successfully enabled foreign keys")
+            print("Successfully enabled SQLite foreign keys")
     else:
         print("Error: couldn't enable SQLite use of foreign keys")
+        sys.exit(1)
 
     date_today = ut.get_date()
     batch = f"{date_today}T{ut.get_time()}"
