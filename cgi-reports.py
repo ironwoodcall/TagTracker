@@ -17,6 +17,7 @@ import re
 
 from tt_globals import *
 
+import tt_dbutil as db
 import tt_conf as cfg
 from tt_trackerday import TrackerDay
 import tt_reports as rep
@@ -24,6 +25,9 @@ import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
+
+##from zotto import print
+##import zotto
 
 
 def untaint(tainted: str) -> str:
@@ -53,22 +57,65 @@ def selfref(
     return f"{me}{untaint(parms_str)}"
 
 
+def style() -> str:
+    """Return a CSS stylesheet as a string."""
+    return """
+        <style>
+            html {
+        font-family: sans-serif;
+        }
+
+        table {
+        border-collapse: collapse;
+        border: 2px solid rgb(200,200,200);
+        letter-spacing: 1px;
+        font-size: 0.8rem;
+        }
+
+        td, th {
+        border: 1px solid rgb(190,190,190);
+        padding: 5px 15px;
+        }
+
+        th {
+        background-color: rgb(235,235,235);
+        }
+
+        td {
+        text-align: right;
+        }
+
+        tr:nth-child(even) td {
+        background-color: rgb(250,250,250);
+        }
+
+        tr:nth-child(odd) td {
+        background-color: rgb(245,245,245);
+        }
+
+        caption {
+        padding: 10px;
+        }
+        </style>
+    """
+
+
 def form(
     ttdb: sqlite3.Connection,
     title: str = "TagTracker",
-    default_what: str = "overall",
+    default_what: str = "overview",
     default_date: str = "",
     default_tag: str = "",
 ):
-    latest_date = db_last_date(ttdb)
+    (latest_date, latest_time) = db.db_latest(ttdb)
     if not default_date:
         default_date = latest_date
 
     choices = {
-        "overall": "Overall",
+        "overview": "Overview",
         "abandoned": "Lost tags report",
         "last_use": "Tag history (for one tag)     [specify TagID]",
-        "oneday": "Tags in/out on a particular day [specify Date]",
+        "one_day_tags": "Tags in/out on a particular day [specify Date]",
         "datafile": "Recreate a day's datafile     [specify Date]",
         "audit": "* Audit report [specify Date]",
         "busyness": "* Report of one-day busyness [specify Date]",
@@ -76,9 +123,13 @@ def form(
         "busy-graph": "* Graph of activities for one day [specify Date]",
     }
 
-    print(f"<html><head><title>{title}</title></head><body>")
-    print("<h1>TagTracker reports</h1>")
-    print(f"Database has information up to {latest_date}<br /><br />")
+    print(f"<html><head><title>{title}</title></head>")
+    print(style())
+    print("<body>")
+    print("<h2>TagTracker reports</h2>")
+    print(
+        f"Most recent time recorded in database is {latest_time.short} on {latest_date}<br /><br />"
+    )
     print(
         f"""
     <form accept-charset="UTF-8" action="tt" autocomplete="off" method="GET">
@@ -115,54 +166,6 @@ def form(
     )
 
 
-def db_last_date(ttdb: sqlite3.Connection) -> str:
-    """Fetch the last date for which there is info in the database."""
-    curs = ttdb.cursor()
-    rows = curs.execute(
-        "select date from visit order by date desc limit 1"
-    ).fetchall()
-    if not rows:
-        return ""
-    return rows[0][0]
-
-
-def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
-    """Create one day's TrackerDay from the database."""
-    # Do we have info about the day?  Need its open/close times
-    curs = ttdb.cursor()
-    rows = curs.execute(
-        "select time_open,time_closed from day limit 1"
-    ).fetchall()
-    if not rows:
-        return None
-    day = TrackerDay()
-    day.date = whatdate
-    day.opening_time = rows[0][0]
-    day.closing_time = rows[0][1]
-    # Fetch any tags checked in or out
-    curs = ttdb.cursor()
-    rows = curs.execute(
-        "select tag,time_in,time_out,checked_out from visit "
-        f"where date = '{whatdate}' "
-        "order by time_in desc;"
-    ).fetchall()
-    for row in rows:
-        tag = TagID(row[0])
-        time_in = VTime(row[1])
-        time_out = VTime(row[2])
-        still_in = not bool(row[3])  # sqlite bool --> 0 or 1
-        if not tag or not time_in:
-            continue
-        day.bikes_in[tag] = time_in
-        if time_out and not still_in:
-            day.bikes_out[tag] = time_out
-    # Fake up regular/oversize lists
-    day.make_fake_tag_lists()
-     # Fake up a colour dictionary
-    day.make_fake_colour_dict()
-    return day
-
-
 def error_out(msg: str = ""):
     if msg:
         print(msg)
@@ -179,14 +182,14 @@ Parameters
 
 what        date     tag    description
 ----        ----            -----------
-overall                     List a few stats about all days in database
+overview                     List a few stats about all days in database
 abandoned                   List of all abandoned bikes
-oneday      <date>          Info about one day
+one_day_tags      <date>          Info about one day
 datafile    <date>          Reconstruct a datafile from the database
 last_use             <tag>  Last time a particular tag was used
 
 - Construct URLs thus: <server/cgi-bin/tt>?parameter=val&parameter=value...
-  E.g. myserver.org/cgi-bin/tt?what=oneday&date=2023-04-29
+  E.g. myserver.org/cgi-bin/tt?what=one_day_tags&date=2023-04-29
 - <date> can be YYYY-MM-DD, 'today', or 'yesterday'
       """
     )
@@ -217,7 +220,9 @@ def padval(val, length: int = 0) -> str:
         return f"{pad}{valstr}"
 
 
-def report_tag(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
+def one_tag_history_report(
+    ttdb: sqlite3.Connection, maybe_tag: MaybeTag
+) -> None:
     """Report a tag's history."""
 
     tag = TagID(maybe_tag)
@@ -225,21 +230,16 @@ def report_tag(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
         print(f"Not a tag: '{untaint(tag.original)}'")
         exit()
     # Fetch all info about this tag.
-    (last_date, last_in, last_out, checked_out) = ("", "", "", False)
+    (last_date, last_in, last_out) = ("", "", "")
     curs = ttdb.cursor()
     rows = curs.execute(
-        "select date,time_in,time_out,checked_out "
+        "select date,time_in,time_out "
         "from visit "
         f"where tag = '{tag.lower()}' "
         "order by date desc;"
     ).fetchall()
-    # if rows:
-    #    last_date = rows[0][0]
-    #    last_in = VTime(rows[0][1])
-    #    last_out = VTime(rows[0][2])
-    #    checked_out = bool(rows[0][3])
 
-    print(f"<h2>History of tag {tag.upper()}</h2>")
+    print(f"<h1>History of tag {tag.upper()}</h1>")
     print(
         f"<h3>This tag has been used {len(rows)} time{ut.plural(len(rows))}</h3>"
     )
@@ -251,9 +251,9 @@ def report_tag(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
         print("<style>td {text-align: right;}</style>")
         print("<tr><th>Date</th><th>BikeIn</th><th>BikeOut</th></tr>")
         for row in rows:
-            out = VTime(row[2]).tidy if row[3] else "     "
-            linkdate=row[0]
-            link = selfref(what="oneday",qdate=linkdate)
+            out = VTime(row[2]).tidy if row[2] else "     "
+            linkdate = row[0]
+            link = selfref(what="one_day_tags", qdate=linkdate)
             print(
                 f"<tr><td>"
                 f"<a href='{link}'>{row[0]}</a>"
@@ -264,39 +264,96 @@ def report_tag(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
     print("</body></html>")
 
 
-def report_overall(ttdb: sqlite3.Connection):
-    curs = ttdb.cursor()
-    rows = curs.execute(
-        "select date, parked_regular Regular, parked_oversize Oversize, parked_total Total, "
-        "max_total fullest, leftover "
+def overview_report(ttdb: sqlite3.Connection):
+    """Print new version of the all-days defauilt report."""
+    sel = (
+        "select date, time_open, time_closed, "
+        "parked_regular, parked_oversize, parked_total, leftover, "
+        "max_total "
         "from day order by date desc"
-    ).fetchall()
-    names = [description[0].upper() for description in curs.description]
-    lengths = [0 for _ in names]
-    for i, v in enumerate(names):
-        s = str(v)
-        if len(s) > lengths[i]:
-            lengths[i] = len(s)
-    for row in rows:
-        for i, v in enumerate(row):
-            s = str(v)
-            if len(s) > lengths[i]:
-                lengths[i] = len(s)
+    )
+    cnames = [
+        "date",
+        "opened",
+        "closed",
+        "reg",
+        "ovr",
+        "ttl",
+        "extra",
+        "most_bikes",
+    ]
+    dbrows = db.db_fetch(ttdb, sel, cnames)
+    max_parked = 0
+    max_parked_date = ""
+    max_full = 0
+    max_full_date = ""
+    max_left = 0
+    max_left_date = ""
+    for r in dbrows:
+        if r.ttl > max_parked:
+            max_parked = r.ttl
+            max_parked_date = r.date
+        if r.most_bikes > max_full:
+            max_full = r.most_bikes
+            max_full_date = r.date
+        if r.extra > max_left:
+            max_left = r.extra
+            max_left_date = r.date
+    max_parked_factor = 255 / (max_parked*max_parked)
+    max_full_factor = 255 / (max_full*max_full)
+    max_left_factor = 255 / min(max_left, 5)
 
-    print("<pre>")
-    print("Daily valet overview")
-    print("--------------------")
-    print("Listed newest to oldest")
-    print()
-    for i, v in enumerate(names):
-        print(f"{padval(v,lengths[i])} ", end="")
-    print()
+    print("<h1>Daily valet overview</h1>")
+    print(f"<p><b>Most bikes parked:</b> {max_parked}, on {max_parked_date}<br />")
+    print(f"<b>Valet was fullest:</b> {max_full} bikes, on {max_full_date}</p>")
+    print("<p></p>")
+    print("<p>Listed newest to oldest</p>")
 
-    for row in rows:
-        for i, v in enumerate(row):
-            print(f"{padval(v,lengths[i])} ", end="")
-        print()
-    print("</pre></body></html>")
+    print("<table>")
+    print("<style>td {text-align: right;}</style>")
+    print(
+        # "<colgroup>"
+        # "<col>"
+        #'<col span=2 style="background-color:#DCC48E; border:4px solid #C1437A;">'
+        #'<col span=2 style=background-color:#97DB9A;>'
+        #'<col style="width:42px;">'
+        #'<col style="background-color:#97DB9A;">'
+        #'<col style="background-color:#DCC48E; border:4px solid #C1437A;">'
+        #'<col span="2" style="width:42px;">'
+        #'</colgroup>'
+        "<tr>"
+        "<th rowspan=2>Date</th>"
+        "<th colspan=2>Valet Hours</th>"
+        "<th colspan=3>Bike Parked</th>"
+        "<th rowspan=2>Bikes<br />Left at<br />Valet</th>"
+        "<th rowspan=2>Most<br />Bikes<br />at Once</th>"
+        "</tr>"
+    )
+    print(
+        "<tr>"
+        # "<th>Date</th>"
+        "<th>Open</th><th>Close</th>"
+        "<th>Rglr</th><th>Ovrsz</th><th>Total</th>"
+        # "<th>Left</th>"
+        # "<th>Fullest</th>"
+        "</tr>"
+    )
+    for row in dbrows:
+        date_link = selfref(what="one_day_tags", qdate=row.date)
+        max_parked_col = max(0, 255 - int(row.ttl * row.ttl * max_parked_factor))
+        max_full_col = max(0, 255 - int(row.most_bikes*row.most_bikes * max_full_factor))
+        max_left_col = max(0, min(255 - int(row.extra * max_left_factor),255))
+
+        print(
+            f"<tr>"
+            f"<td><a href='{date_link}'>{row.date}</a></td>"
+            f"<td>{row.opened}</td><td>{row.closed}</td>"
+            f"<td>{row.reg}</td><td>{row.ovr}</td><td style='background-color: rgb({max_parked_col},255,{max_parked_col})'>{row.ttl}</td>"
+            f"<td style='background-color: rgb(255,{max_left_col},{max_left_col})'>{row.extra}</td>"
+            f"<td style='background-color: rgb({max_full_col},255,{max_full_col})'>{row.most_bikes}</td>"
+            "</tr>"
+        )
+    print(" </table>")
 
 
 def lost_tags(ttdb: sqlite3.Connection):
@@ -304,76 +361,44 @@ def lost_tags(ttdb: sqlite3.Connection):
     curs = ttdb.cursor()
     rows = curs.execute(
         "select tag,date,time_in from visit "
-        "where date not in (select date from day where leftover > 5) "
-        "and checked_out = 0 "
-        "and date < strftime('%Y-%m-%d') "
+        f"where date not in (select date from day where leftover > {too_many}) "
+        'and (time_out is null or time_out = "")'
+        # "and date < strftime('%Y-%m-%d') "
         "order by date desc;"
     ).fetchall()
 
-    #print("<pre>")
-    print("<h2>Tags of abandoned bikes</h2>")
+    # print("<pre>")
+    print("<h1>Tags of abandoned bikes</h1>")
     print("<ul>")
     print("<li>Listed newest to oldest</li>")
-    print(f"<li>Excludes dates with more than {too_many} supposed leftovers</li>")
     print(
-        "<li>The last time it was used might not be on a day a bike was abandoned"
-        " (since may have put tag back into service after bike picked up) </li>"
+        f"<li>Excludes dates with more than {too_many} supposed leftovers</li>"
+    )
+    print(
+        "<li>Tags might have been returned to use after the dates listed</li>"
     )
     print("</ul>")
-    #print()
-    #print("Tag    Last check-in")
-    #print("---    -------------")
-    #for row in rows:
-    #    print(f"{padval(row[0],5)}  {padval(row[1],10)}  {padval(row[2],5)}")
-    #print("</pre></body></html>")
 
     print("<table>")
     print("<style>td {text-align: left;}</style>")
-    print("<tr><th>Tag</th><th></th><th>Last check-in</th></tr>")
+    print("<tr><th>Tag</th><th>Last check-in</th></tr>")
     for row in rows:
         tag = TagID(row[0])
         in_date = row[1]
         in_time = row[2]
-        tag_link = selfref(what="last_use",qtag=tag)
-        date_link = selfref(what="oneday",qdate=in_date)
+        tag_link = selfref(what="last_use", qtag=tag)
+        date_link = selfref(what="one_day_tags", qdate=in_date)
 
         print(
             f"<tr><td>"
             f"<a href='{tag_link}'>{tag.cased}</a>"
-            "</td><td></td>"
+            "</td>"
             f"<td><a href='{date_link}'>{in_date}</a> {in_time}</td></tr>"
         )
     print(" </table>")
 
 
-def latest_event(ttdb: sqlite3.Connection, whatday: str) -> str:
-    curs = ttdb.cursor()
-    # FIXME: this logic is wrong
-    rows = curs.execute(
-        f"select max(time_in), max(time_out) from visit where date = '{whatday}' and checked_out = 1 "
-    ).fetchall()
-    if not rows:
-        return VTime()
-    max_in = rows[0][0]
-    max_out = rows[0][1]
-    max_in = max_in if max_in else ""
-    max_out = max_out if max_out else ""
-    if max_in > max_out:
-        return VTime(max_in)
-    else:
-        return VTime(max_out)
-
-
-class VisitRow:
-    def __init__(self):
-        self.tag = TagID()
-        self.time_in = VTime()
-        self.time_out = VTime()
-        self.duration = VTime()
-        self.leftover = False
-
-
-def oneday(ttdb: sqlite3.Connection, whatday: str = ""):
+def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     if whatday.lower() == "yesterday":
         # yesterday
         day = datetime.datetime.today() - datetime.timedelta(1)
@@ -386,35 +411,30 @@ def oneday(ttdb: sqlite3.Connection, whatday: str = ""):
         try:
             day = datetime.datetime.strptime(whatday, "%Y-%m-%d")
             thisday = day.strftime("%Y-%m-%d")
-        except:
+        except ValueError:
             error_out("Bad date. Use YYYY-MM-DD or 'today' or 'yesterday'.")
 
-    curs = ttdb.cursor()
-    rows = curs.execute(
-        "select tag,time_in,time_out,duration,checked_out from visit "
-        f"where date = '{thisday}' "
-        "order by time_in desc;"
-    ).fetchall()
+    rows = (
+        ttdb.cursor()
+        .execute(
+            "select tag,time_in,time_out,duration from visit "
+            f"where date = '{thisday}' "
+            "order by time_in desc;"
+        )
+        .fetchall()
+    )
 
     visits = {}
     for row in rows:
         tag = TagID(row[0])
         if not tag:
             continue
-        v: VisitRow = VisitRow()
+        v: db.VisitRow = db.VisitRow()
         v.tag = tag
         v.time_in = VTime(row[1])
         v.time_out = VTime(row[2])
         v.duration = VTime(row[3])
-        # FIXME: check this logic
-        v.leftover = bool(row[4] == 0)
         visits[tag] = v
-
-    # Fix up visits
-    for v in visits.values():
-        if v.leftover:
-            v.duration = VTime()
-            v.time_out = VTime()
 
     print("<pre>")
     if not visits:
@@ -423,14 +443,17 @@ def oneday(ttdb: sqlite3.Connection, whatday: str = ""):
     print(f"Tags for {thisday}")
     print("-------------------")
     print(
-        f"Latest recorded event this day is {latest_event(database,thisday).short}"
+        f"- Latest recorded event this day is {db.db_latest_time(database,thisday).short}"
+    )
+    print(
+        "- Where no check-out time exists, duration is estimated\n  assuming bike is at valet until the end of the day"
     )
     print()
     print("BIKE   --IN- -OUT-  DURTN")
     for tag in sorted(visits.keys()):
-        v: VisitRow = visits[tag]
+        v: db.VisitRow = visits[tag]
         print(
-            f"{padval(tag,6)} {v.time_in.tidy} {v.time_out.tidy}  {v.duration.tidy}"
+            f"{padval(tag,6)} {padval(v.time_in.tidy,5)} {padval(v.time_out.tidy,5)}  {v.duration.tidy}"
         )
     print("</pre></body></html>")
 
@@ -443,7 +466,7 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
 
     print("<pre>")
 
-    day = db2day(ttdb, thisday)
+    day = db.db2day(ttdb, thisday)
     print(f"# TagTracker datafile for {thisday}")
     print(
         f"# Reconstructed   on {datetime.datetime.today().strftime('%Y-%m-%d %H:%M')}"
@@ -501,7 +524,7 @@ def audit_report(ttdb: sqlite3.Connection, thisday: str, whattime: VTime):
     if not thisday:
         bad_date(thisday)
     print("<pre>")
-    day = db2day(ttdb, thisday)
+    day = db.db2day(ttdb, thisday)
     rep.audit_report(day, [VTime(whattime)])
 
 
@@ -511,7 +534,7 @@ def one_day_chart(ttdb: sqlite3.Connection, date: str):
     if not thisday:
         bad_date(date)
     print("<pre>")
-    rep.full_chart(db2day(ttdb, thisday), ["now"])
+    rep.full_chart(db.db2day(ttdb, thisday), ["now"])
 
 
 def one_day_busy_graph(ttdb: sqlite3.Connection, date: str):
@@ -520,7 +543,7 @@ def one_day_busy_graph(ttdb: sqlite3.Connection, date: str):
     if not thisday:
         bad_date(date)
     print("<pre>")
-    rep.busy_graph(db2day(ttdb, thisday), ["now"])
+    rep.busy_graph(db.db2day(ttdb, thisday), ["now"])
 
 
 def busyness_report(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
@@ -528,7 +551,7 @@ def busyness_report(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
     if not thisday:
         bad_date(thisday)
     print("<pre>")
-    rep.busyness_report(db2day(ttdb, thisday), [qtime])
+    rep.busyness_report(db.db2day(ttdb, thisday), [qtime])
 
 
 # =================================================================
@@ -547,6 +570,7 @@ print(f"export SERVER_PORT={os.environ.get('SERVER_PORT')}")
 print("</pre>")
 query_params = urllib.parse.parse_qs(query_string)
 what = query_params.get("what", [""])[0]
+what = what if what else "overview"
 maybedate = query_params.get("date", [""])[0]
 maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
@@ -567,13 +591,13 @@ form(database, default_what=what, default_date=maybedate, default_tag=tag)
 if not what:
     exit()
 if what == "last_use":
-    report_tag(database, tag)
-elif what == "overall":
-    report_overall(database)
+    one_tag_history_report(database, tag)
+elif what == "overview":
+    overview_report(database)
 elif what == "abandoned":
     lost_tags(database)
-elif what == "oneday":
-    oneday(database, qdate)
+elif what == "one_day_tags":
+    one_day_tags_report(database, qdate)
 elif what == "datafile":
     datafile(database, qdate)
 elif what == "audit":
