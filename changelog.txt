@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.8.4.1:
+~ #112 bug (re) addressed
+
 0.8.4:
 + cgi Reporting
 ~ various tweaks & bits & bobs
