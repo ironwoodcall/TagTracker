@@ -78,12 +78,12 @@ CREATE TABLE IF NOT EXISTS visit (
     tag         TEXT NOT NULL,
     type        TEXT NOT NULL,
     time_in     TEXT CHECK (time_in  IS strftime('%H:%M', time_in)),
-    time_out    TEXT CHECK ((time_out IS strftime('%H:%M', time_out)) OR (time_out is NULL)),
+    time_out    TEXT CHECK ((time_out IS strftime('%H:%M', time_out)) OR (time_out IS '')),
     duration    TEXT CHECK (duration IS strftime('%H:%M', duration)),
     notes       TEXT,
     batch       TEXT CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch)),
 
-    CHECK (time_out >= time_in)
+    CHECK ((time_out >= time_in) OR (time_out IS ''))
     FOREIGN KEY (tag) REFERENCES tags(tag_id)
     FOREIGN KEY (type) REFERENCES types(code)
 );
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS day (
     time_open       TEXT    NOT NULL CHECK (time_open IS strftime('%H:%M', time_open)),
     time_closed     TEXT    NOT NULL CHECK (time_closed IS strftime('%H:%M', time_closed)),
     weekday         INTEGER NOT NULL CHECK (0 <= weekday <= 6),
-    precip_mm       NUMERIC          CHECK (precip_mm < 90), -- global record daily precip is 11.4mm
+    precip_mm       NUMERIC          CHECK (precip_mm < 90), -- Vic. record daily precip is 11.4 mm
     temp_10am       NUMERIC          CHECK (temp_10am < 50),
     sunset          TEXT             CHECK (sunset IS strftime('%H:%M', sunset)),
     event           TEXT,

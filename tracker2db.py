@@ -285,27 +285,25 @@ def data_to_db(filename: str) -> None:
     visit_commit_count = total_parked
     visit_fail_count = 0
 
-    for tag, time in data.bikes_in.items():
-        tag_name = tag
-        time_in = time
-        if tag_name in data.bikes_out.keys():
+    for tag, time_in in data.bikes_in.items():
+        if tag in data.bikes_out.keys():
             time_out = data.bikes_out[tag]
-            db_time_out = f"'{time_out}'"
+            dur_end = time_out
         else:  # no check-out recorded
             if closing:
-                time_out = closing
+                dur_end = closing
                 print(
                     f" (normal leftover): {tag} stay time found using closing "
                     f"time {closing} from table '{TABLE_DAYS}'"
                 )
             else:
-                time_out = data.latest_event()  # approx. as = to last event
+                dur_end = data.latest_event()  # approx. as = to last event
                 print(
                     " Datafile missing closing time: using latest "
                     f"event time for leftover with tag {tag}"
                 )
-            db_time_out = "NULL"  # won't add quotes later so will be true NULL
-        time_stay = calc_duration(time_in, time_out)
+            time_out = ""  # empty str for no time
+        time_stay = calc_duration(time_in, dur_end)
         if not sql_do(
             f"""INSERT INTO {TABLE_VISITS} (
                     {COL_ID},
@@ -322,7 +320,7 @@ def data_to_db(filename: str) -> None:
                     '{tag}',
                     '{what_bike_type(tag)}',
                     '{time_in}',
-                    {db_time_out},
+                    '{time_out}',
                     '{time_stay}',
                     '{batch}');"""
         ):
