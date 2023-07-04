@@ -22,14 +22,16 @@ import os
 import sys
 import datetime
 import re
+
 # This is for type hints instead of (eg) int|str
-from typing import Union,Tuple
+from typing import Union, Tuple
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_time import VTime
 from tt_tag import TagID
 
-def squawk(whatever:str="") -> None:
+
+def squawk(whatever: str = "") -> None:
     """Print whatever with file & linenumber in front of it.
 
     This is intended for programming errors not prettiness.
@@ -39,47 +41,99 @@ def squawk(whatever:str="") -> None:
             called from interpreter, as __file__ not in globals at that point)
         caller_file = os.path.basename(caller_path)
     """
-    f = sys._getframe(1) #pylint:disable=protected-access
-    caller_module = f.f_globals['__name__']
+    f = sys._getframe(1)  # pylint:disable=protected-access
+    caller_module = f.f_globals["__name__"]
     caller_function = f.f_code.co_name
     caller_line_no = f.f_lineno
     print(f"{caller_module}:{caller_function}():{caller_line_no}: {whatever}")
 
-def decomment(string:str) -> str:
+
+def decomment(string: str) -> str:
     """Remove any part of the string that starts with '#'."""
-    r = re.match(r"^([^#]*) *#",string)
+    r = re.match(r"^([^#]*) *#", string)
     if r:
         return r.group(1)
     return string
 
+
 def get_date(long: bool = False) -> str:
     """Return current date as string YYYY-MM-DD or a longer str if long=True."""
-    if long:
-        return datetime.datetime.today().strftime("%A %B %d (%Y-%m-%d)")
-    return datetime.datetime.today().strftime("%Y-%m-%d")
+    # FIXME: superseded by date_str()
+    return date_str("today", long_date=long)
+    # if long:
+    #    return datetime.datetime.today().strftime("%A %B %d (%Y-%m-%d)")
+    # return datetime.datetime.today().strftime("%Y-%m-%d")
 
 
 def long_date(date: str) -> str:
     """Convert YYYY-MM-DD to a long statement of the date."""
-    return datetime.datetime.fromisoformat(date).strftime(
-        "%A %B %d (%Y-%m-%d)"
-    )
+    # FIXME: superseded by date_str()
+    return date_str(date, long_date=True)
+    # return datetime.datetime.fromisoformat(date).strftime(
+    #    "%A %B %d (%Y-%m-%d)"
+    # )
 
 
-def date_str(maybe_date: str) -> str:
-    """Return maybe_date in the form of YYYY-MM-DD (or "")."""
-    if not maybe_date:
+def date_str(
+    maybe_date: str,
+    dow_str_len: int = None,
+    long_date: bool = False,
+    strict: bool = False,
+) -> str:
+    """Return maybe_date in the form of YYYY-MM-DD (or "").
+
+    Optional flags will return it in a variety of str or int
+    formats:
+        dow_str_len: if set, returns the date as day of week
+            of given length (up to day of week's full length)
+        long_date: if True, returns str as a long date
+        strict: if set, only accepts exact "YYYY-MM-DD";
+            otherwise accepts "now", "today" "tomorrow" and
+            "yesterday"; strips whitespace; and accepts
+            "" or "/" as separators
+
+    """
+    # FIXME: replace get_date() with a call to this
+    if (
+        not maybe_date
+        or not isinstance(maybe_date, str)
+        or maybe_date.isspace()
+    ):
         return ""
-    r = DATE_FULL_RE.match(maybe_date)
-    if not (r):
+    thisday = None
+    if not strict:
+        maybe_date = maybe_date.lower().strip()
+        if maybe_date in ["now", "today"]:
+            thisday = datetime.datetime.today()
+        elif maybe_date == "yesterday":
+            thisday = datetime.datetime.today() - datetime.timedelta(1)
+        elif maybe_date == "tomorrow":
+            thisday = datetime.datetime.today() + datetime.timedelta(1)
+        else:
+            # Allow YYYYMMDD or YYYY/MM/DD
+            r = re.fullmatch(r"(\d\d\d\d)[-/]?(\d\d)[-/]?(\d\d)", maybe_date)
+            if not r:
+                return ""
+            try:
+                thisday = datetime.datetime.strptime(
+                    f"{r.group(1)}-{r.group(2)}-{r.group(3)}", "%Y-%m-%d"
+                )
+            except ValueError:
+                return ""
+    if not thisday:
+        try:
+            thisday = datetime.datetime.strptime(maybe_date, "%Y-%m-%d")
+        except ValueError:
+            return ""
+    if not thisday:
         return ""
-    y = int(r.group(1))
-    m = int(r.group(2))
-    d = int(r.group(3))
-    # Test for an impossible date
-    if y > 2100 or m < 1 or m > 12 or d < 1 or d > 31:
-        return ""
-    return f"{y:04d}-{m:02d}-{d:02d}"
+    # Now have thisday (a datetime object), convert to str
+    # Format as a day of the week?
+    if dow_str_len:
+        return thisday.strftime("%A")[0:dow_str_len]
+    if long_date:
+        return thisday.strftime("%A %B %d (%Y-%m-%d)")
+    return thisday.strftime("%Y-%m-%d")
 
 
 def get_time() -> VTime:
@@ -270,6 +324,7 @@ def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
         outerlist.append(sorted(prefixed_tags[prefix]))
     return outerlist
 
+
 def tagnums_by_prefix(tags: list[TagID]) -> dict[str, list[int]]:
     """Return a dict of tag prefixes with lists of associated tag numbers."""
     prefixes = {}
@@ -382,21 +437,21 @@ def valet_hours(the_date: str) -> Tuple[str, str]:
         6: ("10:00", "20:00"),
     }
     specials = {
-        "2023-04-07": ("10:00","20:00"),
-        "2023-04-10": ("10:00","17:00"),
-        "2023-05-22": ("09:00","17:00"),
-        "2023-06-11": ("10:00","18:30"),    # unknown special day
-        "2023-07-01": ("10:00","17:00"),
-        "2023-08-07": ("10:00","17:00"),
-        "2023-09-04": ("10:00","17:00"),
-        "2023-09-30": ("10:00","22:00"),
-        "2023-10-09": ("10:00","17:00"),
-        "2023-11-11": ("10:00","20:00"),
+        "2023-04-07": ("10:00", "20:00"),
+        "2023-04-10": ("10:00", "17:00"),
+        "2023-05-22": ("09:00", "17:00"),
+        "2023-06-11": ("10:00", "18:30"),  # unknown special day
+        "2023-07-01": ("10:00", "17:00"),
+        "2023-08-07": ("10:00", "17:00"),
+        "2023-09-04": ("10:00", "17:00"),
+        "2023-09-30": ("10:00", "22:00"),
+        "2023-10-09": ("10:00", "17:00"),
+        "2023-11-11": ("10:00", "20:00"),
     }
 
     if the_date in specials:
         return specials[the_date]
-    elif the_date >= "2023-10-01":   # fall/winter hours start
+    elif the_date >= "2023-10-01":  # fall/winter hours start
         return fall[day_of_week]
     elif the_date >= "2023-05-01":  # summer hours start
         return summer[day_of_week]
@@ -404,4 +459,3 @@ def valet_hours(the_date: str) -> Tuple[str, str]:
         return spring[day_of_week]
     else:
         return ("", "")
-

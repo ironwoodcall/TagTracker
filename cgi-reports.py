@@ -114,11 +114,11 @@ def form(
     choices = {
         "overview": "Overview",
         "abandoned": "Lost tags report",
-        "last_use": "Tag history (for one tag)     [specify TagID]",
-        "one_day_tags": "Tags in/out on a particular day [specify Date]",
-        "datafile": "Recreate a day's datafile     [specify Date]",
-        "audit": "* Audit report [specify Date]",
-        "busyness": "* Report of one-day busyness [specify Date]",
+        "day_end": "Day-end report for a given date",
+        "audit": "Audit report for a given date",
+        "last_use": "History of use for a given tag",
+        "one_day_tags": "Tags in/out activity for a given date",
+        "datafile": "Recreated datafile for a given date",
         "chart": "* Chart of activities for one day [specify Date]",
         "busy-graph": "* Graph of activities for one day [specify Date]",
     }
@@ -267,22 +267,16 @@ def one_tag_history_report(
 def overview_report(ttdb: sqlite3.Connection):
     """Print new version of the all-days defauilt report."""
     sel = (
-        "select date, time_open, time_closed, "
-        "parked_regular, parked_oversize, parked_total, leftover, "
-        "max_total "
-        "from day order by date desc"
+        "select "
+        "   date, time_open, time_closed, "
+        "   parked_regular, parked_oversize, parked_total, "
+        "   leftover, "
+        "   max_total "
+        "from day "
+        "   order by date desc"
     )
-    cnames = [
-        "date",
-        "opened",
-        "closed",
-        "reg",
-        "ovr",
-        "ttl",
-        "extra",
-        "most_bikes",
-    ]
-    dbrows = db.db_fetch(ttdb, sel, cnames)
+
+    dbrows = db.db_fetch(ttdb, sel)
     max_parked = 0
     max_parked_date = ""
     max_full = 0
@@ -290,22 +284,22 @@ def overview_report(ttdb: sqlite3.Connection):
     max_left = 0
     max_left_date = ""
     for r in dbrows:
-        if r.ttl > max_parked:
-            max_parked = r.ttl
+        if r.parked_total > max_parked:
+            max_parked = r.parked_total
             max_parked_date = r.date
-        if r.most_bikes > max_full:
-            max_full = r.most_bikes
+        if r.max_total > max_full:
+            max_full = r.max_total
             max_full_date = r.date
-        if r.extra > max_left:
-            max_left = r.extra
+        if r.leftover > max_left:
+            max_left = r.leftover
             max_left_date = r.date
     max_parked_factor = 255 / (max_parked*max_parked)
     max_full_factor = 255 / (max_full*max_full)
     max_left_factor = 255 / min(max_left, 5)
 
-    print("<h1>Daily valet overview</h1>")
-    print(f"<p><b>Most bikes parked:</b> {max_parked}, on {max_parked_date}<br />")
-    print(f"<b>Valet was fullest:</b> {max_full} bikes, on {max_full_date}</p>")
+    print("<h1>Bike valet overview</h1>")
+    print(f"<p><b>Most bikes parked:</b> {max_parked}, on {ut.date_str(max_parked_date,long_date=True)}<br />")
+    print(f"<b>Valet was fullest:</b> {max_full} bikes, on {ut.date_str(max_full_date,long_date=True)}</p>")
     print("<p></p>")
     print("<p>Listed newest to oldest</p>")
 
@@ -322,7 +316,7 @@ def overview_report(ttdb: sqlite3.Connection):
         #'<col span="2" style="width:42px;">'
         #'</colgroup>'
         "<tr>"
-        "<th rowspan=2>Date</th>"
+        "<th rowspan=2 colspan=2>Date</th>"
         "<th colspan=2>Valet Hours</th>"
         "<th colspan=3>Bike Parked</th>"
         "<th rowspan=2>Bikes<br />Left at<br />Valet</th>"
@@ -339,18 +333,19 @@ def overview_report(ttdb: sqlite3.Connection):
         "</tr>"
     )
     for row in dbrows:
-        date_link = selfref(what="one_day_tags", qdate=row.date)
-        max_parked_col = max(0, 255 - int(row.ttl * row.ttl * max_parked_factor))
-        max_full_col = max(0, 255 - int(row.most_bikes*row.most_bikes * max_full_factor))
-        max_left_col = max(0, min(255 - int(row.extra * max_left_factor),255))
+        date_link = selfref(what="day_end", qdate=row.date)
+        max_parked_col = max(0, 255 - int(row.parked_total * row.parked_total * max_parked_factor))
+        max_full_col = max(0, 255 - int(row.max_total*row.max_total * max_full_factor))
+        max_left_col = max(0, min(255 - int(row.leftover * max_left_factor),255))
 
         print(
             f"<tr>"
             f"<td><a href='{date_link}'>{row.date}</a></td>"
-            f"<td>{row.opened}</td><td>{row.closed}</td>"
-            f"<td>{row.reg}</td><td>{row.ovr}</td><td style='background-color: rgb({max_parked_col},255,{max_parked_col})'>{row.ttl}</td>"
-            f"<td style='background-color: rgb(255,{max_left_col},{max_left_col})'>{row.extra}</td>"
-            f"<td style='background-color: rgb({max_full_col},255,{max_full_col})'>{row.most_bikes}</td>"
+            f"<td style='text-align:left'>{ut.date_str(row.date,dow_str_len=3)}</td>"
+            f"<td>{row.time_open}</td><td>{row.time_closed}</td>"
+            f"<td>{row.parked_regular}</td><td>{row.parked_oversize}</td><td style='background-color: rgb({max_parked_col},255,{max_parked_col})'>{row.parked_total}</td>"
+            f"<td style='background-color: rgb(255,{max_left_col},{max_left_col})'>{row.leftover}</td>"
+            f"<td style='background-color: rgb({max_full_col},255,{max_full_col})'>{row.max_total}</td>"
             "</tr>"
         )
     print(" </table>")
@@ -460,7 +455,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
 
 def datafile(ttdb: sqlite3.Connection, date: str = ""):
     """Print a reconstructed datafile for the given date."""
-    thisday = whatday(date)
+    thisday = ut.date_str(date)
     if not thisday:
         bad_date(date)
 
@@ -488,27 +483,6 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
         print(f"  {col},{name}")
 
 
-def whatday(maybe_day: str = "today") -> str:
-    """Returns mayebday as a YYYY-MM-DD string."""
-    if maybe_day.lower() == "yesterday":
-        # yesterday
-        day = datetime.datetime.today() - datetime.timedelta(1)
-        thisday = day.strftime("%Y-%m-%d")
-    elif maybe_day.lower() == "today":
-        # today
-        thisday = datetime.datetime.today().strftime("%Y-%m-%d")
-    else:
-        r = re.fullmatch(r"(\d\d\d\d)[-/]?(\d\d)[-/]?(\d\d)", maybe_day)
-        if not r:
-            return ""
-        try:
-            day = datetime.datetime.strptime(
-                f"{r.group(1)}-{r.group(2)}-{r.group(3)}", "%Y-%m-%d"
-            )
-            thisday = day.strftime("%Y-%m-%d")
-        except ValueError:
-            return ""
-    return thisday
 
 
 def bad_date(bad_date: str = ""):
@@ -530,7 +504,7 @@ def audit_report(ttdb: sqlite3.Connection, thisday: str, whattime: VTime):
 
 def one_day_chart(ttdb: sqlite3.Connection, date: str):
     """One-day chart."""
-    thisday = whatday(date)
+    thisday = ut.date_str(date)
     if not thisday:
         bad_date(date)
     print("<pre>")
@@ -539,19 +513,25 @@ def one_day_chart(ttdb: sqlite3.Connection, date: str):
 
 def one_day_busy_graph(ttdb: sqlite3.Connection, date: str):
     """One-day chart."""
-    thisday = whatday(date)
+    thisday = ut.date_str(date)
     if not thisday:
         bad_date(date)
     print("<pre>")
     rep.busy_graph(db.db2day(ttdb, thisday), ["now"])
 
 
-def busyness_report(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
+def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
     """One-day busy report."""
     if not thisday:
         bad_date(thisday)
+    day = db.db2day(ttdb,thisday)
+    print(f"<h1>Day-end report for {thisday}</h1>")
     print("<pre>")
-    rep.busyness_report(db.db2day(ttdb, thisday), [qtime])
+    rep.day_end_report(day,[qtime])
+    print()
+    rep.busyness_report(day, [qtime])
+    print("</pre>")
+
 
 
 # =================================================================
@@ -577,9 +557,9 @@ tag = query_params.get("tag", [""])[0]
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)
-qdate = whatday(maybedate)
+qdate = ut.date_str(maybedate)
 if not maybetime:
-    if qdate == whatday("today"):
+    if qdate == ut.date_str("today"):
         qtime = VTime("now")
     else:
         qtime = VTime("24:00")
@@ -602,8 +582,8 @@ elif what == "datafile":
     datafile(database, qdate)
 elif what == "audit":
     audit_report(database, qdate, qtime)
-elif what == "busyness":
-    busyness_report(database, qdate, qtime)
+elif what == "day_end":
+    one_day_summary(database, qdate, qtime)
 elif what == "chart":
     one_day_chart(database, qdate)
 elif what == "busy-graph":

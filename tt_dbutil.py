@@ -82,9 +82,9 @@ def db_fetch(
     def flatten(raw_column_name: str) -> str:
         """Convert str into a name usable as a class attribute."""
 
-        usable: str = [
+        usable: str = "".join([
             c for c in raw_column_name.lower() if c.isalnum() or c == "_"
-        ]
+        ])
         if usable and usable[0].isdigit():
             usable = f"_{usable}"
         return usable
@@ -168,7 +168,7 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     # Fetch any tags checked in or out
     curs = ttdb.cursor()
     rows = curs.execute(
-        "select tag,time_in,time_out,checked_out from visit "
+        "select tag,time_in,time_out from visit "
         f"where date = '{whatdate}' "
         "order by time_in desc;"
     ).fetchall()
@@ -176,7 +176,7 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
         tag = TagID(row[0])
         time_in = VTime(row[1])
         time_out = VTime(row[2])
-        still_in = not bool(row[3])  # sqlite bool --> 0 or 1
+        still_in = not time_out
         if not tag or not time_in:
             continue
         day.bikes_in[tag] = time_in
@@ -203,24 +203,3 @@ def create_connection(db_file) -> sqlite3.Connection:
     return connection
 
 
-def whatday(maybe_day: str = "today") -> str:
-    """Returns mayebday as a YYYY-MM-DD string."""
-    if maybe_day.lower() == "yesterday":
-        # yesterday
-        day = datetime.datetime.today() - datetime.timedelta(1)
-        thisday = day.strftime("%Y-%m-%d")
-    elif maybe_day.lower() == "today":
-        # today
-        thisday = datetime.datetime.today().strftime("%Y-%m-%d")
-    else:
-        r = re.fullmatch(r"(\d\d\d\d)[-/]?(\d\d)[-/]?(\d\d)", maybe_day)
-        if not r:
-            return ""
-        try:
-            day = datetime.datetime.strptime(
-                f"{r.group(1)}-{r.group(2)}-{r.group(3)}", "%Y-%m-%d"
-            )
-            thisday = day.strftime("%Y-%m-%d")
-        except ValueError:
-            return ""
-    return thisday

@@ -1,4 +1,6 @@
 TagTracker by Julias Hocking
+0.8.5:
+~ more cgi reporting
 
 0.8.4:
 + cgi Reporting
