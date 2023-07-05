@@ -386,7 +386,7 @@ def get_version() -> str:
     with open(ref_full_path, "r", encoding="utf-8") as f:
         for line in f:
             if line:
-                git_str = line.strip()[:6]
+                git_str = line.strip()[:7]
                 break
     # get just the feature portion of the git ref_path
     r = re.match(r"^refs/heads/(.*)", ref_path)
