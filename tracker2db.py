@@ -45,7 +45,7 @@ from tt_event import Event
 from tt_time import VTime
 
 # FIXME: remove this if "yesterday" functionality is also going
-'''
+r'''
 # Regex for recognizing datafile names
 DATAFILE_RE = re.compile(
     f"({cfg.DATA_BASENAME})*" r"[12][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]\.dat$"
@@ -521,7 +521,6 @@ if __name__ == "__main__":
             f"({EMPTY_COUNT} empty)."
         )
 
-# pylint: disable = pointless-string-statement
 """
 Add checks for integrity - DB and datafiles(?)
 - new data incoming that has many fewer records than what is already there
