@@ -21,3 +21,4 @@ test*.*
 settings.json
 .vscode
 .mypy_cache
+zotto_print.py
