@@ -1,4 +1,14 @@
 TagTracker by Julias Hocking
+0.8.5:
+~ more cgi reporting
++ date_str() multi-utility fn in tt_util
++ cgi smart about prod/dev environments
+
+0.8.4.1:
+~ #112 bug (re) addressed
+
+0.8.4.1:
+~ #112 bug (re) addressed
 
 0.8.4:
 + cgi Reporting

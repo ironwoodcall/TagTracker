@@ -876,14 +876,17 @@ def main():
         user_str = pr.tt_inp()
         # Break command into tokens, parse as command
         tokens = parse_command(user_str)
+        # If midnight has passed then need to restart
+        if midnight_passed(todays_date):
+            if not tokens or tokens[0] != cfg.CMD_EXIT:
+                midnight_message()
+            done = True
+            continue
+        # If null input, just ignore
         if not tokens:
             continue  # No input, ignore
         (cmd, *args) = tokens
         # Dispatcher
-        # If midnight has passed then need to restart
-        if midnight_passed(todays_date) and cmd != cfg.CMD_EXIT:
-            done = True
-            continue
         data_dirty = False
         if cmd == cfg.CMD_EDIT:
             multi_edit(args)
@@ -1031,11 +1034,8 @@ def lint_report(strict_datetimes: bool = True) -> None:
     # And while we're at it, fix up any times that are set to "24:00"
     fix_2400_events()
 
-
-def midnight_passed(today_is: str) -> bool:
-    """Check if it's still the same day."""
-    if today_is == ut.get_date():
-        return False
+def midnight_message():
+    """Print a "you have to restart" message."""
     # Time has rolled over past midnight so need a new datafile.
     print("\n\n\n")
     pr.iprint(
@@ -1049,6 +1049,11 @@ def midnight_passed(today_is: str) -> bool:
     print("\n\n\n")
     print("Automatically exiting in 15 seconds")
     time.sleep(15)
+
+def midnight_passed(today_is: str) -> bool:
+    """Check if it's still the same day."""
+    if today_is == ut.get_date():
+        return False
     return True
 
 

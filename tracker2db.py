@@ -285,7 +285,10 @@ def data_to_db(filename: str) -> None:
 
     for tag, time_in in data.bikes_in.items():
         if tag in data.bikes_out.keys():
+    for tag, time_in in data.bikes_in.items():
+        if tag in data.bikes_out.keys():
             time_out = data.bikes_out[tag]
+            dur_end = time_out
             dur_end = time_out
         else:  # no check-out recorded
             if closing:
@@ -320,6 +323,7 @@ def data_to_db(filename: str) -> None:
                     '{tag}',
                     '{what_bike_type(tag)}',
                     '{time_in}',
+                    '{time_out}',
                     '{time_out}',
                     '{time_stay}',
                     '{batch}');"""
