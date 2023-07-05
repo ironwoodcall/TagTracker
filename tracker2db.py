@@ -35,8 +35,6 @@ import sqlite3
 import sys
 from typing import Union  # for type hints instead of (eg) int|str
 
-#import tt_conf as cfg
-# FIXME: remove with "yesterday" functionality
 import tt_util as ut
 import tt_datafile as df
 import tt_globals as tg
@@ -44,13 +42,6 @@ import tt_globals as tg
 from tt_event import Event
 from tt_time import VTime
 
-# FIXME: remove this if "yesterday" functionality is also going
-r'''
-# Regex for recognizing datafile names
-DATAFILE_RE = re.compile(
-    f"({cfg.DATA_BASENAME})*" r"[12][0-9][0-9][0-9]-[01][0-9]-[0-3][0-9]\.dat$"
-)
-'''
 
 # Names for tables and columns.s
 # Table of individual bike visits
@@ -293,16 +284,15 @@ def data_to_db(filename: str) -> None:
                 dur_end = closing
                 if args.verbose:
                     print(
-                        f" (normal leftover): {tag} stay time found using "
+                        f"(normal leftover): {tag} stay time found using "
                         f"closing time {closing} from table '{TABLE_DAYS}'"
                     )
             else:
                 dur_end = data.latest_event()  # approx. as = to last event
-                if not args.quiet:
-                    print(
-                        " Datafile missing closing time: using latest "
-                        f"event time for leftover with tag {tag}"
-                    )
+                print(
+                    f"WARN - datafile {filename} missing closing time: "
+                    f"using latest event time for leftover with tag {tag}"
+                )
             time_out = ""  # empty str for no time
         time_stay = calc_duration(time_in, dur_end)
         if not sql_do(
@@ -322,11 +312,10 @@ def data_to_db(filename: str) -> None:
                     '{what_bike_type(tag)}',
                     '{time_in}',
                     '{time_out}',
-                    '{time_out}',
                     '{time_stay}',
                     '{batch}');"""
         ):
-            print(f"failed to insert a stay for {tag}")
+            print(f"Error: failed to insert a stay for {tag}")
             visit_commit_count -= 1
             visit_fail_count += 1
     try:
@@ -337,7 +326,7 @@ def data_to_db(filename: str) -> None:
                 f"visits on {date} ({visit_fail_count} failed)"
             )
     except sqlite3.Error as sqlite_err:
-        print(f"ERR: SQL error trying to commit {filename} - {sqlite_err}")
+        print(f"Error (SQL): problem committing for {filename} - {sqlite_err}")
 
 
 def select_closing_time(date: str) -> Union[VTime, bool]:
@@ -347,7 +336,8 @@ def select_closing_time(date: str) -> Union[VTime, bool]:
     - If this yields no rows, return False.
     - If this yields 1 row, return the closing time as a str HHMM.
     - If this yields >1 row, raise error that the day has multiple records
-    (shouldn't happen b/c of UNIQUE constraint on the date row, but in case)"""
+    (shouldn't happen b/c of UNIQUE constraint on the date row, but in case)
+    """
     curs = conn.cursor()
     rows = curs.execute(
         f"SELECT {COL_TIME_CLOSE} FROM {TABLE_DAYS} "
@@ -360,10 +350,10 @@ def select_closing_time(date: str) -> Union[VTime, bool]:
         return VTime(rows[0][0])  # needs double subscript apparently
     else:
         print(
-            f" Database error: finding closing time on '{date}' in table "
-            "'{TABLE_DAYS}' returned multiple rows -- duplicate records?"
+            f"Error (database): finding closing time on date {date} in table "
+            f"'{TABLE_DAYS}' returned multiple rows from query"
         )
-        return False
+        sys.exit(1)
 
 
 def sql_do(sql_statement: str) -> bool:
@@ -373,33 +363,12 @@ def sql_do(sql_statement: str) -> bool:
         curs.execute(sql_statement)
         return True
     except sqlite3.Error as sqlite_err:
-        print("SQLite ERROR using sql_do() -- ", sqlite_err)
+        print("Error (SQLite) using sql_do(): ", sqlite_err)
         return False
 
 
-# FIXME: curently unused -- decide whether keeping this functionality at all
-# or if should be handled outside
-def get_yesterday() -> str:
-    """Return yesterday's date YYYY-MM-DD.
-
-    For targeting db updates at only the most recent complete datafiles
-    by default.
-    """
-    yesterday = datetime.datetime.now() - datetime.timedelta(1)
-    yest_str = yesterday.strftime("%Y-%m-%d")
-    return yest_str
-
-
 def setup_parser() -> None:
-    """Add relevant arguments to the ArgumentParser.
-
-    Includes:
-    datafiles: discrete datafile paths to use
-    -a, --alldata <path>: look for all datafiles in this dir matching a glob
-    -g, --glob <glob>: optional glob to use for datafiles
-    -d, --dbfile <path>: path to database file
-    """
-
+    """Add relevant arguments to the ArgumentParser."""
     parser.add_argument(
         "dbfile", type=str, help="path of destination SQLite3 database file"
     )
@@ -437,7 +406,7 @@ def setup_parser() -> None:
     )
 
 
-def find_datafiles(arguments:argparse.Namespace) -> list:
+def find_datafiles(arguments: argparse.Namespace) -> list:
     """Use provided args to assemble a list of datafiles.
 
     Needs at least 1 of:
@@ -470,9 +439,10 @@ def find_datafiles(arguments:argparse.Namespace) -> list:
         ]
         if indiv_files == []:
             print(
-                "Error (shouldn't ever reach here) - find_datafiles()"
-                ": indiv_files still empty despite provided args. !?"
+                "Error (shouldn't ever reach here :( ) - find_datafiles(): "
+                "indiv_files still empty despite provided args. !?"
             )
+            sys.exit(1)
 
     if indiv_files == [] and globbed_files == []:
         print(
@@ -481,6 +451,7 @@ def find_datafiles(arguments:argparse.Namespace) -> list:
         )
         sys.exit(1)
 
+    # Join discrete and globbed lists, discarding duplicates, and sort
     all_targeted = sorted(list(set().union(globbed_files, indiv_files)))
     return all_targeted
 
