@@ -97,7 +97,7 @@ def create_connection(db_file) -> sqlite3.Connection:
         if args.verbose:
             print(f"SQLite version {sqlite3.version}")
     except sqlite3.Error as sqlite_err:
-        print("Error (SQLite) trying to create_connection(): ", sqlite_err)
+        print("Error (SQLite) trying to create_connection():", sqlite_err)
         sys.exit(1)
     return connection
 
@@ -346,7 +346,7 @@ def data_to_db(filename: str) -> None:
                 f"visits on {date} ({visit_fail_count} failed)"
             )
     except sqlite3.Error as sqlite_err:
-        print(f"Error (SQL): problem committing for {filename} - {sqlite_err}")
+        print(f"Error (SQLite) committing for {filename}:", sqlite_err)
 
 
 def select_closing_time(date: str) -> Union[VTime, bool]:
@@ -383,33 +383,12 @@ def sql_do(sql_statement: str) -> bool:
         curs.execute(sql_statement)
         return True
     except sqlite3.Error as sqlite_err:
-        print("Error (SQLite) using sql_do(): ", sqlite_err)
+        print("Error (SQLite) using sql_do():", sqlite_err)
         return False
 
 
 def setup_parser() -> None:
-    """Add relevant arguments to the ArgumentParser."""
-    parser.add_argument(
-        "dbfile", type=str, help="path of destination SQLite3 database file"
-    )
-    parser.add_argument(
-        "datafolder",
-        type=str,
-        help="folder to look for data in. "
-        "Must also use >= 1 of: --datafiles, --glob",
-    )
-    parser.add_argument(
-        "--datafiles",
-        nargs="*",
-        type=str,
-        help="filenames of discrete datafiles to target",
-    )
-    parser.add_argument(
-        "--glob",
-        nargs=1,
-        type=str,
-        help="glob string to find datafiles with, ie 'cityhall_*.dat'",
-    )
+    """Add arguments to the ArgumentParser."""
     parser.add_argument(
         "-q",
         "--quiet",
@@ -424,6 +403,15 @@ def setup_parser() -> None:
         const=True,
         help="provides most detailed output",
     )
+    parser.add_argument(
+        "dataglob",
+        type=str,
+        nargs="+",
+        help="glob(s) to select target datafiles",
+    )
+    parser.add_argument(
+        "dbfile", type=str, help="path of destination SQLite3 database file"
+    )
 
 
 def find_datafiles(arguments: argparse.Namespace) -> list:
@@ -435,46 +423,19 @@ def find_datafiles(arguments: argparse.Namespace) -> list:
 
     If provided both, returns the set union of all datafiles found.
     """
-
-    globbed_files = []
-    if arguments.glob:  # glob for data if told
-        folder = arguments.datafolder
-        fileglob = arguments.glob[0]
-        globbed_files = [
-            os.path.join(folder, filename)
-            for filename in glob.glob(fileglob, root_dir=folder)
-        ]
+    targeted_datafiles = []
+    for this_glob in arguments.dataglob:
+        globbed_files = glob.glob(this_glob)  # glob glob glob
         if len(globbed_files) < 1:  # if still empty after globbing
             print(
-                f"Error: no files found in dir {folder} "
-                f"matching glob '{fileglob}'",
+                f"Error: no files found matching glob '{this_glob}'",
                 file=sys.stderr,
             )
             sys.exit(1)
-
-    indiv_files = []
-    if arguments.datafiles:  # if specific files, add them on
-        indiv_files = [
-            os.path.join(arguments.datafolder, filename)
-            for filename in arguments.datafiles
-        ]
-        if indiv_files == []:
-            print(
-                "Error (shouldn't ever reach here :( ) - find_datafiles(): "
-                "indiv_files still empty despite provided args. !?"
-            )
-            sys.exit(1)
-
-    if indiv_files == [] and globbed_files == []:
-        print(
-            "Error - find_datafiles(): please provide either a fileglob"
-            " or one or more discrete filenames to use"
+        targeted_datafiles = sorted(
+            list(set().union(targeted_datafiles, globbed_files))
         )
-        sys.exit(1)
-
-    # Join discrete and globbed lists, discarding duplicates, and sort
-    all_targeted = sorted(list(set().union(globbed_files, indiv_files)))
-    return all_targeted
+    return targeted_datafiles
 
 
 if __name__ == "__main__":
