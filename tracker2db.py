@@ -132,11 +132,15 @@ def data_to_db(filename: str) -> None:
         elif tag in oversize_tags:
             return OVERSIZE
         else:
-            print(f"Error: couldn't parse bike type for {tag} in {filename}")
+            print(
+                f"Error: couldn't parse bike type for {tag} in {filename}. "
+                "Exiting with error.",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
     if not os.path.isfile(filename):
-        print(f"Error: couldn't find file: {filename}")
+        print(f"Error: couldn't find file: {filename}", file=sys.stderr)
         return
 
     if args.verbose:
@@ -146,7 +150,11 @@ def data_to_db(filename: str) -> None:
 
     date = data.date
     if not date:  # get from filename for old data formats (hopefully never)
-        print(f"Error: unable to read valet date from file {filename}")
+        print(
+            f"Error: unable to read valet date from file {filename}. "
+            "Skipping this file",
+            file=sys.stderr,
+        )
         return
 
     if not data.bikes_in:  # if no visits to record, stop now
@@ -161,7 +169,11 @@ def data_to_db(filename: str) -> None:
         if args.verbose:
             print("Tags: datafile tag lists loaded")
     else:  # if no context
-        print(f"Error: unable to read tags context from file {filename}")
+        print(
+            f"Error: unable to read tags context from file {filename}. "
+            "Skipping this file.",
+            file=sys.stderr,
+        )
         return
 
     # TABLE_DAYS handling
@@ -179,9 +191,9 @@ def data_to_db(filename: str) -> None:
     if total_leftover < 0:
         print(
             f"Error: calculated negative value ({total_leftover})"
-            f" of leftover bikes for {date}"
+            f" of leftover bikes for {date}. Skipping {filename}.",
+            file=sys.stderr,
         )
-        print(f"Aborting {filename}")
         return
 
     # Highwater values
@@ -226,7 +238,11 @@ def data_to_db(filename: str) -> None:
     weekday = calendar.weekday(year, month, day)
 
     if not sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';"):
-        print(f"Error: delete day summary failed for date '{date}'")
+        print(
+            f"Error: delete day summary failed for date '{date}'. "
+            "Exiting with error.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if not sql_do(
@@ -264,7 +280,11 @@ def data_to_db(filename: str) -> None:
                 '{batch}'
                 );"""
     ):
-        print(f"Error: failed to insert day summary for {filename}. Aborting.")
+        print(
+            f"Error: failed to insert day summary for {filename}. "
+            "Exiting with error.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # TABLE_VISITS handling
@@ -315,7 +335,7 @@ def data_to_db(filename: str) -> None:
                     '{time_stay}',
                     '{batch}');"""
         ):
-            print(f"Error: failed to insert a stay for {tag}")
+            print(f"Error: failed to insert a stay for {tag}", file=sys.stderr)
             visit_commit_count -= 1
             visit_fail_count += 1
     try:
@@ -427,7 +447,8 @@ def find_datafiles(arguments: argparse.Namespace) -> list:
         if len(globbed_files) < 1:  # if still empty after globbing
             print(
                 f"Error: no files found in dir {folder} "
-                f"matching glob '{fileglob}'"
+                f"matching glob '{fileglob}'",
+                file=sys.stderr,
             )
             sys.exit(1)
 
@@ -472,7 +493,10 @@ if __name__ == "__main__":
         if args.verbose:
             print("Successfully enabled SQLite foreign keys")
     else:
-        print("Error: couldn't enable SQLite use of foreign keys")
+        print(
+            "Error: couldn't enable SQLite use of foreign keys",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     date_today = ut.get_date()
