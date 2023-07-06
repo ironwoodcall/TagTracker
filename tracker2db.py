@@ -27,7 +27,6 @@ Copyright (C) 2023 Julias Hocking
 
 import argparse
 import calendar
-import datetime
 import glob
 import os
 import re
@@ -235,7 +234,9 @@ def data_to_db(filename: str) -> None:
     year = int(date_bits.group(1))
     month = int(date_bits.group(2))
     day = int(date_bits.group(3))
-    weekday = calendar.weekday(year, month, day)
+    weekday = 1 + calendar.weekday(year, month, day)
+    if weekday == 7:  # awkward but should work
+        weekday = 0
 
     if not sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';"):
         print(
@@ -478,12 +479,3 @@ if __name__ == "__main__":
             f"\n\nProcessed data from {SUCCESS_COUNT} datafiles "
             f"({EMPTY_COUNT} empty)."
         )
-
-"""
-Add checks for integrity - DB and datafiles(?)
-- new data incoming that has many fewer records than what is already there
-- unusual open/close times (which might indicate sloppy operators,
-or a corrupt file)
-- days with identical data
-- days with more than x bikes left at the end of the data entries
-"""
