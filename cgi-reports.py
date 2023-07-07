@@ -9,7 +9,7 @@ port this comes in on, if that's a concern
 """
 
 import sqlite3
-
+import sys
 import os
 import urllib.parse
 import datetime
@@ -174,7 +174,7 @@ def error_out(msg: str = ""):
         print(msg)
     else:
         print("Bad or unknown parameter")
-    exit(1)
+    sys.exit(1)
 
 
 def show_help():
@@ -231,7 +231,7 @@ def one_tag_history_report(
     tag = TagID(maybe_tag)
     if not tag:
         print(f"Not a tag: '{untaint(tag.original)}'")
-        exit()
+        sys.exit()
     # Fetch all info about this tag.
     (last_date, last_in, last_out) = ("", "", "")
     curs = ttdb.cursor()
@@ -267,94 +267,122 @@ def one_tag_history_report(
     print("</body></html>")
 
 
-'''
-def overview_report(ttdb: sqlite3.Connection):
-    """Print new version of the all-days defauilt report."""
+def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
+    """Print a table of YTD totals.
+
+    YTD Total:
+
+    Regular parked  xx
+    Oversize parked xx
+    Total Parked    xx
+    Bike-hours      xx
+    Valet hours     xx
+    Bike-hrs/hr     xx
+    """
     sel = (
         "select "
-        "   date, time_open, time_closed, "
-        "   parked_regular, parked_oversize, parked_total, "
-        "   leftover, "
-        "   max_total "
+        "   sum(parked_regular) parked_regular, "
+        "   sum(parked_oversize) parked_oversize, "
+        "   sum(parked_total) parked_total, "
+        "   sum((julianday(time_closed)-julianday(time_open))*24) hours_open "
         "from day "
-        "   order by date desc"
     )
-    dbrows = db.db_fetch(ttdb, sel)
-
-    # Find the bike-hours for each day
+    drows = db.db_fetch(ttdb, sel)
+    # Find the total bike-hours
     vrows = db.db_fetch(
         ttdb,
         "select "
-        "   sum(julianday(duration)-julianday('00:00'))*24 bike_hours, "
-        "   date "
-        "from visit "
-        "   group by date order by date desc;",
+        "   sum(julianday(duration)-julianday('00:00'))*24 bike_hours "
+        "from visit ",
     )
-    for rownum, vday in enumerate(vrows):
-        if dbrows[rownum].date != vday.date:
-            print(f"oops {rownum=}; {dbrows[rownum].date=} != {vday.date=}")
-            dbrows[rownum].bike_hours = ""
-        else:
-            dbrows[rownum].bike_hours = vday.bike_hours
+    day: db.DBRow = drows[0]
+    day.bike_hours = vrows[0].bike_hours
+    # Get total # of days of operation
+    day.num_days = db.db_fetch(
+        ttdb,
+        "select count(date) num_days from day"
+    )[0].num_days
 
-    max_parked = 0
-    max_parked_date = ""
-    max_full = 0
-    max_full_date = ""
-    max_left = 0
-    max_bike_hours = 0
-    max_bike_hours_date = ""
-    for r in dbrows:
-        if r.parked_total > max_parked:
-            max_parked = r.parked_total
-            max_parked_date = r.date
-        if r.max_total > max_full:
-            max_full = r.max_total
-            max_full_date = r.date
-        if r.leftover > max_left:
-            max_left = r.leftover
-        if r.bike_hours > max_bike_hours:
-            max_bike_hours = r.bike_hours
-            max_bike_hours_date = r.date
-    max_parked_factor = 255 / (max_parked * max_parked)
-    max_full_factor = 255 / (max_full * max_full)
-    max_left_factor = 255 / min(max_left, 5)
-    max_bike_hours_factor = 255 / (max_bike_hours * max_bike_hours)
+    if csv:
+        print("measure,ytd_total")
+        html_tr_start = ""
+        html_tr_mid = ","
+        html_tr_end = "\n"
+    else:
+        print(
+            "<table>"
+            "<tr>"
+            "<th colspan=2>Year to date totals</th>"
+            "</tr>"
+        )
+        html_tr_start = "<tr><td style='text-align:left'>"
+        html_tr_mid = "</td><td style='text-align:right'>"
+        html_tr_end = "</td></tr>\n"
+    print(
+        f"{html_tr_start}Total bikes parked{html_tr_mid}"
+        f"{day.parked_total}{html_tr_end}"
+        f"{html_tr_start}Regular bikes parked{html_tr_mid}"
+        f"{day.parked_regular}{html_tr_end}"
+        f"{html_tr_start}Oversize bikes parked{html_tr_mid}"
+        f"{day.parked_oversize}{html_tr_end}"
+        f"{html_tr_start}Total days open{html_tr_mid}"
+        f"{day.num_days}{html_tr_end}"
+        f"{html_tr_start}Total hours open{html_tr_mid}"
+        f"{day.hours_open:0.1f}{html_tr_end}"
+        f"{html_tr_start}Bike-hours total{html_tr_mid}"
+        f"{day.bike_hours:0.0f}{html_tr_end}"
+        f"{html_tr_start}Average bikes / day{html_tr_mid}"
+        f"{(day.parked_total/day.num_days):0.1f}{html_tr_end}"
+        f"{html_tr_start}Average stay length{html_tr_mid}"
+        f"{VTime((day.bike_hours/day.parked_total)*60).short}{html_tr_end}"
+        "</table>"
+    )
 
-    print("<h1>Bike valet overview</h1>")
-    print(
-        f"<p><b>Most bikes parked:</b> {max_parked} bikes on {ut.date_str(max_parked_date,long_date=True)}<br />"
-    )
-    print(
-        f"<b>Valet was fullest:</b> with {max_full} bikes on {ut.date_str(max_full_date,long_date=True)}<br />"
-    )
-    print(
-        f"<b>Greatest utilization:</b> {round(max_bike_hours)} bike-hours on {ut.date_str(max_bike_hours_date,long_date=True)}</p>"
-    )
-    print("<p></p>")
-    print("<p>Listed newest to oldest</p>")
 
-    print("<table>")
-    print("<style>td {text-align: right;}</style>")
-    print(
-        # "<colgroup>"
-        # "<col>"
-        #'<col span=2 style="background-color:#DCC48E; border:4px solid #C1437A;">'
-        #'<col span=2 style=background-color:#97DB9A;>'
-        #'<col style="width:42px;">'
-        #'<col style="background-color:#97DB9A;">'
-        #'<col style="background-color:#DCC48E; border:4px solid #C1437A;">'
-        #'<col span="2" style="width:42px;">'
-        #'</colgroup>'
-        "<tr>"
-        "<th rowspan=2 colspan=2>Date</th>"
-        "<th colspan=2>Valet Hours</th>"
-        "<th colspan=3>Bike Parked</th>"
-        "<th rowspan=2>Bikes<br />Left at<br />Valet</th>"
-        "<th rowspan=2>Most<br />Bikes<br />at Once</th>"
-        "<th rowspan=2>Bike<br />hours</th"
-        "</tr>"
+def maximums_table(ttdb: sqlite3.Connection, csv: bool = False):
+    """Print table of daily overall maximums.
+
+        Maximums
+    Measure     Average Max  MaxDate
+    Fullness    xx      xx  xxxx-xx-xx
+    BikesParked
+    MonBikes    xx      xx  xxxx-xx-xx
+    TueBikes    xx      xx  xxxx
+    etc
+
+
+    """
+    sel = (
+        "select "
+        "   sum(parked_regular) parked_regular, "
+        "   sum(parked_oversize) parked_oversize, "
+        "   sum(parked_total) parked_total "
+        "from day "
     )
+    drows = db.db_fetch(ttdb, sel)
+    # Find the total bike-hours
+    vrows = db.db_fetch(
+        ttdb,
+        "select "
+        "   sum(julianday(duration)-julianday('00:00'))*24 bike_hours bike_hours "
+        "from visit ",
+    )
+    if csv:
+        print("measure,average,max,max_date")  # FIXME = here.  csv header
+    else:
+        print("<table>")
+        print("<style>td {text-align: right;}</style>")
+        print(
+            "<tr>"
+            "<th rowspan=2 colspan=2>Date<br />(newest to oldest)</th>"
+            "<th colspan=2>Valet Hours</th>"
+            "<th colspan=3>Bike Parked</th>"
+            "<th rowspan=2>Bikes<br />Left at<br />Valet</th>"
+            "<th rowspan=2>Most<br />Bikes<br />at Once</th>"
+            "<th rowspan=2>Bike-<br />hours</th>"
+            "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
+            "</tr>"
+        )
     print(
         "<tr>"
         # "<th>Date</th>"
@@ -364,36 +392,6 @@ def overview_report(ttdb: sqlite3.Connection):
         # "<th>Fullest</th>"
         "</tr>"
     )
-    for row in dbrows:
-        date_link = selfref(what="day_end", qdate=row.date)
-        max_parked_col = max(
-            0,
-            255 - int(row.parked_total * row.parked_total * max_parked_factor),
-        )
-        max_full_col = max(
-            0, 255 - int(row.max_total * row.max_total * max_full_factor)
-        )
-        max_left_col = max(
-            0, min(255 - int(row.leftover * max_left_factor), 255)
-        )
-        max_bike_hours_col = max(
-            0,
-            255 - int(row.bike_hours * row.bike_hours * max_bike_hours_factor),
-        )
-
-        print(
-            f"<tr>"
-            f"<td><a href='{date_link}'>{row.date}</a></td>"
-            f"<td style='text-align:left'>{ut.date_str(row.date,dow_str_len=3)}</td>"
-            f"<td>{row.time_open}</td><td>{row.time_closed}</td>"
-            f"<td>{row.parked_regular}</td><td>{row.parked_oversize}</td><td style='background-color: rgb({max_parked_col},255,{max_parked_col})'>{row.parked_total}</td>"
-            f"<td style='background-color: rgb(255,{max_left_col},{max_left_col})'>{row.leftover}</td>"
-            f"<td style='background-color: rgb({max_full_col},255,{max_full_col})'>{row.max_total}</td>"
-            f"<td style='background-color: rgb(255,{max_bike_hours_col},255)'>{round(row.bike_hours)}</td>"
-            "</tr>"
-        )
-    print(" </table>")
-'''
 
 
 def overview_report(ttdb: sqlite3.Connection):
@@ -408,7 +406,7 @@ def overview_report(ttdb: sqlite3.Connection):
         "from day "
         "   order by date desc"
     )
-    dbrows = db.db_fetch(ttdb, sel)
+    drows = db.db_fetch(ttdb, sel)
 
     # Find the bike-hours for each day
     vrows = db.db_fetch(
@@ -420,11 +418,11 @@ def overview_report(ttdb: sqlite3.Connection):
         "   group by date order by date desc;",
     )
     for rownum, vday in enumerate(vrows):
-        if dbrows[rownum].date != vday.date:
-            print(f"oops {rownum=}; {dbrows[rownum].date=} != {vday.date=}")
-            dbrows[rownum].bike_hours = ""
+        if drows[rownum].date != vday.date:
+            print(f"oops {rownum=}; {drows[rownum].date=} != {vday.date=}")
+            drows[rownum].bike_hours = ""
         else:
-            dbrows[rownum].bike_hours = vday.bike_hours
+            drows[rownum].bike_hours = vday.bike_hours
 
     max_parked = 0
     max_parked_date = ""
@@ -436,7 +434,7 @@ def overview_report(ttdb: sqlite3.Connection):
     max_bike_hours_per_hour = 0
     max_bike_hours_per_hour_date = ""
 
-    for r in dbrows:
+    for r in drows:
         r.bike_hours_per_hour = r.bike_hours / r.hours_open
         if r.bike_hours_per_hour > max_bike_hours_per_hour:
             max_bike_hours_per_hour = r.bike_hours_per_hour
@@ -462,12 +460,21 @@ def overview_report(ttdb: sqlite3.Connection):
 
     print("<h1>Bike valet overview</h1>")
     print(
-        f"<p><b>Most bikes parked:</b> {max_parked} bikes on {ut.date_str(max_parked_date,long_date=True)}<br />"
-        f"<b>Valet was fullest:</b> with {max_full} bikes on {ut.date_str(max_full_date,long_date=True)}<br />"
-        f"<b>Greatest utilization:</b> {round(max_bike_hours)} bike-hours on {ut.date_str(max_bike_hours_date,long_date=True)}<br />"
-        f"<b>Greatest utilization per hour:</b> {round(max_bike_hours_per_hour,2)} bike-hours per hour on {ut.date_str(max_bike_hours_per_hour_date,long_date=True)}</p>"
+        f"<p><b>Most bikes parked:</b> "
+        f"  {max_parked} bikes on {ut.date_str(max_parked_date,long_date=True)}<br />"
+        f"<b>Valet was fullest:</b> "
+        f"  with {max_full} bikes on {ut.date_str(max_full_date,long_date=True)}<br />"
+        f"<b>Greatest utilization:</b> "
+        f"  {round(max_bike_hours)} bike-hours "
+        f"      on {ut.date_str(max_bike_hours_date,long_date=True)}<br />"
+        f"<b>Greatest utilization per hour:</b> "
+        f"  {round(max_bike_hours_per_hour,2)} bike-hours per valet hour "
+        f"      on {ut.date_str(max_bike_hours_per_hour_date,long_date=True)}</p>"
     )
-    print("<p></p>")
+    print("<p>&nbsp;</p>")
+
+    ytd_totals_table(ttdb,csv=False)
+    print("<p>&nbsp;</p>")
 
     print("<table>")
     print("<style>td {text-align: right;}</style>")
@@ -500,7 +507,7 @@ def overview_report(ttdb: sqlite3.Connection):
         # "<th>Fullest</th>"
         "</tr>"
     )
-    for row in dbrows:
+    for row in drows:
         date_link = selfref(what="day_end", qdate=row.date)
         max_parked_col = max(
             0,
@@ -624,7 +631,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     print("<pre>")
     if not visits:
         print(f"No activity recorded for {thisday}")
-        exit()
+        sys.exit()
     print(f"Tags for {thisday}")
     print("-------------------")
     print(
@@ -762,7 +769,7 @@ if not qtime:
     error_out(f"Bad time: '{untaint(maybetime)}")
 form(database, default_what=what, default_date=maybedate, default_tag=tag)
 if not what:
-    exit()
+    sys.exit()
 if what == "last_use":
     one_tag_history_report(database, tag)
 elif what == "overview":
@@ -783,4 +790,4 @@ elif what == "busy-graph":
     one_day_busy_graph(database, qdate)
 else:
     error_out(f"Unknown request: {untaint(what)}")
-    exit(1)
+    sys.exit(1)
