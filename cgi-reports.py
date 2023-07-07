@@ -791,3 +791,4 @@ elif what == "busy-graph":
 else:
     error_out(f"Unknown request: {untaint(what)}")
     sys.exit(1)
+print(f"<pre>\nversion {ut.get_version()}")
