@@ -15,20 +15,9 @@ import datetime
 import os
 import sys
 import sqlite3
-import asyncio
-
-import env_canada
 
 import tt_dbutil as db
 import tt_util as ut
-
-# These constants are values for which records to update
-ALL = chr(0x2192) + "TARGET_ALL"
-EMPTY = chr(0x2192) + "TARGET_EMPTY"
-ONEDATE = chr(0x2192) + "TARGET_ONEDATE"
-# These constants are for values for what kind of input we have
-DAY_END = chr(0x2192) + "source_csv"
-WEATHER = chr(0x2192) + "SOURCE_WEATHER"
 
 
 class NewVals:
@@ -45,6 +34,7 @@ class NewVals:
         temp: float = None,
         max_temp: float = None,
         min_temp: float = None,
+        mean_temp:float = None,
         rainfall: float = None,
     ) -> None:
         self.registrations = registrations
@@ -53,11 +43,31 @@ class NewVals:
         self.temp = temp
         self.max_temp = max_temp
         self.min_temp = min_temp
+        self.mean_temp = mean_temp
         self.rainfall = rainfall
 
     def dump(self):
         return f"{self.registrations=}; {self.abandoned=}; {self.precip=}; {self.temp=}"
 
+def oneval(
+    thisrow: list,
+    field: int,
+    want_num: bool = False,
+    want_int: bool = False,
+) -> str | int | float | None:
+    """Get item field from thisrow."""
+    myval = (thisrow + [""] * 20)[field]
+    if want_int:
+        if myval.isdigit():
+            return int(myval)
+        else:
+            return None
+    if want_num:
+        try:
+            return float(myval)
+        except ValueError:
+            return None
+    return myval
 
 def read_day_end_vals(
     day_end_csv: str,
@@ -87,26 +97,6 @@ def read_day_end_vals(
             return ""
         return newdate.strftime("%Y-%m-%d")
 
-    def oneval(
-        thisrow: list,
-        field: int,
-        want_num: bool = False,
-        want_int: bool = False,
-    ) -> str | int | float | None:
-        """Get item field from thisrow."""
-        myval = (thisrow + [""] * 20)[field]
-        if want_int:
-            if myval.isdigit():
-                return int(myval)
-            else:
-                return ""
-        if want_num:
-            try:
-                return float(myval)
-            except ValueError:
-                return ""
-        return myval
-
     results = {}
     with open(day_end_csv, "r", newline="", encoding="utf-8") as csvfile:
         dereader = csv.reader(csvfile)
@@ -124,50 +114,62 @@ def read_day_end_vals(
 
 
 def get_day_end_changes(
+    ttdb:sqlite3.Connection,
     day_end_file: str,
-    target_changes: str,
-    target_onedate: str,
-    db_data: dict[str, NewVals],
+    force: bool,
+    onedate: str,
 ) -> list[str]:
     """Get SQL statements of changes from day end form source."""
 
+    where = f" where date = '{onedate}' " if onedate else ""
+    db_data = db.db_fetch(
+        ttdb,
+        "select "
+        "   date, registrations, leftover, precip_mm, temp_10am "
+        "from day "
+        f"{where}"
+        "order by date",
+    )
+    if not db_data:
+        return []
+
     new = read_day_end_vals(day_end_file)
     sqls = []
-    for db in db_data:
-        if target_changes == ONEDATE and target_onedate != db.date:
+    for existing in db_data:
+        if onedate and onedate != existing.date:
             continue
 
         if (
-            (target_changes != EMPTY or not db.registrations)
-            and db.date in new
-            and new[db.date].registrations
+            (force or existing.registrations is None)
+            and existing.date in new
+            and new[existing.date].registrations is not None
         ):
             sqls.append(
-                f"update day set registrations = {new[db.date].registrations} where date = '{db.date}';"
+                f"update day set registrations = {new[existing.date].registrations} where date = '{existing.date}';"
             )
         if (
-            (target_changes != EMPTY or not db.leftover)
-            and db.date in new
-            and new[db.date].abandoned
+            (force or existing.leftover is None)
+            and existing.date in new
+            and new[existing.date].abandoned is not None
         ):
             sqls.append(
-                f"update day set leftover = {new[db.date].abandoned} where date = '{db.date}';"
+                f"update day set leftover = {new[existing.date].abandoned} where date = '{existing.date}';"
             )
         if (
-            (target_changes != EMPTY or not db.precip_mm)
-            and db.date in new
-            and new[db.date].precip
+            (force or (not existing.precip_mm and existing.precip_mm != 0))
+            and existing.date in new
+            and new[existing.date].precip is not None
         ):
             sqls.append(
-                f"update day set precip_10mm = {new[db.date].precip} where date = '{db.date}';"
+                f"update day set precip_mm = {new[existing.date].precip} where date = '{existing.date}';"
             )
         if (
-            (target_changes != EMPTY or not db.temp_10am)
-            and db.date in new
-            and new[db.date].temp
+            (force or existing.temp_10am is None)
+            and existing.date in new
+            and new[existing.date].temp is not None
         ):
             sqls.append(
-                f"update day set temp_10am = {new[db.date].temp} where date = '{db.date}';"
+                f"update day set temp_10am = {new[existing.date].temp} where date = '{existing.date}';"
             )
     return sqls
 
@@ -178,75 +180,72 @@ def read_nrcan_data(source_csv: str) -> dict[str, NewVals]:
     https://api.weather.gc.ca/collections/climate-daily/items?datetime=2023-01-01%2000:00:00/2023-07-09%2000:00:00&STN_ID=51337&sortby=PROVINCE_CODE,STN_ID,LOCAL_DATE&f=csv&limit=150000&startindex=0
     7,8,9: y,m,d
     10 - mean temp
+    12 - min temp
     14 - max temp
     16 - total precip
     18 - total rainfall
     30 - heating degree days"""
 
-    def oneval(
-        thisrow: list,
-        field: int,
-        want_num: bool = False,
-        want_int: bool = False,
-    ) -> str | int | float | None:
-        """Get item field from thisrow."""
-        myval = (thisrow + [""] * 20)[field]
-        if want_int:
-            if myval.isdigit():
-                return int(myval)
-            else:
-                return ""
-        if want_num:
-            try:
-                return float(myval)
-            except ValueError:
-                return ""
-        return myval
 
     results = {}
     with open(source_csv, "r", newline="", encoding="utf-8") as csvfile:
         for row in csv.reader(csvfile):
-            thisdate = ut.date_str(f"{row[7]}-{row[8]:02d}-{row[9]:02d}")
+            maybedate = f"{row[7]}-{('0'+row[8])[-2:]}-{('0'+row[9])[-2:]}"
+            thisdate = ut.date_str(maybedate)
             if not thisdate:
                 continue
             results[thisdate] = NewVals(
                 precip=oneval(row, 16, want_num=True),
-                temp=oneval(row, 14, want_num=True),
+                temp=oneval(row, 14, want_num=True),    # max
+                min_temp=oneval(row,12,want_num=True),
+                max_temp=oneval(row,14,want_num=True),
+                mean_temp=oneval(row,10,want_num=True),
             )
     return results
 
 
 def get_nrcan_changes(
+    ttdb:sqlite3.Connection,
     source_csv: str,
-    target_changes: str,
-    target_onedate: str,
-    db_data: dict[str, NewVals],
+    force: str,
+    onedate: str,
 ) -> list[str]:
     """Get SQL statements of changes from NRCan source."""
 
+    where = f" where date = '{onedate}' " if onedate else ""
+    db_data = db.db_fetch(
+        ttdb,
+        "select "
+        "   date, registrations, leftover, precip_mm, temp_10am "
+        "from day "
+        f"{where}"
+        "order by date",
+    )
     if not db_data:
         return []
+
     new = read_nrcan_data(source_csv)
+
     sqls = []
-    for db in db_data:
-        if target_changes == ONEDATE and target_onedate != db.date:
+    for existing in db_data:
+        if onedate and onedate != existing.date:
             continue
 
         if (
-            (target_changes != EMPTY or not db.precip_mm)
-            and db.date in new
-            and new[db.date].precip
+            (force or existing.precip_mm is None)
+            and existing.date in new
+            and new[existing.date].precip is not None
         ):
             sqls.append(
-                f"update day set precip_mm = {new[db.date].precip} where date = '{db.date}';"
+                f"update day set precip_mm = {new[existing.date].precip} where date = '{existing.date}';"
             )
         if (
-            (target_changes != EMPTY or not db.temp_10am)
-            and db.date in new
-            and new[db.date].temp
+            (force or not existing.temp_10am)
+            and existing.date in new
+            and new[existing.date].temp is not None
         ):
             sqls.append(
-                f"update day set temp_10am = {new[db.date].temp} where date = '{db.date}';"
+                f"update day set temp_10am = {new[existing.date].temp} where date = '{existing.date}';"
             )
     return sqls
 
@@ -257,50 +256,51 @@ class ProgArgs:
     Attributes:
         database_file: filename of the database
         target_rows: EMPTY, ALL or ONEDATE
-        target_onedate: a valid date string or "" (only if ONEDATE)
-        data_source: WEATHER or DAY_END
-        source_csv: filename of DAY_END csv file (if DAY_END)
+        onedate: a valid date string or "" (only if ONEDATE)
+        weather_csv: filename of WEATHER csv file (if any, else "")
+        day_end_csv: filename of DAY END csv file (if any, else "")
     """
 
     def __init__(self):
         """Get all the program arguments."""
-        args = self._parse_args()
-        self.database_file = args.database_file
-        self.day_end = args.day_end
-        self.target_rows = ""
-        self.target_onedate = ""
-        if args.date:
-            self.target_rows = ONEDATE
-            self.target_onedate = ut.date_str(args.date)
-            if not self.target_onedate:
+        progargs = self._parse_args()
+        self.verbose = progargs.verbose
+        self.database_file = progargs.database_file
+        self.day_end = progargs.day_end
+        self.force = progargs.force
+        self.onedate = ""
+        if progargs.date:
+            #self.target_rows = ONEDATE
+            self.onedate = ut.date_str(progargs.date)
+            if not self.onedate:
                 print(
                     "DATE must be YYYY-MM-DD, 'today' or 'yesterday'",
                     file=sys.stderr,
                 )
                 sys.exit(1)
-        elif args.all:
-            self.target_rows = ALL
-        elif args.empty:
-            self.target_rows = EMPTY
-        self.data_source = ""
-        self.source_csv = ""
-        if args.weather:
-            self.data_source = WEATHER
-            self.source_csv = args.weather
-        elif args.day_end:
-            self.data_source = DAY_END
-            self.source_csv = args.day_end
-        if not self.target_rows or not self.data_source:
+        #elif args.all:
+        #    self.target_rows = ALL
+        #elif args.empty:
+        #    self.target_rows = EMPTY
+        self.weather_csv = progargs.weather if progargs.weather else ""
+        self.day_end_csv = progargs.day_end if progargs.day_end else ""
+        #if not self.target_rows:
+        #    print(
+        #        "Unknown args supporting which rows to update",
+        #        file=sys.stderr,
+        #    )
+        #    sys.exit(1)
+        if not self.weather_csv and not self.day_end_csv:
             print(
-                "Unknown args supporting which rows to update or what source to use",
+                "Must specify at least one of --weather & --day-end",
                 file=sys.stderr,
             )
             sys.exit(1)
 
     def dump(self):
         """Print the contents of the object."""
-        print(f"{self.data_source=}; {self.source_csv=}")
-        print(f"{self.target_rows=}; {self.target_onedate=}")
+        print(f"{self.weather_csv=}; {self.day_end_csv=}")
+        print(f"{self.force=}; {self.onedate=}")
         print(f"{self.database_file=}")
 
     @staticmethod
@@ -308,52 +308,42 @@ class ProgArgs:
         """Collect command args into an argparse.Namespace."""
         parser = argparse.ArgumentParser(
             description="Update TagTracker database DAY table from non-TagTracker sources",
-            epilog="Exactly one of [all,empty,date] and [day-end,weather] are required.\n",
+            epilog="If --weather and --day-end are both given, weather is processed first.  "
+            "This can mean that weather data from day-end may be ignored, or may "
+            "overwrite Environment Canada data, based on the setting of --force.",
         )
         parser.add_argument(
             "database_file",
             metavar="DATABASE_FILE",
             help="TagTracker database file to update",
         )
-        target_rows = parser.add_mutually_exclusive_group(required=True)
-        target_rows.add_argument(
-            "--all",
+        parser.add_argument(
+            "--force",
             action="store_true",
             default=False,
-            help="Update all available attributes in all DAY rows with new data",
+            help="Update all attributes (usually only updates empty attributes)",
         )
-        target_rows.add_argument(
-            "--empty",
-            action="store_true",
-            default=False,
-            help="Update any empty attributes in all DAY rows if there is new data",
-        )
-        target_rows.add_argument(
+        parser.add_argument(
             "--date",
-            help="Update all available attributes in the DAY row that matches DATE with new data",
+            help="Limit update to DAY row for date DATE",
         )
-        data_source = parser.add_mutually_exclusive_group(required=True)
-        data_source.add_argument(
-            "--day-end",
-            metavar="FILE",
-            help="Read source data csv file of day-end-form gsheet data",
-        )
-        data_source.add_argument(
+        parser.add_argument(
             "--weather",
             metavar="FILE",
             help="Read source data csv file of Environment Canada historic climate data",
         )
+        parser.add_argument(
+            "--day-end",
+            metavar="FILE",
+            help="Read source data csv file of day-end-form gsheet data",
+        )
+        parser.add_argument( "--verbose",action="store_true",default=False)
         return parser.parse_args()
 
 
 args = ProgArgs()
-args.dump()
-
-
-if args.data_source != DAY_END:
-    print(f"Not implemented {args.data_source}", file=sys.stderr)
-    exit(1)
-
+if args.verbose:
+    args.dump()
 
 # Get existing database info
 # FIXME: make test for existnece of file part of create_connection
@@ -361,28 +351,42 @@ if not os.path.exists(args.database_file):
     print(f"Database file {args.database_file} not found", file=sys.stderr)
     sys.exit(1)
 database = db.create_connection(args.database_file)
-existing_data = db.db_fetch(
-    database,
-    "select "
-    "   date, registrations, leftover, precip_mm, temp_10am "
-    "from day "
-    "order by date",
-)
 
-if args.data_source == DAY_END:
-    changes: list[str] = get_day_end_changes(
-        args.source_csv,
-        args.target_rows,
-        args.target_onedate,
-        existing_data,
+weather_changes = []
+if args.weather_csv:
+    if args.verbose:
+        print("\nWEATHER\n")
+    weather_changes: list[str] = get_nrcan_changes(
+        database,
+        args.weather_csv,
+        args.force,
+        args.onedate,
     )
-    for onesql in changes:
-        print(f"   {onesql}")
+    for sql in weather_changes:
+        if args.verbose:
+            print(sql)
+        db.db_update(database,sql,commit=False)
+    db.db_commit(database)
 
-if args.data_source == WEATHER:
-    changes: list[str] = get_ec_changes(
-        args.source_csv,
-        args.target_rows,
-        args.target_onedate,
-        existing_data,
+day_end_changes = []
+if args.day_end_csv:
+    if args.verbose:
+        print("\nDAY END\n")
+    day_end_changes: list[str] = get_day_end_changes(
+        database,
+        args.day_end_csv,
+        args.force,
+        args.onedate,
     )
+    for sql in day_end_changes:
+        if args.verbose:
+            print(sql)
+        db.db_update(database,sql,commit=False)
+    db.db_commit(database)
+
+print(f"Updated database '{args.database_file}':")
+if args.weather_csv:
+    print(f"   {len(weather_changes):3d} weather updates from '{args.weather_csv}'")
+if args.day_end_csv:
+    print(f"   {len(day_end_changes):3d} day_end updates from '{args.day_end_csv}'")
+

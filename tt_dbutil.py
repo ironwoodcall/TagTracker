@@ -1,12 +1,7 @@
-"""Database utilities for reporting from TagTracker database.
-
-
-"""
+"""Database utilities for reporting from TagTracker database."""
 
 import sqlite3
-
-import datetime
-import re
+import sys
 from typing import Tuple, Iterable
 from tt_trackerday import TrackerDay
 from tt_tag import TagID
@@ -202,4 +197,22 @@ def create_connection(db_file) -> sqlite3.Connection:
         print("sqlite ERROR in create_connection() -- ", sqlite_err)
     return connection
 
+def db_commit(db:sqlite3.Connection):
+    """Just a database commit.  Only here for completeness."""
+    db.commit()
+
+def db_update(db:sqlite3.Connection,update_sql:str,commit:bool=True) -> bool:
+    """Execute a SQL UPDATE statement.  T/F indicates success.
+
+    (This could be any SQL statement, but the error checking and
+    return is based on assumption it's an UPDATE)
+    """
+    try:
+        db.cursor().execute(update_sql)
+        if commit:
+            db.commit()
+    except (sqlite3.OperationalError,sqlite3.IntegrityError) as e:
+        print(f"SQL error '{e}' for '{update_sql}'",file=sys.stdout)
+        return False
+    return True
 

@@ -13,6 +13,7 @@ import sys
 import os
 import urllib.parse
 import datetime
+from math import sqrt
 
 from tt_globals import *
 
@@ -284,7 +285,8 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         "   sum(parked_regular) parked_regular, "
         "   sum(parked_oversize) parked_oversize, "
         "   sum(parked_total) parked_total, "
-        "   sum((julianday(time_closed)-julianday(time_open))*24) hours_open "
+        "   sum((julianday(time_closed)-julianday(time_open))*24) hours_open, "
+        "   sum(registrations) registrations "
         "from day "
     )
     drows = db.db_fetch(ttdb, sel)
@@ -320,21 +322,23 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         html_tr_end = "</td></tr>\n"
     print(
         f"{html_tr_start}Total bikes parked{html_tr_mid}"
-        f"{day.parked_total}{html_tr_end}"
+        f"  {day.parked_total}{html_tr_end}"
         f"{html_tr_start}Regular bikes parked{html_tr_mid}"
-        f"{day.parked_regular}{html_tr_end}"
+        f"  {day.parked_regular}{html_tr_end}"
         f"{html_tr_start}Oversize bikes parked{html_tr_mid}"
-        f"{day.parked_oversize}{html_tr_end}"
+        f"  {day.parked_oversize}{html_tr_end}"
+        f"{html_tr_start}529 Registrations{html_tr_mid}"
+        f"  {day.registrations}{html_tr_end}"
         f"{html_tr_start}Total days open{html_tr_mid}"
-        f"{day.num_days}{html_tr_end}"
+        f"  {day.num_days}{html_tr_end}"
         f"{html_tr_start}Total hours open{html_tr_mid}"
-        f"{day.hours_open:0.1f}{html_tr_end}"
+        f"  {day.hours_open:0.1f}{html_tr_end}"
         f"{html_tr_start}Bike-hours total{html_tr_mid}"
-        f"{day.bike_hours:0.0f}{html_tr_end}"
+        f"  {day.bike_hours:0.0f}{html_tr_end}"
         f"{html_tr_start}Average bikes / day{html_tr_mid}"
-        f"{(day.parked_total/day.num_days):0.1f}{html_tr_end}"
+        f"  {(day.parked_total/day.num_days):0.1f}{html_tr_end}"
         f"{html_tr_start}Average stay length{html_tr_mid}"
-        f"{VTime((day.bike_hours/day.parked_total)*60).short}{html_tr_end}"
+        f"  {VTime((day.bike_hours/day.parked_total)*60).short}{html_tr_end}"
         "</table>"
     )
 
@@ -402,7 +406,9 @@ def overview_report(ttdb: sqlite3.Connection):
         "   (julianday(time_closed)-julianday(time_open))*24 hours_open, "
         "   parked_regular, parked_oversize, parked_total, "
         "   leftover, "
-        "   max_total "
+        "   max_total, "
+        "   registrations, "
+        "   precip_mm, temp_10am "
         "from day "
         "   order by date desc"
     )
@@ -445,18 +451,22 @@ def overview_report(ttdb: sqlite3.Connection):
         if r.max_total > max_full:
             max_full = r.max_total
             max_full_date = r.date
-        if r.leftover > max_left:
-            max_left = r.leftover
         if r.bike_hours > max_bike_hours:
             max_bike_hours = r.bike_hours
             max_bike_hours_date = r.date
     max_parked_factor = 255 / (max_parked * max_parked)
     max_full_factor = 255 / (max_full * max_full)
+    max_left = max([0] + [r.leftover for r in drows])
     max_left_factor = 255 / min(max_left, 5)
     max_bike_hours_factor = 255 / (max_bike_hours * max_bike_hours)
     max_bike_hours_per_hour_factor = 255 / (
         max_bike_hours_per_hour * max_bike_hours_per_hour
     )
+    max_precip = max([0] + [r.precip_mm for r in drows if r.precip_mm is not None])
+    max_precip_factor = 255 / sqrt(max_precip)
+    max_temp = max([0] + [r.temp_10am for r in drows if r.temp_10am is not None])
+    max_temp_factor = 255 / (max_temp*max_temp)
+
 
     print("<h1>Bike valet overview</h1>")
     print(
@@ -479,15 +489,6 @@ def overview_report(ttdb: sqlite3.Connection):
     print("<table>")
     print("<style>td {text-align: right;}</style>")
     print(
-        # "<colgroup>"
-        # "<col>"
-        #'<col span=2 style="background-color:#DCC48E; border:4px solid #C1437A;">'
-        #'<col span=2 style=background-color:#97DB9A;>'
-        #'<col style="width:42px;">'
-        #'<col style="background-color:#97DB9A;">'
-        #'<col style="background-color:#DCC48E; border:4px solid #C1437A;">'
-        #'<col span="2" style="width:42px;">'
-        #'</colgroup>'
         "<tr>"
         "<th rowspan=2 colspan=2>Date<br />(newest to oldest)</th>"
         "<th colspan=2>Valet Hours</th>"
@@ -496,6 +497,8 @@ def overview_report(ttdb: sqlite3.Connection):
         "<th rowspan=2>Most<br />Bikes<br />at Once</th>"
         "<th rowspan=2>Bike-<br />hours</th>"
         "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
+        "<th rowspan=2>529<br />Regs</th>"
+        "<th colspan=2>Weather</th>"
         "</tr>"
     )
     print(
@@ -505,6 +508,7 @@ def overview_report(ttdb: sqlite3.Connection):
         "<th>Rglr</th><th>Ovrsz</th><th>Total</th>"
         # "<th>Left</th>"
         # "<th>Fullest</th>"
+        "<th>Temp</th><th>Precip</th>"
         "</tr>"
     )
     for row in drows:
@@ -532,6 +536,19 @@ def overview_report(ttdb: sqlite3.Connection):
                 * max_bike_hours_per_hour_factor
             ),
         )
+        max_temp_col = 255
+        if row.temp_10am:
+            max_temp_col = max(
+            0,
+            255 - int(row.temp_10am * row.temp_10am * max_temp_factor),
+        )
+        max_precip_col = 255
+        if row.precip_mm:
+            max_precip_col = max(
+                0,
+                255 - int(sqrt(row.precip_mm) * max_precip_factor),
+            )
+
 
         print(
             f"<tr>"
@@ -543,6 +560,9 @@ def overview_report(ttdb: sqlite3.Connection):
             f"<td style='background-color: rgb({max_full_col},255,{max_full_col})'>{row.max_total}</td>"
             f"<td style='background-color: rgb(255,{max_bike_hours_col},255)'>{row.bike_hours:0.0f}</td>"
             f"<td style='background-color: rgb(255,{max_bike_hours_per_hour_col},255)'>{row.bike_hours_per_hour:0.2f}</td>"
+            f"<td>{row.registrations}</td>"
+            f"<td style='background-color: rgb(255,255,{max_temp_col})'>{row.temp_10am:0.1f}</td>"
+            f"<td style='background-color: rgb({max_precip_col},255,255)'>{row.precip_mm}</td>"
             "</tr>"
         )
     print(" </table>")
