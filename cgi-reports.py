@@ -549,7 +549,9 @@ def overview_report(ttdb: sqlite3.Connection):
                 255 - int(sqrt(row.precip_mm) * max_precip_factor),
             )
 
-
+        reg_str = "" if row.registrations is None else f"{row.registrations}"
+        temp_str = "" if row.temp_10am is None else f"{row.temp_10am:0.1f}"
+        precip_str = "" if row.precip_mm is None else f"{row.precip_mm:0.1f}"
         print(
             f"<tr>"
             f"<td><a href='{date_link}'>{row.date}</a></td>"
@@ -560,9 +562,9 @@ def overview_report(ttdb: sqlite3.Connection):
             f"<td style='background-color: rgb({max_full_col},255,{max_full_col})'>{row.max_total}</td>"
             f"<td style='background-color: rgb(255,{max_bike_hours_col},255)'>{row.bike_hours:0.0f}</td>"
             f"<td style='background-color: rgb(255,{max_bike_hours_per_hour_col},255)'>{row.bike_hours_per_hour:0.2f}</td>"
-            f"<td>{row.registrations}</td>"
-            f"<td style='background-color: rgb(255,255,{max_temp_col})'>{row.temp_10am:0.1f}</td>"
-            f"<td style='background-color: rgb({max_precip_col},255,255)'>{row.precip_mm}</td>"
+            f"<td>{reg_str}</td>"
+            f"<td style='background-color: rgb(255,255,{max_temp_col})'>{temp_str}</td>"
+            f"<td style='background-color: rgb({max_precip_col},255,255)'>{precip_str}</td>"
             "</tr>"
         )
     print(" </table>")
