@@ -259,13 +259,13 @@ def read_sun_data(source_csv: str) -> dict[str, NewVals]:
             if not row or not row[0]:
                 if args.verbose:
                     print(f"discarding sun csv row {row}")
-                    continue
+                continue
             # Break first element into date elements
             datebits = row[0].split()
             if len(datebits) != 3:
                 if args.verbose:
                     print(f"discarding bad date in sun csv row {row}")
-                    continue
+                continue
             maybedate = f"{datebits[2]}-{MONTHS[datebits[0]]}-{('0'+datebits[1])[-2:]}"
             thisdate = ut.date_str(maybedate)
             if not thisdate:
