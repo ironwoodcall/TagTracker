@@ -1,5 +1,9 @@
 TagTracker by Julias Hocking
 
+0.8.8:
++ database updates for sunset from NRCan
++ fullness-alert script for alert-emails
+
 0.8.7:
 + database updates from day-end form and Environment Canada
 ~ cgi reporting improvements
