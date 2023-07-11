@@ -18,6 +18,7 @@ import sqlite3
 
 import tt_dbutil as db
 import tt_util as ut
+from tt_time import VTime
 
 
 class NewVals:
@@ -36,6 +37,7 @@ class NewVals:
         min_temp: float = None,
         mean_temp:float = None,
         rainfall: float = None,
+        sunset:str = None,
     ) -> None:
         self.registrations = registrations
         self.abandoned = abandoned
@@ -45,6 +47,7 @@ class NewVals:
         self.min_temp = min_temp
         self.mean_temp = mean_temp
         self.rainfall = rainfall
+        self.sunset = sunset
 
     def dump(self):
         return f"{self.registrations=}; {self.abandoned=}; {self.precip=}; {self.temp=}"
@@ -155,26 +158,10 @@ def get_day_end_changes(
             sqls.append(
                 f"update day set leftover = {new[existing.date].abandoned} where date = '{existing.date}';"
             )
-        if (
-            (force or (not existing.precip_mm and existing.precip_mm != 0))
-            and existing.date in new
-            and new[existing.date].precip is not None
-        ):
-            sqls.append(
-                f"update day set precip_mm = {new[existing.date].precip} where date = '{existing.date}';"
-            )
-        if (
-            (force or existing.temp_10am is None)
-            and existing.date in new
-            and new[existing.date].temp is not None
-        ):
-            sqls.append(
-                f"update day set temp_10am = {new[existing.date].temp} where date = '{existing.date}';"
-            )
     return sqls
 
 
-def read_nrcan_data(source_csv: str) -> dict[str, NewVals]:
+def read_wx_data(source_csv: str) -> dict[str, NewVals]:
     """Get weather data from NRCan data file for given range of dates.
 
     https://api.weather.gc.ca/collections/climate-daily/items?datetime=2023-01-01%2000:00:00/2023-07-09%2000:00:00&STN_ID=51337&sortby=PROVINCE_CODE,STN_ID,LOCAL_DATE&f=csv&limit=150000&startindex=0
@@ -204,7 +191,7 @@ def read_nrcan_data(source_csv: str) -> dict[str, NewVals]:
     return results
 
 
-def get_nrcan_changes(
+def get_wx_changes(
     ttdb:sqlite3.Connection,
     source_csv: str,
     force: str,
@@ -224,7 +211,7 @@ def get_nrcan_changes(
     if not db_data:
         return []
 
-    new = read_nrcan_data(source_csv)
+    new = read_wx_data(source_csv)
 
     sqls = []
     for existing in db_data:
@@ -248,7 +235,92 @@ def get_nrcan_changes(
                 f"update day set temp_10am = {new[existing.date].temp} where date = '{existing.date}';"
             )
     return sqls
+#-------------------
+def read_sun_data(source_csv: str) -> dict[str, NewVals]:
+    """Get sunset data from NRCan data file for given range of dates.
 
+    Using whole-year text file produced from solar calculator at
+    https://nrc.canada.ca/en/research-development/products-services/software-applications/sun-calculator/
+
+    Fields of interest:
+        0: Data as "Mmm D YYYY"
+        5: sunset
+        6: civilian twilight
+        7: nautical twilight
+
+    """
+
+    MONTHS={'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06',
+            'Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'}
+
+    results = {}
+    with open(source_csv, "r", newline="", encoding="utf-8") as csvfile:
+        for row in csv.reader(csvfile):
+            if not row or not row[0]:
+                if args.verbose:
+                    print(f"discarding sun csv row {row}")
+                    continue
+            # Break first element into date elements
+            datebits = row[0].split()
+            if len(datebits) != 3:
+                if args.verbose:
+                    print(f"discarding bad date in sun csv row {row}")
+                    continue
+            maybedate = f"{datebits[2]}-{MONTHS[datebits[0]]}-{('0'+datebits[1])[-2:]}"
+            thisdate = ut.date_str(maybedate)
+            if not thisdate:
+                continue
+            if args.verbose:
+                print(f"have date: {thisdate}")
+            results[thisdate] = NewVals(
+                sunset=VTime(oneval(row, 6)),
+            )
+        if args.verbose:
+            [print(f"{d}: {s.sunset}") for d,s in results.items()]
+    return results
+
+
+def get_sun_changes(
+    ttdb:sqlite3.Connection,
+    source_csv: str,
+    force: str,
+    onedate: str,
+) -> list[str]:
+    """Get SQL statements of changes from NRCan source."""
+
+    where = f" where date = '{onedate}' " if onedate else ""
+    db_data = db.db_fetch(
+        ttdb,
+        "select "
+        "   date, sunset "
+        "from day "
+        f"{where}"
+        "order by date",
+    )
+    if not db_data:
+        return []
+    if args.verbose:
+        for row in db_data:
+            print(f"{row.date=};{row.sunset=}")
+    new = read_sun_data(source_csv)
+
+    sqls = []
+    for existing in db_data:
+        if onedate and onedate != existing.date:
+            continue
+
+        if (
+            (force or existing.sunset is None)
+            and existing.date in new
+            and new[existing.date].sunset is not None
+        ):
+            sqls.append(
+                f"update day set sunset = '{new[existing.date].sunset}' where date = '{existing.date}';"
+            )
+    return sqls
+
+
+#-------------------
 
 class ProgArgs:
     """Program arguments.
@@ -283,6 +355,7 @@ class ProgArgs:
         #elif args.empty:
         #    self.target_rows = EMPTY
         self.weather_csv = progargs.weather if progargs.weather else ""
+        self.sun_csv = progargs.sun if progargs.sun else ""
         self.day_end_csv = progargs.day_end if progargs.day_end else ""
         #if not self.target_rows:
         #    print(
@@ -290,9 +363,9 @@ class ProgArgs:
         #        file=sys.stderr,
         #    )
         #    sys.exit(1)
-        if not self.weather_csv and not self.day_end_csv:
+        if not self.weather_csv and not self.day_end_csv and not self.sun_csv:
             print(
-                "Must specify at least one of --weather & --day-end",
+                "Must specify at least one of --weather --sun --day-end",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -308,9 +381,7 @@ class ProgArgs:
         """Collect command args into an argparse.Namespace."""
         parser = argparse.ArgumentParser(
             description="Update TagTracker database DAY table from non-TagTracker sources",
-            epilog="If --weather and --day-end are both given, weather is processed first.  "
-            "This can mean that weather data from day-end may be ignored, or may "
-            "overwrite Environment Canada data, based on the setting of --force.",
+            epilog="",
         )
         parser.add_argument(
             "database_file",
@@ -330,16 +401,20 @@ class ProgArgs:
         parser.add_argument(
             "--weather",
             metavar="FILE",
-            help="Read source data csv file of Environment Canada historic climate data",
+            help="Read temp/precip from csv file of Environment Canada historic climate data",
+        )
+        parser.add_argument(
+            "--sun",
+            metavar="FILE",
+            help="Read sunset times from csv file of NR Canada sunrise/sunset times",
         )
         parser.add_argument(
             "--day-end",
             metavar="FILE",
-            help="Read source data csv file of day-end-form gsheet data",
+            help="Read registrations/leftovers from csv file of day-end-form gsheet data",
         )
         parser.add_argument( "--verbose",action="store_true",default=False)
         return parser.parse_args()
-
 
 args = ProgArgs()
 if args.verbose:
@@ -356,13 +431,29 @@ weather_changes = []
 if args.weather_csv:
     if args.verbose:
         print("\nWEATHER\n")
-    weather_changes: list[str] = get_nrcan_changes(
+    weather_changes: list[str] = get_wx_changes(
         database,
         args.weather_csv,
         args.force,
         args.onedate,
     )
     for sql in weather_changes:
+        if args.verbose:
+            print(sql)
+        db.db_update(database,sql,commit=False)
+    db.db_commit(database)
+
+sun_changes = []
+if args.sun_csv:
+    if args.verbose:
+        print("\SUN\n")
+    sun_changes: list[str] = get_sun_changes(
+        database,
+        args.sun_csv,
+        args.force,
+        args.onedate,
+    )
+    for sql in sun_changes:
         if args.verbose:
             print(sql)
         db.db_update(database,sql,commit=False)
@@ -387,6 +478,8 @@ if args.day_end_csv:
 print(f"Updated database '{args.database_file}':")
 if args.weather_csv:
     print(f"   {len(weather_changes):3d} weather updates from '{args.weather_csv}'")
+if args.sun_csv:
+    print(f"   {len(sun_changes):3d} sun updates from '{args.sun_csv}'")
 if args.day_end_csv:
     print(f"   {len(day_end_changes):3d} day_end updates from '{args.day_end_csv}'")
 

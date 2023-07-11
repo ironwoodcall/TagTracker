@@ -408,7 +408,7 @@ def overview_report(ttdb: sqlite3.Connection):
         "   leftover, "
         "   max_total, "
         "   registrations, "
-        "   precip_mm, temp_10am "
+        "   precip_mm, temp_10am, sunset "
         "from day "
         "   order by date desc"
     )
@@ -498,7 +498,7 @@ def overview_report(ttdb: sqlite3.Connection):
         "<th rowspan=2>Bike-<br />hours</th>"
         "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
         "<th rowspan=2>529<br />Regs</th>"
-        "<th colspan=2>Weather</th>"
+        "<th colspan=3>Environment</th>"
         "</tr>"
     )
     print(
@@ -508,7 +508,7 @@ def overview_report(ttdb: sqlite3.Connection):
         "<th>Rglr</th><th>Ovrsz</th><th>Total</th>"
         # "<th>Left</th>"
         # "<th>Fullest</th>"
-        "<th>Temp</th><th>Precip</th>"
+        "<th>Max<br />Temp</th><th>Precip</th><th>Twilight</th>"
         "</tr>"
     )
     for row in drows:
@@ -565,6 +565,7 @@ def overview_report(ttdb: sqlite3.Connection):
             f"<td>{reg_str}</td>"
             f"<td style='background-color: rgb(255,255,{max_temp_col})'>{temp_str}</td>"
             f"<td style='background-color: rgb({max_precip_col},255,255)'>{precip_str}</td>"
+            f"<td>{row.sunset}</td>"
             "</tr>"
         )
     print(" </table>")
