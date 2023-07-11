@@ -1116,7 +1116,7 @@ if __name__ == "__main__":
 
     # Get/set valet date & time
     if not VALET_OPENS or not VALET_CLOSES:
-        (opens,closes) = ut.valet_hours(VALET_DATE)
+        (opens,closes) = cfg.valet_hours(VALET_DATE)
         VALET_OPENS = VALET_OPENS if VALET_OPENS else opens
         VALET_CLOSES = VALET_CLOSES if VALET_CLOSES else closes
 

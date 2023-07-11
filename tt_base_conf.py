@@ -21,6 +21,7 @@ Copyright (C) 2023 Julias Hocking
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 from tt_colours import Style, Fore, Back
+from typing import Tuple
 
 # Screen appearance
 SCREEN_WIDTH = 80  # characters
@@ -168,3 +169,13 @@ COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
 CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
 CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)
 CMD_TAG_UNUSABLE = "tag_unusable" + chr(12345)
+
+
+def valet_hours(the_date:str) -> Tuple[str,str]:
+    """Stub to provide valet open/closing hours.
+
+    This is called to get daily default valet hours.
+    Specific info can be provided in local config (tt_conf.py);
+    this simply returns empty strings.
+    """
+    return ("","")
