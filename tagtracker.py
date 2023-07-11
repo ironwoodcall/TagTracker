@@ -1,3 +1,5 @@
+#!/bin/env python3
+
 """TagTracker by Julias Hocking.
 
 This is the data entry module for the TagTracker suite.
