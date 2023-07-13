@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """TagTracker by Julias Hocking.
 
 Database updater for TagTracker suite.

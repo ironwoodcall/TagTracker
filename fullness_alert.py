@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 """TagTracker utility to (maybe) send email.
 
 Copyright (C) 2023 Julias Hocking

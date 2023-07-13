@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 """Update existing records in TagTraker database.
 
 Reads info from day-end-form (csv) or from other
