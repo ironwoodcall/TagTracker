@@ -101,7 +101,10 @@ def echo(text: str = "") -> None:
 def echo_flush() -> None:
     """If an echo file is active, flush buffer contents to it."""
     if _echo_state and _echo_file:
-        _echo_file.flush()
+        # To make more robust, close & reopen echo file intead of flush
+        set_echo(False)
+        set_echo(True)
+        ##_echo_file.flush()
 
 
 def tt_inp(prompt: str = "", style: str = "") -> str:
