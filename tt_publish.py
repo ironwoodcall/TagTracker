@@ -88,7 +88,9 @@ class Publisher:
         """
         if not self.able_to_publish:
             return
-        filepath = df.datafile_name(destination)
+        filepath = df.datafile_name(destination,day.date)
+        if not filepath:
+            return False
         result = df.write_datafile(filepath, day)
         if not result:
             return False

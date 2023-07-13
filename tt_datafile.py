@@ -48,10 +48,13 @@ HEADER_COLOURS = "Colour codes:"
 
 
 
-def datafile_name(folder: str) -> str:
+def datafile_name(folder: str, whatdate:str="today") -> str:
     """Return the name of the data file (datafile) to read/write."""
     # Use default filename
-    return f"{folder}/{cfg.DATA_BASENAME}{ut.get_date()}.dat"
+    date = ut.date_str(whatdate)
+    if not date:
+        return ""
+    return f"{folder}/{cfg.DATA_BASENAME}{date}.dat"
 
 
 def rotate_datafile(filename: str) -> None:
