@@ -228,7 +228,7 @@ def initialize_today() -> bool:
         pr.iprint("done.", num_indents=0, style=cfg.SUBTITLE_STYLE)
     if VALET_DATE != ut.date_str('today'):
         pr.iprint(
-            f"Warning: Valet information is from {ut.long_date(VALET_DATE)}",
+            f"Warning: Valet information is from {ut.date_str(VALET_DATE,long_date=True)}",
             style=cfg.WARNING_STYLE,
         )
     return True
@@ -458,7 +458,7 @@ def set_valet_hours(args: list[str]) -> None:
     pr.iprint()
     if VALET_DATE:
         pr.iprint(
-            f"Bike Valet information for {ut.long_date(VALET_DATE)}",
+            f"Bike Valet information for {ut.date_str(VALET_DATE,long_date=True)}",
             style=cfg.HIGHLIGHT_STYLE,
         )
     # Valet opening time

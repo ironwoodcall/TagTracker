@@ -138,7 +138,7 @@ class Publisher:
         if not pr.set_output(day_end_fn):
             return
 
-        pr.iprint(ut.long_date(day.date))
+        pr.iprint(ut.date_str(day.date,long_date=True))
         pr.iprint(f"Report generated {ut.date_str('today')} {VTime('now')}")
         rep.day_end_report(day, [as_of_when])
         pr.set_output()

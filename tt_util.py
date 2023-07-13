@@ -65,15 +65,6 @@ def get_date(long: bool = False) -> str:
     # return datetime.datetime.today().strftime("%Y-%m-%d")
 
 
-def long_date(date: str) -> str:
-    """Convert YYYY-MM-DD to a long statement of the date."""
-    # FIXME: superseded by date_str()
-    return date_str(date, long_date=True)
-    # return datetime.datetime.fromisoformat(date).strftime(
-    #    "%A %B %d (%Y-%m-%d)"
-    # )
-
-
 def date_str(
     maybe_date: str,
     dow_str_len: int = None,
