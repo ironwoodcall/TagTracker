@@ -364,7 +364,7 @@ def write_datafile(
     else:
         lines.append(
             "# TagTracker datafile (data file) created on "
-            f"{ut.get_date()} {VTime('now')}"
+            f"{ut.date_str('today')} {VTime('now')}"
         )
         lines.append(f"# TagTracker version {ut.get_version()}")
     # Valet data, opening & closing hours

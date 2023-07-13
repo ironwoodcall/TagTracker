@@ -59,7 +59,7 @@ _INDENT = "  "
 # To stop it, call set_echo(False)
 
 _echo_state = False
-_echo_filename = os.path.join(cfg.ECHO_FOLDER, f"echo-{ut.get_date()}.txt")
+_echo_filename = os.path.join(cfg.ECHO_FOLDER, f"echo-{ut.date_str('today')}.txt")
 _echo_file = None  # This is the file object
 
 

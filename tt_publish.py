@@ -108,7 +108,7 @@ class Publisher:
         if not pr.set_output(fullfn):
             return
         pr.iprint(f"Overall valet report for {day.date}")
-        pr.iprint(f"Generated {ut.get_date()} {ut.get_time()}")
+        pr.iprint(f"Generated {ut.date_str('today')} {ut.get_time()}")
 
         rep.day_end_report(day, [as_of_when])
         pr.iprint()
@@ -139,7 +139,7 @@ class Publisher:
             return
 
         pr.iprint(ut.long_date(day.date))
-        pr.iprint(f"Report generated {ut.get_date()} {VTime('now')}")
+        pr.iprint(f"Report generated {ut.date_str('today')} {VTime('now')}")
         rep.day_end_report(day, [as_of_when])
         pr.set_output()
 
