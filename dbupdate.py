@@ -4,8 +4,20 @@
 Reads info from day-end-form (csv) or from other
 sources (e.g. weather info from NRCan? tbd)
 
+Copyright (C) 2023 Julias Hocking
 
-dbupdate.py [--all | --empty --date DATE] [--day-end FILE] database_file
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 
@@ -22,7 +34,7 @@ from tt_time import VTime
 
 
 class NewVals:
-    """This tiny class is just for olding data from new source.
+    """This tiny class is just for holding data from new source.
 
     NRCan will use some fields, day-end-form may use some fields.
     """
