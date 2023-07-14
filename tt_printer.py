@@ -59,7 +59,7 @@ _INDENT = "  "
 # To stop it, call set_echo(False)
 
 _echo_state = False
-_echo_filename = os.path.join(cfg.ECHO_FOLDER, f"echo-{ut.get_date()}.txt")
+_echo_filename = os.path.join(cfg.ECHO_FOLDER, f"echo-{ut.date_str('today')}.txt")
 _echo_file = None  # This is the file object
 
 
@@ -101,7 +101,10 @@ def echo(text: str = "") -> None:
 def echo_flush() -> None:
     """If an echo file is active, flush buffer contents to it."""
     if _echo_state and _echo_file:
-        _echo_file.flush()
+        # To make more robust, close & reopen echo file intead of flush
+        set_echo(False)
+        set_echo(True)
+        ##_echo_file.flush()
 
 
 def tt_inp(prompt: str = "", style: str = "") -> str:

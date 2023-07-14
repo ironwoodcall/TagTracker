@@ -1,7 +1,25 @@
-"""Database utilities for reporting from TagTracker database."""
+"""Database utilities for reporting from TagTracker database.
+
+Copyright (C) 2023 Julias Hocking
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+"""
 
 import sqlite3
 import sys
+import os
 from typing import Tuple, Iterable
 from tt_trackerday import TrackerDay
 from tt_tag import TagID
@@ -77,9 +95,9 @@ def db_fetch(
     def flatten(raw_column_name: str) -> str:
         """Convert str into a name usable as a class attribute."""
 
-        usable: str = "".join([
-            c for c in raw_column_name.lower() if c.isalnum() or c == "_"
-        ])
+        usable: str = "".join(
+            [c for c in raw_column_name.lower() if c.isalnum() or c == "_"]
+        )
         if usable and usable[0].isdigit():
             usable = f"_{usable}"
         return usable
@@ -184,24 +202,40 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     return day
 
 
-def create_connection(db_file) -> sqlite3.Connection:
-    """Create a database connection to a SQLite database.
+def db_connect(db_file, must_exist: bool = True) -> sqlite3.Connection:
+    """Connect to (existing) SQLite database.
 
-    This will create a new .db database file if none yet exists at the named
+    Flag must_exist indicates whether:
+        T: must exist; this fails if no DB [default]
+        F: database will be created if doesn't exist
+        This will create a new .db database file if none yet exists at the named
     path."""
-    connection = None
+
+    if not os.path.exists(db_file):
+        print(f"Database file {db_file} not found", file=sys.stderr)
+        return None
+
     try:
         connection = sqlite3.connect(db_file)
         ##print(sqlite3.version)
     except sqlite3.Error as sqlite_err:
-        print("sqlite ERROR in create_connection() -- ", sqlite_err)
+        print(
+            "sqlite ERROR in db_connect() -- ",
+            sqlite_err,
+            file=sys.stderr,
+        )
+        return None
     return connection
 
-def db_commit(db:sqlite3.Connection):
+
+def db_commit(db: sqlite3.Connection):
     """Just a database commit.  Only here for completeness."""
     db.commit()
 
-def db_update(db:sqlite3.Connection,update_sql:str,commit:bool=True) -> bool:
+
+def db_update(
+    db: sqlite3.Connection, update_sql: str, commit: bool = True
+) -> bool:
     """Execute a SQL UPDATE statement.  T/F indicates success.
 
     (This could be any SQL statement, but the error checking and
@@ -211,8 +245,7 @@ def db_update(db:sqlite3.Connection,update_sql:str,commit:bool=True) -> bool:
         db.cursor().execute(update_sql)
         if commit:
             db.commit()
-    except (sqlite3.OperationalError,sqlite3.IntegrityError) as e:
-        print(f"SQL error '{e}' for '{update_sql}'",file=sys.stdout)
+    except (sqlite3.OperationalError, sqlite3.IntegrityError) as e:
+        print(f"SQL error '{e}' for '{update_sql}'", file=sys.stdout)
         return False
     return True
-

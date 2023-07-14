@@ -132,7 +132,7 @@ def deduce_valet_date(current_guess: str, filename: str) -> str:
             f"{int(r.group(2)):04d}-{int(r.group(3)):02d}-"
             f"{int(r.group(4)):02d}"
         )
-    return ut.get_date()
+    return ut.date_str("today")
 
 
 def pack_day_data() -> td.TrackerDay:
@@ -206,7 +206,7 @@ def initialize_today() -> bool:
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
     # then fetch the tag reference lists from tags config
-    if not (today.regular or today.oversize) or today.date == ut.get_date():
+    if not (today.regular or today.oversize) or today.date == ut.date_str("today"):
         tagconfig = get_taglists_from_config()
         today.regular = tagconfig.regular
         today.oversize = tagconfig.oversize
@@ -226,9 +226,9 @@ def initialize_today() -> bool:
     # Done
     if not new_datafile:
         pr.iprint("done.", num_indents=0, style=cfg.SUBTITLE_STYLE)
-    if VALET_DATE != ut.get_date():
+    if VALET_DATE != ut.date_str('today'):
         pr.iprint(
-            f"Warning: Valet information is from {ut.long_date(VALET_DATE)}",
+            f"Warning: Valet information is from {ut.date_str(VALET_DATE,long_date=True)}",
             style=cfg.WARNING_STYLE,
         )
     return True
@@ -458,7 +458,7 @@ def set_valet_hours(args: list[str]) -> None:
     pr.iprint()
     if VALET_DATE:
         pr.iprint(
-            f"Bike Valet information for {ut.long_date(VALET_DATE)}",
+            f"Bike Valet information for {ut.date_str(VALET_DATE,long_date=True)}",
             style=cfg.HIGHLIGHT_STYLE,
         )
     # Valet opening time
@@ -866,7 +866,7 @@ def dump_data():
 def main():
     """Run main program loop and dispatcher."""
     done = False
-    todays_date = ut.get_date()
+    todays_date = ut.date_str('today')
     publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     while not done:
         pr.iprint()
@@ -1054,7 +1054,7 @@ def midnight_message():
 
 def midnight_passed(today_is: str) -> bool:
     """Check if it's still the same day."""
-    if today_is == ut.get_date():
+    if today_is == ut.date_str('today'):
         return False
     return True
 
