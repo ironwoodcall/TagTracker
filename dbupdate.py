@@ -183,7 +183,13 @@ def read_wx_data(source_csv: str) -> dict[str, NewVals]:
     14 - max temp
     16 - total precip
     18 - total rainfall
-    30 - heating degree days"""
+    30 - heating degree days
+
+    ANother(?) possible URL:
+    https://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID=51337&Year=2023&Month=7&Day=1&time=&timeframe=2&submit=Download+Data
+
+
+    """
 
 
     results = {}
@@ -434,10 +440,7 @@ if args.verbose:
 
 # Get existing database info
 # FIXME: make test for existnece of file part of create_connection
-if not os.path.exists(args.database_file):
-    print(f"Database file {args.database_file} not found", file=sys.stderr)
-    sys.exit(1)
-database = db.create_connection(args.database_file)
+database = db.db_connect(args.database_file,must_exist=True)
 
 weather_changes = []
 if args.weather_csv:

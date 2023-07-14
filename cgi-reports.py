@@ -209,20 +209,6 @@ last_use             <tag>  Last time a particular tag was used
     )
 
 
-def create_connection(db_file) -> sqlite3.Connection:
-    """Create a database connection to a SQLite database.
-
-    This will create a new .db database file if none yet exists at the named
-    path."""
-    connection = None
-    try:
-        connection = sqlite3.connect(db_file)
-        ##print(sqlite3.version)
-    except sqlite3.Error as sqlite_err:
-        print("sqlite ERROR in create_connection() -- ", sqlite_err)
-    return connection
-
-
 def padval(val, length: int = 0) -> str:
     valstr = str(val)
     if length < len(valstr):
@@ -472,9 +458,9 @@ def overview_report(ttdb: sqlite3.Connection):
     max_bike_hours_per_hour_factor = 255 / (
         max_bike_hours_per_hour * max_bike_hours_per_hour
     )
-    max_precip = max([0] + [r.precip_mm for r in drows if r.precip_mm is not None])
+    max_precip = max([1] + [r.precip_mm for r in drows if r.precip_mm is not None])
     max_precip_factor = 255 / sqrt(max_precip)
-    max_temp = max([0] + [r.temp_10am for r in drows if r.temp_10am is not None])
+    max_temp = max([1] + [r.temp_10am for r in drows if r.temp_10am is not None])
     max_temp_factor = 255 / (max_temp*max_temp)
 
 
@@ -767,7 +753,7 @@ print("Content-type: text/html\n\n\n")
 TagID.uc(cfg.TAGS_UPPERCASE)
 
 DBFILE = "../data/cityhall_bikevalet.db"
-database = create_connection(DBFILE)
+database = db.db_connect(DBFILE)
 
 # Parse query parameters from the URL if present
 query_string = untaint(os.environ.get("QUERY_STRING", ""))

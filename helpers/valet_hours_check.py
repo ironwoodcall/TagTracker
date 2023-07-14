@@ -9,7 +9,7 @@ from tt_util import date_str
 
 dbfile = "/fs/sysbits/tagtracker/dev/data/cityhall_bikevalet.db"
 
-database = db.create_connection(dbfile)
+database = db.db_connect(dbfile)
 vhours = db.db_fetch(
     database, "select date,time_open,time_closed from day order by date"
 )
