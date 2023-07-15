@@ -504,7 +504,7 @@ def overview_report(ttdb: sqlite3.Connection):
         "<th>Rglr</th><th>Ovrsz</th><th>Total</th>"
         # "<th>Left</th>"
         # "<th>Fullest</th>"
-        "<th>Max<br />Temp</th><th>Precip</th><th>Twilight</th>"
+        "<th>Max<br />Temp</th><th>Rain</th><th>Dusk</th>"
         "</tr>"
     )
     for row in drows:
