@@ -129,8 +129,8 @@ def form(
         "last_use": "History of use for a given tag",
         "one_day_tags": "Tags in/out activity for a given date",
         "datafile": "Recreated datafile for a given date",
-        "chart": "* Chart of activities for one day [specify Date]",
-        "busy-graph": "* Graph of activities for one day [specify Date]",
+        "chart": "Chart of activities for one day [specify Date]",
+        "busy-graph": "Simple graphs of activities for one day [specify Date]",
     }
 
     me_action = pathlib.Path(untaint(os.environ.get("SCRIPT_NAME", ""))).name
@@ -722,7 +722,9 @@ def one_day_chart(ttdb: sqlite3.Connection, date: str):
     if not thisday:
         bad_date(date)
     print("<pre>")
-    rep.full_chart(db.db2day(ttdb, thisday), ["now"])
+    ##print( f"{' '.join(tday.oversize)=}")
+    ##print(f"{tday.bikes_in=}")
+    rep.full_chart(db.db2day(ttdb, thisday), "now")
 
 
 def one_day_busy_graph(ttdb: sqlite3.Connection, date: str):
@@ -731,7 +733,8 @@ def one_day_busy_graph(ttdb: sqlite3.Connection, date: str):
     if not thisday:
         bad_date(date)
     print("<pre>")
-    rep.busy_graph(db.db2day(ttdb, thisday), ["now"])
+    rep.busy_graph(db.db2day(ttdb, thisday), "now")
+    rep.fullness_graph(db.db2day(ttdb, thisday), "now")
 
 
 def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
