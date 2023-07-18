@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.8.10:
++ day of week overview web report
+
 0.8.9:
 + more cleanup & changes
 
