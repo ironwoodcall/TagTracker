@@ -127,6 +127,17 @@ def date_str(
     return thisday.strftime("%Y-%m-%d")
 
 
+def dow_str(iso_dow: int, dow_str_len: int = 0) -> str:
+    """Return int ISO day of week as a str of length dow_str_len.
+
+    If dow_len is not specified then returns whole dow name.
+    """
+    iso_dow = str(iso_dow)
+    dow_str_len = dow_str_len if dow_str_len else 99
+    d = datetime.datetime.strptime(f"2023-1-{iso_dow}", "%Y-%W-%u")
+    return date_str(d.strftime("%Y-%m-%d"), dow_str_len=dow_str_len)
+
+
 def get_time() -> VTime:
     """Return current time as string: HH:MM."""
     # FIXME: get_time() deprecated, use VTime("now") instead

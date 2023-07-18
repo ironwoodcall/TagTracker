@@ -24,6 +24,7 @@ import os
 import urllib.parse
 import datetime
 from math import sqrt
+import pathlib
 
 from tt_globals import *
 
@@ -34,7 +35,7 @@ import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
-import pathlib
+
 
 ##from zotto import print
 ##import zotto
@@ -415,18 +416,6 @@ def maximums_table(ttdb: sqlite3.Connection, csv: bool = False):
     )
 
 
-def dow_str(iso_dow: int | str, dow_str_len: int = 0) -> str:
-    """Return dow as a string of lengt dow_len.
-
-    If dow_len is not specified then returns whole dow name.
-    """
-    # FIXME: move this to tt_util. Maybe
-    iso_dow = str(iso_dow)
-    dow_str_len = dow_str_len if dow_str_len else 99
-    d = datetime.datetime.strptime(f"2023-1-{iso_dow}", "%Y-%W-%u")
-    return ut.date_str(d.strftime("%Y-%m-%d"), dow_str_len=dow_str_len)
-
-
 def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     """Print new version of the all-days defauilt report.
 
@@ -441,7 +430,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         where = ""
     else:
         # sqlite uses unix dow, so need to adjust dow from 1->7 to 0->6.
-        title_bit = f"{dow_str(iso_dow)} "
+        title_bit = f"{ut.dow_str(iso_dow)} "
         where = f" where strftime('%w',date) = '{iso_dow % 7}' "
     sel = (
         "select "
@@ -554,7 +543,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         "<tr>"
         # "<th>Date</th>"
         "<th>Open</th><th>Close</th>"
-        "<th>Reg</th><th>Ovr</th><th>Ttl</th>"
+        "<th>Reg</th><th>Ovr</th><th>Total</th>"
         # "<th>Left</th>"
         # "<th>Fullest</th>"
         "<th>Max<br />Temp</th><th>Rain</th><th>Dusk</th>"
@@ -830,11 +819,16 @@ maybedate = query_params.get("date", [""])[0]
 maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
 dow_parameter = query_params.get("dow", [""])[0]
-if dow_parameter not in [str(i) for i in range(1,8)]:
-    if dow_parameter:
-        error_out(f"bad iso dow, need 1..7, not '{untaint(dow_parameter)}'")
-    else:
-        dow_parameter = "1" # any dow as default if no dow given
+if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
+    error_out(f"bad iso dow, need 1..7, not '{untaint(dow_parameter)}'")
+if not dow_parameter:
+    # If no day of week, set it to today.
+    dow_parameter = str(
+        datetime.datetime.strptime(
+            ut.date_str("today"), "%Y-%m-%d"
+        ).strftime("%u")
+    )
+
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)
