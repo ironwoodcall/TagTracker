@@ -333,7 +333,7 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         html_tr_end = "\n"
     else:
         print(
-            "<table>" "<tr>" "<th colspan=2>Year to date totals</th>" "</tr>"
+            "<table><tr><th colspan=2>Year to date totals</th></tr>"
         )
         html_tr_start = "<tr><td style='text-align:left'>"
         html_tr_mid = "</td><td style='text-align:right'>"
@@ -358,61 +358,6 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         f"{html_tr_start}Average stay length{html_tr_mid}"
         f"  {VTime((day.bike_hours/day.parked_total)*60).short}{html_tr_end}"
         "</table>"
-    )
-
-
-def maximums_table(ttdb: sqlite3.Connection, csv: bool = False):
-    """Print table of daily overall maximums.
-
-        Maximums
-    Measure     Average Max  MaxDate
-    Fullness    xx      xx  xxxx-xx-xx
-    BikesParked
-    MonBikes    xx      xx  xxxx-xx-xx
-    TueBikes    xx      xx  xxxx
-    etc
-
-
-    """
-    sel = (
-        "select "
-        "   sum(parked_regular) parked_regular, "
-        "   sum(parked_oversize) parked_oversize, "
-        "   sum(parked_total) parked_total "
-        "from day "
-    )
-    drows = db.db_fetch(ttdb, sel)
-    # Find the total bike-hours
-    vrows = db.db_fetch(
-        ttdb,
-        "select "
-        "   sum(julianday(duration)-julianday('00:00'))*24 bike_hours bike_hours "
-        "from visit ",
-    )
-    if csv:
-        print("measure,average,max,max_date")  # FIXME = here.  csv header
-    else:
-        print("<table>")
-        print("<style>td {text-align: right;}</style>")
-        print(
-            "<tr>"
-            "<th rowspan=2 colspan=2>Date<br />(newest to oldest)</th>"
-            "<th colspan=2>Valet Hours</th>"
-            "<th colspan=3>Bike Parked</th>"
-            "<th rowspan=2>Bikes<br />Left at<br />Valet</th>"
-            "<th rowspan=2>Most<br />Bikes<br />at Once</th>"
-            "<th rowspan=2>Bike-<br />hours</th>"
-            "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
-            "</tr>"
-        )
-    print(
-        "<tr>"
-        # "<th>Date</th>"
-        "<th>Open</th><th>Close</th>"
-        "<th>Rglr</th><th>Ovrsz</th><th>Total</th>"
-        # "<th>Left</th>"
-        # "<th>Fullest</th>"
-        "</tr>"
     )
 
 
