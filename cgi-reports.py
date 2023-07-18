@@ -502,7 +502,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     max_parked_factor = 255 / (max_parked * max_parked)
     max_full_factor = 255 / (max_full * max_full)
     max_left = max([0] + [r.leftover for r in drows])
-    max_left_factor = 255 / min(max_left, 5)
+    max_left_factor = 255 / 8
     max_bike_hours_factor = 255 / (max_bike_hours * max_bike_hours)
     max_bike_hours_per_hour_factor = 255 / (
         max_bike_hours_per_hour * max_bike_hours_per_hour
@@ -554,7 +554,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         "<tr>"
         # "<th>Date</th>"
         "<th>Open</th><th>Close</th>"
-        "<th>Rglr</th><th>Ovrsz</th><th>Total</th>"
+        "<th>Reg</th><th>Ovr</th><th>Ttl</th>"
         # "<th>Left</th>"
         # "<th>Fullest</th>"
         "<th>Max<br />Temp</th><th>Rain</th><th>Dusk</th>"
