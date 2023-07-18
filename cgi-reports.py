@@ -116,13 +116,15 @@ def form(
     default_what: str = "overview",
     default_date: str = "",
     default_tag: str = "",
+    default_dow: str = "Sunday",
 ):
     (latest_date, latest_time) = db.db_latest(ttdb)
     if not default_date:
         default_date = latest_date
 
-    choices = {
+    what_choices = {
         "overview": "Overview",
+        "dow_overview": "Overview for one day of the week [specify Day of Week]",
         "abandoned": "Lost tags report",
         "day_end": "Day-end report for a given date",
         "audit": "Audit report for a given date",
@@ -131,6 +133,15 @@ def form(
         "datafile": "Recreated datafile for a given date",
         "chart": "Chart of activities for one day [specify Date]",
         "busy-graph": "Simple graphs of activities for one day [specify Date]",
+    }
+    dow_choices = {  # These are ISO days of week not unix.
+        "7": "Sunday",
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday",
+        "6": "Saturday",
     }
 
     me_action = pathlib.Path(untaint(os.environ.get("SCRIPT_NAME", ""))).name
@@ -153,13 +164,13 @@ def form(
     <select name="what" id="what">
 """
     )
-    for what, descr in choices.items():
-        if what == default_what:
+    for choice, descr in what_choices.items():
+        if choice == default_what:
             print(
-                f'<option value="{what}" selected="selected">{descr}</option>'
+                f'<option value="{choice}" selected="selected">{descr}</option>'
             )
         else:
-            print(f'<option value="{what}">{descr}</option>')
+            print(f'<option value="{choice}">{descr}</option>')
     print(
         f"""
 
@@ -171,7 +182,21 @@ def form(
     <br />
     Tag: <input name="tag" type="text" value="{default_tag}" />
     <br />
-    <br />
+    Day of week:
+        <select name="dow" id="dow">"""
+    )
+    for choice, descr in dow_choices.items():
+        if choice == default_dow:
+            print(
+                f'<option value="{choice}" selected="selected">{descr}</option>'
+            )
+        else:
+            print(f'<option value="{choice}">{descr}</option>')
+    print(
+        """
+        </select>
+
+    <br /><br />
     <button type="submit" value="Submit">Create report</button>
 
     </form>
@@ -296,10 +321,9 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
     day: db.DBRow = drows[0]
     day.bike_hours = vrows[0].bike_hours
     # Get total # of days of operation
-    day.num_days = db.db_fetch(
-        ttdb,
-        "select count(date) num_days from day"
-    )[0].num_days
+    day.num_days = db.db_fetch(ttdb, "select count(date) num_days from day")[
+        0
+    ].num_days
 
     if csv:
         print("measure,ytd_total")
@@ -308,10 +332,7 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         html_tr_end = "\n"
     else:
         print(
-            "<table>"
-            "<tr>"
-            "<th colspan=2>Year to date totals</th>"
-            "</tr>"
+            "<table>" "<tr>" "<th colspan=2>Year to date totals</th>" "</tr>"
         )
         html_tr_start = "<tr><td style='text-align:left'>"
         html_tr_mid = "</td><td style='text-align:right'>"
@@ -394,8 +415,34 @@ def maximums_table(ttdb: sqlite3.Connection, csv: bool = False):
     )
 
 
-def overview_report(ttdb: sqlite3.Connection):
-    """Print new version of the all-days defauilt report."""
+def dow_str(iso_dow: int | str, dow_str_len: int = 0) -> str:
+    """Return dow as a string of lengt dow_len.
+
+    If dow_len is not specified then returns whole dow name.
+    """
+    # FIXME: move this to tt_util. Maybe
+    iso_dow = str(iso_dow)
+    dow_str_len = dow_str_len if dow_str_len else 99
+    d = datetime.datetime.strptime(f"2023-1-{iso_dow}", "%Y-%W-%u")
+    return ut.date_str(d.strftime("%Y-%m-%d"), dow_str_len=dow_str_len)
+
+
+def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
+    """Print new version of the all-days defauilt report.
+
+    If dow is None then do for all days of the week, otherwise do
+    for ISO int dow (1=Monday-->7=Sunday)
+
+    """
+    if iso_dow:
+        iso_dow = int(iso_dow)
+    if not iso_dow:
+        title_bit = ""
+        where = ""
+    else:
+        # sqlite uses unix dow, so need to adjust dow from 1->7 to 0->6.
+        title_bit = f"{dow_str(iso_dow)} "
+        where = f" where strftime('%w',date) = '{iso_dow % 7}' "
     sel = (
         "select "
         "   date, time_open, time_closed, "
@@ -406,6 +453,7 @@ def overview_report(ttdb: sqlite3.Connection):
         "   registrations, "
         "   precip_mm, temp_10am, sunset "
         "from day "
+        f"  {where} "
         "   order by date desc"
     )
     drows = db.db_fetch(ttdb, sel)
@@ -417,6 +465,7 @@ def overview_report(ttdb: sqlite3.Connection):
         "   sum(julianday(duration)-julianday('00:00'))*24 bike_hours, "
         "   date "
         "from visit "
+        f"  {where} "
         "   group by date order by date desc;",
     )
     for rownum, vday in enumerate(vrows):
@@ -458,13 +507,16 @@ def overview_report(ttdb: sqlite3.Connection):
     max_bike_hours_per_hour_factor = 255 / (
         max_bike_hours_per_hour * max_bike_hours_per_hour
     )
-    max_precip = max([1] + [r.precip_mm for r in drows if r.precip_mm is not None])
+    max_precip = max(
+        [1] + [r.precip_mm for r in drows if r.precip_mm is not None]
+    )
     max_precip_factor = 255 / sqrt(max_precip)
-    max_temp = max([1] + [r.temp_10am for r in drows if r.temp_10am is not None])
-    max_temp_factor = 255 / (max_temp*max_temp)
+    max_temp = max(
+        [1] + [r.temp_10am for r in drows if r.temp_10am is not None]
+    )
+    max_temp_factor = 255 / (max_temp * max_temp)
 
-
-    print("<h1>Bike valet overview</h1>")
+    print(f"<h1>{title_bit}Bike valet overview</h1>")
     print(
         f"<p><b>Most bikes parked:</b> "
         f"  {max_parked} bikes on {ut.date_str(max_parked_date,long_date=True)}<br />"
@@ -479,8 +531,9 @@ def overview_report(ttdb: sqlite3.Connection):
     )
     print("<p>&nbsp;</p>")
 
-    ytd_totals_table(ttdb,csv=False)
-    print("<p>&nbsp;</p>")
+    if not iso_dow:
+        ytd_totals_table(ttdb, csv=False)
+        print("<p>&nbsp;</p>")
 
     print("<table>")
     print("<style>td {text-align: right;}</style>")
@@ -535,9 +588,9 @@ def overview_report(ttdb: sqlite3.Connection):
         max_temp_col = 255
         if row.temp_10am:
             max_temp_col = max(
-            0,
-            255 - int(row.temp_10am * row.temp_10am * max_temp_factor),
-        )
+                0,
+                255 - int(row.temp_10am * row.temp_10am * max_temp_factor),
+            )
         max_precip_col = 255
         if row.precip_mm:
             max_precip_col = max(
@@ -776,6 +829,12 @@ what = what if what else "overview"
 maybedate = query_params.get("date", [""])[0]
 maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
+dow_parameter = query_params.get("dow", [""])[0]
+if dow_parameter not in [str(i) for i in range(1,8)]:
+    if dow_parameter:
+        error_out(f"bad iso dow, need 1..7, not '{untaint(dow_parameter)}'")
+    else:
+        dow_parameter = "1" # any dow as default if no dow given
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)
@@ -789,13 +848,21 @@ else:
     qtime = VTime(maybetime)
 if not qtime:
     error_out(f"Bad time: '{untaint(maybetime)}")
-form(database, default_what=what, default_date=maybedate, default_tag=tag)
+form(
+    database,
+    default_what=what,
+    default_date=maybedate,
+    default_tag=tag,
+    default_dow=dow_parameter,
+)
 if not what:
     sys.exit()
 if what == "last_use":
     one_tag_history_report(database, tag)
 elif what == "overview":
     overview_report(database)
+elif what == "dow_overview":
+    overview_report(database, dow_parameter)
 elif what == "abandoned":
     lost_tags(database)
 elif what == "one_day_tags":
