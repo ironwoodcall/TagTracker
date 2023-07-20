@@ -73,7 +73,7 @@ INSERT INTO tags (tag_id) VALUES -- All valid tags evr used downtown to check ag
 
 -- Create 'visit' table for visit data
 CREATE TABLE IF NOT EXISTS visit (
-    id          TEXT PRIMARY KEY UNIQUE,
+    id          TEXT PRIMARY KEY,
     date        TEXT CHECK (date IS strftime('%Y-%m-%d', date)),
     tag         TEXT NOT NULL,
     type        TEXT NOT NULL,
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS visit (
 
 -- Create table for daily summaries of visit data.
 CREATE TABLE IF NOT EXISTS day (
-    date            TEXT PRIMARY_KEY UNIQUE,
+    date            TEXT PRIMARY KEY,
     parked_regular  INTEGER NOT NULL CHECK (parked_regular >= 0),
     parked_oversize INTEGER NOT NULL CHECK (parked_oversize >= 0),
     parked_total    INTEGER NOT NULL CHECK (parked_total >= 0),
@@ -104,9 +104,9 @@ CREATE TABLE IF NOT EXISTS day (
     time_max_total  TEXT             CHECK (time_max_total IS strftime('%H:%M', time_max_total)),
     time_open       TEXT    NOT NULL CHECK (time_open IS strftime('%H:%M', time_open)),
     time_closed     TEXT    NOT NULL CHECK (time_closed IS strftime('%H:%M', time_closed)),
-    weekday         INTEGER NOT NULL CHECK (0 <= weekday <= 6),
+    weekday         INTEGER NOT NULL CHECK (1 <= weekday <= 7), -- ISO 8601: 1-7 Mon-Sun
     precip_mm       NUMERIC          CHECK (precip_mm < 90), -- Vic. record daily precip is 11.4 mm
-    temp_10am       NUMERIC          CHECK (temp_10am < 50),
+    temp            NUMERIC          CHECK (temp < 50),
     sunset          TEXT             CHECK (sunset IS strftime('%H:%M', sunset)),
     event           TEXT,
     event_prox_km   NUMERIC,
@@ -115,6 +115,15 @@ CREATE TABLE IF NOT EXISTS day (
     batch           TEXT             CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch)),
 
     CHECK (time_closed > time_open)
+);
+
+
+-- Taglists table for db-only operation and tracking tag context
+CREATE TABLE IF NOT EXISTS taglist (
+    date TEXT PRIMARY KEY,
+    retired TEXT NOT NULL,
+    oversize TEXT NOT NULL,
+    regular TEXT NOT NULL
 );
 
 

@@ -35,9 +35,10 @@ import sqlite3
 import sys
 from typing import Union  # for type hints instead of (eg) int|str
 
+import tt_datafile
+import tt_dbutil
+import tt_globals
 import tt_util as ut
-import tt_datafile as df
-import tt_globals as tg
 
 from tt_event import Event
 from tt_time import VTime
@@ -71,9 +72,9 @@ COL_MAX_TOTAL = "max_total"  # int sum of 2 above
 COL_MAX_TOTAL_TIME = "time_max_total"  # HHMM
 COL_TIME_OPEN = "time_open"  # HHMM opening time
 COL_TIME_CLOSE = "time_closed"  # HHMM closing time
-COL_DAY_OF_WEEK = "weekday"  # 0-6 day of the week
+COL_DAY_OF_WEEK = "weekday"  # ISO 8601-compliant 1-7 M-S
 COL_PRECIP_MM = "precip_mm"  # mm (bulk pop from EnvCan dat)
-COL_TEMP_10AM = "temp_10am"  # temp at 10AM - same
+COL_TEMP = "temp"
 COL_SUNSET = "sunset"  # HHMM time at sunset - same
 COL_EVENT = "event"  # brief name of nearby event
 COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
@@ -86,28 +87,12 @@ REGULAR = "regular"
 OVERSIZE = "oversize"
 
 
-def create_connection(db_file) -> sqlite3.Connection:
-    """Create a database connection to a SQLite database.
-
-    This will create a new .db database file if none yet exists at the named
-    path."""
-    connection = None
-    try:
-        connection = sqlite3.connect(db_file)
-        if args.verbose:
-            print(f"SQLite version {sqlite3.version}")
-    except sqlite3.Error as sqlite_err:
-        print("Error (SQLite) trying to create_connection():", sqlite_err)
-        sys.exit(1)
-    return connection
-
-
 def calc_duration(hhmm_in: str, hhmm_out: str) -> str:
     """Calculate a str duration from a str time in and out."""
-    t_in = ut.time_int(hhmm_in)
-    t_out = ut.time_int(hhmm_out)
+    t_in = VTime(hhmm_in).num
+    t_out = VTime(hhmm_out).num
     t_stay = t_out - t_in
-    hhmm_stay = ut.time_str(t_stay)
+    hhmm_stay = VTime(t_stay)
 
     return hhmm_stay
 
@@ -145,9 +130,8 @@ def data_to_db(filename: str) -> None:
 
     if args.verbose:
         print(f"\nWorking on {filename}")
-
-    data = df.read_datafile(f"{filename}", err_msgs=[])
-
+        
+    data = tt_datafile.read_datafile(f"{filename}", err_msgs=[])
     date = data.date
     if not date:  # get from filename for old data formats (hopefully never)
         print(
@@ -231,13 +215,11 @@ def data_to_db(filename: str) -> None:
         time_close = data.latest_event()
 
     # Find int day of week
-    date_bits = re.match(tg.DATE_FULL_RE, date)
+    date_bits = re.match(tt_globals.DATE_FULL_RE, date)
     year = int(date_bits.group(1))
     month = int(date_bits.group(2))
     day = int(date_bits.group(3))
-    weekday = 1 + calendar.weekday(year, month, day)
-    if weekday == 7:  # awkward but should work
-        weekday = 0
+    weekday = 1 + calendar.weekday(year, month, day)  # ISO 8601 says 1-7 M-S
 
     if not sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';"):
         print(
@@ -450,7 +432,9 @@ if __name__ == "__main__":
 
     if args.verbose:
         print(f"Connecting to database at {DB_FILEPATH}...")
-    conn = create_connection(DB_FILEPATH)
+    conn = tt_dbutil.db_connect(DB_FILEPATH)
+    if not conn:
+        sys.exit(1)  # Error messages already taken care of in fn
 
     if sql_do("PRAGMA foreign_keys=ON;"):
         if args.verbose:
@@ -462,8 +446,8 @@ if __name__ == "__main__":
         )
         sys.exit(1)
 
-    date_today = ut.get_date()
-    batch = f"{date_today}T{ut.get_time()}"
+    date_today = ut.date_str("today")
+    batch = f"{date_today}T{VTime('now')}"
     if not args.quiet:
         print(f"Batch: {batch}")
 
