@@ -82,9 +82,8 @@ CREATE TABLE IF NOT EXISTS visit (
     duration    TEXT CHECK (duration IS strftime('%H:%M', duration)),
     notes       TEXT,
     batch       TEXT CHECK (batch IS strftime('%Y-%m-%dT%H:%M', batch)),
-
     CHECK ((time_out >= time_in) OR (time_out IS ''))
-    FOREIGN KEY (tag) REFERENCES tags(tag_id)
+    CHECK (tag glob '[a-z][a-z][0-9]' or tag glob '[a-z][a-z][a-z][0-9]' or tag glob '[a-z][a-z][0-9][0-9]' or tag glob '[a-z][a-z][a-z][0-9][0-9]')
     FOREIGN KEY (type) REFERENCES types(code)
 );
 
