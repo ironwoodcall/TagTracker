@@ -179,9 +179,7 @@ def data_to_db(filename: str) -> None:
             f" of leftover bikes for {date}. Skipping {filename}.",
             file=sys.stderr,
         )
-        globals()[
-            "SKIP_COUNT"
-        ] += 1  # FIXME: need to add possibly more of these statements
+        globals()["SKIP_COUNT"] += 1
         return
 
     # Highwater values
@@ -298,23 +296,20 @@ def data_to_db(filename: str) -> None:
         globals()["SKIP_COUNT"] += 1
         return
 
-    for tag, time_in in data.bikes_in.items():
-        time_in = VTime(time_in)
-        if time_in > closing:  # both should be VTime
-            print(
-                f"Error: visit {tag} in {filename} has check-in ({time_in})"
-                f" after closing time ({closing}). Skipping datafile.",
-                file=sys.stderr,
-            )
-            globals()["SKIP_COUNT"] += 1
-            return
-
     visit_commit_count = total_parked
     visit_fail_count = 0
     sql_do(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';")
 
     for tag, time_in in data.bikes_in.items():
         time_in = VTime(time_in)
+        if time_in > closing:  # both should be VTime
+            print(
+                f"Error: visit {tag} in {filename} has check-in ({time_in})"
+                f" after closing time ({closing}). Visit not recorded.",
+                file=sys.stderr,
+            )
+            continue
+
         if tag in data.bikes_out.keys():
             time_out = VTime(data.bikes_out[tag])
             dur_end = time_out
