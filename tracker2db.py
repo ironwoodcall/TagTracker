@@ -82,9 +82,9 @@ COL_REGISTRATIONS = "registrations"  # num of 529 registrations recorded
 # COL_NOTES name reused
 # COL_BATCH name reused
 
-# Values for some text fields
-REGULAR = "regular"
-OVERSIZE = "oversize"
+# Bike-type codes. Must match check constraint in code table TYPES.CODE
+REGULAR = "R"
+OVERSIZE = "O"
 
 
 def calc_duration(hhmm_in: str, hhmm_out: str) -> str:
