@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS day (
     parked_regular  INTEGER NOT NULL CHECK (parked_regular >= 0),
     parked_oversize INTEGER NOT NULL CHECK (parked_oversize >= 0),
     parked_total    INTEGER NOT NULL CHECK (parked_total >= 0),
-    leftover        INTEGER NOT NULL CHECK (leftover >= 0),
+    leftover        INTEGER          CHECK (leftover >= 0),
     max_reg         INTEGER          CHECK (max_reg >= 0),
     time_max_reg    TEXT             CHECK (time_max_reg IS strftime('%H:%M', time_max_reg)),
     max_over        INTEGER          CHECK (max_over >= 0),

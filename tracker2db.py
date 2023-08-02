@@ -103,10 +103,10 @@ def data_to_db(filename: str) -> None:
     Read the datafile in question into a TrackerDay object with
     df.read_datafile()
 
-    For the day, insert a row of day summary data into TABLE_DAYS
+    For the day, UPDATE or INSERT a row of day summary data into TABLE_DAYS
 
     Then calculate some things which might be based on it
-    For each bike, record a row of visit data into TABLE_VISITS
+    for each bike, and record a row of visit data into TABLE_VISITS
     """
 
     def what_bike_type(tag: str) -> Union[str, None]:
@@ -130,7 +130,7 @@ def data_to_db(filename: str) -> None:
 
     if args.verbose:
         print(f"\nWorking on {filename}")
-        
+
     data = tt_datafile.read_datafile(f"{filename}", err_msgs=[])
     date = data.date
     if not date:  # get from filename for old data formats (hopefully never)
@@ -139,13 +139,13 @@ def data_to_db(filename: str) -> None:
             "Skipping this file",
             file=sys.stderr,
         )
+        globals()["SKIP_COUNT"] += 1
         return
 
     if not data.bikes_in:  # if no visits to record, stop now
         print(f"No visits in {filename}")
         globals()["EMPTY_COUNT"] += 1
         return
-    globals()["SUCCESS_COUNT"] += 1
 
     if data.regular and data.oversize:
         regular_tags = data.regular
@@ -158,6 +158,7 @@ def data_to_db(filename: str) -> None:
             "Skipping this file.",
             file=sys.stderr,
         )
+        globals()["SKIP_COUNT"] += 1
         return
 
     # TABLE_DAYS handling
@@ -178,6 +179,9 @@ def data_to_db(filename: str) -> None:
             f" of leftover bikes for {date}. Skipping {filename}.",
             file=sys.stderr,
         )
+        globals()[
+            "SKIP_COUNT"
+        ] += 1  # FIXME: need to add possibly more of these statements
         return
 
     # Highwater values
@@ -221,15 +225,7 @@ def data_to_db(filename: str) -> None:
     day = int(date_bits.group(3))
     weekday = 1 + calendar.weekday(year, month, day)  # ISO 8601 says 1-7 M-S
 
-    if not sql_do(f"DELETE FROM {TABLE_DAYS} WHERE date = '{date}';"):
-        print(
-            f"Error: delete day summary failed for date '{date}'. "
-            "Exiting with error.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    if not sql_do(
+    if not sql_do(  # First try to make a new row...
         f"""INSERT INTO {TABLE_DAYS} (
                 {COL_DATE},
                 {COL_REGULAR},
@@ -262,43 +258,76 @@ def data_to_db(filename: str) -> None:
                 '{time_close}',
                 {weekday},
                 '{batch}'
-                );"""
+                );""",
+        quiet=True,
     ):
-        print(
-            f"Error: failed to insert day summary for {filename}. "
-            "Exiting with error.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        if not sql_do(  # Then try to update...
+            f"""UPDATE {TABLE_DAYS} SET
+                    {COL_REGULAR} = {regular_parked},
+                    {COL_OVERSIZE} = {oversize_parked},
+                    {COL_TOTAL} = {total_parked},
+                    {COL_TOTAL_LEFTOVER} = {total_leftover},
+                    {COL_MAX_REGULAR} = {max_regular_num},
+                    {COL_MAX_REGULAR_TIME} = '{max_regular_time}',
+                    {COL_MAX_OVERSIZE} = {max_oversize_num},
+                    {COL_MAX_OVERSIZE_TIME} = '{max_oversize_time}',
+                    {COL_MAX_TOTAL} = {max_total_num},
+                    {COL_MAX_TOTAL_TIME} = '{max_total_time}',
+                    {COL_TIME_OPEN} = '{time_open}',
+                    {COL_TIME_CLOSE} = '{time_close}',
+                    {COL_DAY_OF_WEEK} = {weekday},
+                    {COL_BATCH} = '{batch}'
+                    WHERE {COL_DATE} = strftime('%Y-%m-%d')
+                    ;"""
+        ):
+            print(
+                "Error: failed to INSERT or UPDATE "
+                f"day summary for {filename}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     # TABLE_VISITS handling
     closing = select_closing_time(date)  # fetch checkout time for whole day
-    sql_do(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';")
+    if not closing:
+        print(
+            f"Error - datafile {filename} missing closing time. "
+            "Skipping datafile.",
+            file=sys.stderr,
+        )
+        globals()["SKIP_COUNT"] += 1
+        return
+
+    for tag, time_in in data.bikes_in.items():
+        time_in = VTime(time_in)
+        if time_in > closing:  # both should be VTime
+            print(
+                f"Error: visit {tag} in {filename} has check-in ({time_in})"
+                f" after closing time ({closing}). Skipping datafile.",
+                file=sys.stderr,
+            )
+            globals()["SKIP_COUNT"] += 1
+            return
 
     visit_commit_count = total_parked
     visit_fail_count = 0
+    sql_do(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';")
 
     for tag, time_in in data.bikes_in.items():
+        time_in = VTime(time_in)
         if tag in data.bikes_out.keys():
-            time_out = data.bikes_out[tag]
-            dur_end = time_out
+            time_out = VTime(data.bikes_out[tag])
             dur_end = time_out
         else:  # no check-out recorded
-            if closing:
-                dur_end = closing
-                if args.verbose:
-                    print(
-                        f"(normal leftover): {tag} stay time found using "
-                        f"closing time {closing} from table '{TABLE_DAYS}'"
-                    )
-            else:
-                dur_end = data.latest_event()  # approx. as = to last event
+            dur_end = closing
+            if args.verbose:
                 print(
-                    f"WARN - datafile {filename} missing closing time: "
-                    f"using latest event time for leftover with tag {tag}"
+                    f"(normal leftover): {tag} stay time found using "
+                    f"closing time {closing} from table '{TABLE_DAYS}'"
                 )
             time_out = ""  # empty str for no time
         time_stay = calc_duration(time_in, dur_end)
+        biketype = what_bike_type(tag)
         if not sql_do(
             f"""INSERT INTO {TABLE_VISITS} (
                     {COL_ID},
@@ -313,15 +342,20 @@ def data_to_db(filename: str) -> None:
                     '{date}.{tag}',
                     '{date}',
                     '{tag}',
-                    '{what_bike_type(tag)}',
+                    '{biketype}',
                     '{time_in}',
                     '{time_out}',
                     '{time_stay}',
                     '{batch}');"""
         ):
-            print(f"Error: failed to insert a stay for {tag}", file=sys.stderr)
+            print(
+                f"Error: failed to INSERT a stay for {tag}",
+                file=sys.stderr,
+            )
             visit_commit_count -= 1
             visit_fail_count += 1
+    globals()["SUCCESS_COUNT"] += 1
+
     try:
         conn.commit()  # commit one datafile transaction
         if not args.quiet:
@@ -330,7 +364,14 @@ def data_to_db(filename: str) -> None:
                 f"visits on {date} ({visit_fail_count} failed)"
             )
     except sqlite3.Error as sqlite_err:
-        print(f"Error (SQLite) committing for {filename}:", sqlite_err)
+        print(
+            f"Error (SQLite) committing for {filename}:",
+            sqlite_err,
+            "Exiting with error.",
+            file=sys.stderr,
+        )
+        globals()["COMMIT_FAIL_COUNT"] += 1
+        sys.exit(1)
 
 
 def select_closing_time(date: str) -> Union[VTime, bool]:
@@ -360,14 +401,17 @@ def select_closing_time(date: str) -> Union[VTime, bool]:
         sys.exit(1)
 
 
-def sql_do(sql_statement: str) -> bool:
+def sql_do(sql_statement: str, quiet: bool = False) -> bool:
     """Execute a SQL statement, or print the slite3 error."""
     try:
         curs = conn.cursor()
         curs.execute(sql_statement)
         return True
     except sqlite3.Error as sqlite_err:
-        print("Error (SQLite) using sql_do():", sqlite_err)
+        if not quiet:
+            print(
+                "Error (SQLite) using sql_do():", sqlite_err, file=sys.stderr
+            )
         return False
 
 
@@ -452,6 +496,8 @@ if __name__ == "__main__":
         print(f"Batch: {batch}")
 
     SUCCESS_COUNT = 0
+    COMMIT_FAIL_COUNT = 0
+    SKIP_COUNT = 0
     EMPTY_COUNT = 0
 
     for datafilename in datafiles:
@@ -462,5 +508,6 @@ if __name__ == "__main__":
     if not args.quiet:
         print(
             f"\n\nProcessed data from {SUCCESS_COUNT} datafiles "
-            f"({EMPTY_COUNT} empty)."
+            f"({SKIP_COUNT} skipped, {EMPTY_COUNT} empty). "
+            f"{COMMIT_FAIL_COUNT} failed commits."
         )
