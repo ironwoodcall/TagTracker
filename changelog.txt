@@ -1,5 +1,12 @@
 TagTracker by Julias Hocking
 
+0.8.12:
+~ db updates
+~ minor usability tweaks
+
+0.8.11:
+~ weather data from UVic weather station not YYJ
+
 0.8.10:
 + day of week overview web report
 
