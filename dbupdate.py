@@ -24,7 +24,6 @@ Copyright (C) 2023 Julias Hocking
 import argparse
 import csv
 import datetime
-import os
 import sys
 import sqlite3
 
@@ -44,7 +43,6 @@ class NewVals:
         registrations: int = None,
         abandoned: int = None,
         precip: float = None,
-        temp: float = None,
         max_temp: float = None,
         min_temp: float = None,
         mean_temp:float = None,
@@ -54,7 +52,6 @@ class NewVals:
         self.registrations = registrations
         self.abandoned = abandoned
         self.precip = precip
-        self.temp = temp
         self.max_temp = max_temp
         self.min_temp = min_temp
         self.mean_temp = mean_temp
@@ -62,7 +59,8 @@ class NewVals:
         self.sunset = sunset
 
     def dump(self):
-        return f"{self.registrations=}; {self.abandoned=}; {self.precip=}; {self.temp=}"
+        return (f"{self.registrations=}; {self.abandoned=}; {self.precip=}; "
+            f"{self.max_temp=}; {self.min_temp=}; {self.mean_temp=}")
 
 def oneval(
     thisrow: list,
@@ -122,8 +120,8 @@ def read_day_end_vals(
             results[thisdate] = NewVals(
                 registrations=oneval(row, 12, want_int=True),
                 abandoned=oneval(row, 17, want_int=True),
-                precip=oneval(row, 14, want_num=True),
-                temp=oneval(row, 15, want_num=True),
+                #precip=oneval(row, 14, want_num=True),
+                #temp=oneval(row, 15, want_num=True),
             )
     return results
 
@@ -140,7 +138,7 @@ def get_day_end_changes(
     db_data = db.db_fetch(
         ttdb,
         "select "
-        "   date, registrations, leftover, precip_mm, temp_10am "
+        "   date, registrations, leftover, precip_mm, temp "
         "from day "
         f"{where}"
         "order by date",
@@ -186,8 +184,13 @@ def read_wx_data(source_csv: str) -> dict[str, NewVals]:
     30 - heating degree days
 
     ANother(?) possible URL:
-    https://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID=51337&Year=2023&Month=7&Day=1&time=&timeframe=2&submit=Download+Data
-
+    YYJ: https://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID=51337&Year=2023&Month=7&Day=1&time=&timeframe=2&submit=Download+Data
+    UVic: https://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID=6812&Year=2023&Month=7&Day=1&time=&timeframe=2&submit=Download+Data
+    5,6,7: y,m,d
+    9: max temp
+    11: min temp
+    13: mean temp
+    23: precip
 
     """
 
@@ -195,16 +198,16 @@ def read_wx_data(source_csv: str) -> dict[str, NewVals]:
     results = {}
     with open(source_csv, "r", newline="", encoding="utf-8") as csvfile:
         for row in csv.reader(csvfile):
-            maybedate = f"{row[7]}-{('0'+row[8])[-2:]}-{('0'+row[9])[-2:]}"
+            maybedate = f"{row[5]}-{('0'+row[6])[-2:]}-{('0'+row[7])[-2:]}"
             thisdate = ut.date_str(maybedate)
             if not thisdate:
                 continue
             results[thisdate] = NewVals(
-                precip=oneval(row, 16, want_num=True),
-                temp=oneval(row, 14, want_num=True),    # max
-                min_temp=oneval(row,12,want_num=True),
-                max_temp=oneval(row,14,want_num=True),
-                mean_temp=oneval(row,10,want_num=True),
+                precip=oneval(row, 23, want_num=True),
+                #temp=oneval(row, 14, want_num=True),    # max
+                min_temp=oneval(row,11,want_num=True),
+                max_temp=oneval(row,9,want_num=True),
+                mean_temp=oneval(row,13,want_num=True),
             )
     return results
 
@@ -221,7 +224,7 @@ def get_wx_changes(
     db_data = db.db_fetch(
         ttdb,
         "select "
-        "   date, registrations, leftover, precip_mm, temp_10am "
+        "   date, registrations, leftover, precip_mm, temp "
         "from day "
         f"{where}"
         "order by date",
@@ -245,12 +248,12 @@ def get_wx_changes(
                 f"update day set precip_mm = {new[existing.date].precip} where date = '{existing.date}';"
             )
         if (
-            (force or not existing.temp_10am)
+            (force or not existing.temp)
             and existing.date in new
-            and new[existing.date].temp is not None
+            and new[existing.date].max_temp is not None
         ):
             sqls.append(
-                f"update day set temp_10am = {new[existing.date].temp} where date = '{existing.date}';"
+                f"update day set temp = {new[existing.date].max_temp} where date = '{existing.date}';"
             )
     return sqls
 #-------------------

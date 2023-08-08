@@ -52,7 +52,7 @@ class DayRow:
         self.time_closed = VTime("")
         self.weekday = None
         self.precip_mm = None
-        self.temp_10am = None
+        self.temp = None
         self.sunset = VTime("")
         self.event = ""
         self.event_prox_km = None
