@@ -777,7 +777,7 @@ def parse_command(user_input: str) -> list[str]:
         [cfg.CMD_TAG_UNUSABLE,args] if a tag but otherwise not usable
         [cfg.CMD_UNKNOWN,args] if not a tag & not a command
     """
-    user_input = user_input.lower().strip().rstrip("\\]")
+    user_input = user_input.lower().strip("\\[ \t")
     if not (user_input):
         return []
     # Special case - if user input starts with '/' or '?' add a space.
