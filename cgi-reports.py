@@ -385,7 +385,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         "   leftover, "
         "   max_total, "
         "   registrations, "
-        "   precip_mm, temp_10am, sunset "
+        "   precip_mm, temp, sunset "
         "from day "
         f"  {where} "
         "   order by date desc"
@@ -446,7 +446,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     )
     max_precip_factor = 255 / sqrt(max_precip)
     max_temp = max(
-        [1] + [r.temp_10am for r in drows if r.temp_10am is not None]
+        [1] + [r.temp for r in drows if r.temp is not None]
     )
     max_temp_factor = 255 / (max_temp * max_temp)
 
@@ -520,10 +520,10 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             ),
         )
         max_temp_col = 255
-        if row.temp_10am:
+        if row.temp:
             max_temp_col = max(
                 0,
-                255 - int(row.temp_10am * row.temp_10am * max_temp_factor),
+                255 - int(row.temp * row.temp * max_temp_factor),
             )
         max_precip_col = 255
         if row.precip_mm:
@@ -533,7 +533,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             )
 
         reg_str = "" if row.registrations is None else f"{row.registrations}"
-        temp_str = "" if row.temp_10am is None else f"{row.temp_10am:0.1f}"
+        temp_str = "" if row.temp is None else f"{row.temp:0.1f}"
         precip_str = "" if row.precip_mm is None else f"{row.precip_mm:0.1f}"
         print(
             f"<tr>"

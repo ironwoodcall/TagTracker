@@ -52,7 +52,7 @@ class DayRow:
         self.time_closed = VTime("")
         self.weekday = None
         self.precip_mm = None
-        self.temp_10am = None
+        self.temp = None
         self.sunset = VTime("")
         self.event = ""
         self.event_prox_km = None
@@ -181,26 +181,35 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     # Fetch any tags checked in or out
     curs = ttdb.cursor()
     rows = curs.execute(
-        "select tag,time_in,time_out from visit "
+        "select tag,time_in,time_out,type from visit "
         f"where date = '{whatdate}' "
         "order by time_in desc;"
     ).fetchall()
+    oversize = set()
+    regular = set()
     for row in rows:
         tag = TagID(row[0])
         time_in = VTime(row[1])
         time_out = VTime(row[2])
+
         still_in = not time_out
         if not tag or not time_in:
             continue
         day.bikes_in[tag] = time_in
         if time_out and not still_in:
             day.bikes_out[tag] = time_out
-    # Fake up regular/oversize lists
-    day.make_fake_tag_lists()
+        # Tag type (regular/oversize)
+        tag_type = row[3] if row[3] else day.guess_tag_type(tag)
+        if tag_type == "R":
+            regular.add(tag)
+        elif tag_type == "O":
+            oversize.add(tag)
+    # Set the tag lists
+    day.regular = frozenset(regular)
+    day.oversize = frozenset(oversize)
     # Fake up a colour dictionary
     day.make_fake_colour_dict()
     return day
-
 
 def db_connect(db_file, must_exist: bool = True) -> sqlite3.Connection:
     """Connect to (existing) SQLite database.

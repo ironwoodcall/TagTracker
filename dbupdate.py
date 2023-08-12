@@ -138,7 +138,7 @@ def get_day_end_changes(
     db_data = db.db_fetch(
         ttdb,
         "select "
-        "   date, registrations, leftover, precip_mm, temp_10am "
+        "   date, registrations, leftover, precip_mm, temp "
         "from day "
         f"{where}"
         "order by date",
@@ -224,7 +224,7 @@ def get_wx_changes(
     db_data = db.db_fetch(
         ttdb,
         "select "
-        "   date, registrations, leftover, precip_mm, temp_10am "
+        "   date, registrations, leftover, precip_mm, temp "
         "from day "
         f"{where}"
         "order by date",
@@ -248,12 +248,12 @@ def get_wx_changes(
                 f"update day set precip_mm = {new[existing.date].precip} where date = '{existing.date}';"
             )
         if (
-            (force or not existing.temp_10am)
+            (force or not existing.temp)
             and existing.date in new
             and new[existing.date].max_temp is not None
         ):
             sqls.append(
-                f"update day set temp_10am = {new[existing.date].max_temp} where date = '{existing.date}';"
+                f"update day set temp = {new[existing.date].max_temp} where date = '{existing.date}';"
             )
     return sqls
 #-------------------

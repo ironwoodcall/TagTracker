@@ -68,15 +68,25 @@ class TrackerDay:
         else:
             self.DISABLED__make_lowercase()
 
+    @staticmethod
+    def guess_tag_type(tag: TagID) -> str:
+        """Guess the type of tag (R=regular or O=oversize)."""
+        colour = TagID(tag).colour.lower()
+        if colour in ["o", "p", "w", "g"]:
+            return "R"
+        if colour in ["b"]:
+            return "O"
+        return ""
+
     def make_fake_tag_lists(self) -> None:
         """Fake up regular/oversized tag ists based on City Hall use in 2023."""
         regulars = set()
         oversizes = set()
         for tag in set(self.bikes_in.keys()) | set(self.bikes_out.keys()):
-            tag: TagID
-            if tag.colour.lower() in ["o", "p", "w"]:
+            tag_type = self.guess_tag_type(tag)
+            if tag_type == "R":
                 regulars.add(tag)
-            elif tag.colour.lower() == "b":
+            elif tag_type == "O":
                 oversizes.add(tag)
         self.regular = frozenset(regulars)
         self.oversize = frozenset(oversizes)
