@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.8.13:
+~ add "]" to "ignore" characters on operator input
+
 0.8.12:
 ~ db updates
 ~ minor usability tweaks
