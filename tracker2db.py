@@ -275,7 +275,7 @@ def data_to_db(filename: str) -> None:
                     {COL_TIME_CLOSE} = '{time_close}',
                     {COL_DAY_OF_WEEK} = {weekday},
                     {COL_BATCH} = '{batch}'
-                    WHERE {COL_DATE} = strftime('%Y-%m-%d')
+                    WHERE {COL_DATE} = '{date}'
                     ;"""
         ):
             print(

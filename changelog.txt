@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.8.14:
+~ fix bug where updates not being inserted to correct day (#269)
+
 0.8.13:
 ~ add "]" to "ignore" characters on operator input
 
