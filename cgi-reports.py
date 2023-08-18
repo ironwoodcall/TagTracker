@@ -35,7 +35,9 @@ import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
-
+import tt_block
+import tt_trackerday
+import colourmap
 
 ##from zotto import print
 ##import zotto
@@ -126,6 +128,8 @@ def form(
     what_choices = {
         "overview": "Overview",
         "dow_overview": "Overview for one day of the week [specify Day of Week]",
+        "blocks": "Colour-coded busyness & fullness overview [slow!]",
+        "dow_blocks": "Colour-coded busyness & fullness overview for one day of week",
         "abandoned": "Lost tags report",
         "day_end": "Day-end report for a given date",
         "audit": "Audit report for a given date",
@@ -133,7 +137,6 @@ def form(
         "one_day_tags": "Tags in/out activity for a given date",
         "datafile": "Recreated datafile for a given date",
         "chart": "Chart of activities for one day [specify Date]",
-        "busy-graph": "Simple graphs of activities for one day [specify Date]",
     }
     dow_choices = {  # These are ISO days of week not unix.
         "7": "Sunday",
@@ -708,20 +711,12 @@ def one_day_chart(ttdb: sqlite3.Connection, date: str):
     thisday = ut.date_str(date)
     if not thisday:
         bad_date(date)
+    query_time = "now" if thisday == ut.date_str("today") else "24:00"
+    print(f"<h1>Single-day activity charts for {thisday}</h1>")
     print("<pre>")
-    ##print( f"{' '.join(tday.oversize)=}")
-    ##print(f"{tday.bikes_in=}")
-    rep.full_chart(db.db2day(ttdb, thisday), "now")
-
-
-def one_day_busy_graph(ttdb: sqlite3.Connection, date: str):
-    """One-day chart."""
-    thisday = ut.date_str(date)
-    if not thisday:
-        bad_date(date)
-    print("<pre>")
-    rep.busy_graph(db.db2day(ttdb, thisday), "now")
-    rep.fullness_graph(db.db2day(ttdb, thisday), "now")
+    rep.full_chart(db.db2day(ttdb, thisday), query_time)
+    rep.busy_graph(db.db2day(ttdb, thisday), query_time)
+    rep.fullness_graph(db.db2day(ttdb, thisday), query_time)
 
 
 def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
@@ -737,8 +732,124 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
     print("</pre>")
 
 
-def blocks_report(ttdb:sqlite3.Connection ):
-    pass
+def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
+    """Print block-by-block colours report for all days
+
+    If dow is None then do for all days of the week, otherwise do
+    for ISO int dow (1=Monday-->7=Sunday)
+
+    """
+    class TableRow:
+        _allblocks = {}
+        for t in range(6 * 60, 24 * 60, 30):
+            _allblocks[VTime(t)] = (0,0) # Activity,Fullness
+        def __init__(self) -> None:
+            self.total_bikes = None
+            self.max_full = None
+            self.blocks = TableRow._allblocks.copy()
+
+    if iso_dow:
+        iso_dow = int(iso_dow)
+    if not iso_dow:
+        title_bit = ""
+        where = ""
+    else:
+        # sqlite uses unix dow, so need to adjust dow from 1->7 to 0->6.
+        title_bit = f"{ut.dow_str(iso_dow)} "
+        where = f" where strftime('%w',date) = '{iso_dow % 7}' "
+    sel = (
+        "select "
+        "   date, parked_total total_bikes, max_total max_full "
+        "from day "
+        f"  {where} "
+        "   order by date desc"
+    )
+    dayrows = db.db_fetch(ttdb, sel)
+
+    tabledata = {}
+    block_fullest = 0
+    block_busiest = 0
+    day_fullest = 0
+    day_busiest = 0
+    for row in dayrows:
+        date = row.date
+        day:tt_trackerday.TrackerDay = db.db2day(ttdb,date)
+        daydata = TableRow()
+        daydata.total_bikes = row.total_bikes
+        if daydata.total_bikes > day_busiest:
+            day_busiest = daydata.total_bikes
+        daydata.max_full = row.max_full
+        if daydata.max_full > day_fullest:
+            day_fullest = daydata.max_full
+
+        for blocktime,blockdata in tt_block.calc_blocks(day).items():
+            full = blockdata.num_here
+            busy = blockdata.num_ins + blockdata.num_outs
+            if full > block_fullest:
+                block_fullest = full
+            if busy > block_busiest:
+                block_busiest = busy
+            daydata.blocks[blocktime] = (busy, full)
+        tabledata[date] = daydata
+
+    # Set up colour map
+    colours = colourmap.ColourMap()
+    colours.set_up_map((255,255,255),(255,80,80),(100,100,255),
+                       0,block_busiest,0,block_fullest,
+                       0.75,0.75)
+    day_busy_colours = colourmap.ColourMap()
+    day_busy_colours.set_up_map((255,255,255),(255,100,100),x_bottom=0,x_top=day_busiest,x_exponent=1.5)
+    day_full_colours = colourmap.ColourMap()
+    day_full_colours.set_up_map((255,255,255),(100,100,255),x_bottom=0,x_top=day_fullest,x_exponent=1.5)
+
+
+    print(f"<h1>{title_bit}Day-over-day activity detail</h1>")
+    print("<table>")
+    #print("<style>td {text-align: left}</style>")
+    print(f"<tr><td style=text-align:left>REDS</td><td style=text-align:left>Activity (bikes coming and going)</td><td style='background-color:{colours.get_rgb_str(4,0)}'>LESS</td><td style='background-color:{colours.get_rgb_str(20,0)}'>MORE</td></tr>")
+    print(f"<tr><td style=text-align:left>BLUES</td><td style=text-align:left>Number of bikes at the valet</td><td style='background-color:{colours.get_rgb_str(0,20)}'>LESS</td><td style='background-color:{colours.get_rgb_str(0,70)}'>MORE</td></tr>")
+    print(f"<tr><td style=text-align:left>PURPLES</td><td style=text-align:left>Lots of both!</td><td style='background-color:{colours.get_rgb_str(4,20)}'>LESS</td><td style='background-color:{colours.get_rgb_str(20,70)}'>MORE</td></tr>")
+    print("</table><p>&nbsp;</p>")
+
+    def print_gap():
+        print("<td style='border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>")
+
+    print("<table>")
+    print("<style>td {text-align: right;}</style>")
+    print("<tr>")
+    print("<th colspan=2>Date</th>")
+    print("<th colspan=7>6:00-8:30</th>")
+    print("<th colspan=7>9:00-11:30</th>")
+    print("<th colspan=7>12:00-14:30</th>")
+    print("<th colspan=7>15:00-17:30</th>")
+    print("<th colspan=7>18:00-20:30</th>")
+    print("<th colspan=7>21:00-23:30</th>")
+
+    print("<th>Bikes<br>Parked</th>")
+    print("<th>Most<br/>Bikes</th>")
+    print("</tr>")
+
+    for date in sorted(tabledata.keys(),reverse=True):
+        data:TableRow = tabledata[date]
+        summary_link = selfref(what="day_end",qdate=date)
+        chartlink = selfref(what="chart", qdate=date)
+        print(f"<tr><td><a href='{summary_link}'>{date}</a></td>")
+
+        for num, block in enumerate(sorted(data.blocks.keys())):
+            if num % 6 == 0:
+                print_gap()
+            (busy,full) = data.blocks[block]
+            cell_colour = colours.get_rgb_str(busy,full)
+            print(f"<td style='background-color:{cell_colour} ;padding: 2px 8px;'><a href='{chartlink}' style='text-decoration:none;'>&nbsp;</a></td>")
+        print_gap()
+
+        print(f"<td style='background-color:{day_busy_colours.get_rgb_str(data.total_bikes)}'><a href='{chartlink}'>{data.total_bikes}</a></td>")
+        print(f"<td style='background-color:{day_full_colours.get_rgb_str(data.max_full)}'><a href='{chartlink}'>{data.max_full}</a></td>")
+        print("</tr>\n")
+
+    print( "</table>")
+
+
 
 # =================================================================
 print("Content-type: text/html\n\n\n")
@@ -801,6 +912,10 @@ if not what:
     sys.exit()
 if what == "last_use":
     one_tag_history_report(database, tag)
+elif what == "blocks":
+    blocks_report(database)
+elif what == "dow_blocks":
+    blocks_report(database,dow_parameter)
 elif what == "overview":
     overview_report(database)
 elif what == "dow_overview":
@@ -815,10 +930,8 @@ elif what == "audit":
     audit_report(database, qdate, qtime)
 elif what == "day_end":
     one_day_summary(database, qdate, qtime)
-elif what == "chart":
+elif what == "chart" or what == "busy-graph":
     one_day_chart(database, qdate)
-elif what == "busy-graph":
-    one_day_busy_graph(database, qdate)
 else:
     error_out(f"Unknown request: {untaint(what)}")
     sys.exit(1)
