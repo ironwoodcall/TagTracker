@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CGI script for TagTracker reports against consolidated database.
+"""Per-block report for CGI web reports
 
 Copyright (C) 2023 Julias Hocking
 
@@ -37,8 +37,6 @@ from tt_time import VTime
 import tt_util as ut
 
 
-##from zotto import print
-##import zotto
 
 
 def untaint(tainted: str) -> str:
@@ -362,7 +360,7 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
 
 
 def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
-    """Print new version of the all-days default report.
+    """Print new version of the all-days defauilt report.
 
     If dow is None then do for all days of the week, otherwise do
     for ISO int dow (1=Monday-->7=Sunday)
@@ -736,9 +734,6 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
     rep.busyness_report(day, [qtime])
     print("</pre>")
 
-
-def blocks_report(ttdb:sqlite3.Connection ):
-    pass
 
 # =================================================================
 print("Content-type: text/html\n\n\n")

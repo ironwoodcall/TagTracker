@@ -1,20 +1,23 @@
-"""Map (x,y) data values onto (RGB) colour space.
-
-
-
-"""
+"""Map (x,y) data values onto (RGB) colour space."""
 
 import math
 import statistics
+import random
 
 RED = "r"
 GREEN = "g"
 BLUE = "b"
-AXIS_X = "AXIS_X"
-AXIS_Y = "AXIS_Y"
 RGB_LIST = [RED, GREEN, BLUE]
 
+AXIS_X = "AXIS_X"
+AXIS_Y = "AXIS_Y"
 
+# Ways to combine colours
+MIX_ADD = "MIX_ADD"
+MIX_SUBTRACT = "MIX_SUBTRACT"
+MIX_AVERAGE = "MIX_AVERAGE"
+MIX_MIN = "MIX_MIN"
+MIX_MAX = "MIX_MAX"
 
 
 class ColourBand:
@@ -79,19 +82,8 @@ class ColourBand:
 class ColourMap:
     """Map X or X,Y data into a RGB colour space.
 
-
-    What I want:
-
-    I want to initialize it with:
-    - RGB bottom tuple
-    - for X (axis 0):
-        - RGB top tuple
-        - input data range (bottom, top)
-        - exponent
-    - same for Y (axis 1) [optional - if none, then is linear not 2d]
-
-    I then want to call it with: data values (x,y) or just (x)
-    And have it return: RGB values or RGB string
+    Create object, initialize with set_up_map(), then
+    get colour values from the map with get_rgb_tuple() or get_rgb_str()
 
     Attributes:
         _colour_data_axes[AXIS][COLOUR_BAND] = ColourBand
@@ -105,7 +97,8 @@ class ColourMap:
         __init__ - sets up _colour_data_axes dict
         set_up_map() - creates the mapping between the data axes (X,Y) and
             the colour bands
-
+        get_rgb_tuple() - get (R,G,B) ints as a tuple for given (x) or (x,y)
+        get_rgb_str() - same but returns as rgb string e.g. "rbg(13,157,99)"
     """
 
     def __init__(
@@ -143,6 +136,7 @@ class ColourMap:
         y_top: float = 100,
         x_exponent: float = 1,
         y_exponent: float = 1,
+        mix_type:str = MIX_ADD,
     ):
         """This sets up a colour map for 1-axis (X) or 2-axis (X,Y) data."""
         # Load colour dimensions for X 7 Y into self._colour_data_axes.
@@ -171,6 +165,46 @@ class ColourMap:
                     band.data_bottom = y_bottom
                     band.data_top = y_top
                     band.exponent = y_exponent
+        # How will the colours get mixed?
+        self.mix_type = mix_type
+
+    def _combine_colours(self,colours:list[int]) -> int:
+        """Mix a list of colours within a single colour band."""
+        if len(colours) == 1:
+            return colours[0]
+
+        if self.mix_type == MIX_AVERAGE:
+            # Average
+            result = statistics.mean(colours)
+        elif self.mix_type == MIX_MIN:
+            # Min
+            result = min(colours)
+        elif self.mix_type == MIX_MAX:
+            # Min
+            result = max(colours)
+        elif self.mix_type == MIX_SUBTRACT:
+            # Fancy subtractive
+            for i, c in enumerate(colours):
+                if i == 0:
+                    result = c
+                else:
+                    # do a fancy subtract of these 2 colours
+                    result = 255 - abs((255 - result) - (255 - c))
+                    result = max(min(255,result),0)
+        elif self.mix_type == MIX_ADD:
+            # Fancy additive
+            for i, c in enumerate(colours):
+                if i == 0:
+                    result = c
+                else:
+                    # do a fancy addition of these 2 colours
+                    result = 255 - abs((255 - result) + (255 - c))
+                    result = max(min(255,result),0)
+        else:
+            # Unknown mix_type
+            raise ValueError
+        result = max(min(255,result),0)
+        return result
 
     def get_rgb_tuple(self, x, y=None) -> tuple:
         """Return RGB tuple."""
@@ -183,8 +217,8 @@ class ColourMap:
                 rgb_vals_list[colour].append(color_val)
         rgb_vals = []
         for colour in RGB_LIST:
-            # Blend colours by taking their average value within a band.
-            val = round(statistics.mean(rgb_vals_list[colour]))
+            # Blend colours within this band.
+            val = self._combine_colours(rgb_vals_list[colour])
             val = min(max(val,0),255)
             rgb_vals.append(val)
         return rgb_vals
@@ -298,14 +332,14 @@ if __name__ == "__main__":
     colorer = ColourMap()
     colorer.set_up_map(
         zero_colour=(240,240,240),
-        x_max_colour=(255,20,20),
-        y_max_colour=(0,0,255),
+        x_max_colour=(255,40,40),
+        y_max_colour=(128,128,255),
         x_exponent=.75,
         y_exponent=.75,
         x_bottom=0,
-        x_top=20,
+        x_top=30,
         y_bottom=0,
-        y_top=20,
+        y_top=120,
     )
 
 
@@ -313,17 +347,55 @@ if __name__ == "__main__":
     print("<html>")
     print(style())
     print("<body>")
-    print("<table><tr><td>")
+
+    # Generate a pretend block list
+    blocks = []
+    for x in range(12,48):
+        blocks.append(x/2)
+
+    def num2time(num) -> str:
+        """Make H:M for # of hrs."""
+        h = int(num + .000001)
+        m = round((num - h) * 60)
+        s = f"{h}:{m:02d}"
+        return s
+
+    def print_gap():
+        print("<td style='border: 3px solid rgb(255,255,255);padding: 0px 0px;'></td>")
 
     print("<table>")
-    for col in range(21):
+
+    print("<tr><th>Date</th>")
+    print("<th colspan=6>6:00-8:30</th>")
+    print_gap()
+    print("<th colspan=6>9:00-11:30</th>")
+    print_gap()
+    print("<th colspan=6>12:00-14:30</th>")
+    print_gap()
+    print("<th colspan=6>15:00-17:30</th>")
+    print_gap()
+    print("<th colspan=6>18:00-20:30</th>")
+    print_gap()
+    print("<th colspan=6>21:00-23:30</th>")
+    print("</tr>")
+
+    for y in range(21):
         print("<tr>")
-        for row in range(21):
-            s = ",".join([f"{c}" for c in colorer.get_rgb_tuple(row,col)])
-            print(f"<td style='background-color: {colorer.get_rgb_str(row,col)}'>&nbsp<br/>&nbsp</td>")
+        print(f"<td>2023-{random.randint(1,12):02}-{random.randint(1,30):02}</td>")
+        for x, block in enumerate(blocks):
+            if x % 6 == 0 and x > 0:
+                print_gap()
+
+            block_factor = block/max(blocks)
+            busy = random.randint(0,30) * block_factor
+            full = random.randint(0,120) * block_factor
+            content = num2time(block)
+            content = ",".join([f"{c}" for c in colorer.get_rgb_tuple(x,y)])
+            content = "&nbsp"
+            #content = f"{x},{y}"
+            print(f"<td style='background-color: {colorer.get_rgb_str(busy,full)}'>{content}</td>")
         print("</tr>")
     print("</table>")
 
-    print("</td></tr></table>")
     print(f"<pre>\n{colorer.dump()}\n</pre>")
     print("</body></html>")
