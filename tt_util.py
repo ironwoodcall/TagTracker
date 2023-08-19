@@ -127,6 +127,28 @@ def date_str(
     return thisday.strftime("%Y-%m-%d")
 
 
+def dow_int(date_or_dayname: str) -> int:
+    """Get ISO day of week from a date or weekday name."""
+    date = date_str(date_or_dayname)
+    if date:
+        d = datetime.datetime.strptime(date, "%Y-%m-%d")
+        return int(d.strftime("%u"))
+    # Try to match to a dow.
+    dow_ints = {
+        1: ["m", "mo", "mon", "monday"],
+        2: ["tu", "tue", "tues", "tuesday"],
+        3: ["w", "we", "wed", "wednesday"],
+        4: ["th", "thu", "thurs", "thursday"],
+        5: ["f", "fr", "fri", "friday"],
+        6: ["sa", "sat", "saturday"],
+        7: ["su", "sun", "sunday"],
+    }
+    for num, name_list in dow_ints.items():
+        if date_or_dayname.strip().lower() in name_list:
+            return num
+    return None
+
+
 def dow_str(iso_dow: int, dow_str_len: int = 0) -> str:
     """Return int ISO day of week as a str of length dow_str_len.
 
@@ -405,4 +427,3 @@ def plural(count: int) -> str:
         return ""
     else:
         return "s"
-
