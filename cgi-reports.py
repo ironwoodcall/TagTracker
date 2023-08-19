@@ -128,8 +128,8 @@ def form(
     what_choices = {
         "overview": "Overview",
         "dow_overview": "Overview for one day of the week [specify Day of Week]",
-        "blocks": "Colour-coded busyness & fullness overview [slow!]",
-        "dow_blocks": "Colour-coded busyness & fullness overview for one day of week",
+        "blocks": "Colour-coded daily activity overview [nice!]",
+        "dow_blocks": "Colour-coded daily activity overview for one day of the week",
         "abandoned": "Lost tags report",
         "day_end": "Day-end report for a given date",
         "audit": "Audit report for a given date",
@@ -766,14 +766,30 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     )
     dayrows = db.db_fetch(ttdb, sel)
 
+    sel = ("select "
+           "    date,"
+           "    round(2*(julianday(time_in)-julianday('00:15'))*24,0)/2 block, "
+           "    count(time_in) bikes_in "
+           "from visit "
+           f"    {where} "
+           "group by date,block;"
+    )
+    visitrows_in = db.db_fetch(ttdb,sel)
+    sel = ("select "
+           "    date,"
+           "    round(2*(julianday(time_out)-julianday('00:15'))*24,0)/2 block, "
+           "    count(time_out) bikes_out "
+           "from visit "
+           f"    {where} "
+           "group by date,block;"
+    )
+    visitrows_out = db.db_fetch(ttdb,sel)
+
     tabledata = {}
-    block_fullest = 0
-    block_busiest = 0
     day_fullest = 0
     day_busiest = 0
     for row in dayrows:
         date = row.date
-        day:tt_trackerday.TrackerDay = db.db2day(ttdb,date)
         daydata = TableRow()
         daydata.total_bikes = row.total_bikes
         if daydata.total_bikes > day_busiest:
@@ -781,16 +797,43 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         daydata.max_full = row.max_full
         if daydata.max_full > day_fullest:
             day_fullest = daydata.max_full
+        tabledata[date] = daydata
 
-        for blocktime,blockdata in tt_block.calc_blocks(day).items():
-            full = blockdata.num_here
-            busy = blockdata.num_ins + blockdata.num_outs
+    # Consolidate activity info from the VISIT table
+    ins = {}
+    for row in visitrows_in:
+        thisdate = row.date
+        if not thisdate or not row.block or row.bikes_in is None:
+            continue
+        blocktime = VTime(row.block * 60)
+        if thisdate not in ins:
+            ins[thisdate] = {}
+        ins[thisdate][blocktime] = row.bikes_in
+    outs = {}
+    for row in visitrows_out:
+        thisdate = row.date
+        if not thisdate or not row.block or row.bikes_out is None:
+            continue
+        blocktime = VTime(row.block * 60)
+        if thisdate not in outs:
+            outs[thisdate] = {}
+        outs[thisdate][blocktime] = row.bikes_out
+
+    block_fullest = 0
+    block_busiest = 0
+    for date in sorted(ins.keys()):
+        full = 0
+        for block in sorted(tabledata[date].blocks.keys()):
+            num_in = ins[date][block] if block in ins[date] else 0
+            num_out = outs[date][block] if block in outs[date] else 0
+            busy = num_in + num_out
+            full += num_in - num_out
             if full > block_fullest:
                 block_fullest = full
             if busy > block_busiest:
                 block_busiest = busy
-            daydata.blocks[blocktime] = (busy, full)
-        tabledata[date] = daydata
+            tabledata[date].blocks[block] = (busy, full)
+
 
     # Set up colour map
     colours = colourmap.ColourMap()
