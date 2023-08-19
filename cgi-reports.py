@@ -35,12 +35,7 @@ import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
-import tt_block
-import tt_trackerday
 import colourmap
-
-##from zotto import print
-##import zotto
 
 
 def untaint(tainted: str) -> str:
@@ -53,6 +48,7 @@ def selfref(
     qdate: str = "",
     qtime: str = "",
     qtag: str = "",
+    qdow: str = "",
 ) -> str:
     """Return a self-reference with the given parameters."""
 
@@ -66,6 +62,8 @@ def selfref(
         parms.append(f"time={qtime}")
     if qtag:
         parms.append(f"tag={qtag}")
+    if qdow:
+        parms.append(f"dow={qdow}")
     parms_str = f"?{'&'.join(parms)}" if parms else ""
     return f"{me}{untaint(parms_str)}"
 
@@ -87,7 +85,7 @@ def style() -> str:
 
         td, th {
         border: 1px solid rgb(190,190,190);
-        padding: 5px 15px;
+        padding: 4px 6px;
         }
 
         th {
@@ -600,20 +598,9 @@ def lost_tags(ttdb: sqlite3.Connection):
 
 
 def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
-    if whatday.lower() == "yesterday":
-        # yesterday
-        day = datetime.datetime.today() - datetime.timedelta(1)
-        thisday = day.strftime("%Y-%m-%d")
-    elif not whatday or whatday.lower() == "today":
-        # today
-        thisday = datetime.datetime.today().strftime("%Y-%m-%d")
-    else:
-        # possibly an actual date
-        try:
-            day = datetime.datetime.strptime(whatday, "%Y-%m-%d")
-            thisday = day.strftime("%Y-%m-%d")
-        except ValueError:
-            error_out("Bad date. Use YYYY-MM-DD or 'today' or 'yesterday'.")
+    thisday = ut.date_str(whatday)
+    if not thisday:
+        bad_date(whatday)
 
     rows = (
         ttdb.cursor()
@@ -637,6 +624,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
         v.duration = VTime(row[3])
         visits[tag] = v
 
+    print(f"<h1>Tags report for {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>")
     print("<pre>")
     if not visits:
         print(f"No activity recorded for {thisday}")
@@ -664,7 +652,7 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     thisday = ut.date_str(date)
     if not thisday:
         bad_date(date)
-
+    print(f"<h1>Reconstructed datafile for {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>")
     print("<pre>")
 
     day = db.db2day(ttdb, thisday)
@@ -701,6 +689,7 @@ def audit_report(ttdb: sqlite3.Connection, thisday: str, whattime: VTime):
     """Print audit report."""
     if not thisday:
         bad_date(thisday)
+    print(f"<h1>Audit report for {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
     rep.audit_report(day, [VTime(whattime)])
@@ -712,7 +701,7 @@ def one_day_chart(ttdb: sqlite3.Connection, date: str):
     if not thisday:
         bad_date(date)
     query_time = "now" if thisday == ut.date_str("today") else "24:00"
-    print(f"<h1>Single-day activity charts for {thisday}</h1>")
+    print(f"<h1>Single-day activity charts for {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>")
     print("<pre>")
     rep.full_chart(db.db2day(ttdb, thisday), query_time)
     rep.busy_graph(db.db2day(ttdb, thisday), query_time)
@@ -724,7 +713,7 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
     if not thisday:
         bad_date(thisday)
     day = db.db2day(ttdb, thisday)
-    print(f"<h1>Day-end report for {thisday}</h1>")
+    print(f"<h1>Day-end report for {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>")
     print("<pre>")
     rep.day_end_report(day, [qtime])
     print()
@@ -860,23 +849,27 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     print("<table>")
     print("<style>td {text-align: right;}</style>")
     print("<tr>")
-    print("<th colspan=2>Date</th>")
-    print("<th colspan=7>6:00-8:30</th>")
-    print("<th colspan=7>9:00-11:30</th>")
-    print("<th colspan=7>12:00-14:30</th>")
-    print("<th colspan=7>15:00-17:30</th>")
-    print("<th colspan=7>18:00-20:30</th>")
-    print("<th colspan=7>21:00-23:30</th>")
-
-    print("<th>Bikes<br>Parked</th>")
-    print("<th>Most<br/>Bikes</th>")
+    print("<th colspan=3>Date</th>")
+    print("<th colspan=7>6:00 - 9:00</th>")
+    print("<th colspan=7>9:00 - 12:00</th>")
+    print("<th colspan=7>12:00 - 15:00</th>")
+    print("<th colspan=7>15:00 - 18:00</th>")
+    print("<th colspan=7>18:00 - 21:00</th>")
+    print("<th colspan=7>21:00 - 24:00</th>")
+    print("<th>Bikes<br>parked</th>")
+    print("<th>Most<br/>bikes</th>")
     print("</tr>")
 
     for date in sorted(tabledata.keys(),reverse=True):
         data:TableRow = tabledata[date]
         summary_link = selfref(what="day_end",qdate=date)
         chartlink = selfref(what="chart", qdate=date)
-        print(f"<tr><td><a href='{summary_link}'>{date}</a></td>")
+
+        dayname = ut.date_str(date,dow_str_len=3)
+        daylink = selfref(what="dow_blocks",qdow=ut.dow_int(dayname))
+
+        print(f"<tr><td style='text-align:center;'><a href='{summary_link}'>{date}</a></td>")
+        print(f"<td style='text-align:center'><a href='{daylink}'>{dayname}</a></td>")
 
         for num, block in enumerate(sorted(data.blocks.keys())):
             if num % 6 == 0:
