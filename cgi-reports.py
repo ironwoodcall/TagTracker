@@ -865,11 +865,10 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         print(
             "<td style='border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
         )
-
     print("<table>")
     print("<style>td {text-align: right;}</style>")
     print("<tr>")
-    print("<th colspan=3>Date</th>")
+    print(f"<th colspan=3><a href='{selfref(what='blocks')}'>Date</a></th>")
     print("<th colspan=7>6:00 - 9:00</th>")
     print("<th colspan=7>9:00 - 12:00</th>")
     print("<th colspan=7>12:00 - 15:00</th>")
