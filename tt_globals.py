@@ -23,6 +23,7 @@ import re
 # Type aliases only to improve readability and IDE linting
 MaybeTag = str
 MaybeTime = str
+MaybeDate = str
 
 # Constants to use as dictionary keys.
 # E.g. rather than something[this_time]["tag"] = "whatever",

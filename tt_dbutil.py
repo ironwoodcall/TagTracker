@@ -114,55 +114,12 @@ def db_fetch(
     return rows
 
 
-def db_latest(
-    ttdb: sqlite3.Connection, whatday: str = ""
-) -> Tuple[str, VTime]:
-    """Return (date,time) of latest event in database.
+def db_latest(ttdb: sqlite3.Connection) -> str:
+    """Return str describing latest db update date/time."""
 
-    If whatday is not null, return for that day, otherwise overall.
-    """
-
-    def one_col_max(db: sqlite3.Connection, inout: str, thisday: str) -> VTime:
-        """Get the max time value of one column."""
-        rows = (
-            db.cursor()
-            .execute(
-                f"select max({inout}) from visit where date = '{thisday}'"
-            )
-            .fetchall()
-        )
-        if not rows:
-            return VTime()
-        return VTime(rows[0][0])
-
-    # Determine the latest date unless one provided
-    if not whatday:
-        rows = (
-            ttdb.cursor()
-            .execute("select date from visit order by date desc limit 1")
-            .fetchall()
-        )
-        if not rows:
-            return ("", "")
-        whatday = rows[0][0]
-    # Determine the latest time on the given date.
-    latest_time = VTime(
-        max(
-            one_col_max(ttdb, "time_in", whatday),
-            one_col_max(ttdb, "time_out", whatday),
-        )
-    )
-    return (whatday, latest_time)
-
-
-def db_latest_date(ttdb: sqlite3.Connection) -> str:
-    """Fetch the last date for which there is info in the database."""
-    return db_latest(ttdb)[0]
-
-
-def db_latest_time(ttdb: sqlite3.Connection, whatday: str) -> VTime:
-    """Get latest time in db for a particular day."""
-    return db_latest(ttdb, whatday=whatday)[1]
+    day_latest = db_fetch(ttdb, "select max(batch) last from day;")[0].last
+    visit_latest = db_fetch(ttdb, "select max(batch) last from visit;")[0].last
+    return f"Last DB updates: DAY={day_latest} VISIT={visit_latest}"
 
 
 def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
@@ -210,6 +167,7 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     # Fake up a colour dictionary
     day.make_fake_colour_dict()
     return day
+
 
 def db_connect(db_file, must_exist: bool = True) -> sqlite3.Connection:
     """Connect to (existing) SQLite database.
