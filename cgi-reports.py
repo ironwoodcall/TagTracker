@@ -815,7 +815,7 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
                 block_fullest = full
             if busy > block_busiest:
                 block_busiest = busy
-            tabledata[date].blocks[block] = (busy, full)
+            tabledata[date].blocks[block] = (num_in, num_out, busy, full)
 
     # Set up colour map
     colours = cm.ColourMap()
@@ -897,10 +897,10 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         for num, block in enumerate(sorted(data.blocks.keys())):
             if num % 6 == 0:
                 print_gap()
-            (busy, full) = data.blocks[block]
+            (num_in, num_out, busy, full) = data.blocks[block]
             cell_colour = colours.get_rgb_str(busy, full)
             print(
-                f"<td style='background-color:{cell_colour} ;padding: 2px 8px;'><a href='{chartlink}' style='text-decoration:none;'>&nbsp;</a></td>"
+                f"<td title='Bikes in: {num_in}\nBikes out: {num_out}\nBikes at end: {full}' style='background-color:{cell_colour} ;padding: 2px 8px;'><a href='{chartlink}' style='text-decoration:none;'>&nbsp;</a></td>"
             )
         print_gap()
 
