@@ -33,6 +33,7 @@ from tt_time import VTime
 import tt_util as ut
 from tt_trackerday import TrackerDay
 import tt_conf as cfg
+import tt_notes as notes
 
 # Header strings to use in datafile and tags- config file
 # These are used when writing & also for string-matching when reading.
@@ -139,6 +140,9 @@ def read_datafile(
             elif re.match(rf"^ *{HEADER_COLOURS}", line):
                 section = COLOURS
                 continue
+            elif re.match(rf"^ *{HEADER_NOTES}", line):
+                section = NOTES
+                continue
             elif re.match(rf"^ *{HEADER_VALET_DATE}", line):
                 # Read the datafile's date
                 section = IGNORE
@@ -190,6 +194,10 @@ def read_datafile(
             if section == IGNORE:
                 # Things to ignore
                 continue
+
+            if section == NOTES:
+                # Read operator notes
+                data.notes.append(line)
 
             if section == COLOURS:
                 # Read the colour dictionary

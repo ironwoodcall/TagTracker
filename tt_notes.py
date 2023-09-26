@@ -21,7 +21,7 @@ class Notes:
         """Do nothing; class initialization is done through import."""
 
     @classmethod
-    def add(cls, note: str) -> None:
+    def add(cls, note: str, timestamp:bool=True) -> None:
         """Add a new note to the collection."""
         note = note.strip()
         note = ut.untaint(note)
@@ -29,7 +29,9 @@ class Notes:
         note = note[: cfg.MAX_NOTE_LENGTH]
         if not note:
             return
-        _notes.append(f"{tt_time.VTime('now')} {note}")
+        if timestamp:
+            note = f"{tt_time.VTime('now')} {note}"
+        _notes.append(note)
 
     @classmethod
     def clear(cls) -> None:
