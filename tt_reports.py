@@ -877,7 +877,7 @@ def notes_bit(day:TrackerDay) -> None:
     pr.iprint()
 
     pr.iprint("Today's notes:",style=cfg.SUBTITLE_STYLE)
-    if not day.notes:
+    if day.notes:
         for line in day.notes:
             pr.iprint(line,style=cfg.NORMAL_STYLE,num_indents=1)
     else:
