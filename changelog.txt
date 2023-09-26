@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.8.16:
++ basic "notes" functionality added
+
 0.8.15:
 + blocks-coloured web report
 
