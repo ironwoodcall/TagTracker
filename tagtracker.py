@@ -198,7 +198,6 @@ def initialize_today() -> bool:
         )
         error_msgs = []
         today = df.read_datafile(DATA_FILEPATH, error_msgs)
-        ##ut.squawk(f"Notes are '{today.notes}'")
         if error_msgs:
             pr.iprint()
             for text in error_msgs:
