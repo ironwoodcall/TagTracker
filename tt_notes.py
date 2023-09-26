@@ -37,6 +37,11 @@ class Notes:
         cls._notes = []
 
     @classmethod
+    def load(cls, notes_list:list[str]) -> None:
+        """Set notes list to the passed-in list."""
+        cls._notes = notes_list
+
+    @classmethod
     def fetch(cls) -> list[str]:
         """Fetch all the notes as a list of strings."""
         return _notes

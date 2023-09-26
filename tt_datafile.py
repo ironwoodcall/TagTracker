@@ -45,6 +45,7 @@ HEADER_OVERSIZE = "Oversize-bike tags:"
 HEADER_REGULAR = "Regular-bike tags:"
 HEADER_RETIRED = "Retired tags:"
 HEADER_COLOURS = "Colour codes:"
+HEADER_NOTES = "Notes:"
 
 
 
@@ -381,6 +382,9 @@ def write_datafile(
     lines.append(HEADER_BIKES_OUT)
     for tag, atime in data.bikes_out.items():  # for each  checked
         lines.append(f"{tag.canon},{atime}")  # add a line "tag,time"
+    # Save any operator notes.
+    lines.append(HEADER_NOTES)
+    lines.extend(data.notes)
     # Also write tag info of which bikes are oversize, which are regular.
     # This to make complete bundles for historic information
     lines.append("# Following sections are context for the check-ins/outs")

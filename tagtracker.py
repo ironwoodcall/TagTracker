@@ -45,6 +45,7 @@ import tt_datafile as df
 import tt_reports as rep
 import tt_publish as pub
 import tt_tag_inv as inv
+import tt_notes as notes
 
 # Local connfiguration
 # try:
@@ -148,6 +149,7 @@ def pack_day_data() -> td.TrackerDay:
     day.oversize = OVERSIZE_TAGS
     day.retired = RETIRED_TAGS
     day.colour_letters = COLOUR_LETTERS
+    day.notes = notes.Notes.fetch()
     return day
 
 
@@ -170,6 +172,7 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
     RETIRED_TAGS = today_data.retired
     ALL_TAGS = (NORMAL_TAGS | OVERSIZE_TAGS) - RETIRED_TAGS
     COLOUR_LETTERS = today_data.colour_letters
+    notes.Notes.load(today_data.notes)
 
 
 def initialize_today() -> bool:
