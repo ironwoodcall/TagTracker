@@ -44,6 +44,9 @@ PUBLISH_FREQUENCY = 15  # minutes. "0" means do not publish
 ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
 ECHO = False
 
+# Maximum length for Notes
+MAX_NOTE_LENGTH = 80
+
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 30  # mins
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)

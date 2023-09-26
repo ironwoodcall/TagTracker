@@ -427,3 +427,9 @@ def plural(count: int) -> str:
         return ""
     else:
         return "s"
+
+
+def untaint(tainted: str) -> str:
+    """Remove any suspicious characters from a possibly tainted string."""
+    return "".join(c for c in tainted if c.isprintable())
+

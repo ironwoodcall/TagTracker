@@ -37,11 +37,6 @@ import tt_util as ut
 import colourmap as cm
 
 
-def untaint(tainted: str) -> str:
-    """Remove any suspicious characters from a possibly tainted string."""
-    return "".join(c for c in tainted if c.isprintable())
-
-
 def selfref(
     what: str = "",
     qdate: str = "",
@@ -51,7 +46,7 @@ def selfref(
 ) -> str:
     """Return a self-reference with the given parameters."""
 
-    me = untaint(os.environ.get("SCRIPT_NAME", ""))
+    me = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
     parms = []
     if what:
         parms.append(f"what={what}")
@@ -64,7 +59,7 @@ def selfref(
     if qdow:
         parms.append(f"dow={qdow}")
     parms_str = f"?{'&'.join(parms)}" if parms else ""
-    return f"{me}{untaint(parms_str)}"
+    return f"{me}{ut.untaint(parms_str)}"
 
 
 def style() -> str:
@@ -143,7 +138,7 @@ def form(
         "6": "Saturday",
     }
 
-    me_action = pathlib.Path(untaint(os.environ.get("SCRIPT_NAME", ""))).name
+    me_action = pathlib.Path(ut.untaint(os.environ.get("SCRIPT_NAME", ""))).name
     if not me_action:
         error_out("bad")
 
@@ -230,7 +225,7 @@ def one_tag_history_report(
 
     tag = TagID(maybe_tag)
     if not tag:
-        print(f"Not a tag: '{untaint(tag.original)}'")
+        print(f"Not a tag: '{ut.untaint(tag.original)}'")
         sys.exit()
     # Fetch all info about this tag.
     (last_date, last_in, last_out) = ("", "", "")
@@ -664,7 +659,7 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
 def bad_date(bad_date: str = ""):
     """Print message about bad date & exit."""
     error_out(
-        f"Bad date '{untaint(bad_date)}'. "
+        f"Bad date '{ut.untaint(bad_date)}'. "
         "Use YYYY-MM-DD or 'today' or 'yesterday'."
     )
 
@@ -924,7 +919,7 @@ DBFILE = "../data/cityhall_bikevalet.db"
 database = db.db_connect(DBFILE)
 
 # Parse query parameters from the URL if present
-query_string = untaint(os.environ.get("QUERY_STRING", ""))
+query_string = ut.untaint(os.environ.get("QUERY_STRING", ""))
 if os.getenv("TAGTRACKER_DEV"):
     print(
         "<pre style='color:red'>"
@@ -943,7 +938,7 @@ maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
 dow_parameter = query_params.get("dow", [""])[0]
 if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
-    error_out(f"bad iso dow, need 1..7, not '{untaint(dow_parameter)}'")
+    error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
 if not dow_parameter:
     # If no day of week, set it to today.
     dow_parameter = str(
@@ -964,7 +959,7 @@ if not maybetime:
 else:
     qtime = VTime(maybetime)
 if not qtime:
-    error_out(f"Bad time: '{untaint(maybetime)}")
+    error_out(f"Bad time: '{ut.untaint(maybetime)}")
 form(
     default_what=what,
     default_date=maybedate,
@@ -996,7 +991,7 @@ elif what == "day_end":
 elif what == "chart" or what == "busy-graph":
     one_day_chart(database, qdate)
 else:
-    error_out(f"Unknown request: {untaint(what)}")
+    error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)
 print("<pre>")
 print(db.db_latest(database))
