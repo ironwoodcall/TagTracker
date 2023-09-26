@@ -64,6 +64,7 @@ To enter and change valet data
   Edit check in/out times      :   edit / e
   Delete a check in/out        :   delete / del  / d
   Set valet open/close hours   :   valet / v
+  Add/read operator notes      :   note / n
 
 Information and reports
   Show info about one tag      :   query / q / ?
@@ -134,6 +135,7 @@ CMD_CSV = "csv"
 CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
 CMD_LINT = "lint"
+CMD_NOTES = "notes"
 CMD_DUMP = "dump"
 CMD_BUSY_CHART = "busy_chart"
 CMD_FULL_CHART = "full_chart"
@@ -168,6 +170,7 @@ COMMANDS[CMD_CHART] = ["chart", "c"]
 COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
 COMMANDS[CMD_COLOURS] = ["col", "color", "colors", "colour", "colours"]
 COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
+COMMANDS[CMD_NOTES] = ["note", "notes", "n"]
 # These are for commands that are not recognized so *maybe* are a tag
 CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
 CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)

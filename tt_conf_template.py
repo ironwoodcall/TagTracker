@@ -61,6 +61,8 @@ from tt_base_conf import *  # pylint:disable=unused-wildcard-import,wildcard-imp
 ##  Edit check in/out times      :   edit / e
 ##  Delete a check in/out        :   delete / del  / d
 ##  Set valet open/close hours   :   valet / v
+##  Add/read operator notes      :   note / n
+
 ##
 ##Information and reports
 ##  Show info about one tag      :   query / q / ?

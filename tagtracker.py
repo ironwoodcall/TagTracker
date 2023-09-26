@@ -835,6 +835,23 @@ def show_help():
             pr.iprint(line, style=cfg.NORMAL_STYLE)
 
 
+def show_notes(header:bool=False, styled:bool=True) -> None:
+    """Print notes."""
+    notes_list = notes.Notes.fetch()
+    pr.iprint()
+
+    if header:
+        if notes_list:
+            pr.iprint("Today's notes",style=cfg.TITLE_STYLE)
+        else:
+            pr.iprint("There are no notes yet today.")
+            pr.iprint("(To create a note, enter NOTE [note text])")
+    for line in notes_list:
+        if styled:
+            pr.iprint(line,style=cfg.WARNING_STYLE)
+        else:
+            pr.iprint(line,style=cfg.NORMAL_STYLE)
+
 def dump_data():
     """For debugging. Dump current contents of core data structures."""
     pr.iprint()
@@ -942,6 +959,12 @@ def main():
             dump_data()
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
+        elif cmd == cfg.CMD_NOTES:
+            if args:
+                notes.Notes.add(" ".join(args))
+                pr.iprint("Noted.")
+            else:
+                show_notes(header=True,styled=True)
         elif cmd == cfg.CMD_PUBLISH:
             publishment.publish_reports(pack_day_data(), args)
         elif cmd == cfg.CMD_VALET_HOURS:
