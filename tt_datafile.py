@@ -142,6 +142,7 @@ def read_datafile(
                 continue
             elif re.match(rf"^ *{HEADER_NOTES}", line):
                 section = NOTES
+                ut.squawk("this is having found a notes section")
                 continue
             elif re.match(rf"^ *{HEADER_VALET_DATE}", line):
                 # Read the datafile's date
@@ -197,6 +198,7 @@ def read_datafile(
 
             if section == NOTES:
                 # Read operator notes
+                ut.squawk(f"Reading notes line '{line}'")
                 data.notes.append(line)
                 continue
 
@@ -394,6 +396,7 @@ def write_datafile(
     # Save any operator notes.
     lines.append(HEADER_NOTES)
     lines.extend(data.notes)
+    ut.squawk(f"Writing {len(data.notes)} lines of notes to datafile")
     # Also write tag info of which bikes are oversize, which are regular.
     # This to make complete bundles for historic information
     lines.append("# Following sections are context for the check-ins/outs")
