@@ -198,6 +198,7 @@ def read_datafile(
             if section == NOTES:
                 # Read operator notes
                 data.notes.append(line)
+                continue
 
             if section == COLOURS:
                 # Read the colour dictionary
