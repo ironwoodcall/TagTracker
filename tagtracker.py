@@ -864,6 +864,10 @@ def dump_data():
         pr.iprint(f"{type(list(check_ins.keys())[0])=}")
         pr.iprint(f"{type(list(check_outs.keys())[0])=}")
         pr.iprint(f"{type(list(NORMAL_TAGS)[0])=}")
+    pr.iprint()
+    pr.iprint("  notes")
+    for x in notes.Notes.fetch():
+        pr.iprint(f"     {x}")
 
 
 def main():
