@@ -31,7 +31,6 @@ from tt_event import Event
 import tt_block
 import tt_printer as pr
 import tt_conf as cfg
-import tt_notes as notes
 
 # try:
 #    import tt_local_config  # pylint:disable=unused-import
@@ -877,7 +876,7 @@ def notes_bit(day:TrackerDay) -> None:
     """Add a 'notes' section to a report."""
     pr.iprint()
 
-    pr.iprint("Today's notes:",style=cfg.TITLE_STYLE)
+    pr.iprint("Today's notes:",style=cfg.SUBTITLE_STYLE)
     if not day.notes:
         for line in day.notes:
             pr.iprint(line,style=cfg.NORMAL_STYLE,num_indents=1)
