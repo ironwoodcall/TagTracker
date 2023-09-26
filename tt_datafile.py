@@ -33,6 +33,7 @@ from tt_time import VTime
 import tt_util as ut
 from tt_trackerday import TrackerDay
 import tt_conf as cfg
+import tt_notes as notes
 
 # Header strings to use in datafile and tags- config file
 # These are used when writing & also for string-matching when reading.
@@ -45,6 +46,7 @@ HEADER_OVERSIZE = "Oversize-bike tags:"
 HEADER_REGULAR = "Regular-bike tags:"
 HEADER_RETIRED = "Retired tags:"
 HEADER_COLOURS = "Colour codes:"
+HEADER_NOTES = "Notes:"
 
 
 
@@ -138,6 +140,9 @@ def read_datafile(
             elif re.match(rf"^ *{HEADER_COLOURS}", line):
                 section = COLOURS
                 continue
+            elif re.match(rf"^ *{HEADER_NOTES}", line):
+                section = NOTES
+                continue
             elif re.match(rf"^ *{HEADER_VALET_DATE}", line):
                 # Read the datafile's date
                 section = IGNORE
@@ -188,6 +193,11 @@ def read_datafile(
 
             if section == IGNORE:
                 # Things to ignore
+                continue
+
+            if section == NOTES:
+                # Read operator notes
+                data.notes.append(line)
                 continue
 
             if section == COLOURS:
@@ -381,6 +391,9 @@ def write_datafile(
     lines.append(HEADER_BIKES_OUT)
     for tag, atime in data.bikes_out.items():  # for each  checked
         lines.append(f"{tag.canon},{atime}")  # add a line "tag,time"
+    # Save any operator notes.
+    lines.append(HEADER_NOTES)
+    lines.extend(data.notes)
     # Also write tag info of which bikes are oversize, which are regular.
     # This to make complete bundles for historic information
     lines.append("# Following sections are context for the check-ins/outs")

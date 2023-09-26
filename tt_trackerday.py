@@ -25,7 +25,6 @@ from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 
-
 class TrackerDay:
     """One day's worth of tracker info and its context."""
 
@@ -40,33 +39,11 @@ class TrackerDay:
         self.oversize = frozenset()
         self.retired = frozenset()
         self.colour_letters = {}
+        self.notes = []
 
     def all_tags(self) -> frozenset[TagID]:
         """Return list of all usable tags."""
         return frozenset((self.regular | self.oversize) - self.retired)
-
-    def DISABLED__make_lowercase(self) -> None:
-        """Set TrackerDay object to all lowercase."""
-        self.regular = frozenset([t.lower() for t in self.regular])
-        self.oversize = frozenset([t.lower() for t in self.oversize])
-        self.retired = frozenset([t.lower() for t in self.retired])
-        self.bikes_in = {k.lower(): v for k, v in self.bikes_in.items()}
-        self.bikes_out = {k.lower(): v for k, v in self.bikes_out.items()}
-
-    def DISABLED__make_uppercase(self) -> None:
-        """Set TrackerDay object to all uppercase."""
-        self.regular = frozenset([t.upper() for t in self.regular])
-        self.oversize = frozenset([t.upper() for t in self.oversize])
-        self.retired = frozenset([t.upper() for t in self.retired])
-        self.bikes_in = {k.upper(): v for k, v in self.bikes_in.items()}
-        self.bikes_out = {k.upper(): v for k, v in self.bikes_out.items()}
-
-    def DISABLED__fold_case(self, uppercase: bool) -> None:
-        """Folds to either uppercase or lowercase."""
-        if uppercase:
-            self.DISABLED__make_uppercase()
-        else:
-            self.DISABLED__make_lowercase()
 
     @staticmethod
     def guess_tag_type(tag: TagID) -> str:

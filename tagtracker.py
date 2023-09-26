@@ -45,6 +45,7 @@ import tt_datafile as df
 import tt_reports as rep
 import tt_publish as pub
 import tt_tag_inv as inv
+import tt_notes as notes
 
 # Local connfiguration
 # try:
@@ -148,6 +149,7 @@ def pack_day_data() -> td.TrackerDay:
     day.oversize = OVERSIZE_TAGS
     day.retired = RETIRED_TAGS
     day.colour_letters = COLOUR_LETTERS
+    day.notes = notes.Notes.fetch()
     return day
 
 
@@ -170,6 +172,7 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
     RETIRED_TAGS = today_data.retired
     ALL_TAGS = (NORMAL_TAGS | OVERSIZE_TAGS) - RETIRED_TAGS
     COLOUR_LETTERS = today_data.colour_letters
+    notes.Notes.load(today_data.notes)
 
 
 def initialize_today() -> bool:
@@ -345,6 +348,8 @@ def query_one_tag(
 
     If multi_line is true, then this *may* print the status on multiple lines;
     otherwise will always put it on a single line.
+
+    If there are notes for the tag, that will always be on a new line.
     """
     tagid = TagID(maybe_tag)
     if not tagid:
@@ -353,6 +358,11 @@ def query_one_tag(
             style=cfg.WARNING_STYLE,
         )
         return
+
+    # Any notes on the tag:
+    for line in notes.Notes.find(tagid):
+        pr.iprint(line,style=cfg.WARNING_STYLE)
+
     tag = Stay(tagid, day, as_of_when="24:00")
     if not tag.state:
         pr.iprint(
@@ -719,6 +729,10 @@ def tag_check(tag: TagID) -> None:
 
     This processes a prompt that's just a tag ID.
     """
+    # Are there any notes about this tag?
+    for line in notes.Notes.find(tag):
+        pr.iprint(line,style=cfg.WARNING_STYLE)
+
     if tag in RETIRED_TAGS:  # if retired print specific retirement message
         pr.iprint(f"{tag} is retired", style=cfg.WARNING_STYLE)
     else:  # must not be retired so handle as normal
@@ -832,6 +846,23 @@ def show_help():
             pr.iprint(line, style=cfg.NORMAL_STYLE)
 
 
+def show_notes(header:bool=False, styled:bool=True) -> None:
+    """Print notes."""
+    notes_list = notes.Notes.fetch()
+    pr.iprint()
+
+    if header:
+        if notes_list:
+            pr.iprint("Today's notes:",style=cfg.TITLE_STYLE)
+        else:
+            pr.iprint("There are no notes yet today.")
+            pr.iprint("(To create a note, enter NOTE [note text])")
+    for line in notes_list:
+        if styled:
+            pr.iprint(line,style=cfg.WARNING_STYLE)
+        else:
+            pr.iprint(line,style=cfg.NORMAL_STYLE)
+
 def dump_data():
     """For debugging. Dump current contents of core data structures."""
     pr.iprint()
@@ -861,6 +892,10 @@ def dump_data():
         pr.iprint(f"{type(list(check_ins.keys())[0])=}")
         pr.iprint(f"{type(list(check_outs.keys())[0])=}")
         pr.iprint(f"{type(list(NORMAL_TAGS)[0])=}")
+    pr.iprint()
+    pr.iprint("  notes")
+    for x in notes.Notes.fetch():
+        pr.iprint(f"     {x}")
 
 
 def main():
@@ -935,6 +970,12 @@ def main():
             dump_data()
         elif cmd == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
+        elif cmd == cfg.CMD_NOTES:
+            if args:
+                notes.Notes.add(" ".join(args))
+                pr.iprint("Noted.")
+            else:
+                show_notes(header=True,styled=False)
         elif cmd == cfg.CMD_PUBLISH:
             publishment.publish_reports(pack_day_data(), args)
         elif cmd == cfg.CMD_VALET_HOURS:

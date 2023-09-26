@@ -349,6 +349,8 @@ def audit_report(day: TrackerDay, args: list[str]) -> None:
     if not prefixes_returned_out:
         pr.iprint("-no bikes-")
 
+    notes_bit(day)
+
     return
 
 
@@ -868,6 +870,18 @@ def day_end_report(day: TrackerDay, args: list) -> None:
     visit_lengths_by_category_report(visits)
     visit_statistics_report(visits)
 
+    notes_bit(day)
+
+def notes_bit(day:TrackerDay) -> None:
+    """Add a 'notes' section to a report."""
+    pr.iprint()
+
+    pr.iprint("Today's notes:",style=cfg.SUBTITLE_STYLE)
+    if day.notes:
+        for line in day.notes:
+            pr.iprint(line,style=cfg.NORMAL_STYLE,num_indents=1)
+    else:
+        pr.iprint("There are no notes yet today.",num_indents=2)
 
 def busyness_report(day: TrackerDay, args: list) -> None:
     """Report more summary statistics about visits, up to the given time.

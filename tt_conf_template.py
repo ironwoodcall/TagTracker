@@ -46,6 +46,9 @@ from tt_base_conf import *  # pylint:disable=unused-wildcard-import,wildcard-imp
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
 ##BLOCK_DURATION = 30
 
+# Maximum length for Notes
+##MAX_NOTE_LENGTH = 80
+
 # Help message.  Colour styles will be applied as:
 #       First non-blank line will be in TITLE_STYLE, after which
 #       lines that are flush left will be in SUBTITLE_STYLE; and
@@ -58,6 +61,8 @@ from tt_base_conf import *  # pylint:disable=unused-wildcard-import,wildcard-imp
 ##  Edit check in/out times      :   edit / e
 ##  Delete a check in/out        :   delete / del  / d
 ##  Set valet open/close hours   :   valet / v
+##  Add/read operator notes      :   note / n
+
 ##
 ##Information and reports
 ##  Show info about one tag      :   query / q / ?
