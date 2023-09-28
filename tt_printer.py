@@ -218,9 +218,9 @@ def print_tag_notes(tag: str, reset: bool = False):
     """
     if reset or tag != _print_tag_notes_control[_print_tag_notes_key_prev]:
         _print_tag_notes_control[_print_tag_notes_key_printed] = False
-    if not _print_tag_notes_control[_print_tag_notes_key_printed]:
+    if tag and not _print_tag_notes_control[_print_tag_notes_key_printed]:
         for line in notes.Notes.find(tag):
             iprint(line,style=cfg.WARNING_STYLE)
-        _print_tag_notes_control[_print_tag_notes_key_printed] = False
+        _print_tag_notes_control[_print_tag_notes_key_printed] = True
 
 
