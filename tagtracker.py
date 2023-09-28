@@ -361,8 +361,7 @@ def query_one_tag(
         return
 
     # Any notes on the tag:
-    for line in notes.Notes.find(tagid):
-        pr.iprint(line,style=cfg.WARNING_STYLE)
+    pr.print_tag_notes(tagid)
 
     tag = Stay(tagid, day, as_of_when="24:00")
     if not tag.state:
@@ -730,9 +729,7 @@ def tag_check(tag: TagID) -> None:
 
     This processes a prompt that's just a tag ID.
     """
-    # Are there any notes about this tag?
-    for line in notes.Notes.find(tag):
-        pr.iprint(line,style=cfg.WARNING_STYLE)
+    pr.print_tag_notes(tag)
 
     if tag in RETIRED_TAGS:  # if retired print specific retirement message
         pr.iprint(f"{tag} is retired", style=cfg.WARNING_STYLE)
@@ -906,6 +903,7 @@ def main():
     publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     while not done:
         pr.iprint()
+        pr.print_tag_notes("",reset=True)   # Allow tag notes for new command
         if cfg.INCLUDE_TIME_IN_PROMPT:
             pr.iprint(f"{VTime('now').short}", end="")
         pr.iprint(
