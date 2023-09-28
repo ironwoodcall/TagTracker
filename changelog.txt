@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+0.8.17:
+~ improvements to "notes"
+
 0.8.16:
 + basic "notes" functionality added
 

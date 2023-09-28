@@ -46,6 +46,7 @@ import tt_reports as rep
 import tt_publish as pub
 import tt_tag_inv as inv
 import tt_notes as notes
+from tt_cmdparse import CmdBits
 
 # Local connfiguration
 # try:
@@ -209,7 +210,9 @@ def initialize_today() -> bool:
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
     # then fetch the tag reference lists from tags config
-    if not (today.regular or today.oversize) or today.date == ut.date_str("today"):
+    if not (today.regular or today.oversize) or today.date == ut.date_str(
+        "today"
+    ):
         tagconfig = get_taglists_from_config()
         today.regular = tagconfig.regular
         today.oversize = tagconfig.oversize
@@ -229,7 +232,7 @@ def initialize_today() -> bool:
     # Done
     if not new_datafile:
         pr.iprint("done.", num_indents=0, style=cfg.SUBTITLE_STYLE)
-    if VALET_DATE != ut.date_str('today'):
+    if VALET_DATE != ut.date_str("today"):
         pr.iprint(
             f"Warning: Valet information is from {ut.date_str(VALET_DATE,long_date=True)}",
             style=cfg.WARNING_STYLE,
@@ -360,8 +363,7 @@ def query_one_tag(
         return
 
     # Any notes on the tag:
-    for line in notes.Notes.find(tagid):
-        pr.iprint(line,style=cfg.WARNING_STYLE)
+    pr.print_tag_notes(tagid)
 
     tag = Stay(tagid, day, as_of_when="24:00")
     if not tag.state:
@@ -724,14 +726,21 @@ def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
     pr.iprint(finalmsg, style=cfg.ANSWER_STYLE)
 
 
-def tag_check(tag: TagID) -> None:
+def tag_check(tag: TagID, cmd_tail: str) -> None:
     """Check a tag in or out.
 
     This processes a prompt that's just a tag ID.
+    If there is a cmd_tail, adds it as a note.
     """
-    # Are there any notes about this tag?
-    for line in notes.Notes.find(tag):
-        pr.iprint(line,style=cfg.WARNING_STYLE)
+
+    def tag_note(tag: str, note: str) -> None:
+        """Add 'note' for tag and say so, for a check in/out.."""
+        if not note:
+            return
+        notes.Notes.add(f"({tag}) {note}")
+        pr.iprint(f"Added note '({tag}) {note}'")
+
+    pr.print_tag_notes(tag)
 
     if tag in RETIRED_TAGS:  # if retired print specific retirement message
         pr.iprint(f"{tag} is retired", style=cfg.WARNING_STYLE)
@@ -749,6 +758,7 @@ def tag_check(tag: TagID) -> None:
                 sure = pr.tt_inp().lower() in ["y", "yes"]
                 if sure:
                     multi_edit([tag, "o", VTime("now")])
+                    tag_note(tag, cmd_tail)
                 else:
                     pr.iprint("Cancelled", style=cfg.WARNING_STYLE)
             else:  # checked in only
@@ -774,6 +784,7 @@ def tag_check(tag: TagID) -> None:
                     sure = True
                 if sure:
                     multi_edit([tag, "o", rightnow])
+                    tag_note(tag, cmd_tail)
                 else:
                     pr.iprint(
                         "Cancelled bike check out", style=cfg.WARNING_STYLE
@@ -781,6 +792,7 @@ def tag_check(tag: TagID) -> None:
         else:  # if string is in neither dict
             check_ins[tag] = VTime("now")
             print_tag_inout(tag, BIKE_IN)
+            tag_note(tag, cmd_tail)
 
 
 def parse_command(user_input: str) -> list[str]:
@@ -846,22 +858,23 @@ def show_help():
             pr.iprint(line, style=cfg.NORMAL_STYLE)
 
 
-def show_notes(header:bool=False, styled:bool=True) -> None:
+def show_notes(header: bool = False, styled: bool = True) -> None:
     """Print notes."""
     notes_list = notes.Notes.fetch()
     pr.iprint()
 
     if header:
         if notes_list:
-            pr.iprint("Today's notes:",style=cfg.TITLE_STYLE)
+            pr.iprint("Today's notes:", style=cfg.TITLE_STYLE)
         else:
             pr.iprint("There are no notes yet today.")
             pr.iprint("(To create a note, enter NOTE [note text])")
     for line in notes_list:
         if styled:
-            pr.iprint(line,style=cfg.WARNING_STYLE)
+            pr.iprint(line, style=cfg.WARNING_STYLE)
         else:
-            pr.iprint(line,style=cfg.NORMAL_STYLE)
+            pr.iprint(line, style=cfg.NORMAL_STYLE)
+
 
 def dump_data():
     """For debugging. Dump current contents of core data structures."""
@@ -901,10 +914,11 @@ def dump_data():
 def main():
     """Run main program loop and dispatcher."""
     done = False
-    todays_date = ut.date_str('today')
+    todays_date = ut.date_str("today")
     publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     while not done:
         pr.iprint()
+        pr.print_tag_notes("", reset=True)  # Allow tag notes for new command
         if cfg.INCLUDE_TIME_IN_PROMPT:
             pr.iprint(f"{VTime('now').short}", end="")
         pr.iprint(
@@ -912,85 +926,92 @@ def main():
         )
         user_str = pr.tt_inp()
         # Break command into tokens, parse as command
-        tokens = parse_command(user_str)
+        cmd_bits = CmdBits(user_str, RETIRED_TAGS, ALL_TAGS)
+        ##FIXME tokens = parse_command(user_str)
         # If midnight has passed then need to restart
         if midnight_passed(todays_date):
-            if not tokens or tokens[0] != cfg.CMD_EXIT:
+            if not cmd_bits.command or cmd_bits.command != cfg.CMD_EXIT:
                 midnight_message()
             done = True
             continue
         # If null input, just ignore
-        if not tokens:
+        if not cmd_bits.command:
             continue  # No input, ignore
-        (cmd, *args) = tokens
+        ##FIXME (cmd, *args) = tokens
         # Dispatcher
         data_dirty = False
-        if cmd == cfg.CMD_EDIT:
-            multi_edit(args)
+        if cmd_bits.command == cfg.CMD_EDIT:
+            multi_edit(cmd_bits.args)
             data_dirty = True
-        elif cmd == cfg.CMD_AUDIT:
-            rep.audit_report(pack_day_data(), args)
-            publishment.publish_audit(pack_day_data(), args)
-        elif cmd == cfg.CMD_DELETE:
-            delete_entry(*args)
+        elif cmd_bits.command == cfg.CMD_AUDIT:
+            rep.audit_report(pack_day_data(), cmd_bits.args)
+            publishment.publish_audit(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_DELETE:
+            delete_entry(*cmd_bits.args)
             data_dirty = True
-        elif cmd == cfg.CMD_EXIT:
+        elif cmd_bits.command == cfg.CMD_EXIT:
             done = True
-        elif cmd == cfg.CMD_BLOCK:
-            rep.dataform_report(pack_day_data(), args)
-        elif cmd == cfg.CMD_HELP:
+        elif cmd_bits.command == cfg.CMD_BLOCK:
+            rep.dataform_report(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_HELP:
             show_help()
-        elif cmd == cfg.CMD_LOOKBACK:
-            rep.recent(pack_day_data(), args)
-        elif cmd == cfg.CMD_RETIRED or cmd == cfg.CMD_COLOURS:
+        elif cmd_bits.command == cfg.CMD_LOOKBACK:
+            rep.recent(pack_day_data(), cmd_bits.args)
+        elif (
+            cmd_bits.command == cfg.CMD_RETIRED
+            or cmd_bits.command == cfg.CMD_COLOURS
+        ):
             pr.iprint(
                 "This command has been replaced by the 'tags' command.",
                 style=cfg.WARNING_STYLE,
             )
-        elif cmd == cfg.CMD_TAGS:
-            inv.tags_config_report(pack_day_data(), args)
-        elif cmd == cfg.CMD_QUERY:
-            query_tag(args)
-        elif cmd == cfg.CMD_STATS:
-            rep.day_end_report(pack_day_data(), args)
+        elif cmd_bits.command == cfg.CMD_TAGS:
+            inv.tags_config_report(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_QUERY:
+            query_tag(cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_STATS:
+            rep.day_end_report(pack_day_data(), cmd_bits.args)
             # Force publication when do day-end reports
             publishment.publish(pack_day_data())
             ##last_published = maybe_publish(last_published, force=True)
-        elif cmd == cfg.CMD_BUSY:
-            rep.busyness_report(pack_day_data(), args)
-        elif cmd == cfg.CMD_CHART:
+        elif cmd_bits.command == cfg.CMD_BUSY:
+            rep.busyness_report(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_CHART:
             rep.full_chart(pack_day_data())
-        elif cmd == cfg.CMD_BUSY_CHART:
+        elif cmd_bits.command == cfg.CMD_BUSY_CHART:
             rep.busy_graph(pack_day_data())
-        elif cmd == cfg.CMD_FULL_CHART:
+        elif cmd_bits.command == cfg.CMD_FULL_CHART:
             rep.fullness_graph(pack_day_data())
-        elif cmd == cfg.CMD_CSV:
-            rep.csv_dump(pack_day_data(), args)
-        elif cmd == cfg.CMD_DUMP:
+        elif cmd_bits.command == cfg.CMD_CSV:
+            rep.csv_dump(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_DUMP:
             dump_data()
-        elif cmd == cfg.CMD_LINT:
+        elif cmd_bits.command == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
-        elif cmd == cfg.CMD_NOTES:
-            if args:
-                notes.Notes.add(" ".join(args))
+        elif cmd_bits.command == cfg.CMD_NOTES:
+            if cmd_bits.args:
+                notes.Notes.add(cmd_bits.tail)
                 pr.iprint("Noted.")
             else:
-                show_notes(header=True,styled=False)
-        elif cmd == cfg.CMD_PUBLISH:
-            publishment.publish_reports(pack_day_data(), args)
-        elif cmd == cfg.CMD_VALET_HOURS:
-            set_valet_hours(args)
+                show_notes(header=True, styled=False)
+        elif cmd_bits.command == cfg.CMD_PUBLISH:
+            publishment.publish_reports(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_VALET_HOURS:
+            set_valet_hours(cmd_bits.args)
             data_dirty = True
-        elif cmd == cfg.CMD_UPPERCASE or cmd == cfg.CMD_LOWERCASE:
-            set_tag_case(cmd == cfg.CMD_UPPERCASE)
+        elif (
+            cmd_bits.command == cfg.CMD_UPPERCASE
+            or cmd_bits.command == cfg.CMD_LOWERCASE
+        ):
+            set_tag_case(cmd_bits.command == cfg.CMD_UPPERCASE)
         # Check for bad input
-        elif not TagID(cmd):
+        elif not TagID(cmd_bits.command):
             # This is not a tag
-            if cmd == cfg.CMD_UNKNOWN or len(args) > 0:
+            if cmd_bits.command == cfg.CMD_UNKNOWN or len(cmd_bits.args) > 0:
                 msg = "Unrecognized command, enter 'h' for help"
-            elif cmd == cfg.CMD_TAG_RETIRED:
+            elif cmd_bits.command == cfg.CMD_TAG_RETIRED:
                 msg = f"Tag '{TagID(user_str)}' is retired"
-            elif cmd == cfg.CMD_TAG_UNUSABLE:
+            elif cmd_bits.command == cfg.CMD_TAG_UNUSABLE:
                 msg = f"Valet not configured to use tag '{TagID(user_str)}'"
             else:
                 # Should never get to this point
@@ -1000,7 +1021,7 @@ def main():
 
         else:
             # This is a tag
-            tag_check(cmd)
+            tag_check(cmd_bits.command, cmd_bits.tail)
             data_dirty = True
         # If anything has becomne "24:00" change it to "23:59"
         if data_dirty:
@@ -1077,6 +1098,7 @@ def lint_report(strict_datetimes: bool = True) -> None:
     # And while we're at it, fix up any times that are set to "24:00"
     fix_2400_events()
 
+
 def midnight_message():
     """Print a "you have to restart" message."""
     # Time has rolled over past midnight so need a new datafile.
@@ -1093,9 +1115,10 @@ def midnight_message():
     print("Automatically exiting in 15 seconds")
     time.sleep(15)
 
+
 def midnight_passed(today_is: str) -> bool:
     """Check if it's still the same day."""
-    if today_is == ut.date_str('today'):
+    if today_is == ut.date_str("today"):
         return False
     return True
 
@@ -1159,7 +1182,7 @@ if __name__ == "__main__":
 
     # Get/set valet date & time
     if not VALET_OPENS or not VALET_CLOSES:
-        (opens,closes) = cfg.valet_hours(VALET_DATE)
+        (opens, closes) = cfg.valet_hours(VALET_DATE)
         VALET_OPENS = VALET_OPENS if VALET_OPENS else opens
         VALET_CLOSES = VALET_CLOSES if VALET_CLOSES else closes
 
@@ -1168,7 +1191,7 @@ if __name__ == "__main__":
         "Please check today's opening/closing times.",
         style=cfg.ERROR_STYLE,
     )
-    set_valet_hours(["",""])
+    set_valet_hours(["", ""])
     if VALET_OPENS or VALET_CLOSES:
         save()
 

@@ -31,6 +31,7 @@ except ImportError:
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
 import tt_conf as cfg
+import tt_notes as notes
 
 ##from tt_colours import *
 # pylint:disable=unused-import
@@ -59,7 +60,9 @@ _INDENT = "  "
 # To stop it, call set_echo(False)
 
 _echo_state = False
-_echo_filename = os.path.join(cfg.ECHO_FOLDER, f"echo-{ut.date_str('today')}.txt")
+_echo_filename = os.path.join(
+    cfg.ECHO_FOLDER, f"echo-{ut.date_str('today')}.txt"
+)
 _echo_file = None  # This is the file object
 
 
@@ -138,9 +141,11 @@ def set_output(filename: str = "") -> bool:
         try:
             _destination_file = open(filename, mode="wt", encoding="utf-8")
         except OSError:
-            iprint(f"OSError opening destination file '{filename}'",
-                   style=cfg.ERROR_STYLE)
-            iprint("Ignoring print redirect request.",style=cfg.ERROR_STYLE)
+            iprint(
+                f"OSError opening destination file '{filename}'",
+                style=cfg.ERROR_STYLE,
+            )
+            iprint("Ignoring print redirect request.", style=cfg.ERROR_STYLE)
             _destination = ""
             return False
     _destination = filename
@@ -193,3 +198,33 @@ def iprint(text: str = "", num_indents: int = 1, style=None, end="\n") -> None:
     # Also echo?
     if _echo_state and not _destination:
         echo(f"{indent}{text}{end}")
+
+
+# This dict holds static control data for the print_tag_notes function.
+_print_tag_notes_key_prev = "prev_tag"
+_print_tag_notes_key_printed = "printed"
+_print_tag_notes_control = {
+    _print_tag_notes_key_prev: "",
+    _print_tag_notes_key_printed: False,
+}
+
+
+def print_tag_notes(tag: str, reset: bool = False):
+    """Print notes for a given tag.
+
+    Only prints if not *already* printed .. what a kludge...
+    and can be called with 'reset' flag to allow printing again.
+    Will also reset if the tag is not the same as the previously-used tag.
+    """
+    if reset or tag != _print_tag_notes_control[_print_tag_notes_key_prev]:
+        _print_tag_notes_control[_print_tag_notes_key_printed] = False
+
+    if tag and not _print_tag_notes_control[_print_tag_notes_key_printed]:
+        for line in notes.Notes.find(tag):
+            iprint(line,style=cfg.WARNING_STYLE)
+        _print_tag_notes_control[_print_tag_notes_key_printed] = True
+
+    _print_tag_notes_control[_print_tag_notes_key_prev] = tag
+
+
+
