@@ -738,7 +738,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
         if not note:
             return
         notes.Notes.add(f"({tag}) {note}")
-        pr.iprint(f"Added note '{note}'")
+        pr.iprint(f"Added note '({tag}) {note}'")
 
     pr.print_tag_notes(tag)
 
