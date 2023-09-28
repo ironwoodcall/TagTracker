@@ -17,7 +17,6 @@ class Notes:
     except NameError:
         _notes = []
 
-
     def __init__(self) -> None:
         """Do nothing; class initialization is done through import."""
 
