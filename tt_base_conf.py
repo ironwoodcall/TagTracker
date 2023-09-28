@@ -60,7 +60,8 @@ HELP_MESSAGE = """
 TagTracker Commands
 
 To enter and change valet data
-  Check bike in or out         :   <tag name> (eg “wa3”)
+  Check bike in or out         :   <tag> <optional note>
+                                   (eg “wa3” or "wa3  owner forgot tag")
   Edit check in/out times      :   edit / e
   Delete a check in/out        :   delete / del  / d
   Set valet open/close hours   :   valet / v
