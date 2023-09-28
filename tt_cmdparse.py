@@ -89,8 +89,8 @@ class CmdBits:
                 if parts[0] in aliases:
                     command = c
                     break
-        # Is this an unrecognized command?
-        if command:
-            self.command = command
-        else:
-            self.command = cfg.CMD_UNKNOWN
+            # Is this an unrecognized command?
+            if command:
+                self.command = command
+            else:
+                self.command = cfg.CMD_UNKNOWN
