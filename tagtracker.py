@@ -46,6 +46,7 @@ import tt_reports as rep
 import tt_publish as pub
 import tt_tag_inv as inv
 import tt_notes as notes
+from tt_cmdparse import CmdBits
 
 # Local connfiguration
 # try:
@@ -912,85 +913,86 @@ def main():
         )
         user_str = pr.tt_inp()
         # Break command into tokens, parse as command
-        tokens = parse_command(user_str)
+        cmd_bits = CmdBits(user_str,RETIRED_TAGS,ALL_TAGS)
+        ##FIXME tokens = parse_command(user_str)
         # If midnight has passed then need to restart
         if midnight_passed(todays_date):
-            if not tokens or tokens[0] != cfg.CMD_EXIT:
+            if not cmd_bits.command or cmd_bits.command != cfg.CMD_EXIT:
                 midnight_message()
             done = True
             continue
         # If null input, just ignore
-        if not tokens:
+        if not cmd_bits.command:
             continue  # No input, ignore
-        (cmd, *args) = tokens
+        ##FIXME (cmd, *args) = tokens
         # Dispatcher
         data_dirty = False
-        if cmd == cfg.CMD_EDIT:
-            multi_edit(args)
+        if cmd_bits.command == cfg.CMD_EDIT:
+            multi_edit(cmd_bits.args)
             data_dirty = True
-        elif cmd == cfg.CMD_AUDIT:
-            rep.audit_report(pack_day_data(), args)
-            publishment.publish_audit(pack_day_data(), args)
-        elif cmd == cfg.CMD_DELETE:
-            delete_entry(*args)
+        elif cmd_bits.command == cfg.CMD_AUDIT:
+            rep.audit_report(pack_day_data(), cmd_bits.args)
+            publishment.publish_audit(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_DELETE:
+            delete_entry(*cmd_bits.args)
             data_dirty = True
-        elif cmd == cfg.CMD_EXIT:
+        elif cmd_bits.command == cfg.CMD_EXIT:
             done = True
-        elif cmd == cfg.CMD_BLOCK:
-            rep.dataform_report(pack_day_data(), args)
-        elif cmd == cfg.CMD_HELP:
+        elif cmd_bits.command == cfg.CMD_BLOCK:
+            rep.dataform_report(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_HELP:
             show_help()
-        elif cmd == cfg.CMD_LOOKBACK:
-            rep.recent(pack_day_data(), args)
-        elif cmd == cfg.CMD_RETIRED or cmd == cfg.CMD_COLOURS:
+        elif cmd_bits.command == cfg.CMD_LOOKBACK:
+            rep.recent(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_RETIRED or cmd_bits.command == cfg.CMD_COLOURS:
             pr.iprint(
                 "This command has been replaced by the 'tags' command.",
                 style=cfg.WARNING_STYLE,
             )
-        elif cmd == cfg.CMD_TAGS:
-            inv.tags_config_report(pack_day_data(), args)
-        elif cmd == cfg.CMD_QUERY:
-            query_tag(args)
-        elif cmd == cfg.CMD_STATS:
-            rep.day_end_report(pack_day_data(), args)
+        elif cmd_bits.command == cfg.CMD_TAGS:
+            inv.tags_config_report(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_QUERY:
+            query_tag(cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_STATS:
+            rep.day_end_report(pack_day_data(), cmd_bits.args)
             # Force publication when do day-end reports
             publishment.publish(pack_day_data())
             ##last_published = maybe_publish(last_published, force=True)
-        elif cmd == cfg.CMD_BUSY:
-            rep.busyness_report(pack_day_data(), args)
-        elif cmd == cfg.CMD_CHART:
+        elif cmd_bits.command == cfg.CMD_BUSY:
+            rep.busyness_report(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_CHART:
             rep.full_chart(pack_day_data())
-        elif cmd == cfg.CMD_BUSY_CHART:
+        elif cmd_bits.command == cfg.CMD_BUSY_CHART:
             rep.busy_graph(pack_day_data())
-        elif cmd == cfg.CMD_FULL_CHART:
+        elif cmd_bits.command == cfg.CMD_FULL_CHART:
             rep.fullness_graph(pack_day_data())
-        elif cmd == cfg.CMD_CSV:
-            rep.csv_dump(pack_day_data(), args)
-        elif cmd == cfg.CMD_DUMP:
+        elif cmd_bits.command == cfg.CMD_CSV:
+            rep.csv_dump(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_DUMP:
             dump_data()
-        elif cmd == cfg.CMD_LINT:
+        elif cmd_bits.command == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
-        elif cmd == cfg.CMD_NOTES:
-            if args:
-                notes.Notes.add(" ".join(args))
+        elif cmd_bits.command == cfg.CMD_NOTES:
+            if cmd_bits.args:
+                notes.Notes.add(cmd_bits.tail)
                 pr.iprint("Noted.")
             else:
                 show_notes(header=True,styled=False)
-        elif cmd == cfg.CMD_PUBLISH:
-            publishment.publish_reports(pack_day_data(), args)
-        elif cmd == cfg.CMD_VALET_HOURS:
-            set_valet_hours(args)
+        elif cmd_bits.command == cfg.CMD_PUBLISH:
+            publishment.publish_reports(pack_day_data(), cmd_bits.args)
+        elif cmd_bits.command == cfg.CMD_VALET_HOURS:
+            set_valet_hours(cmd_bits.args)
             data_dirty = True
-        elif cmd == cfg.CMD_UPPERCASE or cmd == cfg.CMD_LOWERCASE:
-            set_tag_case(cmd == cfg.CMD_UPPERCASE)
+        elif cmd_bits.command == cfg.CMD_UPPERCASE or cmd_bits.command == cfg.CMD_LOWERCASE:
+            set_tag_case(cmd_bits.command == cfg.CMD_UPPERCASE)
         # Check for bad input
-        elif not TagID(cmd):
+        elif not TagID(cmd_bits.command):
             # This is not a tag
-            if cmd == cfg.CMD_UNKNOWN or len(args) > 0:
+            if cmd_bits.command == cfg.CMD_UNKNOWN or len(cmd_bits.args) > 0:
                 msg = "Unrecognized command, enter 'h' for help"
-            elif cmd == cfg.CMD_TAG_RETIRED:
+            elif cmd_bits.command == cfg.CMD_TAG_RETIRED:
                 msg = f"Tag '{TagID(user_str)}' is retired"
-            elif cmd == cfg.CMD_TAG_UNUSABLE:
+            elif cmd_bits.command == cfg.CMD_TAG_UNUSABLE:
                 msg = f"Valet not configured to use tag '{TagID(user_str)}'"
             else:
                 # Should never get to this point
@@ -1000,7 +1002,7 @@ def main():
 
         else:
             # This is a tag
-            tag_check(cmd)
+            tag_check(cmd_bits.command)
             data_dirty = True
         # If anything has becomne "24:00" change it to "23:59"
         if data_dirty:
