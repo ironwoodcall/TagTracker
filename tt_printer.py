@@ -216,14 +216,15 @@ def print_tag_notes(tag: str, reset: bool = False):
     and can be called with 'reset' flag to allow printing again.
     Will also reset if the tag is not the same as the previously-used tag.
     """
-    ut.squawk(f"entry: {_print_tag_notes_control}")
     if reset or tag != _print_tag_notes_control[_print_tag_notes_key_prev]:
         _print_tag_notes_control[_print_tag_notes_key_printed] = False
-    ut.squawk(f"mid: {_print_tag_notes_control}")
+
     if tag and not _print_tag_notes_control[_print_tag_notes_key_printed]:
         for line in notes.Notes.find(tag):
             iprint(line,style=cfg.WARNING_STYLE)
         _print_tag_notes_control[_print_tag_notes_key_printed] = True
-    ut.squawk(f"at exit: {_print_tag_notes_control}")
+
+    _print_tag_notes_control[_print_tag_notes_key_prev] = tag
+
 
 
