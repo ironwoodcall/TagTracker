@@ -74,8 +74,7 @@ class DBRow:
 
     def __init__(self, labels: list[str], vals: Iterable):
         for i, name in enumerate(labels):
-            vars(self)[name] = vals[i]
-
+            setattr(self, name, vals[i])
 
 def db_fetch(
     ttdb: sqlite3.Connection,
@@ -84,10 +83,10 @@ def db_fetch(
 ) -> list[DBRow]:
     """Fetch a select statement into a list of database rows.
 
-    The col_names dict converts the database column names into
-    other names. E.g. {'fred':'derf'} will convert any column
-    returned from the SELECT that is called 'fred' into a
-    DBRow attribute called 'derf'.  Not sure what happens when
+    The col_names list converts the database column names into
+    other names. E.g. ['fred','smorg'] will save the value of
+    the first colun in attribute 'fred' and the 2nd in 'smorg'.
+    Not sure what happens when
     the column name is something like 'count(tag)'
 
     """
