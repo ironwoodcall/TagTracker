@@ -30,6 +30,19 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 from tt_time import VTime
 from tt_tag import TagID
 
+def top_level_script() -> str:
+    """Return filename of highest-level calling script.
+
+    This is specifically intended to let a module determine
+    whether or not it is being called by the tagtracker desktop
+    (data entry) script."""
+
+    frame = sys._getframe()
+    while frame.f_back:
+        frame = frame.f_back
+    top = frame.f_globals.get('__file__', None)
+    top = top if top else ""
+    return top
 
 def squawk(whatever: str = "") -> None:
     """Print whatever with file & linenumber in front of it.

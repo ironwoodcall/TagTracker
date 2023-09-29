@@ -424,6 +424,14 @@ def csv_dump(day: TrackerDay, args) -> None:
             seq += 1
 
 
+def num_bikes_here(day:TrackerDay,as_of_when: VTime) -> int:
+    """Count how many bikes are in at this time."""
+    num_bikes = 0
+    for atime in day.bikes_in.items():
+        if atime <= as_of_when:
+            num_bikes += 1
+    return num_bikes
+
 def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
 

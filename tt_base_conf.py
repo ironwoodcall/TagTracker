@@ -44,6 +44,11 @@ PUBLISH_FREQUENCY = 15  # minutes. "0" means do not publish
 ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
 ECHO = False
 
+# Base of URL to use for calls to estimator
+# E.g. "http://example.com/cgi-bin/estimator"
+# "" disables estimations
+ESTIMATOR_URL_BASE = ""
+
 # Maximum length for Notes
 MAX_NOTE_LENGTH = 80
 
