@@ -30,6 +30,19 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 from tt_time import VTime
 from tt_tag import TagID
 
+def top_level_script() -> str:
+    """Return filename of highest-level calling script.
+
+    This is specifically intended to let a module determine
+    whether or not it is being called by the tagtracker desktop
+    (data entry) script."""
+
+    frame = sys._getframe()
+    while frame.f_back:
+        frame = frame.f_back
+    top = frame.f_globals.get('__file__', None)
+    top = top if top else ""
+    return top
 
 def squawk(whatever: str = "") -> None:
     """Print whatever with file & linenumber in front of it.
@@ -144,7 +157,7 @@ def dow_int(date_or_dayname: str) -> int:
         7: ["su", "sun", "sunday"],
     }
     for num, name_list in dow_ints.items():
-        if date_or_dayname.strip().lower() in name_list:
+        if str(date_or_dayname).strip().lower() in name_list:
             return num
     return None
 
@@ -159,6 +172,22 @@ def dow_str(iso_dow: int, dow_str_len: int = 0) -> str:
     d = datetime.datetime.strptime(f"2023-1-{iso_dow}", "%Y-%W-%u")
     return date_str(d.strftime("%Y-%m-%d"), dow_str_len=dow_str_len)
 
+def most_recent_dow(iso_day) -> str:
+    """Return most recent date that falls on day of week iso_day."""
+    if isinstance(iso_day,str) and iso_day.isdigit():
+        iso_day = int(iso_day)
+    elif isinstance(iso_day,float):
+        iso_day = round(iso_day)
+    elif not isinstance(iso_day,int):
+        return None
+
+    # Get the current date
+    current_date = datetime.date.today()
+    # Calculate the difference between the current day of the week and the target ISO day
+    day_difference = current_date.isoweekday() - iso_day
+    # Calculate the most recent date by subtracting the day difference from the current date
+    most_recent_date = current_date - datetime.timedelta(days=day_difference)
+    return  most_recent_date.strftime("%Y-%m-%d")
 
 def get_time() -> VTime:
     """Return current time as string: HH:MM."""
@@ -421,15 +450,20 @@ def get_version() -> str:
     return version_str
 
 
-def plural(count: int) -> str:
+def OLD_plural(count: int) -> str:
     """Get an "s" if count indicates one is needed."""
     if isinstance(count, (int, float)) and count == 1:
         return ""
     else:
         return "s"
 
-
 def untaint(tainted: str) -> str:
     """Remove any suspicious characters from a possibly tainted string."""
     return "".join(c for c in tainted if c.isprintable())
 
+def plural(count:int,singluar_form:str,plural_form:str="") -> str:
+    """Choose correct singlur/pliral form of a word."""
+    if count == 1:
+        return singluar_form
+    plural_form = plural_form if plural_form else f"{singluar_form}s"
+    return plural_form

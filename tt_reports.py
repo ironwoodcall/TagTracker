@@ -424,6 +424,14 @@ def csv_dump(day: TrackerDay, args) -> None:
             seq += 1
 
 
+def num_bikes_here(day:TrackerDay,as_of_when: VTime) -> int:
+    """Count how many bikes are in at this time."""
+    num_bikes = 0
+    for atime in day.bikes_in.items():
+        if atime <= as_of_when:
+            num_bikes += 1
+    return num_bikes
+
 def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
 
@@ -669,7 +677,7 @@ def busy_graph(day: TrackerDay, as_of_when: str = "") -> None:
     pr.iprint(f"Chart of busyness for {day.date}", style=cfg.TITLE_STYLE)
     pr.iprint(
         f"Each marker represents {scale_factor} "
-        f"bike{ut.plural(scale_factor)} in ({in_marker}) or out ({out_marker})",
+        f"{ut.plural(scale_factor,'bike')} in ({in_marker}) or out ({out_marker})",
         style=cfg.SUBTITLE_STYLE,
     )
     ins_field_width = round(max_ins / scale_factor) + 1
@@ -710,7 +718,7 @@ def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
     )
     pr.iprint(
         f"Each marker represents {scale_factor} regular ({regular_marker}) "
-        f"or oversize ({oversize_marker}) bike{ut.plural(scale_factor)}",
+        f"or oversize ({oversize_marker}) {ut.plural(scale_factor,'bike')}",
         style=cfg.SUBTITLE_STYLE,
     )
     for start in sorted(blocks.keys()):

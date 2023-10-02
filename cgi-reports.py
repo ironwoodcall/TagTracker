@@ -239,7 +239,7 @@ def one_tag_history_report(
 
     print(f"<h1>History of tag {tag.upper()}</h1>")
     print(
-        f"<h3>This tag has been used {len(rows)} time{ut.plural(len(rows))}</h3>"
+        f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>"
     )
     print()
     if not rows:

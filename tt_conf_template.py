@@ -41,6 +41,9 @@ from tt_base_conf import *  # pylint:disable=unused-wildcard-import,wildcard-imp
 ##ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
 ##ECHO = False
 
+# Base of URL to use for calls to estimator
+##ESTIMATOR_URL_BASE = "http://example.com/cgi-bin/estimator"
+
 # Ask confirmatino for checkouts when visits less than this duration.
 ##CHECK_OUT_CONFIRM_TIME = 30 # mins
 # Duration (minutes) for roll-up blocks (e.g. for datasheet report)
