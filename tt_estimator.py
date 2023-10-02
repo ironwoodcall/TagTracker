@@ -339,6 +339,9 @@ class Estimator:
         # date on which to base the closing time
         dow_in = dow_in if dow_in else "today"
         dow_date = None
+        maybe_dow = ut.dow_int(dow_in)
+        if maybe_dow:
+            dow_in = maybe_dow
         if str(dow_in).strip() in ["1", "2", "3", "4", "5", "6", "7"]:
             self.dow = int(dow_in)
             dow_date = ut.most_recent_dow(self.dow)
@@ -360,6 +363,8 @@ class Estimator:
             self.error = "Missing or bad closing_time parameter."
             self.state = ERROR
             return
+
+        ut.squawk(f"{self.bikes_so_far=},{self.as_of_when=},{self.dow=},{self.closing_time=}")
 
     def _sql_str(self) -> str:
         """Build SQL query."""
