@@ -487,20 +487,21 @@ def get_estimate_via_url(
     dow: int = None,
     closing_time=""
 ) -> list[str]:
-    """Call estimator URL to get its response.
+    """Call estimator URL to get the estimate.
 
     This is presumably what one would call if the database
     is not on the same machine.
     """
-    est = Estimator(bikes_so_far, dow, as_of_when, closing_time)
+    Call Estimator to clean up the parameters.
+    est = Estimator(bikes_so_far, as_of_when, dow, closing_time)
     if not cfg.ESTIMATOR_URL_BASE:
-        return est
+        return ["No estimator URL defined"]
     url_parms = (
-        f"dow={est.dow}&as_of_when={est.as_of_when}"
-        f"&bikes_so_far={est.bikes_so_far}&closing_time={est.closing_time}"
+        f"bikes_so_far={est.bikes_so_far}&as_of_when={est.as_of_when}
+        f"&dow={est.dow}&as_of_when={est.as_of_when}&closing_time={est.closing_time}"
     )
     url = f"{cfg.ESTIMATOR_URL_BASE}?{url_parms}"
-    ut.squawk(f"{url=}")
+    ##ut.squawk(f"{url=}")
     try:
         response = urllib.request.urlopen(url)
         data = response.read()
