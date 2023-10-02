@@ -492,12 +492,12 @@ def get_estimate_via_url(
     This is presumably what one would call if the database
     is not on the same machine.
     """
-    Call Estimator to clean up the parameters.
+    # Call Estimator to clean up the parameters.
     est = Estimator(bikes_so_far, as_of_when, dow, closing_time)
     if not cfg.ESTIMATOR_URL_BASE:
         return ["No estimator URL defined"]
     url_parms = (
-        f"bikes_so_far={est.bikes_so_far}&as_of_when={est.as_of_when}
+        f"bikes_so_far={est.bikes_so_far}&as_of_when={est.as_of_when}"
         f"&dow={est.dow}&as_of_when={est.as_of_when}&closing_time={est.closing_time}"
     )
     url = f"{cfg.ESTIMATOR_URL_BASE}?{url_parms}"
