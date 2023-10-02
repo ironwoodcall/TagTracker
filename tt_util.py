@@ -157,7 +157,7 @@ def dow_int(date_or_dayname: str) -> int:
         7: ["su", "sun", "sunday"],
     }
     for num, name_list in dow_ints.items():
-        if date_or_dayname.strip().lower() in name_list:
+        if str(date_or_dayname).strip().lower() in name_list:
             return num
     return None
 
