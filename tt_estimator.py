@@ -500,7 +500,7 @@ def get_estimate_via_url(
         f"&bikes_so_far={est.bikes_so_far}&closing_time={est.closing_time}"
     )
     url = f"{cfg.ESTIMATOR_URL_BASE}?{url_parms}"
-
+    ut.squawk(f"{url=}")
     try:
         response = urllib.request.urlopen(url)
         data = response.read()
