@@ -478,7 +478,7 @@ class Estimator:
             f"on a typical {dayname}, closing at {self.closing_time}:"
         ]
         if self.as_of_when < "13:30":
-            lines += "(Keep in mind that estimates early in the day will be of low quality)"
+            lines += ["(Keep in mind that estimates early in the day will be of low quality)"]
 
         lines += [""] + self.simple_model.result_msg()
         lines += [""] + self.lr_model.result_msg()
