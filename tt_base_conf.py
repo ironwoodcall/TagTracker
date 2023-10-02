@@ -81,6 +81,7 @@ Information and reports
   Show data as on paper form   :   form / f
   Show tag configurations      :   tags / t
   Show chart of all activity   :   chart / c
+  Estimate further bikes       :   estimate / est / guess
 
 Other
   Show this list of commands   :   help  /  h

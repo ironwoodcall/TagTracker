@@ -364,8 +364,6 @@ class Estimator:
             self.state = ERROR
             return
 
-        ut.squawk(f"{self.bikes_so_far=},{self.as_of_when=},{self.dow=},{self.closing_time=}")
-
     def _sql_str(self) -> str:
         """Build SQL query."""
         if self.dow in [6, 7]:
@@ -479,6 +477,8 @@ class Estimator:
             f"parked by {self.as_of_when.short} "
             f"on a typical {dayname}, closing at {self.closing_time}:"
         ]
+        if self.as_of_when < "13:30":
+            lines += "(Keep in mind that estimates early in the day will be of low quality)"
 
         lines += [""] + self.simple_model.result_msg()
         lines += [""] + self.lr_model.result_msg()
