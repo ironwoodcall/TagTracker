@@ -1022,6 +1022,8 @@ def main():
                 pr.iprint("Noted.")
             else:
                 show_notes(header=True, styled=False)
+        elif cmd_bits.command == cfg.CMD_ESTIMATE:
+            estimate(cmd_bits.args)
         elif cmd_bits.command == cfg.CMD_PUBLISH:
             publishment.publish_reports(pack_day_data(), cmd_bits.args)
         elif cmd_bits.command == cfg.CMD_VALET_HOURS:
