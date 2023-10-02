@@ -481,10 +481,13 @@ class Estimator:
         return lines
 
 
-def url_fetch(
-    bikes_so_far: int, dow: int = None, as_of_when="", closing_time=""
-) -> Estimator:
-    """Call estimator URL to get an Estimator object.
+def get_estimate_via_url(
+    bikes_so_far: int,
+    as_of_when="",
+    dow: int = None,
+    closing_time=""
+) -> list[str]:
+    """Call estimator URL to get its response.
 
     This is presumably what one would call if the database
     is not on the same machine.
@@ -503,7 +506,7 @@ def url_fetch(
         data = response.read()
         decoded_data = data.decode("utf-8")
     except urllib.error.URLError:
-        return "URLError return"
+        return ["URLError return"]
 
     return decoded_data.splitlines()
 

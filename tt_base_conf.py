@@ -150,6 +150,7 @@ CMD_PUBLISH = "publish"
 CMD_COLOURS = "colours"  # FIXME: remove in a while. Now "tags"
 CMD_RETIRED = "retired"  # FIXME: remove in a while.  Now "tags"
 CMD_TAGS = "tags"
+CMD_ESTIMATE = "estimate"
 
 
 COMMANDS = {}
@@ -177,6 +178,7 @@ COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
 COMMANDS[CMD_COLOURS] = ["col", "color", "colors", "colour", "colours"]
 COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
 COMMANDS[CMD_NOTES] = ["note", "notes", "n"]
+COMMANDS[CMD_ESTIMATE] = ["est","estimate","guess"]
 # These are for commands that are not recognized so *maybe* are a tag
 CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
 CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)
