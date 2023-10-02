@@ -11,20 +11,6 @@ Call (as itself) as:
             (default if missing or "": today)
         closing_time: HHMM of time the valet closes day of estimate
             (default if missing or "": will try to determine using config functions)
-        result_type: 'long' or 'short'.
-            'long' prints a multi-line response describing the result
-            'short' prints a short result for parsing:
-                "OK",mean,median,min,max,used_data,discarded_data
-                where:
-                    "OK" means succesful result. Anything else means
-                        there was an error or there is no answer
-                    min,max are the (un-trimmed) historic min and max
-                        bikes-in counts for this set of parameters
-                    mean,median: values computed from trimmed data
-                    used_data: is the count of the list of historic values
-                    discarded_data: is the count of values that were discarded
-                        as being outliers
-            (default:long)
 
 Or call in a CGI script, and the parameters are read from QUERY_STRING.
 The parameter names are the same as above.
@@ -58,8 +44,6 @@ from tt_time import VTime
 import tt_dbutil as db
 
 
-SHORT = "short"
-LONG = "long"
 # These are model states
 INCOMPLETE = "incomplete"  # initialized but not ready to use
 READY = "ready"  # model is ready to use
@@ -73,11 +57,11 @@ class SimpleModel:
     def __init__(self) -> None:
         self.befores = None
         self.afters = None
-        self.tolerance = None
-        self.all_data = []
+        self.match_tolerance = None
+        self.matched_afters = []
         self.num_points = None
-        self.z_threshold = None
-        self.trimmed_data = []
+        self.trim_tolerance = None
+        self.trimmed_afters = []
         self.num_discarded = None
 
         self.min = None
@@ -94,18 +78,25 @@ class SimpleModel:
     ) -> None:
         """Create trimmed_data by discarding outliers."""
         # For 2 or fewer data points, the idea of outliers means nothing.
-        if len(self.all_data) <= 2:
-            self.trimmed_data = self.all_data
+        if len(self.matched_afters) <= 2:
+            self.trimmed_afters = self.matched_afters
+            self.num_discarded = self.num_points - len(self.trimmed_afters)
+            return
         # Make new list, discarding outliers.
-        mean = statistics.mean(self.all_data)
-        std_dev = statistics.stdev(self.all_data)
-        z_scores = [(x - mean) / std_dev for x in self.all_data]
-        self.trimmed_data = [
-            self.all_data[i]
-            for i in range(len(self.all_data))
-            if abs(z_scores[i]) <= self.z_threshold
+        mean = statistics.mean(self.matched_afters)
+        std_dev = statistics.stdev(self.matched_afters)
+        if std_dev == 0:
+            self.trimmed_afters = self.matched_afters
+            self.num_discarded = self.num_points - len(self.trimmed_afters)
+            return
+
+        z_scores = [(x - mean) / std_dev for x in self.matched_afters]
+        self.trimmed_afters = [
+            self.matched_afters[i]
+            for i in range(len(self.matched_afters))
+            if abs(z_scores[i]) <= self.trim_tolerance
         ]
-        self.num_discarded = self.num_points - len(self.trimmed_data)
+        self.num_discarded = self.num_points - len(self.trimmed_afters)
 
     def create_model(
         self,
@@ -118,51 +109,58 @@ class SimpleModel:
             return
         self.befores = befores
         self.afters = afters
-        self.tolerance = tolerance
-        self.z_threshold = z_threshold
+        self.match_tolerance = tolerance
+        self.trim_tolerance = z_threshold
         self.state = READY
 
     def guess(self, bikes_so_far: int):
         """Calculate results for our simple mean & median) model."""
-        if self.state != OK:
+        if self.state == ERROR:
             return
+        if self.state not in [READY, OK]:
+            self.state = ERROR
+            self.error = "Can not guess when model not in ready state."
+            return
+
         # Find data points that match our bikes-so-far
         # values within this dist are considered same
-        self.all_data = []
+        self.matched_afters = []
         for i, bikes_so_far in enumerate(self.befores):
-            if abs(bikes_so_far - bikes_so_far) <= self.tolerance:
-                self.all_data.append(self.afters[i])
-        self.num_points = len(self.all_data)
+            if abs(bikes_so_far - bikes_so_far) <= self.match_tolerance:
+                self.matched_afters.append(self.afters[i])
+        self.num_points = len(self.matched_afters)
 
         # Discard outliers (z score > z cutodd)
         self._discard_outliers()
 
         # Check for no data.
-        if not self.all_data:
+        if not self.matched_afters:
             self.error = "No matching data"
             self.state = ERROR
             return
 
         # Calculate return value statistics
         # (Both data and trimmed_data now have length > 0)
-        self.min = min(self.trimmed_data)
-        self.max = max(self.trimmed_data)
-        self.mean = int(statistics.mean(self.trimmed_data))
-        self.median = int(statistics.median(self.trimmed_data))
+        self.min = min(self.trimmed_afters)
+        self.max = max(self.trimmed_afters)
+        self.mean = int(statistics.mean(self.trimmed_afters))
+        self.median = int(statistics.median(self.trimmed_afters))
         self.state = OK
 
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
-        lines = ["Simple model: averaging similar days' results."]
         if self.state != OK:
-            lines.append(f"Can't estimate because: {self.error}")
+            lines = [
+                "Simple model prediction, averaging similar previous days:",
+                "    Can't estimate because: {self.error}",
+            ]
             return lines
 
-        one_line = f"Using {self.num_points} similar previous {ut.plural(self.num_points,'day')}"
+        one_line = f"Simple model prediction, averaging {self.num_points} similar previous {ut.plural(self.num_points,'day')}"
         if self.num_discarded:
             one_line = f"{one_line} ({self.num_discarded} {ut.plural(self.num_discarded,'outlier')} discarded)"
-        lines = lines + [f"{one_line}."]
+        lines = [f"{one_line}:"]
 
         mean_median = [self.mean, self.median]
         mean_median.sort()
@@ -172,10 +170,10 @@ class SimpleModel:
             mm_str = f"best guesses: {mean_median[0]} [median] or {mean_median[1]} [mean]"
 
         if self.max == self.min:
-            lines.append(f"Expect {self.min} more bikes")
+            lines.append(f"    Expect {self.min} more bikes")
         else:
             lines.append(
-                f"Expect {self.min} to {self.max} more bikes (best guess: {mm_str})"
+                f"    Expect {self.min} to {self.max} more bikes ({mm_str})"
             )
 
         return lines
@@ -209,6 +207,11 @@ class LRModel:
             self.state = ERROR
             return
 
+        if [x for x, _ in xy_data] == [0] * len(xy_data):
+            self.error = "all x values are 0"
+            self.state = ERROR
+            return
+
         sum_x, sum_y, sum_xy, sum_x_squared, sum_y_squared = 0, 0, 0, 0, 0
 
         for x, y in xy_data:
@@ -221,21 +224,27 @@ class LRModel:
         mean_x = sum_x / self.num_points
         mean_y = sum_y / self.num_points
 
-        self.slope = (self.num_points * sum_xy - sum_x * sum_y) / (
-            self.num_points * sum_x_squared - sum_x**2
-        )
+        try:
+            self.slope = (self.num_points * sum_xy - sum_x * sum_y) / (
+                self.num_points * sum_x_squared - sum_x**2
+            )
+        except ZeroDivisionError:
+            self.error = f"DIV/0 in slope calculation."
+            self.state = ERROR
+            return
         self.intercept = mean_y - self.slope * mean_x
 
         # Calculate R-squared
         ss_total = sum((y - mean_y) ** 2 for x, y in xy_data)
-        if ss_total == 0:
-            self.error = f"Can not complete model; ss_total is zero ({self.num_points=})"
-            self.state = ERROR
-            return
         ss_residual = sum(
             (y - (self.slope * x + self.intercept)) ** 2 for x, y in xy_data
         )
-        self.r_squared = 1 - (ss_residual / ss_total)
+        if ss_residual == 0:
+            self.r_squared = 1.0
+        elif ss_total == 0:
+            self.r_squared = "DIV/0"
+        else:
+            self.r_squared = 1 - (ss_residual / ss_total)
 
         self.commentary.append(
             f"Model ok: intercept: {self.intercept}, slope: {self.slope}, R^2: {self.r_squared}"
@@ -257,12 +266,19 @@ class LRModel:
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
-        lines = ["Linear regression model:"]
+        lines = [
+            f"Linear regression model prediction, based on {self.num_points} data points:"
+        ]
         if self.state != OK:
-            lines.append(f"Can't estimate because: {self.error}")
+            lines.append(f"    Can't estimate because: {self.error}")
             return lines
+        rs = (
+            "unknown"
+            if not isinstance(self.r_squared, (float, int))
+            else f"{round(self.r_squared*100)}%"
+        )
         lines = lines + [
-            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')} with {round(self.r_squared*100)}% confidence (based on {self.num_points} data points)"
+            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')} with {rs} confidence."
         ]
 
         return lines
@@ -277,7 +293,6 @@ class Estimator:
         as_of_when="",
         dow_in="",
         closing_time="",
-        result_type="",
     ) -> None:
         """Set up the inputs and results vars.
 
@@ -296,7 +311,6 @@ class Estimator:
         self.dow = None
         self.as_of_when = None
         self.closing_time = None
-        self.result_type = "long"  # Default is "long".
         # This is the raw data
         self.befores = []
         self.afters = []
@@ -345,12 +359,6 @@ class Estimator:
         if not self.closing_time:
             self.error = "Missing or bad closing_time parameter."
             self.state = ERROR
-            return
-
-        if result_type:
-            self.result_type = result_type.lower().strip()
-        if self.result_type not in [SHORT, LONG]:
-            self.error = "Bad result_type parameter."
             return
 
     def _sql_str(self) -> str:
@@ -418,6 +426,8 @@ class Estimator:
         if not data_rows:
             self.error = "No data returned from database."
             self.state = ERROR
+            return
+
         self.befores = [int(r.before) for r in data_rows]
         self.afters = [int(r.after) for r in data_rows]
 
@@ -426,6 +436,8 @@ class Estimator:
 
         # Get data from the database
         self._fetch_raw_data()
+        if self.state == ERROR:
+            return
 
         # Rounding for how close a historic bikes_so_far
         # is to the requested to be considered the same
@@ -460,30 +472,13 @@ class Estimator:
         lines += [""] + [
             f"With {self.bikes_so_far} {ut.plural(self.bikes_so_far,'bike')} "
             f"parked by {self.as_of_when.short} "
-            f"on a typical {dayname} closing at {self.closing_time}:"
+            f"on a typical {dayname}, closing at {self.closing_time}:"
         ]
 
         lines += [""] + self.simple_model.result_msg()
         lines += [""] + self.lr_model.result_msg()
 
         return lines
-
-    def short_result(self) -> str:
-        """Return results as a minimalist string.
-
-        An ok results will start with "OK" and be in the form:
-            "OK",mean,median,min,max,#datapoint,#pointsdiscarded
-        Anything not ok does *not* start with "OK,". It will
-            likely have an error message.
-        """
-        if self.ok:
-            return (
-                "OK,"
-                f"{self.simple_model.mean},{self.simple_model.median},"
-                f"{self.simple_model.min},{self.simple_model.max},"
-                f"{self.simple_model.num_points},{self.simple_model.num_discarded}"
-            )
-        return f"Bad: {self.error}"
 
 
 def url_fetch(
@@ -500,7 +495,6 @@ def url_fetch(
     url_parms = (
         f"dow={est.dow}&as_of_when={est.as_of_when}"
         f"&bikes_so_far={est.bikes_so_far}&closing_time={est.closing_time}"
-        f"&result_type={SHORT}"
     )
     url = f"{cfg.ESTIMATOR_URL_BASE}?{url_parms}"
 
@@ -509,32 +503,16 @@ def url_fetch(
         data = response.read()
         decoded_data = data.decode("utf-8")
     except urllib.error.URLError:
-        return False
+        return "URLError return"
 
-    # Split on whitespace OR commas, ignoring multiples.
-    bits = re.split(r"[,\s]+", decoded_data.strip())
-    if len(bits) != 7 or bits[0] != "OK":
-        return est
-    bits = [int(x) for x in bits[1:] if x.isdigit()]
-    if len(bits) != 6:
-        return est
-
-    est.expected_min = bits[0]
-    est.expected_max = bits[1]
-    est.expected_median = bits[2]
-    est.expected_mean = bits[3]
-    est.data_points = bits[4]
-    est.discarded_points = bits[5]
-    est.ok = True
-
-    return est
+    return decoded_data.splitlines()
 
 
 def _init_from_cgi() -> Estimator:
     """Read initialization parameters from CGI env var.
 
     CGI parameters: as at top of file.
-        bikes_so_far, dow,as_of_when,closing_time,result_type
+        bikes_so_far, dow,as_of_when,closing_time
 
     """
     query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
@@ -543,16 +521,13 @@ def _init_from_cgi() -> Estimator:
     dow = query_parms.get("dow", [""])[0]
     as_of_when = query_parms.get("as_of_when", [""])[0]
     closing_time = query_parms.get("closing_time", [""])[0]
-    result_type = query_parms.get("result_type", [""])[0]
 
-    return Estimator(bikes_so_far, as_of_when, dow, closing_time, result_type)
+    return Estimator(bikes_so_far, as_of_when, dow, closing_time)
 
 
 def _init_from_args() -> Estimator:
     my_args = sys.argv[1:] + ["", "", "", "", "", "", "", ""]
-    return Estimator(
-        my_args[0], my_args[1], my_args[2], my_args[3], my_args[4]
-    )
+    return Estimator(my_args[0], my_args[1], my_args[2], my_args[3])
 
 
 if __name__ == "__main__":
@@ -564,7 +539,7 @@ if __name__ == "__main__":
     else:
         estimate = _init_from_args()
 
-    if not estimate.error:
+    if estimate.state != ERROR:
         estimate.guess()
 
     for line in estimate.result_msg():
