@@ -928,7 +928,7 @@ def estimate(args: list[str]) -> None:
         as_of_when = VTime("now")
     if not dow:
         dow = ut.dow_int("today")
-        if not closing_time and dow == ut.dow:
+        if not closing_time:
             closing_time = VALET_CLOSES
     message_lines = tt_estimator.get_estimate_via_url(bikes_so_far,as_of_when,dow,closing_time)
     if not message_lines:
