@@ -468,6 +468,37 @@ def plural(count:int,singluar_form:str,plural_form:str="") -> str:
     plural_form = plural_form if plural_form else f"{singluar_form}s"
     return plural_form
 
-def line_splitter( text:str="", width:int=80, print_function=print,
+def line_splitter(input_string, width:int=80, print_handler=None, print_handler_args=None) -> list[str]:
+    """Split and maybe print input_string to a given width.
 
-                  )
+    print_handler is an optional print handler function (e.g. print,iprint,squawk)
+        if None, then no printing takes place
+    print_handler_args is a dict of named arguments for print_handler
+        (e.g. {"num_indents":2})
+    Returns a list of strings of width width or less.
+    """
+    # If no print handler args just make an empty dict.
+    print_handler_args = print_handler_args if print_handler_args else {}
+
+    lines = []
+    while len(input_string) > width:
+        last_space_index = input_string.rfind(" ", 0, width + 1)
+
+        if last_space_index == -1:
+            last_space_index = width
+
+        line = input_string[:last_space_index]
+        lines.append(line)
+
+        if print_handler:
+            print_handler(line, **print_handler_args)
+
+        input_string = input_string[last_space_index + 1:]
+
+    lines.append(input_string)
+
+    if print_handler:
+        print_handler(input_string, **print_handler_args)
+
+    return lines
+
