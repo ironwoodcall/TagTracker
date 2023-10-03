@@ -30,6 +30,7 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 from tt_time import VTime
 from tt_tag import TagID
 
+
 def top_level_script() -> str:
     """Return filename of highest-level calling script.
 
@@ -40,9 +41,10 @@ def top_level_script() -> str:
     frame = sys._getframe()
     while frame.f_back:
         frame = frame.f_back
-    top = frame.f_globals.get('__file__', None)
+    top = frame.f_globals.get("__file__", None)
     top = top if top else ""
     return top
+
 
 def squawk(whatever: str = "") -> None:
     """Print whatever with file & linenumber in front of it.
@@ -172,13 +174,14 @@ def dow_str(iso_dow: int, dow_str_len: int = 0) -> str:
     d = datetime.datetime.strptime(f"2023-1-{iso_dow}", "%Y-%W-%u")
     return date_str(d.strftime("%Y-%m-%d"), dow_str_len=dow_str_len)
 
+
 def most_recent_dow(iso_day) -> str:
     """Return most recent date that falls on day of week iso_day."""
-    if isinstance(iso_day,str) and iso_day.isdigit():
+    if isinstance(iso_day, str) and iso_day.isdigit():
         iso_day = int(iso_day)
-    elif isinstance(iso_day,float):
+    elif isinstance(iso_day, float):
         iso_day = round(iso_day)
-    elif not isinstance(iso_day,int):
+    elif not isinstance(iso_day, int):
         return None
 
     # Get the current date
@@ -187,7 +190,8 @@ def most_recent_dow(iso_day) -> str:
     day_difference = current_date.isoweekday() - iso_day
     # Calculate the most recent date by subtracting the day difference from the current date
     most_recent_date = current_date - datetime.timedelta(days=day_difference)
-    return  most_recent_date.strftime("%Y-%m-%d")
+    return most_recent_date.strftime("%Y-%m-%d")
+
 
 def get_time() -> VTime:
     """Return current time as string: HH:MM."""
@@ -457,13 +461,55 @@ def OLD_plural(count: int) -> str:
     else:
         return "s"
 
+
 def untaint(tainted: str) -> str:
     """Remove any suspicious characters from a possibly tainted string."""
     return "".join(c for c in tainted if c.isprintable())
 
-def plural(count:int,singluar_form:str,plural_form:str="") -> str:
+
+def plural(count: int, singluar_form: str, plural_form: str = "") -> str:
     """Choose correct singlur/pliral form of a word."""
     if count == 1:
         return singluar_form
     plural_form = plural_form if plural_form else f"{singluar_form}s"
     return plural_form
+
+
+def line_splitter(
+    input_string, width: int = 80, print_handler=None, print_handler_args=None
+) -> list[str]:
+    """Split and maybe print input_string to a given width.
+
+    print_handler is an optional print handler function (e.g. print,iprint,squawk)
+        if None, then no printing takes place
+    print_handler_args is a dict of named arguments for print_handler
+        (e.g. {"num_indents":2})
+    Returns a list of strings of width width or less.
+
+    Thanks ChatGPT for the basic code and especially for the tricky syntax
+    forwarding optional args to the print hander.
+    """
+    # If no print handler args just make an empty dict.
+    print_handler_args = print_handler_args if print_handler_args else {}
+
+    lines = []
+    while len(input_string) > width:
+        last_space_index = input_string.rfind(" ", 0, width + 1)
+
+        if last_space_index == -1:
+            last_space_index = width
+
+        line = input_string[:last_space_index]
+        lines.append(line)
+
+        if print_handler:
+            print_handler(line, **print_handler_args)
+
+        input_string = input_string[last_space_index + 1 :]
+
+    lines.append(input_string)
+
+    if print_handler:
+        print_handler(input_string, **print_handler_args)
+
+    return lines

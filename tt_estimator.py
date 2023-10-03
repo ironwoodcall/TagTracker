@@ -34,7 +34,7 @@ Copyright (C) 2023 Julias Hocking
 import urllib.request
 import os
 import sys
-import re
+import math
 import statistics
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
@@ -69,7 +69,6 @@ class SimpleModel:
         self.mean = None
         self.median = None
 
-        self.commentary = []
         self.error = ""
         self.state = INCOMPLETE
 
@@ -119,14 +118,14 @@ class SimpleModel:
             return
         if self.state not in [READY, OK]:
             self.state = ERROR
-            self.error = "Can not guess when model not in ready state."
+            self.error = "can not guess, model not in ready state."
             return
 
         # Find data points that match our bikes-so-far
         # values within this dist are considered same
         self.matched_afters = []
-        for i, bikes_so_far in enumerate(self.befores):
-            if abs(bikes_so_far - bikes_so_far) <= self.match_tolerance:
+        for i, this_bikes_so_far in enumerate(self.befores):
+            if abs(bikes_so_far - this_bikes_so_far) <= self.match_tolerance:
                 self.matched_afters.append(self.afters[i])
         self.num_points = len(self.matched_afters)
 
@@ -135,7 +134,7 @@ class SimpleModel:
 
         # Check for no data.
         if not self.matched_afters:
-            self.error = "No matching data"
+            self.error = "no similar data"
             self.state = ERROR
             return
 
@@ -150,17 +149,10 @@ class SimpleModel:
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
+        lines = ["Simple averaging model prediction:"]
         if self.state != OK:
-            lines = [
-                "Simple model prediction, averaging similar previous days:",
-                "    Can't estimate because: {self.error}",
-            ]
+            lines = [f"    Can't estimate because: {self.error}"]
             return lines
-
-        one_line = f"Simple model prediction, averaging {self.num_points} similar previous {ut.plural(self.num_points,'day')}"
-        if self.num_discarded:
-            one_line = f"{one_line} ({self.num_discarded} {ut.plural(self.num_discarded,'outlier')} discarded)"
-        lines = [f"{one_line}:"]
 
         mean_median = [self.mean, self.median]
         mean_median.sort()
@@ -170,11 +162,22 @@ class SimpleModel:
             mm_str = f"best guesses: {mean_median[0]} [median] or {mean_median[1]} [mean]"
 
         if self.max == self.min:
-            lines.append(f"    Expect {self.min} more bikes")
+            lines.append(f"    Expect {self.min} more bikes.")
         else:
             lines.append(
-                f"    Expect {self.min} to {self.max} more bikes ({mm_str})"
+                f"    Expect {self.min} to {self.max} more bikes ({mm_str})."
             )
+
+        one_line = (
+            f"    Based on {self.num_points} similar previous "
+            f"{ut.plural(self.num_points,'day')}"
+        )
+        if self.num_discarded:
+            one_line = (
+                f"{one_line} ({self.num_discarded} "
+                f"{ut.plural(self.num_discarded,'outlier')} discarded)"
+            )
+        lines = lines + [f"{one_line}."]
 
         return lines
 
@@ -183,7 +186,6 @@ class LRModel:
     """A linear regression model using least squares."""
 
     def __init__(self):
-        self.commentary = []
         self.state = INCOMPLETE
         self.error = None
 
@@ -191,6 +193,7 @@ class LRModel:
         self.slope = None
         self.intercept = None
         self.r_squared = None
+        self.correlation_coefficient = None
 
         self.further_bikes = None
 
@@ -199,11 +202,8 @@ class LRModel:
             return
 
         self.num_points = len(xy_data)
-        self.commentary.append(
-            f"Initializing LRModel with {self.num_points} data points"
-        )
         if self.num_points < 2:
-            self.commentary.append("Not enough data points to continue")
+            self.error = "not enough data points"
             self.state = ERROR
             return
 
@@ -229,7 +229,7 @@ class LRModel:
                 self.num_points * sum_x_squared - sum_x**2
             )
         except ZeroDivisionError:
-            self.error = f"DIV/0 in slope calculation."
+            self.error = "DIV/0 in slope calculation."
             self.state = ERROR
             return
         self.intercept = mean_y - self.slope * mean_x
@@ -242,13 +242,22 @@ class LRModel:
         if ss_residual == 0:
             self.r_squared = 1.0
         elif ss_total == 0:
-            self.r_squared = "DIV/0"
+            self.r_squared = "DIV/0 in R squared calculation"
         else:
             self.r_squared = 1 - (ss_residual / ss_total)
 
-        self.commentary.append(
-            f"Model ok: intercept: {self.intercept}, slope: {self.slope}, R^2: {self.r_squared}"
-        )
+        # Calculate the correlation coefficient (R)
+        sum_diff_prod = sum((x - mean_x) * (y - mean_y) for x, y in xy_data)
+        sum_x_diff_squared = sum((x - mean_x) ** 2 for x, _ in xy_data)
+        sum_y_diff_squared = sum((y - mean_y) ** 2 for _, y in xy_data)
+
+        try:
+            self.correlation_coefficient = sum_diff_prod / (
+                math.sqrt(sum_x_diff_squared) * math.sqrt(sum_y_diff_squared)
+            )
+        except ZeroDivisionError:
+            self.error = "DIV/0 in R-value calculation."
+
         self.state = READY
 
     def guess(self, x: float) -> float:
@@ -257,7 +266,7 @@ class LRModel:
             return
         if self.state not in [READY, OK]:
             self.state = ERROR
-            self.error = "Model not ready, can not guess"
+            self.error = "model not ready, can not guess"
             return
         self.further_bikes = round(self.slope * x + self.intercept)
         self.state = OK
@@ -266,19 +275,31 @@ class LRModel:
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
-        lines = [
-            f"Linear regression model prediction, based on {self.num_points} data points:"
-        ]
+        lines = ["Linear regression model prediction:"]
         if self.state != OK:
             lines.append(f"    Can't estimate because: {self.error}")
             return lines
         rs = (
             "unknown"
             if not isinstance(self.r_squared, (float, int))
-            else f"{round(self.r_squared*100)}%"
+            else f"{self.r_squared*100:.0f}%"
         )
+        cc = (
+            "unknown"
+            if not isinstance(self.correlation_coefficient, (float, int))
+            else f"{self.correlation_coefficient:.2f}"
+        )
+
         lines = lines + [
-            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')} with {rs} confidence."
+            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
+        ]
+
+        lines = lines + [
+            f"    {s}"
+            for s in ut.line_splitter(
+                f"Based on {self.num_points} data points; correlation coefficient "
+                f"{cc}, R squared confidence {rs}."
+            )
         ]
 
         return lines
@@ -312,6 +333,7 @@ class Estimator:
         self.as_of_when = None
         self.closing_time = None
         # This is the raw data
+        self.similar_dates = []
         self.befores = []
         self.afters = []
         # These are for the resulting 'simple model' estimate
@@ -370,12 +392,11 @@ class Estimator:
             dow_set = f"({self.dow})"
         else:
             dow_set = "(1,2,3,4,5)"
-        today = ut.get_date("today")
+        today = ut.date_str("today")
         sql = f"""
             WITH all_dates AS (
                 SELECT DISTINCT date
                 FROM visit
-                WHERE date != "{today}"
             )
             SELECT
                 day.date AS date,
@@ -408,6 +429,7 @@ class Estimator:
             WHERE
                 day.weekday IN {dow_set}
                 AND day.time_closed = "{self.closing_time}"
+                AND day.date != "{today}"
             ORDER BY
                 day.date;
         """
@@ -433,6 +455,7 @@ class Estimator:
 
         self.befores = [int(r.before) for r in data_rows]
         self.afters = [int(r.after) for r in data_rows]
+        self.similar_dates = [r.date for r in data_rows]
 
     def guess(self) -> None:
         """Set self result info from the database."""
@@ -478,19 +501,26 @@ class Estimator:
             f"on a typical {dayname}, closing at {self.closing_time}:"
         ]
         if self.as_of_when < "13:30":
-            lines += ["(Keep in mind that estimates early in the day will be of low quality)"]
+            lines += [
+                "(Keep in mind that estimates early in the day will be of low quality)"
+            ]
 
         lines += [""] + self.simple_model.result_msg()
         lines += [""] + self.lr_model.result_msg()
+        n = len(self.similar_dates)
+        lines += [""] + [
+            f"The {n} {ut.plural(n,'date that is','dates that are')} "
+            f"raw data for this estimate {ut.plural(n,'is','are')}:"
+        ]
+        lines += [
+            f"  {s}" for s in ut.line_splitter(" ".join(self.similar_dates))
+        ]
 
         return lines
 
 
 def get_estimate_via_url(
-    bikes_so_far: int,
-    as_of_when="",
-    dow: int = None,
-    closing_time=""
+    bikes_so_far: int, as_of_when="", dow: int = None, closing_time=""
 ) -> list[str]:
     """Call estimator URL to get the estimate.
 
@@ -498,6 +528,7 @@ def get_estimate_via_url(
     is not on the same machine.
     """
     # Call Estimator to clean up the parameters.
+
     est = Estimator(bikes_so_far, as_of_when, dow, closing_time)
     if not cfg.ESTIMATOR_URL_BASE:
         return ["No estimator URL defined"]

@@ -48,6 +48,7 @@ import tt_tag_inv as inv
 import tt_notes as notes
 from tt_cmdparse import CmdBits
 import tt_estimator
+
 # Local connfiguration
 # try:
 #    import tt_local_config  # pylint:disable=unused-import
@@ -920,7 +921,7 @@ def estimate(args: list[str]) -> None:
         closing_time: default - today's closing time
     """
     args += [""] * 4
-    bikes_so_far,as_of_when,dow,closing_time = args[:4]
+    bikes_so_far, as_of_when, dow, closing_time = args[:4]
 
     if not bikes_so_far:
         bikes_so_far = len(check_ins)
@@ -930,12 +931,20 @@ def estimate(args: list[str]) -> None:
         dow = ut.dow_int("today")
         if not closing_time:
             closing_time = VALET_CLOSES
-    message_lines = tt_estimator.get_estimate_via_url(bikes_so_far,as_of_when,dow,closing_time)
+    pr.iprint()
+    pr.iprint("Estimating...")
+    time.sleep(3)
+    message_lines = tt_estimator.get_estimate_via_url(
+        bikes_so_far, as_of_when, dow, closing_time
+    )
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
     pr.iprint()
-    for line in message_lines:
-        pr.iprint(line)
+    for i, line in enumerate(message_lines):
+        if i == 0:
+            pr.iprint(line, style=cfg.TITLE_STYLE)
+        else:
+            pr.iprint(line)
     pr.iprint()
 
 
