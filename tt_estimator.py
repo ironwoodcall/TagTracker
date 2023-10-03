@@ -168,11 +168,15 @@ class SimpleModel:
                 f"    Expect {self.min} to {self.max} more bikes ({mm_str})."
             )
 
-        one_line = (f"    Based on {self.num_points} similar previous ""
-        f"{ut.plural(self.num_points,'day')}")
+        one_line = (
+            f"    Based on {self.num_points} similar previous "
+            f"{ut.plural(self.num_points,'day')}"
+        )
         if self.num_discarded:
-            one_line = (f"{one_line} ({self.num_discarded} "
-            f"{ut.plural(self.num_discarded,'outlier')} discarded)")
+            one_line = (
+                f"{one_line} ({self.num_discarded} "
+                f"{ut.plural(self.num_discarded,'outlier')} discarded)"
+            )
         lines = lines + [f"{one_line}."]
 
         return lines
@@ -253,7 +257,6 @@ class LRModel:
             )
         except ZeroDivisionError:
             self.error = "DIV/0 in R-value calculation."
-
 
         self.state = READY
 
