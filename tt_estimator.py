@@ -168,9 +168,11 @@ class SimpleModel:
                 f"    Expect {self.min} to {self.max} more bikes ({mm_str})."
             )
 
-        one_line = f"    Based on {self.num_points} similar previous {ut.plural(self.num_points,'day')}"
+        one_line = (f"    Based on {self.num_points} similar previous ""
+        f"{ut.plural(self.num_points,'day')}")
         if self.num_discarded:
-            one_line = f"{one_line} ({self.num_discarded} {ut.plural(self.num_discarded,'outlier')} discarded)"
+            one_line = (f"{one_line} ({self.num_discarded} "
+            f"{ut.plural(self.num_discarded,'outlier')} discarded)")
         lines = lines + [f"{one_line}."]
 
         return lines
@@ -292,7 +294,8 @@ class LRModel:
         lines = lines + [
             f"    {s}"
             for s in ut.line_splitter(
-                f"Based on {self.num_points} data points; correlation coefficient {cc}, R squared confidence {rs}."
+                f"Based on {self.num_points} data points; correlation coefficient "
+                f"{cc}, R squared confidence {rs}."
             )
         ]
 
