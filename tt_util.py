@@ -476,6 +476,9 @@ def line_splitter(input_string, width:int=80, print_handler=None, print_handler_
     print_handler_args is a dict of named arguments for print_handler
         (e.g. {"num_indents":2})
     Returns a list of strings of width width or less.
+
+    Thanks ChatGPT for the basic code and especially for the tricky syntax
+    forwarding optional args to the print hander.
     """
     # If no print handler args just make an empty dict.
     print_handler_args = print_handler_args if print_handler_args else {}
