@@ -35,6 +35,7 @@ import urllib.request
 import os
 import sys
 import re
+import math
 import statistics
 
 from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
@@ -191,6 +192,7 @@ class LRModel:
         self.slope = None
         self.intercept = None
         self.r_squared = None
+        self.correlation_coefficient = None
 
         self.further_bikes = None
 
@@ -229,7 +231,7 @@ class LRModel:
                 self.num_points * sum_x_squared - sum_x**2
             )
         except ZeroDivisionError:
-            self.error = f"DIV/0 in slope calculation."
+            self.error = "DIV/0 in slope calculation."
             self.state = ERROR
             return
         self.intercept = mean_y - self.slope * mean_x
@@ -245,6 +247,20 @@ class LRModel:
             self.r_squared = "DIV/0"
         else:
             self.r_squared = 1 - (ss_residual / ss_total)
+
+        # Calculate the correlation coefficient (R)
+        sum_diff_prod = sum((x - mean_x) * (y - mean_y) for x, y in xy_data)
+        sum_x_diff_squared = sum((x - mean_x) ** 2 for x, _ in xy_data)
+        sum_y_diff_squared = sum((y - mean_y) ** 2 for _, y in xy_data)
+
+        try:
+            self.correlation_coefficient = sum_diff_prod / (
+                math.sqrt(sum_x_diff_squared) * math.sqrt(sum_y_diff_squared)
+            )
+        except ZeroDivisionError:
+            self.error = "DIV/0 in R-value calculation."
+            self.state = ERROR
+            return
 
         self.commentary.append(
             f"Model ok: intercept: {self.intercept}, slope: {self.slope}, R^2: {self.r_squared}"
@@ -275,10 +291,20 @@ class LRModel:
         rs = (
             "unknown"
             if not isinstance(self.r_squared, (float, int))
-            else f"{round(self.r_squared*100)}%"
+            else f"{self.r_squared*100:.0f}%"
         )
+        cc = (
+            "unknown"
+            if not isinstance(self.correlation_coefficient, (float, int))
+            else f"{self.correlation_coefficient:.2f}"
+        )
+
         lines = lines + [
-            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')} with {rs} confidence."
+            f"    {s}"
+            for s in ut.line_splitter(
+                f"Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}, "
+                f"with a correlation coefficient {cc} and R squared confidence {rs}."
+            )
         ]
 
         return lines
@@ -480,21 +506,24 @@ class Estimator:
             f"on a typical {dayname}, closing at {self.closing_time}:"
         ]
         if self.as_of_when < "13:30":
-            lines += ["(Keep in mind that estimates early in the day will be of low quality)"]
+            lines += [
+                "(Keep in mind that estimates early in the day will be of low quality)"
+            ]
 
         lines += [""] + self.simple_model.result_msg()
         lines += [""] + self.lr_model.result_msg()
-        lines += [""] + [f"The {len(self.similar_dates)} raw data matching points are:"]
-        lines += [" ".join(self.similar_dates)]
+        lines += [""] + [
+            f"The {len(self.similar_dates)} raw data matching points are:"
+        ]
+        lines += [
+            f"  {s}" for s in ut.line_splitter(" ".join(self.similar_dates))
+        ]
 
         return lines
 
 
 def get_estimate_via_url(
-    bikes_so_far: int,
-    as_of_when="",
-    dow: int = None,
-    closing_time=""
+    bikes_so_far: int, as_of_when="", dow: int = None, closing_time=""
 ) -> list[str]:
     """Call estimator URL to get the estimate.
 
