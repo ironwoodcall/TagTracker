@@ -467,3 +467,7 @@ def plural(count:int,singluar_form:str,plural_form:str="") -> str:
         return singluar_form
     plural_form = plural_form if plural_form else f"{singluar_form}s"
     return plural_form
+
+def line_splitter( text:str="", width:int=80, print_function=print,
+
+                  )

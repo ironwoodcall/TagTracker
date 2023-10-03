@@ -312,6 +312,7 @@ class Estimator:
         self.as_of_when = None
         self.closing_time = None
         # This is the raw data
+        self.similar_dates = []
         self.befores = []
         self.afters = []
         # These are for the resulting 'simple model' estimate
@@ -433,6 +434,7 @@ class Estimator:
 
         self.befores = [int(r.before) for r in data_rows]
         self.afters = [int(r.after) for r in data_rows]
+        self.similar_dates = [r.date for r in data_rows]
 
     def guess(self) -> None:
         """Set self result info from the database."""
@@ -482,6 +484,8 @@ class Estimator:
 
         lines += [""] + self.simple_model.result_msg()
         lines += [""] + self.lr_model.result_msg()
+        lines += [""] + [f"The {len(self.similar_dates)} raw data matching points are:"]
+        lines += [" ".join(self.similar_dates)]
 
         return lines
 
