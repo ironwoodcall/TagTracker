@@ -29,6 +29,24 @@ Copyright (C) 2023 Julias Hocking
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+    This is a scratch area:
+
+    How many more bikes? (Estimation performed at HH:MM on TODAY.)
+
+    Estimating for a typical DAY with NUM bikes by TIME, closing at TIME.
+
+    Using a simple model that averages similar dates:
+        Expect NUM [median] or NUM [mean] more bikes.
+        Average based on bikes after HH:MM on these NUM similar dates [this similar date]::
+            4:(2023-04-07) 16:(2023-10-01) 18:(2023-05-01)
+        Discarded these outliers [this outlier] as atypical:
+            250:(2023-07-09)
+
+
+
+
 """
 
 import urllib.request
@@ -55,13 +73,17 @@ class SimpleModel:
     """A simple model using mean & median for similar days."""
 
     def __init__(self) -> None:
-        self.befores = None
-        self.afters = None
+        self.raw_befores = None
+        self.raw_afters = None
+        self.raw_dates = []
         self.match_tolerance = None
         self.matched_afters = []
+        self.matched_dates = []
         self.num_points = None
         self.trim_tolerance = None
         self.trimmed_afters = []
+        self.discarded_afters = []
+        self.discarded_dates = []
         self.num_discarded = None
 
         self.min = None
@@ -99,6 +121,7 @@ class SimpleModel:
 
     def create_model(
         self,
+        dates: list[str],
         befores: list[int],
         afters: list[int],
         tolerance: float,
@@ -106,8 +129,9 @@ class SimpleModel:
     ):
         if self.state == ERROR:
             return
-        self.befores = befores
-        self.afters = afters
+        self.raw_dates = dates
+        self.raw_befores = befores
+        self.raw_afters = afters
         self.match_tolerance = tolerance
         self.trim_tolerance = z_threshold
         self.state = READY
@@ -124,9 +148,9 @@ class SimpleModel:
         # Find data points that match our bikes-so-far
         # values within this dist are considered same
         self.matched_afters = []
-        for i, this_bikes_so_far in enumerate(self.befores):
+        for i, this_bikes_so_far in enumerate(self.raw_befores):
             if abs(bikes_so_far - this_bikes_so_far) <= self.match_tolerance:
-                self.matched_afters.append(self.afters[i])
+                self.matched_afters.append(self.raw_afters[i])
         self.num_points = len(self.matched_afters)
 
         # Discard outliers (z score > z cutodd)
@@ -149,7 +173,7 @@ class SimpleModel:
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
-        lines = ["Simple averaging model prediction:"]
+        lines = ["Using a simple model that averages similar dates:"]
         if self.state != OK:
             lines = [f"    Can't estimate because: {self.error}"]
             return lines
@@ -157,16 +181,13 @@ class SimpleModel:
         mean_median = [self.mean, self.median]
         mean_median.sort()
         if mean_median[0] == mean_median[1]:
-            mm_str = f"best guess: {mean_median[0]}"
+            mm_str = f"{mean_median[0]}"
         else:
-            mm_str = f"best guesses: {mean_median[0]} [median] or {mean_median[1]} [mean]"
+            mm_str = f"{mean_median[0]} [median] or {mean_median[1]} [mean]"
 
-        if self.max == self.min:
-            lines.append(f"    Expect {self.min} more bikes.")
-        else:
-            lines.append(
-                f"    Expect {self.min} to {self.max} more bikes ({mm_str})."
-            )
+        lines.append(
+            f"    Expect {mm_str} more {ut.plural(self.median,'bike')}."
+        )
 
         one_line = (
             f"    Based on {self.num_points} similar previous "
@@ -234,29 +255,20 @@ class LRModel:
             return
         self.intercept = mean_y - self.slope * mean_x
 
-        # Calculate R-squared
-        ss_total = sum((y - mean_y) ** 2 for x, y in xy_data)
-        ss_residual = sum(
-            (y - (self.slope * x + self.intercept)) ** 2 for x, y in xy_data
-        )
-        if ss_residual == 0:
-            self.r_squared = 1.0
-        elif ss_total == 0:
-            self.r_squared = "DIV/0 in R squared calculation"
-        else:
-            self.r_squared = 1 - (ss_residual / ss_total)
-
-        # Calculate the correlation coefficient (R)
+        # Calculate the correlation coefficient (r) and goodness of fit (R^2)
         sum_diff_prod = sum((x - mean_x) * (y - mean_y) for x, y in xy_data)
         sum_x_diff_squared = sum((x - mean_x) ** 2 for x, _ in xy_data)
         sum_y_diff_squared = sum((y - mean_y) ** 2 for _, y in xy_data)
-
         try:
             self.correlation_coefficient = sum_diff_prod / (
                 math.sqrt(sum_x_diff_squared) * math.sqrt(sum_y_diff_squared)
             )
+            self.r_squared = (
+                self.correlation_coefficient * self.correlation_coefficient
+            )
         except ZeroDivisionError:
-            self.error = "DIV/0 in R-value calculation."
+            self.correlation_coefficient = "DIV/0"
+            self.r_squared = "DIV/0"
 
         self.state = READY
 
@@ -279,15 +291,15 @@ class LRModel:
         if self.state != OK:
             lines.append(f"    Can't estimate because: {self.error}")
             return lines
-        rs = (
-            "unknown"
-            if not isinstance(self.r_squared, (float, int))
-            else f"{self.r_squared*100:.0f}%"
-        )
         cc = (
             "unknown"
             if not isinstance(self.correlation_coefficient, (float, int))
             else f"{self.correlation_coefficient:.2f}"
+        )
+        rs = (
+            "unknown"
+            if not isinstance(self.r_squared, (float, int))
+            else f"{self.r_squared:.2f}"
         )
 
         lines = lines + [
@@ -297,8 +309,8 @@ class LRModel:
         lines = lines + [
             f"    {s}"
             for s in ut.line_splitter(
-                f"Based on {self.num_points} data points; correlation coefficient "
-                f"{cc}, R squared confidence {rs}."
+                f"Based on {self.num_points} data points (correlation coefficient: "
+                f"{cc}; goodness of fit: {rs})."
             )
         ]
 
@@ -307,6 +319,8 @@ class LRModel:
 
 class Estimator:
     """Data and methods to estimate how many more bikes to expect."""
+
+    DBFILE = "../data/cityhall_bikevalet.db"
 
     def __init__(
         self,
@@ -327,6 +341,7 @@ class Estimator:
         self.state = INCOMPLETE
         # This stays empty unless set to an error message.
         self.error = ""  # Error message
+
         # These are inputs
         self.bikes_so_far = None
         self.dow = None
@@ -341,7 +356,23 @@ class Estimator:
         # This is for the linear regression model
         self.lr_model = LRModel()
 
+        # pylint: disable-next=invalid-name
+        DBFILE = "../data/cityhall_bikevalet.db"
+        if not os.path.exists(DBFILE):
+            self.error = "Database not found"
+            self.state = ERROR
+            return
+        self.database = db.db_connect(DBFILE)
+
         # Now process the inputs from passed-in values.
+        if (
+            not bikes_so_far
+            and not as_of_when
+            and not dow_in
+            and not closing_time
+        ):
+            bikes_so_far = self._bikes_right_now()
+
         bikes_so_far = str(bikes_so_far).strip()
         if not bikes_so_far.isdigit():
             self.error = "Missing or bad bikes_so_far parameter."
@@ -385,6 +416,17 @@ class Estimator:
             self.error = "Missing or bad closing_time parameter."
             self.state = ERROR
             return
+
+    def _bikes_right_now(self) -> int:
+        today = ut.date_str('today')
+        rows = db.db_fetch(
+            self.database,
+            f"select count(date) from visit where date = '{today}' and time_in > ''",
+            ["count"],
+        )
+        if not rows:
+            return None
+        return rows[0].count
 
     def _sql_str(self) -> str:
         """Build SQL query."""
@@ -438,16 +480,10 @@ class Estimator:
     def _fetch_raw_data(self) -> None:
         """Get raw data from the database into self.befores, self.afters."""
         # Collect data from database
-        # pylint: disable-next=invalid-name
-        DBFILE = "../data/cityhall_bikevalet.db"
-        if not os.path.exists(DBFILE):
-            self.error = "Database not found"
-            self.state = ERROR
-            return
-
-        database = db.db_connect(DBFILE)
         sql = self._sql_str()
-        data_rows = db.db_fetch(database, sql, ["date", "before", "after"])
+        data_rows = db.db_fetch(
+            self.database, sql, ["date", "before", "after"]
+        )
         if not data_rows:
             self.error = "No data returned from database."
             self.state = ERROR
@@ -471,7 +507,7 @@ class Estimator:
         # Z score at which to eliminate a data point an an outlier
         Z_CUTOFF = 2.5  # pylint: disable=invalid-name
         self.simple_model.create_model(
-            self.befores, self.afters, VARIANCE, Z_CUTOFF
+            self.similar_dates, self.befores, self.afters, VARIANCE, Z_CUTOFF
         )
         self.simple_model.guess(self.bikes_so_far)
 
@@ -494,27 +530,48 @@ class Estimator:
         else:
             dayname = "weekday"
 
-        lines = ["How many more bikes?"]
+        lines = [
+            "How many more bikes?  Estimation performed at "
+            f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
+        ]
         lines += [""] + [
-            f"With {self.bikes_so_far} {ut.plural(self.bikes_so_far,'bike')} "
-            f"parked by {self.as_of_when.short} "
-            f"on a typical {dayname}, closing at {self.closing_time}:"
+            f"Estimating for a typical {dayname} with {self.bikes_so_far} "
+            f"{ut.plural(self.bikes_so_far,'bike')} parked by {self.as_of_when.short}, "
+            f"closing at {self.closing_time}:"
         ]
         if self.as_of_when < "13:30":
             lines += [
-                "(Keep in mind that estimates early in the day will be of low quality)"
+                "(Note: estimates performed early in the day may be of low quality.)"
             ]
 
         lines += [""] + self.simple_model.result_msg()
         lines += [""] + self.lr_model.result_msg()
-        n = len(self.similar_dates)
+
+        # Find day-total expectation
+        predictions = []
+        if self.simple_model.state == OK:
+            predictions += [self.simple_model.mean, self.simple_model.median]
+        if self.lr_model.state == OK:
+            predictions += [self.lr_model.further_bikes]
+        if predictions:
+            min_day_total = min(predictions) + self.bikes_so_far
+            max_day_total = max(predictions) + self.bikes_so_far
+            if min_day_total == max_day_total:
+                prediction_str = str(min_day_total)
+            else:
+                prediction_str = f"{min_day_total} to {max_day_total}"
         lines += [""] + [
-            f"The {n} {ut.plural(n,'date that is','dates that are')} "
-            f"raw data for this estimate {ut.plural(n,'is','are')}:"
+            f"Based on these models, expect a total of {prediction_str} bikes for the day."
         ]
-        lines += [
-            f"  {s}" for s in ut.line_splitter(" ".join(self.similar_dates))
-        ]
+
+        # n = len(self.similar_dates)
+        # lines += [""] + [
+        #    f"The {n} {ut.plural(n,'date that is','dates that are')} "
+        #    f"raw data for this estimate {ut.plural(n,'is','are')}:"
+        # ]
+        # lines += [
+        #    f"  {s}" for s in ut.line_splitter(" ".join(self.similar_dates))
+        # ]
 
         return lines
 
@@ -574,7 +631,7 @@ if __name__ == "__main__":
     estimate: Estimator
     is_cgi = bool(os.environ.get("REQUEST_METHOD"))
     if is_cgi:
-        print("Content-type: text/plain\n")
+        print("Content-type: text/html\n\n<pre width=80>")
         estimate = _init_from_cgi()
     else:
         estimate = _init_from_args()
