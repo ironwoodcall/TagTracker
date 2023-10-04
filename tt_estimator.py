@@ -173,7 +173,7 @@ class SimpleModel:
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
-        lines = ["Using a simple model that averages similar dates:"]
+        lines = ["Using a model that averages similar dates:"]
         if self.state != OK:
             lines = [f"    Can't estimate because: {self.error}"]
             return lines
@@ -287,7 +287,7 @@ class LRModel:
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
-        lines = ["Linear regression model prediction:"]
+        lines = ["Using a linear regression model:"]
         if self.state != OK:
             lines.append(f"    Can't estimate because: {self.error}")
             return lines
@@ -418,7 +418,7 @@ class Estimator:
             return
 
     def _bikes_right_now(self) -> int:
-        today = ut.date_str('today')
+        today = ut.date_str("today")
         rows = db.db_fetch(
             self.database,
             f"select count(date) from visit where date = '{today}' and time_in > ''",
@@ -561,7 +561,7 @@ class Estimator:
             else:
                 prediction_str = f"{min_day_total} to {max_day_total}"
         lines += [""] + [
-            f"Based on these models, expect a total of {prediction_str} bikes for the day."
+            f"From these models, expect a total of {prediction_str} bikes for the day."
         ]
 
         # n = len(self.similar_dates)
@@ -631,7 +631,11 @@ if __name__ == "__main__":
     estimate: Estimator
     is_cgi = bool(os.environ.get("REQUEST_METHOD"))
     if is_cgi:
-        print("Content-type: text/html\n\n<pre width=80>")
+        print(
+            "Content-type: text/html\n\n<html>"
+            "<head><title>TagTracker bike estimation</title></head>"
+            "<body><pre width=80>"
+        )
         estimate = _init_from_cgi()
     else:
         estimate = _init_from_args()
@@ -641,3 +645,6 @@ if __name__ == "__main__":
 
     for line in estimate.result_msg():
         print(line)
+
+    if is_cgi:
+        print( "</pre></body></html>" )
