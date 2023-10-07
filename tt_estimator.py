@@ -60,7 +60,7 @@ import tt_conf as cfg
 import tt_util as ut
 from tt_time import VTime
 import tt_dbutil as db
-
+import tt_estimator_rf as rf
 
 # These are model states
 INCOMPLETE = "incomplete"  # initialized but not ready to use
@@ -158,7 +158,7 @@ class SimpleModel:
 
         # Check for no data.
         if not self.matched_afters:
-            self.error = "no similar data"
+            self.error = "no similar dates"
             self.state = ERROR
             return
 
@@ -173,9 +173,9 @@ class SimpleModel:
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
-        lines = ["Using a model that averages similar dates:"]
+        lines = ["Using a model that averages roughly similar dates:"]
         if self.state != OK:
-            lines = [f"    Can't estimate because: {self.error}"]
+            lines += [f"    Can't estimate because: {self.error}"]
             return lines
 
         mean_median = [self.mean, self.median]
@@ -203,12 +203,15 @@ class SimpleModel:
         return lines
 
 
-class LRModel:
+'''
+class LRModel2:
     """A linear regression model using least squares."""
 
     def __init__(self):
         self.state = INCOMPLETE
         self.error = None
+
+        self.max_discard = 2
 
         self.num_points = None
         self.slope = None
@@ -218,10 +221,183 @@ class LRModel:
 
         self.further_bikes = None
 
+    def _calculate_residuals(self, x_data,y_data):
+        xy_data = list(zip(x_data,y_data))
+
+        # Calculate the means within this scope
+        mean_x = sum(x_data) / len(x_data)
+        mean_y = sum(y_data) / len(y_data)
+
+        # Calculate residuals
+        residuals = [(x - mean_x, y - mean_y) for x, y in xy_data]
+
+        return residuals
+
+    def calculate_model(self, xy_data):
+        x,y = zip(*xy_data)
+        discarded_count = 0
+        while discarded_count < self.max_discard:
+            # Calculate linear regression coefficients
+            result = statistics.linear_regression(x, y)
+            slope, intercept = result
+
+            # Calculate residuals
+            residuals = self._calculate_residuals(x, y)
+
+            # Calculate the residual standard error (RSE)
+            #rse = self._calculate_residual_standard_error(residuals)
+
+            # Calculate R and r squared
+            r = self._calculate_r(x, y, slope, intercept)
+            r_squared = r**2
+
+            # Identify and discard the most deviant outlier based on the z-score threshold
+            max_deviance = max(abs(r) for r in residuals)
+            max_deviance_index = None
+            for i, r in enumerate(residuals):
+                if abs(r) == max_deviance:
+                    max_deviance_index = i
+                    break
+
+            if max_deviance_index is not None:
+                x.pop(max_deviance_index)
+                y.pop(max_deviance_index)
+                discarded_count += 1
+            else:
+                break
+
+        # Calculate linear regression coefficients after outlier removal
+        if discarded_count > 0:
+            slope, intercept = self._calculate_linear_regression(x, y)
+        else:
+            slope, intercept = None, None
+
+        self.num_discards = discarded_count
+        self.slope = slope
+        self.intercept = intercept
+        self.r = r
+        self.r_squared = r_squared
+
+        return slope, intercept
+
+    def probability_within_range(self, x_new, y_new, range_value):
+        if self.slope is None or self.intercept is None:
+            return None
+
+        # Calculate the predicted y-value for the new x-value
+        y_predicted = self.slope * x_new + self.intercept
+
+        # Calculate the standard error of the estimate (SE)
+        residuals = self._calculate_residuals(x_new, y_new, self.slope, self.intercept)
+        se = self._calculate_residual_standard_error(residuals)
+
+        # Calculate the z-score for the new y-value
+        z_score = (y_new - y_predicted) / se
+
+        # Calculate the cumulative distribution function (CDF) for the z-score
+        def std_normal_cdf(z):
+            return 0.5 * (1 + math.erf(z / math.sqrt(2)))
+
+        # Calculate the probability of being within the specified range
+        p_within_range = (
+            std_normal_cdf(range_value) - std_normal_cdf(-range_value)
+        )
+
+        return p_within_range
+
+    def guess(self, x: float) -> float:
+        # Predict y based on the linear regression equation
+        if self.state == ERROR:
+            return
+        if self.state not in [READY, OK]:
+            self.state = ERROR
+            self.error = "model not ready, can not guess"
+            return
+        self.further_bikes = round(self.slope * x + self.intercept)
+        self.state = OK
+        return
+
+    def result_msg(self) -> list[str]:
+        """Return list of strings as long message."""
+
+        lines = ["Using a linear regression model:"]
+        if self.state != OK:
+            lines.append(f"    Can't estimate because: {self.error}")
+            return lines
+        cc = (
+            "unknown"
+            if not isinstance(self.correlation_coefficient, (float, int))
+            else f"{self.correlation_coefficient:.2f}"
+        )
+        rs = (
+            "unknown"
+            if not isinstance(self.r_squared, (float, int))
+            else f"{self.r_squared:.2f}"
+        )
+
+        lines = lines + [
+            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
+        ]
+
+        lines = lines + [
+            f"    {s}"
+            for s in ut.line_splitter(
+                f"Based on {self.num_points} data points (correlation coefficient: "
+                f"{cc}; goodness of fit: {rs})."
+            )
+        ]
+
+
+        return lines
+
+'''
+
+
+class LRModel:
+    """A linear regression model using least squares."""
+
+    def __init__(self):
+        self.state = INCOMPLETE
+        self.error = None
+        self.xy_data = None
+        self.num_points = None
+        self.slope = None
+        self.intercept = None
+        self.r_squared = None
+        self.correlation_coefficient = None
+        self.nmae = None
+        self.nrmse = None
+
+        self.further_bikes = None
+
+    def calculate_nrmse(self):
+
+        sum_squared_errors = sum(
+            (y - (self.slope * x + self.intercept)) ** 2
+            for x, y in self.xy_data
+        )
+        rmse = math.sqrt(sum_squared_errors / self.num_points)
+
+        range_y = max(y for _, y in self.xy_data) - min(
+            y for _, y in self.xy_data
+        )
+        self.nrmse = rmse / range_y
+
+    def calculate_nmae(self):
+
+        sum_absolute_errors = sum(
+            abs(y - (self.slope * x + self.intercept)) for x, y in self.xy_data
+        )
+        range_y = max(y for _, y in self.xy_data) - min(
+            y for _, y in self.xy_data
+        )
+        self.nmae = sum_absolute_errors / (self.num_points * range_y)
+
     def calculate_model(self, xy_data):
         if self.state == ERROR:
             return
 
+        self.xy_data = xy_data
         self.num_points = len(xy_data)
         if self.num_points < 2:
             self.error = "not enough data points"
@@ -270,6 +446,9 @@ class LRModel:
             self.correlation_coefficient = "DIV/0"
             self.r_squared = "DIV/0"
 
+        self.calculate_nrmse()
+        self.calculate_nmae()
+
         self.state = READY
 
     def guess(self, x: float) -> float:
@@ -306,12 +485,13 @@ class LRModel:
             f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
         ]
 
+        nrmse_str = f"{self.nrmse:.2f}" if self.nrmse is not None else "unknown"
+        nmae_str = f"{self.nmae:.2f}" if self.nmae is not None else "unknown"
         lines = lines + [
             f"    {s}"
             for s in ut.line_splitter(
-                f"Based on {self.num_points} data points (correlation coefficient: "
-                f"{cc}; goodness of fit: {rs})."
-            )
+                f"Based on {self.num_points} data points "
+                f"(NMAE: {nmae_str}, NRMSE: {nrmse_str} [lower is better]).")
         ]
 
         return lines
@@ -355,6 +535,8 @@ class Estimator:
         self.simple_model = SimpleModel()
         # This is for the linear regression model
         self.lr_model = LRModel()
+        # This for the random forest estimate
+        self.rf_model = rf.RandomForestRegressorModel()
 
         # pylint: disable-next=invalid-name
         DBFILE = "../data/cityhall_bikevalet.db"
@@ -515,6 +697,10 @@ class Estimator:
         self.lr_model.calculate_model(list(zip(self.befores, self.afters)))
         self.lr_model.guess(self.bikes_so_far)
 
+        if rf.POSSIBLE:
+            self.rf_model.create_model([], self.befores, self.afters)
+            self.rf_model.guess(self.bikes_so_far)
+
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
@@ -544,15 +730,19 @@ class Estimator:
                 "(Note: estimates performed early in the day may be of low quality.)"
             ]
 
-        lines += [""] + self.simple_model.result_msg()
-        lines += [""] + self.lr_model.result_msg()
-
-        # Find day-total expectation
         predictions = []
+        lines += [""] + self.simple_model.result_msg()
         if self.simple_model.state == OK:
             predictions += [self.simple_model.mean, self.simple_model.median]
+        lines += [""] + self.lr_model.result_msg()
         if self.lr_model.state == OK:
             predictions += [self.lr_model.further_bikes]
+        if rf.POSSIBLE:
+            lines += [""] + self.rf_model.result_msg()
+            if self.rf_model.state == rf.OK:
+                predictions += [self.rf_model.further_bikes]
+        # Find day-total expectation
+
         if predictions:
             min_day_total = min(predictions) + self.bikes_so_far
             max_day_total = max(predictions) + self.bikes_so_far
@@ -632,9 +822,7 @@ if __name__ == "__main__":
     is_cgi = bool(os.environ.get("REQUEST_METHOD"))
     if is_cgi:
         print(
-            "Content-type: text/html\n\n<html>"
-            "<head><title>TagTracker bike estimation</title></head>"
-            "<body><pre width=80>"
+            "Content-type: text/plain\n"
         )
         estimate = _init_from_cgi()
     else:
@@ -646,5 +834,3 @@ if __name__ == "__main__":
     for line in estimate.result_msg():
         print(line)
 
-    if is_cgi:
-        print( "</pre></body></html>" )
