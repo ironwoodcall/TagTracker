@@ -24,6 +24,8 @@ Copyright (C) 2023 Julias Hocking
 try:
     import numpy as np
     from sklearn.ensemble import RandomForestRegressor
+    from sklearn.metrics import mean_absolute_error, mean_squared_error
+
     POSSIBLE = True
 except ModuleNotFoundError:
     POSSIBLE = False
@@ -50,55 +52,20 @@ class RandomForestRegressorModel:
         self.error = ""
         self.state = INCOMPLETE
 
+    def calculate_normalized_errors(self):
+        # Predict using the random forest model
+        predicted_afters = self.rf_model.predict(np.array(self.befores).reshape(-1, 1))
 
+        # Calculate MAE and RMSE
+        mae = mean_absolute_error(self.afters, predicted_afters)
+        rmse = np.sqrt(mean_squared_error(self.afters, predicted_afters))
 
-    def calculate_normalized_errors(self, bikes_so_far):
-        if self.state != OK:
-            return
+        # Calculate the range of the actual values
+        range_actual = max(self.afters) - min(self.afters)
 
-        try:
-            predicted_afters = self.rf_model.predict(np.array([bikes_so_far]).reshape(-1, 1))
-            predicted_afters = int(np.mean(predicted_afters))
-            actual_afters = bikes_so_far + predicted_afters
-
-            # Calculate NMAE
-            mae = abs(actual_afters - self.afters[-1])
-            range_afters = max(self.afters) - min(self.afters)
-            self.nmae = mae / range_afters
-
-            # Calculate NRMSE
-            mse = (actual_afters - self.afters[-1]) ** 2
-            self.nrmse = np.sqrt(mse) / range_afters
-
-            # Ensure NMAE and NRMSE are in the range [0, 1]
-            self.nmae = min(1.0, max(0.0, self.nmae))
-            self.nrmse = min(1.0, max(0.0, self.nrmse))
-        except Exception as e:
-            self.state = ERROR
-            self.error = str(e)
-
-
-        try:
-            predicted_afters = self.rf_model.predict(np.array([bikes_so_far]).reshape(-1, 1))
-            predicted_afters = int(np.mean(predicted_afters))
-            actual_afters = bikes_so_far + predicted_afters
-            max_actual_afters = max(self.afters)
-            min_actual_afters = min(self.afters)
-
-            # Calculate NMAE
-            mae = abs(actual_afters - self.afters[-1])
-            self.nmae = mae / (max_actual_afters - min_actual_afters)
-
-            # Calculate NRMSE
-            mse = (actual_afters - self.afters[-1]) ** 2
-            self.nrmse = np.sqrt(mse) / (max_actual_afters - min_actual_afters)
-
-            # Ensure NMAE and NRMSE are in the range [0, 1]
-            self.nmae = min(1.0, max(0.0, self.nmae))
-            self.nrmse = min(1.0, max(0.0, self.nrmse))
-        except Exception as e:
-            self.state = ERROR
-            self.error = str(e)
+        # Calculate NMAE and NRMSE
+        self.nmae = mae / range_actual
+        self.nrmse = rmse / range_actual
 
     def create_model(self, dates, befores, afters):
         if not POSSIBLE:
@@ -113,6 +80,8 @@ class RandomForestRegressorModel:
         self.rf_model = RandomForestRegressor(n_estimators=100, random_state=0)
         self.rf_model.fit(self.X_train, self.y_train)
         self.state = READY
+
+        self.calculate_normalized_errors()
 
     def guess(self, bikes_so_far):
         if self.state == ERROR:
@@ -130,17 +99,14 @@ class RandomForestRegressorModel:
             self.state = ERROR
             self.error = str(e)
 
-        self.calculate_normalized_errors(bikes_so_far)
-
     def result_msg(self):
-        lines = ["Using a Random Forest Regressor model:"]
+        lines = ["Using a random forest regressor model:"]
         if self.state != OK:
             lines.append(f"    Can't estimate because: {self.error}")
             return lines
 
         lines.append(f"    Expect {self.further_bikes} more bikes.")
-        lines.append(f"    Based on {len(self.befores)} data points (NMAE: {self.nmae:.2f}, NRMSE: {self.nrmse:.2f} [lower is better])")
-        lines.append( "    warning: nmae and mrse are not calculating correctly right now")
+        lines.append(f"    Based on {len(self.befores)} data points (NMAE: {self.nmae:.2f}, NRMSE: {self.nrmse:.2f} [lower is better]).")
 
         return lines
 

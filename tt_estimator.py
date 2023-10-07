@@ -173,7 +173,7 @@ class SimpleModel:
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
 
-        lines = ["Using a model that averages similar dates:"]
+        lines = ["Using a model that averages roughly similar dates:"]
         if self.state != OK:
             lines += [f"    Can't estimate because: {self.error}"]
             return lines
@@ -201,6 +201,7 @@ class SimpleModel:
         lines = lines + [f"{one_line}."]
 
         return lines
+
 
 '''
 class LRModel2:
@@ -351,25 +352,52 @@ class LRModel2:
 
 '''
 
+
 class LRModel:
     """A linear regression model using least squares."""
 
     def __init__(self):
         self.state = INCOMPLETE
         self.error = None
-
+        self.xy_data = None
         self.num_points = None
         self.slope = None
         self.intercept = None
         self.r_squared = None
         self.correlation_coefficient = None
+        self.nmae = None
+        self.nrmse = None
 
         self.further_bikes = None
+
+    def calculate_nrmse(self):
+
+        sum_squared_errors = sum(
+            (y - (self.slope * x + self.intercept)) ** 2
+            for x, y in self.xy_data
+        )
+        rmse = math.sqrt(sum_squared_errors / self.num_points)
+
+        range_y = max(y for _, y in self.xy_data) - min(
+            y for _, y in self.xy_data
+        )
+        self.nrmse = rmse / range_y
+
+    def calculate_nmae(self):
+
+        sum_absolute_errors = sum(
+            abs(y - (self.slope * x + self.intercept)) for x, y in self.xy_data
+        )
+        range_y = max(y for _, y in self.xy_data) - min(
+            y for _, y in self.xy_data
+        )
+        self.nmae = sum_absolute_errors / (self.num_points * range_y)
 
     def calculate_model(self, xy_data):
         if self.state == ERROR:
             return
 
+        self.xy_data = xy_data
         self.num_points = len(xy_data)
         if self.num_points < 2:
             self.error = "not enough data points"
@@ -418,6 +446,9 @@ class LRModel:
             self.correlation_coefficient = "DIV/0"
             self.r_squared = "DIV/0"
 
+        self.calculate_nrmse()
+        self.calculate_nmae()
+
         self.state = READY
 
     def guess(self, x: float) -> float:
@@ -454,11 +485,13 @@ class LRModel:
             f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
         ]
 
+        nrmse_str = f"{self.nrmse:.2f}" if self.nrmse is not None else "unknown"
+        nmae_str = f"{self.nmae:.2f}" if self.nmae is not None else "unknown"
         lines = lines + [
             f"    {s}"
             for s in ut.line_splitter(
-                f"Based on {self.num_points} data points (R squared: {rs} [higher is better])."
-            )
+                f"Based on {self.num_points} data points "
+                f"(NMAE: {nmae_str}, NRMSE: {nrmse_str} [lower is better]).")
         ]
 
         return lines
@@ -660,13 +693,12 @@ class Estimator:
         )
         self.simple_model.guess(self.bikes_so_far)
 
-
         # Calculate using linear regression.
         self.lr_model.calculate_model(list(zip(self.befores, self.afters)))
         self.lr_model.guess(self.bikes_so_far)
 
         if rf.POSSIBLE:
-            self.rf_model.create_model([],self.befores,self.afters)
+            self.rf_model.create_model([], self.befores, self.afters)
             self.rf_model.guess(self.bikes_so_far)
 
     def result_msg(self) -> list[str]:
@@ -790,9 +822,7 @@ if __name__ == "__main__":
     is_cgi = bool(os.environ.get("REQUEST_METHOD"))
     if is_cgi:
         print(
-            "Content-type: text/html\n\n<html>"
-            "<head><title>TagTracker bike estimation</title></head>"
-            "<body><pre width=80>"
+            "Content-type: text/plain\n"
         )
         estimate = _init_from_cgi()
     else:
@@ -804,5 +834,3 @@ if __name__ == "__main__":
     for line in estimate.result_msg():
         print(line)
 
-    if is_cgi:
-        print( "</pre></body></html>" )
