@@ -40,7 +40,7 @@ ERROR = "error"  # the model is unusable, in an error state
 def _format_measure(m):
     """Format a regression measure as a string."""
     if m is None or m != m or not isinstance(m, (float, int)):
-        return "unknown"
+        return "?"
     return f"{m:.2f}"
 
 
@@ -119,10 +119,15 @@ class RandomForestRegressorModel:
 
         lines.append(f"    Expect {self.further_bikes} more bikes.")
         lines.append(f"    Based on {len(self.befores)} data points")
-        lines.append(
-            f"    NMAE {_format_measure(self.nmae)}; "
-            f"NRMSE {_format_measure(self.nrmse)} [lower is better]."
-        )
+        nmae_str = _format_measure(self.nmae)
+        nrmse_str = _format_measure(self.nrmse)
+        if nmae_str == "?" and nrmse_str == "?":
+            lines.append("    Model quality can not be calculated.")
+        else:
+            lines.append(
+                f"    NMAE {nmae_str}; "
+                f"NRMSE {nrmse_str} [lower is better]."
+            )
 
         return lines
 
