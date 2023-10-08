@@ -68,6 +68,15 @@ READY = "ready"  # model is ready to use
 OK = "ok"  # model has been used to create a guess OK
 ERROR = "error"  # the model is unusable, in an error state
 
+PRINT_WIDTH=47
+
+
+def _format_measure(m):
+    """Format a regression measure as a string."""
+    if m is None or m != m or not isinstance(m, (float, int)):
+        return "?"
+    return f"{m:.2f}"
+
 
 class SimpleModel:
     """A simple model using mean & median for similar days."""
@@ -371,7 +380,6 @@ class LRModel:
         self.further_bikes = None
 
     def calculate_nrmse(self):
-
         sum_squared_errors = sum(
             (y - (self.slope * x + self.intercept)) ** 2
             for x, y in self.xy_data
@@ -381,17 +389,23 @@ class LRModel:
         range_y = max(y for _, y in self.xy_data) - min(
             y for _, y in self.xy_data
         )
-        self.nrmse = rmse / range_y
+        if range_y == 0:
+            self.nmrse = "DIV/0"
+        else:
+            self.nrmse = rmse / range_y
 
     def calculate_nmae(self):
-
         sum_absolute_errors = sum(
             abs(y - (self.slope * x + self.intercept)) for x, y in self.xy_data
         )
         range_y = max(y for _, y in self.xy_data) - min(
             y for _, y in self.xy_data
         )
-        self.nmae = sum_absolute_errors / (self.num_points * range_y)
+        divisor = self.num_points * range_y
+        if divisor == 0:
+            self.nmae = "DIV/0"
+        else:
+            self.nmae = sum_absolute_errors / divisor
 
     def calculate_model(self, xy_data):
         if self.state == ERROR:
@@ -470,29 +484,19 @@ class LRModel:
         if self.state != OK:
             lines.append(f"    Can't estimate because: {self.error}")
             return lines
-        cc = (
-            "unknown"
-            if not isinstance(self.correlation_coefficient, (float, int))
-            else f"{self.correlation_coefficient:.2f}"
-        )
-        rs = (
-            "unknown"
-            if not isinstance(self.r_squared, (float, int))
-            else f"{self.r_squared:.2f}"
-        )
+        cc = _format_measure(self.correlation_coefficient)
+        rs = _format_measure(self.r_squared)
 
         lines = lines + [
             f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
         ]
 
-        nrmse_str = f"{self.nrmse:.2f}" if self.nrmse is not None else "unknown"
-        nmae_str = f"{self.nmae:.2f}" if self.nmae is not None else "unknown"
-        lines = lines + [
-            f"    {s}"
-            for s in ut.line_splitter(
-                f"Based on {self.num_points} data points "
-                f"(NMAE: {nmae_str}, NRMSE: {nrmse_str} [lower is better]).")
-        ]
+        nrmse_str = _format_measure(self.nrmse)
+        nmae_str = _format_measure(self.nmae)
+        lines.append(f"    Based on {self.num_points} data points ")
+        lines.append(
+            f"    NMAE {nmae_str}; NRMSE {nrmse_str} [lower is better]."
+        )
 
         return lines
 
@@ -716,18 +720,21 @@ class Estimator:
         else:
             dayname = "weekday"
 
-        lines = [
+        one_line = (
             "How many more bikes?  Estimation performed at "
             f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
-        ]
-        lines += [""] + [
+        )
+        lines = lines + [s for s in ut.line_splitter(one_line,width=PRINT_WIDTH)]
+
+        one_line = (
             f"Estimating for a typical {dayname} with {self.bikes_so_far} "
             f"{ut.plural(self.bikes_so_far,'bike')} parked by {self.as_of_when.short}, "
             f"closing at {self.closing_time}:"
-        ]
+        )
+        lines = lines + [""] + [s for s in ut.line_splitter(one_line,width=PRINT_WIDTH)]
         if self.as_of_when < "13:30":
             lines += [
-                "(Note: estimates performed early in the day may be of low quality.)"
+                "(Note: estimates early in the day may be of low quality.)"
             ]
 
         predictions = []
@@ -750,9 +757,10 @@ class Estimator:
                 prediction_str = str(min_day_total)
             else:
                 prediction_str = f"{min_day_total} to {max_day_total}"
-        lines += [""] + [
-            f"From these models, expect a total of {prediction_str} bikes for the day."
-        ]
+
+        one_line = (f"From these models, "
+        f"expect a total of {prediction_str} bikes for the day.")
+        lines = lines + [""] + [s for s in ut.line_splitter(one_line,width=PRINT_WIDTH)]
 
         # n = len(self.similar_dates)
         # lines += [""] + [
@@ -821,9 +829,7 @@ if __name__ == "__main__":
     estimate: Estimator
     is_cgi = bool(os.environ.get("REQUEST_METHOD"))
     if is_cgi:
-        print(
-            "Content-type: text/plain\n"
-        )
+        print("Content-type: text/plain\n")
         estimate = _init_from_cgi()
     else:
         estimate = _init_from_args()
@@ -833,4 +839,3 @@ if __name__ == "__main__":
 
     for line in estimate.result_msg():
         print(line)
-
