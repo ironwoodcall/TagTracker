@@ -36,6 +36,14 @@ READY = "ready"  # model is ready to use
 OK = "ok"  # model has been used to create a guess OK
 ERROR = "error"  # the model is unusable, in an error state
 
+
+def _format_measure(m):
+    """Format a regression measure as a string."""
+    if m is None or m != m or not isinstance(m, (float, int)):
+        return "unknown"
+    return f"{m:.2f}"
+
+
 class RandomForestRegressorModel:
     """Random Forest Regressor model for bike estimation."""
 
@@ -54,7 +62,9 @@ class RandomForestRegressorModel:
 
     def calculate_normalized_errors(self):
         # Predict using the random forest model
-        predicted_afters = self.rf_model.predict(np.array(self.befores).reshape(-1, 1))
+        predicted_afters = self.rf_model.predict(
+            np.array(self.befores).reshape(-1, 1)
+        )
 
         # Calculate MAE and RMSE
         mae = mean_absolute_error(self.afters, predicted_afters)
@@ -92,7 +102,9 @@ class RandomForestRegressorModel:
             return
 
         try:
-            predicted_afters = self.rf_model.predict(np.array([bikes_so_far]).reshape(-1, 1))
+            predicted_afters = self.rf_model.predict(
+                np.array([bikes_so_far]).reshape(-1, 1)
+            )
             self.further_bikes = int(np.mean(predicted_afters))
             self.state = OK
         except Exception as e:
@@ -106,9 +118,14 @@ class RandomForestRegressorModel:
             return lines
 
         lines.append(f"    Expect {self.further_bikes} more bikes.")
-        lines.append(f"    Based on {len(self.befores)} data points (NMAE: {self.nmae:.2f}, NRMSE: {self.nrmse:.2f} [lower is better]).")
+        lines.append(f"    Based on {len(self.befores)} data points")
+        lines.append(
+            f"    NMAE {_format_measure(self.nmae)}; "
+            f"NRMSE {_format_measure(self.nrmse)} [lower is better]."
+        )
 
         return lines
+
 
 if __name__ == "__main__":
     # Example usage of the RandomForestRegressorModel class
