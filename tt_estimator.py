@@ -573,13 +573,7 @@ class Estimator:
         else:
             dayname = "weekday"
 
-        one_line = (
-            "How many more bikes?  Estimation performed at "
-            f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
-        )
-        lines = lines + [
-            s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)
-        ]
+        lines = ["How many more bikes?"]
 
         one_line = (
             f"Estimating for a typical {dayname} with {self.bikes_so_far} "
@@ -591,8 +585,6 @@ class Estimator:
             + [""]
             + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
         )
-        if self.as_of_when < "12:15":
-            lines += ["Estimates early in the day may be of low quality."]
 
         predictions = []
         lines += [""] + self.simple_model.result_msg()
@@ -619,20 +611,19 @@ class Estimator:
             f"From these models, "
             f"expect a total of {prediction_str} bikes for the day."
         )
+        one_line = (
+            f"{one_line}  Estimation performed at "
+            f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
+        )
+        if self.as_of_when < "12:30":
+            one_line = f"{one_line}  Estimates early in the day may be of low quality."
         lines = (
             lines
             + [""]
             + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
         )
 
-        # n = len(self.similar_dates)
-        # lines += [""] + [
-        #    f"The {n} {ut.plural(n,'date that is','dates that are')} "
-        #    f"raw data for this estimate {ut.plural(n,'is','are')}:"
-        # ]
-        # lines += [
-        #    f"  {s}" for s in ut.line_splitter(" ".join(self.similar_dates))
-        # ]
+
 
         return lines
 
