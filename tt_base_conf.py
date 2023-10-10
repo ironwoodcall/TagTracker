@@ -19,9 +19,11 @@ Copyright (C) 2023 Julias Hocking
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
-from tt_colours import Style, Fore, Back
+
+    """
 from typing import Tuple
+from tt_colours import Style, Fore, Back
+
 
 # Screen appearance
 SCREEN_WIDTH = 80  # characters

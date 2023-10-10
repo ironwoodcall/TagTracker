@@ -30,23 +30,6 @@ Copyright (C) 2023 Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
-    This is a scratch area:
-
-    How many more bikes? (Estimation performed at HH:MM on TODAY.)
-
-    Estimating for a typical DAY with NUM bikes by TIME, closing at TIME.
-
-    Using a simple model that averages similar dates:
-        Expect NUM [median] or NUM [mean] more bikes.
-        Average based on bikes after HH:MM on these NUM similar dates [this similar date]::
-            4:(2023-04-07) 16:(2023-10-01) 18:(2023-05-01)
-        Discarded these outliers [this outlier] as atypical:
-            250:(2023-07-09)
-
-
-
-
 """
 
 import urllib.request
@@ -199,7 +182,7 @@ class SimpleModel:
         )
 
         one_line = (
-            f"    Based on {self.num_points} similar previous "
+            f"Based on {self.num_points} similar previous "
             f"{ut.plural(self.num_points,'day')}"
         )
         if self.num_discarded:
@@ -207,7 +190,11 @@ class SimpleModel:
                 f"{one_line} ({self.num_discarded} "
                 f"{ut.plural(self.num_discarded,'outlier')} discarded)"
             )
-        lines = lines + [f"{one_line}."]
+        one_line = f"{one_line}."
+        lines = (
+            lines
+            + [f"    {s}" for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
+        )
 
         return lines
 
@@ -357,7 +344,7 @@ class LRModel:
 class Estimator:
     """Data and methods to estimate how many more bikes to expect."""
 
-    DBFILE = "../data/cityhall_bikevalet.db"
+    DBFILE = cfg.DB_FILENAME
 
     def __init__(
         self,
@@ -396,7 +383,7 @@ class Estimator:
         self.rf_model = rf.RandomForestRegressorModel()
 
         # pylint: disable-next=invalid-name
-        DBFILE = "../data/cityhall_bikevalet.db"
+        DBFILE = cfg.DB_FILENAME
         if not os.path.exists(DBFILE):
             self.error = "Database not found"
             self.state = ERROR
