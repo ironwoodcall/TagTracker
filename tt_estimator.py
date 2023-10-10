@@ -637,35 +637,6 @@ class Estimator:
         return lines
 
 
-def get_estimate_via_url(
-    bikes_so_far: int, as_of_when="", dow: int = None, closing_time=""
-) -> list[str]:
-    """Call estimator URL to get the estimate.
-
-    This is presumably what one would call if the database
-    is not on the same machine.
-    """
-    # Call Estimator to clean up the parameters.
-
-    est = Estimator(bikes_so_far, as_of_when, dow, closing_time)
-    if not cfg.ESTIMATOR_URL_BASE:
-        return ["No estimator URL defined"]
-    url_parms = (
-        f"bikes_so_far={est.bikes_so_far}&as_of_when={est.as_of_when}"
-        f"&dow={est.dow}&as_of_when={est.as_of_when}&closing_time={est.closing_time}"
-    )
-    url = f"{cfg.ESTIMATOR_URL_BASE}?{url_parms}"
-    ##ut.squawk(f"{url=}")
-    try:
-        response = urllib.request.urlopen(url)
-        data = response.read()
-        decoded_data = data.decode("utf-8")
-    except urllib.error.URLError:
-        return ["URLError return"]
-
-    return decoded_data.splitlines()
-
-
 def _init_from_cgi() -> Estimator:
     """Read initialization parameters from CGI env var.
 
