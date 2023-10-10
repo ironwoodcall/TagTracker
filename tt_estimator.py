@@ -30,23 +30,6 @@ Copyright (C) 2023 Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
-    This is a scratch area:
-
-    How many more bikes? (Estimation performed at HH:MM on TODAY.)
-
-    Estimating for a typical DAY with NUM bikes by TIME, closing at TIME.
-
-    Using a simple model that averages similar dates:
-        Expect NUM [median] or NUM [mean] more bikes.
-        Average based on bikes after HH:MM on these NUM similar dates [this similar date]::
-            4:(2023-04-07) 16:(2023-10-01) 18:(2023-05-01)
-        Discarded these outliers [this outlier] as atypical:
-            250:(2023-07-09)
-
-
-
-
 """
 
 import urllib.request
@@ -199,7 +182,7 @@ class SimpleModel:
         )
 
         one_line = (
-            f"    Based on {self.num_points} similar previous "
+            f"Based on {self.num_points} similar previous "
             f"{ut.plural(self.num_points,'day')}"
         )
         if self.num_discarded:
@@ -207,7 +190,11 @@ class SimpleModel:
                 f"{one_line} ({self.num_discarded} "
                 f"{ut.plural(self.num_discarded,'outlier')} discarded)"
             )
-        lines = lines + [f"{one_line}."]
+        one_line = f"{one_line}."
+        lines = (
+            lines
+            + [f"    {s}" for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
+        )
 
         return lines
 
@@ -357,7 +344,7 @@ class LRModel:
 class Estimator:
     """Data and methods to estimate how many more bikes to expect."""
 
-    DBFILE = "../data/cityhall_bikevalet.db"
+    DBFILE = cfg.DB_FILENAME
 
     def __init__(
         self,
@@ -396,7 +383,7 @@ class Estimator:
         self.rf_model = rf.RandomForestRegressorModel()
 
         # pylint: disable-next=invalid-name
-        DBFILE = "../data/cityhall_bikevalet.db"
+        DBFILE = cfg.DB_FILENAME
         if not os.path.exists(DBFILE):
             self.error = "Database not found"
             self.state = ERROR
@@ -573,13 +560,7 @@ class Estimator:
         else:
             dayname = "weekday"
 
-        one_line = (
-            "How many more bikes?  Estimation performed at "
-            f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
-        )
-        lines = lines + [
-            s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)
-        ]
+        lines = ["How many more bikes?"]
 
         one_line = (
             f"Estimating for a typical {dayname} with {self.bikes_so_far} "
@@ -591,8 +572,6 @@ class Estimator:
             + [""]
             + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
         )
-        if self.as_of_when < "12:15":
-            lines += ["Estimates early in the day may be of low quality."]
 
         predictions = []
         lines += [""] + self.simple_model.result_msg()
@@ -619,51 +598,21 @@ class Estimator:
             f"From these models, "
             f"expect a total of {prediction_str} bikes for the day."
         )
+        one_line = (
+            f"{one_line}  Estimation performed at "
+            f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
+        )
+        if self.as_of_when < "12:30":
+            one_line = f"{one_line}  Estimates early in the day may be of low quality."
         lines = (
             lines
             + [""]
             + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
         )
 
-        # n = len(self.similar_dates)
-        # lines += [""] + [
-        #    f"The {n} {ut.plural(n,'date that is','dates that are')} "
-        #    f"raw data for this estimate {ut.plural(n,'is','are')}:"
-        # ]
-        # lines += [
-        #    f"  {s}" for s in ut.line_splitter(" ".join(self.similar_dates))
-        # ]
+
 
         return lines
-
-
-def get_estimate_via_url(
-    bikes_so_far: int, as_of_when="", dow: int = None, closing_time=""
-) -> list[str]:
-    """Call estimator URL to get the estimate.
-
-    This is presumably what one would call if the database
-    is not on the same machine.
-    """
-    # Call Estimator to clean up the parameters.
-
-    est = Estimator(bikes_so_far, as_of_when, dow, closing_time)
-    if not cfg.ESTIMATOR_URL_BASE:
-        return ["No estimator URL defined"]
-    url_parms = (
-        f"bikes_so_far={est.bikes_so_far}&as_of_when={est.as_of_when}"
-        f"&dow={est.dow}&as_of_when={est.as_of_when}&closing_time={est.closing_time}"
-    )
-    url = f"{cfg.ESTIMATOR_URL_BASE}?{url_parms}"
-    ##ut.squawk(f"{url=}")
-    try:
-        response = urllib.request.urlopen(url)
-        data = response.read()
-        decoded_data = data.decode("utf-8")
-    except urllib.error.URLError:
-        return ["URLError return"]
-
-    return decoded_data.splitlines()
 
 
 def _init_from_cgi() -> Estimator:

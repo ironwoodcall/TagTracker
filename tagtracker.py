@@ -47,7 +47,7 @@ import tt_publish as pub
 import tt_tag_inv as inv
 import tt_notes as notes
 from tt_cmdparse import CmdBits
-import tt_estimator
+import tt_call_estimator
 
 # Local connfiguration
 # try:
@@ -921,22 +921,12 @@ def estimate(args: list[str]) -> None:
         closing_time: default - today's closing time
     """
     args += [""] * 4
-    bikes_so_far, as_of_when, dow, closing_time = args[:4]
 
-    if not bikes_so_far:
-        bikes_so_far = len(check_ins)
-    if not as_of_when:
-        as_of_when = VTime("now")
-    if not dow:
-        dow = ut.dow_int("today")
-        if not closing_time:
-            closing_time = VALET_CLOSES
     pr.iprint()
     pr.iprint("Estimating...")
     time.sleep(3)
-    message_lines = tt_estimator.get_estimate_via_url(
-        bikes_so_far, as_of_when, dow, closing_time
-    )
+    message_lines = tt_call_estimator.get_estimate_via_url(
+        pack_day_data(), *args[:4] )
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
     pr.iprint()
