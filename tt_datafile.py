@@ -4,6 +4,10 @@ Functions to save and retrieve data (TrackerDay objects) in datafiles.
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -49,8 +53,7 @@ HEADER_COLOURS = "Colour codes:"
 HEADER_NOTES = "Notes:"
 
 
-
-def datafile_name(folder: str, whatdate:str="today") -> str:
+def datafile_name(folder: str, whatdate: str = "today") -> str:
     """Return the name of the data file (datafile) to read/write."""
     # Use default filename
     date = ut.date_str(whatdate)
@@ -113,7 +116,6 @@ def read_datafile(
     errors = 0  # How many errors found reading datafile?
     section = None
     with open(filename, "r", encoding="utf-8") as f:
-
         for line_num, line in enumerate(f, start=1):
             # ignore blank or # comment lines
             line = re.sub(r"\s*#.*", "", line)
@@ -159,11 +161,14 @@ def read_datafile(
                     continue
                 data.date = maybedate
                 continue
-            elif re.match(rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES})", line):
+            elif re.match(
+                rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES})", line
+            ):
                 # This is an open or a close time (probably)
                 section = IGNORE
                 r = re.match(
-                    rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES}) *(.+)", line
+                    rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES}) *(.+)",
+                    line,
                 )
                 maybetime = VTime(r.group(2))
                 if not maybetime:
@@ -247,7 +252,9 @@ def read_datafile(
                 elif section == RETIRED:
                     data.retired |= set(taglist)
                 else:
-                    ut.squawk(f"Bad section value in read_datafile(), '{section}")
+                    ut.squawk(
+                        f"Bad section value in read_datafile(), '{section}"
+                    )
                     return
                 continue
 
@@ -308,7 +315,10 @@ def read_datafile(
                         fline=line_num,
                     )
                     continue
-                if this_tag in data.bikes_out and data.bikes_out[this_tag] < this_time:
+                if (
+                    this_tag in data.bikes_out
+                    and data.bikes_out[this_tag] < this_time
+                ):
                     errors = data_read_error(
                         f"Tag {this_tag} check out before check-in",
                         err_msgs,
@@ -337,7 +347,10 @@ def read_datafile(
                         fline=line_num,
                     )
                     continue
-                if this_tag in data.bikes_in and data.bikes_in[this_tag] > this_time:
+                if (
+                    this_tag in data.bikes_in
+                    and data.bikes_in[this_tag] > this_time
+                ):
                     errors = data_read_error(
                         f"Tag {this_tag} check out before check-in",
                         err_msgs,
@@ -411,7 +424,9 @@ def write_datafile(
     lines.append("# Normal end of file")
     # Write the data to the file.
     try:
-        with open(filename, "w", encoding="utf-8") as f:  # write stored lines to file
+        with open(
+            filename, "w", encoding="utf-8"
+        ) as f:  # write stored lines to file
             for line in lines:
                 f.write(line)
                 f.write("\n")
@@ -443,7 +458,9 @@ def new_tag_config_file(filename: str):
         "# E.g. r red \n",
         "Colour codes:\n\n",
     ]
-    if not os.path.exists(filename):  # make new tags config file only if needed
+    if not os.path.exists(
+        filename
+    ):  # make new tags config file only if needed
         try:
             with open(filename, "w", encoding="utf-8") as f:
                 f.writelines(template)

@@ -2,6 +2,10 @@
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -75,6 +79,7 @@ class DBRow:
     def __init__(self, labels: list[str], vals: Iterable):
         for i, name in enumerate(labels):
             setattr(self, name, vals[i])
+
 
 def db_fetch(
     ttdb: sqlite3.Connection,

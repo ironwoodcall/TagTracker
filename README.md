@@ -18,6 +18,13 @@ The "intended" workflow using the tracker is:
 4. log check-out with tracker
 5. tag is placed in some kind of return basket and not reused that day
 
+# LICENSING
+
+This program is largely covered by the GNU Affero General Public License v 3,
+with this important caveat:
+    Notwithstanding the rest of its licensing provisions, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
 
 # SETUP
 See [installation instructions](https://github.com/ironwoodcall/TagTracker/wiki/TagTracker-installation) in wiki

@@ -16,6 +16,26 @@ Invocation:
     the keyword "now", which sets it to the current locale time
 
 Invalid input results in a blank VTime object.
+
+Copyright (C) 2023 Julias Hocking
+
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 import re
 import datetime
@@ -23,6 +43,7 @@ import datetime
 
 class VTime(str):
     _always_false = False
+
     @staticmethod
     def _time_int(maybe_time: str) -> int:
         """Convert known-good string representation of time to int (or None)."""

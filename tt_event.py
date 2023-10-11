@@ -4,6 +4,10 @@ Event class for tagtracker.
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -40,7 +44,7 @@ class Event:
     @staticmethod
     def calc_events(
         day: TrackerDay, as_of_when: (int or VTime) = None
-    ) -> dict[VTime, 'Event']:
+    ) -> dict[VTime, "Event"]:
         """Create a dict of events keyed by HH:MM time.
 
         If as_of_when is not given, then this will choose the latest
@@ -79,12 +83,12 @@ class Event:
             ev.num_ins = len(ev.bikes_in)
             ev.num_outs = len(ev.bikes_out)
             # How many regular & oversize bikes have we added or lost?
-            delta_regular = len([x for x in ev.bikes_in if x in day.regular]) - len(
-                [x for x in ev.bikes_out if x in day.regular]
-            )
-            delta_oversize = len([x for x in ev.bikes_in if x in day.oversize]) - len(
-                [x for x in ev.bikes_out if x in day.oversize]
-            )
+            delta_regular = len(
+                [x for x in ev.bikes_in if x in day.regular]
+            ) - len([x for x in ev.bikes_out if x in day.regular])
+            delta_oversize = len(
+                [x for x in ev.bikes_in if x in day.oversize]
+            ) - len([x for x in ev.bikes_out if x in day.oversize])
             num_regular += delta_regular
             num_oversize += delta_oversize
             ev.num_here_regular = num_regular

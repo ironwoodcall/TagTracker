@@ -3,6 +3,10 @@
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -138,7 +142,9 @@ def form(
         "6": "Saturday",
     }
 
-    me_action = pathlib.Path(ut.untaint(os.environ.get("SCRIPT_NAME", ""))).name
+    me_action = pathlib.Path(
+        ut.untaint(os.environ.get("SCRIPT_NAME", ""))
+    ).name
     if not me_action:
         error_out("bad")
 
@@ -860,6 +866,7 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         print(
             "<td style='border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
         )
+
     print("<table>")
     print("<style>td {text-align: right;}</style>")
     print("<tr>")
@@ -915,7 +922,7 @@ print("Content-type: text/html\n\n\n")
 
 TagID.uc(cfg.TAGS_UPPERCASE)
 
-DBFILE = "../data/cityhall_bikevalet.db"
+DBFILE = cfg.DB_FILENAME
 database = db.db_connect(DBFILE)
 
 # Parse query parameters from the URL if present

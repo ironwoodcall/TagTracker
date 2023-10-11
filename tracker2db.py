@@ -11,6 +11,10 @@ and tracker_util.py.
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -24,7 +28,6 @@ Copyright (C) 2023 Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
 
 import argparse
 import calendar
@@ -97,7 +100,7 @@ def calc_duration(hhmm_in: str, hhmm_out: str) -> str:
     return hhmm_stay
 
 
-def data_to_db(filename: str) -> None:
+def data_to_db(filename: str, args, batch, conn) -> None:
     """Record one datafile to the database.
 
     Read the datafile in question into a TrackerDay object with
@@ -257,6 +260,7 @@ def data_to_db(filename: str) -> None:
                 {weekday},
                 '{batch}'
                 );""",
+        conn,
         quiet=True,
     ):
         if not sql_do(  # Then try to update...
@@ -276,7 +280,8 @@ def data_to_db(filename: str) -> None:
                     {COL_DAY_OF_WEEK} = {weekday},
                     {COL_BATCH} = '{batch}'
                     WHERE {COL_DATE} = '{date}'
-                    ;"""
+                    ;""",
+            conn,
         ):
             print(
                 "Error: failed to INSERT or UPDATE "
@@ -286,7 +291,9 @@ def data_to_db(filename: str) -> None:
             sys.exit(1)
 
     # TABLE_VISITS handling
-    closing = select_closing_time(date)  # fetch checkout time for whole day
+    closing = select_closing_time(
+        date, conn
+    )  # fetch checkout time for whole day
     if not closing:
         print(
             f"Error - datafile {filename} missing closing time. "
@@ -298,7 +305,7 @@ def data_to_db(filename: str) -> None:
 
     visit_commit_count = total_parked
     visit_fail_count = 0
-    sql_do(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';")
+    sql_do(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';", conn)
 
     for tag, time_in in data.bikes_in.items():
         time_in = VTime(time_in)
@@ -341,7 +348,8 @@ def data_to_db(filename: str) -> None:
                     '{time_in}',
                     '{time_out}',
                     '{time_stay}',
-                    '{batch}');"""
+                    '{batch}');""",
+            conn,
         ):
             print(
                 f"Error: failed to INSERT a stay for {tag}",
@@ -369,7 +377,7 @@ def data_to_db(filename: str) -> None:
         sys.exit(1)
 
 
-def select_closing_time(date: str) -> Union[VTime, bool]:
+def select_closing_time(date: str, conn) -> Union[VTime, bool]:
     """Return the closing time of a given date in TABLE_DAYS.
 
     - SELECT closing time from rows with matching dates (should be just 1)
@@ -396,7 +404,7 @@ def select_closing_time(date: str) -> Union[VTime, bool]:
         sys.exit(1)
 
 
-def sql_do(sql_statement: str, quiet: bool = False) -> bool:
+def sql_do(sql_statement: str, conn, quiet: bool = False) -> bool:
     """Execute a SQL statement, or print the slite3 error."""
     try:
         curs = conn.cursor()
@@ -410,7 +418,7 @@ def sql_do(sql_statement: str, quiet: bool = False) -> bool:
         return False
 
 
-def setup_parser() -> None:
+def setup_parser(parser) -> None:
     """Add arguments to the ArgumentParser."""
     parser.add_argument(
         "-q",
@@ -463,7 +471,7 @@ def find_datafiles(arguments: argparse.Namespace) -> list:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    setup_parser()
+    setup_parser(parser)
     args = parser.parse_args()
 
     DB_FILEPATH = args.dbfile
@@ -475,7 +483,7 @@ if __name__ == "__main__":
     if not conn:
         sys.exit(1)  # Error messages already taken care of in fn
 
-    if sql_do("PRAGMA foreign_keys=ON;"):
+    if sql_do("PRAGMA foreign_keys=ON;", conn):
         if args.verbose:
             print("Successfully enabled SQLite foreign keys")
     else:
@@ -496,7 +504,7 @@ if __name__ == "__main__":
     EMPTY_COUNT = 0
 
     for datafilename in datafiles:
-        data_to_db(datafilename)
+        data_to_db(datafilename, args, batch, conn)
 
     conn.close()
 

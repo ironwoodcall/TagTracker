@@ -1,5 +1,25 @@
 """All tags overview.
 
+Copyright (C) 2023 Julias Hocking
+
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 Symbols for:
 - unknown (like, a missing member)  '  '
 - available                         '--'
@@ -29,11 +49,21 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
         TAG_INV_RETIRED
 
     """
-    tag_unknown = pr.text_style(cfg.TAG_INV_UNKNOWN[0],style=cfg.TAG_INV_UNKNOWN[1])
-    tag_available = pr.text_style(cfg.TAG_INV_AVAILABLE[0],style=cfg.TAG_INV_AVAILABLE[1])
-    tag_bike_in = pr.text_style(cfg.TAG_INV_BIKE_IN[0],style=cfg.TAG_INV_BIKE_IN[1])
-    tag_bike_out = pr.text_style(cfg.TAG_INV_BIKE_OUT[0],style=cfg.TAG_INV_BIKE_OUT[1])
-    tag_retired = pr.text_style(cfg.TAG_INV_RETIRED[0],style=cfg.TAG_INV_RETIRED[1])
+    tag_unknown = pr.text_style(
+        cfg.TAG_INV_UNKNOWN[0], style=cfg.TAG_INV_UNKNOWN[1]
+    )
+    tag_available = pr.text_style(
+        cfg.TAG_INV_AVAILABLE[0], style=cfg.TAG_INV_AVAILABLE[1]
+    )
+    tag_bike_in = pr.text_style(
+        cfg.TAG_INV_BIKE_IN[0], style=cfg.TAG_INV_BIKE_IN[1]
+    )
+    tag_bike_out = pr.text_style(
+        cfg.TAG_INV_BIKE_OUT[0], style=cfg.TAG_INV_BIKE_OUT[1]
+    )
+    tag_retired = pr.text_style(
+        cfg.TAG_INV_RETIRED[0], style=cfg.TAG_INV_RETIRED[1]
+    )
 
     as_of_when = VTime(as_of_when)
     pr.iprint()
@@ -50,12 +80,12 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
         if tag.number > max_tag_num:
             max_tag_num = tag.number
         prefixes.add(tag.prefix)
-    pr.iprint(f"{' ':3s} ", style=cfg.HIGHLIGHT_STYLE,end="")
+    pr.iprint(f"{' ':3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
     for i in range(0, max_tag_num + 1):
-        pr.iprint(f" {i:02d}", style=cfg.HIGHLIGHT_STYLE,end="")
+        pr.iprint(f" {i:02d}", style=cfg.HIGHLIGHT_STYLE, end="")
     pr.iprint()
     for prefix in sorted(prefixes):
-        pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE,end="")
+        pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
         for i in range(0, max_tag_num + 1):
             this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not this_tag or not this_tag.state:
@@ -69,9 +99,10 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
             elif this_tag.state == RETIRED:
                 s = tag_retired
             else:
-                s = pr.text_style(" ?",style=cfg.ERROR_STYLE)
+                s = pr.text_style(" ?", style=cfg.ERROR_STYLE)
             pr.iprint(f" {s}", end="")
         pr.iprint()
+
 
 def colours_report(day: TrackerDay) -> None:
     """List colours in use."""
@@ -136,7 +167,7 @@ def retired_report(day: TrackerDay) -> None:
     )
 
 
-def tags_config_report(day: TrackerDay,args:list) -> None:
+def tags_config_report(day: TrackerDay, args: list) -> None:
     """Report the current tags configuration."""
     as_of_when = (args + ["now"])[0]
     as_of_when = VTime(as_of_when)
@@ -150,4 +181,3 @@ def tags_config_report(day: TrackerDay,args:list) -> None:
     colours_report(day)
     retired_report(day)
     tag_inventory_matrix(day, as_of_when)
-

@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+1.0.0:
++ production version with updated licensing information
+
 0.8.20:
 ~ formatting and bug chasing
 

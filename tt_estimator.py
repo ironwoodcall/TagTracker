@@ -17,6 +17,10 @@ The parameter names are the same as above.
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -191,10 +195,9 @@ class SimpleModel:
                 f"{ut.plural(self.num_discarded,'outlier')} discarded)"
             )
         one_line = f"{one_line}."
-        lines = (
-            lines
-            + [f"    {s}" for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
-        )
+        lines = lines + [
+            f"    {s}" for s in ut.line_splitter(one_line, width=PRINT_WIDTH)
+        ]
 
         return lines
 
@@ -609,8 +612,6 @@ class Estimator:
             + [""]
             + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
         )
-
-
 
         return lines
 

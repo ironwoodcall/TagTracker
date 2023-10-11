@@ -1,5 +1,10 @@
 """This is the RealTag class
 
+Copyright (c) 2023 Julias Hocking
+
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
 
     A TagID is the name of a tag; it might be a correct tag name or not.
     It is a type of string, and its representation is canonical
@@ -16,6 +21,7 @@ from tt_globals import *
 from tt_tag import TagID
 from tt_time import VTime
 from tt_trackerday import TrackerDay
+
 
 class RealTag:
     """A tag with attributes that reflect info in the Tags Config (only).
@@ -137,7 +143,6 @@ class Stay(RealTag):
         for tag, time_in in day.bikes_in.items():
             if time_in > as_of_when:
                 continue
-            this_stay = Stay(tag,day,as_of_when=as_of_when)
+            this_stay = Stay(tag, day, as_of_when=as_of_when)
             stays[tag] = this_stay
         return stays
-
