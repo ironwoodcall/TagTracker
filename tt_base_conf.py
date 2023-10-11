@@ -7,6 +7,10 @@ values that are set in tt_local_config
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -122,11 +126,11 @@ STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
 # Each is a tuple of (symbol,style).
 # Each symbol should be 2 characters wide.  Warning if using fancy unicode
 # that those characters come in various widths, platform-dependent.
-TAG_INV_UNKNOWN = ("  ",NORMAL_STYLE)
-TAG_INV_AVAILABLE = (" -",NORMAL_STYLE)
-TAG_INV_BIKE_IN = ("In",ANSWER_STYLE)
-TAG_INV_BIKE_OUT = ("Ou",PROMPT_STYLE)
-TAG_INV_RETIRED = ("Re",WARNING_STYLE)
+TAG_INV_UNKNOWN = ("  ", NORMAL_STYLE)
+TAG_INV_AVAILABLE = (" -", NORMAL_STYLE)
+TAG_INV_BIKE_IN = ("In", ANSWER_STYLE)
+TAG_INV_BIKE_OUT = ("Ou", PROMPT_STYLE)
+TAG_INV_RETIRED = ("Re", WARNING_STYLE)
 
 # Command keys and aliases.
 CMD_AUDIT = "audit"
@@ -174,25 +178,39 @@ COMMANDS[CMD_LOWERCASE] = ["lc", "lowercase", "lower"]
 COMMANDS[CMD_RETIRED] = ["retired", "ret"]
 COMMANDS[CMD_LINT] = ["consistency", "consistent", "cons", "con"]
 COMMANDS[CMD_DUMP] = ["dump"]
-COMMANDS[CMD_BUSY_CHART] = ["chart-busy", "graph-busy", "busy-chart", "busy-graph"]
-COMMANDS[CMD_FULL_CHART] = ["chart-full", "graph-full", "full-chart", "full-graph"]
+COMMANDS[CMD_BUSY_CHART] = [
+    "chart-busy",
+    "graph-busy",
+    "busy-chart",
+    "busy-graph",
+]
+COMMANDS[CMD_FULL_CHART] = [
+    "chart-full",
+    "graph-full",
+    "full-chart",
+    "full-graph",
+]
 COMMANDS[CMD_CHART] = ["chart", "c"]
 COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
 COMMANDS[CMD_COLOURS] = ["col", "color", "colors", "colour", "colours"]
 COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
 COMMANDS[CMD_NOTES] = ["note", "notes", "n"]
-COMMANDS[CMD_ESTIMATE] = ["est","estimate","guess"]
+COMMANDS[CMD_ESTIMATE] = ["est", "estimate", "guess"]
 # These are for commands that are not recognized so *maybe* are a tag
-CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
-CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)
+CMD_UNKNOWN = "unknown" + chr(
+    12345
+)  # special value to mean unrecognized command
+CMD_TAG_RETIRED = "tag_retired" + chr(
+    12345
+)  # For a tag that's retired (not a command)
 CMD_TAG_UNUSABLE = "tag_unusable" + chr(12345)
 
 
-def valet_hours(the_date:str) -> Tuple[str,str]:
+def valet_hours(the_date: str) -> Tuple[str, str]:
     """Stub to provide valet open/closing hours.
 
     This is called to get daily default valet hours.
     Specific info can be provided in local config (tt_conf.py);
     this simply returns empty strings.
     """
-    return ("","")
+    return ("", "")

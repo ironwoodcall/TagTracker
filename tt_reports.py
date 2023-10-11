@@ -4,6 +4,10 @@ Reporting functions for  the TagTracker suite.
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -424,13 +428,14 @@ def csv_dump(day: TrackerDay, args) -> None:
             seq += 1
 
 
-def num_bikes_here(day:TrackerDay,as_of_when: VTime) -> int:
+def num_bikes_here(day: TrackerDay, as_of_when: VTime) -> int:
     """Count how many bikes are in at this time."""
     num_bikes = 0
     for atime in day.bikes_in.items():
         if atime <= as_of_when:
             num_bikes += 1
     return num_bikes
+
 
 def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
@@ -522,7 +527,9 @@ def visit_statistics_report(visits: dict) -> None:
             round(x / MODE_ROUND_TO_NEAREST) * MODE_ROUND_TO_NEAREST
             for x in durations_list
         ]
-        modes_str = ",".join([VTime(x).tidy for x in statistics.multimode(rounded)])
+        modes_str = ",".join(
+            [VTime(x).tidy for x in statistics.multimode(rounded)]
+        )
         modes_str = (
             f"{modes_str}  (times "
             f"rounded to {MODE_ROUND_TO_NEAREST} minutes)"
@@ -747,7 +754,7 @@ def busy_report(
                 end="",
             )
             if time_num < len(times):
-                pr.iprint(", ", end="",num_indents=0)
+                pr.iprint(", ", end="", num_indents=0)
         pr.iprint()
 
     # Make an empty dict of busyness of timeblocks.
@@ -779,7 +786,7 @@ def busy_report(
         one_line(rank, activity, busy_times[activity])
 
 
-def qstack_report(visits: dict[TagID : Stay]) -> None:
+def qstack_report(visits: dict[TagID:Stay]) -> None:
     """Report whether visits are more queue-like or more stack-like."""
     # Make a list of tuples: start_time, end_time for all visits.
     visit_times = list(
@@ -880,16 +887,18 @@ def day_end_report(day: TrackerDay, args: list) -> None:
 
     notes_bit(day)
 
-def notes_bit(day:TrackerDay) -> None:
+
+def notes_bit(day: TrackerDay) -> None:
     """Add a 'notes' section to a report."""
     pr.iprint()
 
-    pr.iprint("Today's notes:",style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Today's notes:", style=cfg.SUBTITLE_STYLE)
     if day.notes:
         for line in day.notes:
-            pr.iprint(line,style=cfg.NORMAL_STYLE,num_indents=1)
+            pr.iprint(line, style=cfg.NORMAL_STYLE, num_indents=1)
     else:
-        pr.iprint("There are no notes yet today.",num_indents=2)
+        pr.iprint("There are no notes yet today.", num_indents=2)
+
 
 def busyness_report(day: TrackerDay, args: list) -> None:
     """Report more summary statistics about visits, up to the given time.

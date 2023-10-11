@@ -5,6 +5,10 @@ TrackerDay holds all the state information about a single day at the bike valet.
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -24,6 +28,7 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
+
 
 class TrackerDay:
     """One day's worth of tracker info and its context."""

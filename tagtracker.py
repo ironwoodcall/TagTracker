@@ -7,6 +7,10 @@ Its configuration file is tagtracker_config.py.
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -926,7 +930,8 @@ def estimate(args: list[str]) -> None:
     pr.iprint("Estimating...")
     time.sleep(3)
     message_lines = tt_call_estimator.get_estimate_via_url(
-        pack_day_data(), *args[:4] )
+        pack_day_data(), *args[:4]
+    )
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
     pr.iprint()

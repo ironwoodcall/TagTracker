@@ -4,6 +4,10 @@ Styling and printing functions for  the TagTracker suite.
 
 Copyright (C) 2023 Julias Hocking
 
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published
     by the Free Software Foundation, either version 3 of the License, or
@@ -221,10 +225,7 @@ def print_tag_notes(tag: str, reset: bool = False):
 
     if tag and not _print_tag_notes_control[_print_tag_notes_key_printed]:
         for line in notes.Notes.find(tag):
-            iprint(line,style=cfg.WARNING_STYLE)
+            iprint(line, style=cfg.WARNING_STYLE)
         _print_tag_notes_control[_print_tag_notes_key_printed] = True
 
     _print_tag_notes_control[_print_tag_notes_key_prev] = tag
-
-
-
