@@ -37,6 +37,12 @@ from tt_trackerday import TrackerDay
 import tt_conf as cfg
 import tt_util as ut
 
+def index_line(max_tag_num):
+    """Print an index line for the matrix."""
+    pr.iprint(f"{' ':3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
+    for i in range(0, max_tag_num + 1):
+        pr.iprint(f" {i:02d}", style=cfg.HIGHLIGHT_STYLE, end="")
+
 
 def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
     """Print a matrix of status of all known tags.
@@ -80,9 +86,7 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
         if tag.number > max_tag_num:
             max_tag_num = tag.number
         prefixes.add(tag.prefix)
-    pr.iprint(f"{' ':3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
-    for i in range(0, max_tag_num + 1):
-        pr.iprint(f" {i:02d}", style=cfg.HIGHLIGHT_STYLE, end="")
+    index_line(max_tag_num)
     pr.iprint()
     for prefix in sorted(prefixes):
         pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
@@ -102,6 +106,7 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
                 s = pr.text_style(" ?", style=cfg.ERROR_STYLE)
             pr.iprint(f" {s}", end="")
         pr.iprint()
+    index_line(max_tag_num)
 
 
 def colours_report(day: TrackerDay) -> None:
