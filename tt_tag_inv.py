@@ -37,6 +37,7 @@ from tt_trackerday import TrackerDay
 import tt_conf as cfg
 import tt_util as ut
 
+
 def index_line(max_tag_num):
     """Print an index line for the matrix."""
     pr.iprint(f"{' ':3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
@@ -55,28 +56,15 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
         TAG_INV_RETIRED
 
     """
-    tag_unknown = pr.text_style(
-        cfg.TAG_INV_UNKNOWN[0], style=cfg.TAG_INV_UNKNOWN[1]
-    )
-    tag_available = pr.text_style(
-        cfg.TAG_INV_AVAILABLE[0], style=cfg.TAG_INV_AVAILABLE[1]
-    )
-    tag_bike_in = pr.text_style(
-        cfg.TAG_INV_BIKE_IN[0], style=cfg.TAG_INV_BIKE_IN[1]
-    )
-    tag_bike_out = pr.text_style(
-        cfg.TAG_INV_BIKE_OUT[0], style=cfg.TAG_INV_BIKE_OUT[1]
-    )
-    tag_retired = pr.text_style(
-        cfg.TAG_INV_RETIRED[0], style=cfg.TAG_INV_RETIRED[1]
-    )
 
     as_of_when = VTime(as_of_when)
     pr.iprint()
     pr.iprint(f"Tags status {as_of_when.as_at}", style=cfg.TITLE_STYLE)
     pr.iprint(
-        f"Key: '{tag_available}'=Available; '{tag_bike_in}'=Bike In; "
-        f"'{tag_bike_out}'=Bike Out; '{tag_retired}'=Retired",
+        f"Key: '{cfg.TAG_INV_AVAILABLE[0]}'=Available; "
+        f"'{cfg.TAG_INV_BIKE_IN[0]}'=Bike In; "
+        f"'{cfg.TAG_INV_BIKE_OUT[0]}'=Bike Out; "
+        f"'{cfg.TAG_INV_RETIRED[0]}'=Retired",
         style=cfg.NORMAL_STYLE,
     )
     pr.iprint()
@@ -93,19 +81,40 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
         for i in range(0, max_tag_num + 1):
             this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not this_tag or not this_tag.state:
-                pr.iprint(" " + cfg.TAG_INV_UNKNOWN[0],style=cfg.TAG_INV_UNKNOWN[1],end="")
+                pr.iprint(
+                    " " + cfg.TAG_INV_UNKNOWN[0],
+                    style=cfg.TAG_INV_UNKNOWN[1],
+                    end="",
+                )
             elif this_tag.state == USABLE:
-                pr.iprint(" " + cfg.TAG_INV_AVAILABLE[0],style=cfg.TAG_INV_AVAILABLE[1],end="")
+                pr.iprint(
+                    " " + cfg.TAG_INV_AVAILABLE[0],
+                    style=cfg.TAG_INV_AVAILABLE[1],
+                    end="",
+                )
             elif this_tag.state == BIKE_IN:
-                pr.iprint(" " + cfg.TAG_INV_BIKE_IN[0],style=cfg.TAG_INV_BIKE_IN[1],end="")
+                pr.iprint(
+                    " " + cfg.TAG_INV_BIKE_IN[0],
+                    style=cfg.TAG_INV_BIKE_IN[1],
+                    end="",
+                )
             elif this_tag.state == BIKE_OUT:
-                pr.iprint(" " + cfg.TAG_INV_BIKE_OUT[0],style=cfg.TAG_INV_BIKE_OUT[1],end="")
+                pr.iprint(
+                    " " + cfg.TAG_INV_BIKE_OUT[0],
+                    style=cfg.TAG_INV_BIKE_OUT[1],
+                    end="",
+                )
             elif this_tag.state == RETIRED:
-                pr.iprint(" " + cfg.TAG_INV_RETIRED[0],style=cfg.TAG_INV_RETIRED[1],end="")
+                pr.iprint(
+                    " " + cfg.TAG_INV_RETIRED[0],
+                    style=cfg.TAG_INV_RETIRED[1],
+                    end="",
+                )
             else:
-                pr.iprint(" ?",style=cfg.ERROR_STYLE,end="")
+                pr.iprint(" ?", style=cfg.ERROR_STYLE, end="")
         pr.iprint()
     index_line(max_tag_num)
+
 
 def OLD_tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
     """Print a matrix of status of all known tags.
