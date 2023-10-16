@@ -426,7 +426,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     max_full_colour = cm.ColourMap()
     max_full_colour.set_up_map(
         "white",
-        "lime green",
+        "teal",#"lime green",
         x_bottom=0,
         x_top=max_full,
         x_exponent=2,
@@ -455,18 +455,32 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         x_top=max_bike_hours_per_hour,
         x_exponent=2,
     )
-    max_temp_colour = cm.ColourMap()
-    max_temp_colour.set_up_map(
+    # Max temp is broken into two portions (color ramps)
+    max_temp_midpoint=10
+    # max_temp_high_colour is how much ABOVE midpoint
+    max_temp_high_colour = cm.ColourMap()
+    max_temp_high_colour.set_up_map(
         (255, 255, 224),
-        "gold",
-        x_bottom=-0,
-        x_top=max_temp,
-        x_exponent=2,
+        #"gold",
+        "orange",#pink",
+        x_bottom=0,
+        x_top=25, #max_temp,
+        x_exponent=1,
+    )
+    # Low is how much BELOW midpoint. (They are REVERSED)
+    max_temp_low_colour = cm.ColourMap()
+    max_temp_low_colour.set_up_map(
+        (255, 255, 224),
+        #"gold",
+        "azure",
+        x_bottom=0,
+        x_top=10,
+        x_exponent=1,
     )
     max_precip_colour = cm.ColourMap()
     max_precip_colour.set_up_map(
         "white",
-        "cyan",
+        "azure",
         x_bottom=0,
         x_top=max_precip,
         x_exponent=0.5,
@@ -520,21 +534,32 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     for row in drows:
         date_link = selfref(what="day_end", qdate=row.date)
         reg_str = "" if row.registrations is None else f"{row.registrations}"
-        temp_str = "" if row.temp is None else f"{row.temp:0.1f}"
+        if row.temp is None:
+            temp_str = ""
+            temp_style = "color:black; background-color:white;"
+        else:
+            temp_str = f"{row.temp:0.1f}"
+            if row.temp >= max_temp_midpoint:
+                temp_style = max_temp_high_colour.get_fg_bg(row.temp-max_temp_midpoint)
+            else:
+                temp_style = max_temp_low_colour.get_fg_bg(max_temp_midpoint-row.temp)
         precip_str = "" if row.precip_mm is None else f"{row.precip_mm:0.1f}"
         print(
             f"<tr>"
             f"<td><a href='{date_link}'>{row.date}</a></td>"
             f"<td style='text-align:left'>{ut.date_str(row.date,dow_str_len=3)}</td>"
             f"<td>{row.time_open}</td><td>{row.time_closed}</td>"
-            f"<td>{row.parked_regular}</td><td>{row.parked_oversize}</td><td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
-            f"<td style='background-color: {max_left_colour.get_rgb_str(row.leftover)}'>{row.leftover}</td>"
-            f"<td style='background-color: {max_full_colour.get_rgb_str(row.max_total)}'>{row.max_total}</td>"
-            f"<td style='background-color: {max_bike_hours_colour.get_rgb_str(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
-            f"<td style='background-color: {max_bike_hours_per_hour_colour.get_rgb_str(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
+            f"<td>{row.parked_regular}</td>"
+            f"<td>{row.parked_oversize}</td>"
+            #f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
+            f"<td style='{max_parked_colour.get_fg_bg(row.parked_total)}'>{row.parked_total}</td>"
+            f"<td style='{max_left_colour.get_fg_bg(row.leftover)}'>{row.leftover}</td>"
+            f"<td style='{max_full_colour.get_fg_bg(row.max_total)}'>{row.max_total}</td>"
+            f"<td style='{max_bike_hours_colour.get_fg_bg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
+            f"<td style='{max_bike_hours_per_hour_colour.get_fg_bg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
             f"<td>{reg_str}</td>"
-            f"<td style='background-color: {max_temp_colour.get_rgb_str(row.temp)}'>{temp_str}</td>"
-            f"<td style='background-color: {max_precip_colour.get_rgb_str(row.precip_mm)}'>{precip_str}</td>"
+            f"<td style='{temp_style}'>{temp_str}</td>"
+            f"<td style='{max_precip_colour.get_fg_bg(row.precip_mm)}'>{precip_str}</td>"
             f"<td>{row.sunset}</td>"
             "</tr>"
         )

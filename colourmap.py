@@ -158,7 +158,7 @@ _COLOURS = {
     "ghostwhite": (248, 248, 255),
     "honeydew": (240, 255, 240),
     "ivory": (255, 255, 240),
-    "azure": (240, 255, 255),
+    "azure": (0, 127, 255),
     "snow": (255, 250, 250),
     "black": (0, 0, 0),
     "dimgray": (105, 105, 105),
@@ -410,10 +410,50 @@ class ColourMap:
             rgb_vals.append(val)
         return rgb_vals
 
+    @staticmethod
+    def _rgb_tuple_to_str(rgb:tuple) -> str:
+        """Return rgb tuple as an html string eg 'rgb(127,20,90)'."""
+        rgb_str = ",".join([f"{s}" for s in rgb])
+        return f"rgb({rgb_str})"
+
     def get_rgb_str(self, x, y=None) -> str:
         """Return html RGB string."""
         rgb_str = ",".join([f"{s}" for s in self.get_rgb_tuple(x, y)])
         return f"rgb({rgb_str})"
+
+    @staticmethod
+    def _contrasting_text_colour(bg_colour: tuple) -> str:
+        EYE_SENSITIVITY = (
+            0.299,
+            0.587,
+            0.114,
+        )  # RGB channel weights for human eye sensitivity
+        luminance = (
+            sum(
+                weight * channel
+                for weight, channel in zip(EYE_SENSITIVITY, bg_colour)
+            )
+            / 255
+        )
+
+        if luminance >= 0.535:
+            return "color: black;"
+        else:
+            return "color: white;"
+
+    def get_fg_bg(self, x, y=None) -> str:
+        """Build a full html fg & bg colour specification string.
+
+        String will be something like
+            'background-color: rgb(235,235,235); foreground-color: white'
+        where
+            background-color will be as specified from input x,y
+            foreground-color will be either WHITE or BLACK, to contrast.
+        """
+        bg_tuple = self.get_rgb_tuple(x, y)
+        fg_str = self._contrasting_text_colour(bg_tuple)
+        return f"background-color: {self._rgb_tuple_to_str(bg_tuple)}; {fg_str}"
+
 
     def dump(self) -> str:
         """Return the object into a string."""
