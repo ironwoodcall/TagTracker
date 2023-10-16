@@ -331,7 +331,10 @@ class LRModel:
             f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
         ]
 
-        lines.append(f"    Based on {self.num_points} data points ")
+        lines.append(
+            f"    Based on {self.num_points} "
+            f"data {ut.plural(self.num_points,'point')} "
+        )
         nrmse_str = _format_measure(self.nrmse)
         nmae_str = _format_measure(self.nmae)
         if nmae_str == "?" and nrmse_str == "?":
@@ -514,7 +517,7 @@ class Estimator:
             self.database, sql, ["date", "before", "after"]
         )
         if not data_rows:
-            self.error = "No data returned from database."
+            self.error = "no data returned from database."
             self.state = ERROR
             return
 

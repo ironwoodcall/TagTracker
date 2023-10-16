@@ -24,7 +24,6 @@ Copyright (C) 2023 Julias Hocking
 
 # numpy and sklearn might not be present. POSSIBLE is used to indicate
 # whether the Random Forest Regression model is at all possible.
-
 try:
     import numpy as np
     from sklearn.ensemble import RandomForestRegressor
@@ -33,6 +32,8 @@ try:
     POSSIBLE = True
 except ModuleNotFoundError:
     POSSIBLE = False
+
+import tt_util as ut
 
 # Constants for model states
 INCOMPLETE = "incomplete"  # initialized but not ready to use
@@ -121,8 +122,11 @@ class RandomForestRegressorModel:
             lines.append(f"    Can't estimate because: {self.error}")
             return lines
 
-        lines.append(f"    Expect {self.further_bikes} more bikes.")
-        lines.append(f"    Based on {len(self.befores)} data points")
+        lines.append(
+            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
+        )
+        lines.append(f"    Based on {len(self.befores)} "
+                     f"data {ut.plural(len(self.befores),'point')}")
         nmae_str = _format_measure(self.nmae)
         nrmse_str = _format_measure(self.nrmse)
         if nmae_str == "?" and nrmse_str == "?":
