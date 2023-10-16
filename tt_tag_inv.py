@@ -114,71 +114,7 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
                 pr.iprint(" ?", style=cfg.ERROR_STYLE, end="")
         pr.iprint()
     index_line(max_tag_num)
-
-
-def OLD_tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
-    """Print a matrix of status of all known tags.
-
-    This reads these variables from config, each is a symbol/style tuple:
-        TAG_INV_UNKNOWN
-        TAG_INV_AVAILABLE
-        TAG_INV_BIKE_IN
-        TAG_INV_BIKE_OUT
-        TAG_INV_RETIRED
-
-    """
-    tag_unknown = pr.text_style(
-        cfg.TAG_INV_UNKNOWN[0], style=cfg.TAG_INV_UNKNOWN[1]
-    )
-    tag_available = pr.text_style(
-        cfg.TAG_INV_AVAILABLE[0], style=cfg.TAG_INV_AVAILABLE[1]
-    )
-    tag_bike_in = pr.text_style(
-        cfg.TAG_INV_BIKE_IN[0], style=cfg.TAG_INV_BIKE_IN[1]
-    )
-    tag_bike_out = pr.text_style(
-        cfg.TAG_INV_BIKE_OUT[0], style=cfg.TAG_INV_BIKE_OUT[1]
-    )
-    tag_retired = pr.text_style(
-        cfg.TAG_INV_RETIRED[0], style=cfg.TAG_INV_RETIRED[1]
-    )
-
-    as_of_when = VTime(as_of_when)
     pr.iprint()
-    pr.iprint(f"Tags status {as_of_when.as_at}", style=cfg.TITLE_STYLE)
-    pr.iprint(
-        f"Key: '{tag_available}'=Available; '{tag_bike_in}'=Bike In; "
-        f"'{tag_bike_out}'=Bike Out; '{tag_retired}'=Retired",
-        style=cfg.NORMAL_STYLE,
-    )
-    pr.iprint()
-    max_tag_num = 0
-    prefixes = set()
-    for tag in day.regular | day.oversize:
-        if tag.number > max_tag_num:
-            max_tag_num = tag.number
-        prefixes.add(tag.prefix)
-    index_line(max_tag_num)
-    pr.iprint()
-    for prefix in sorted(prefixes):
-        pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
-        for i in range(0, max_tag_num + 1):
-            this_tag = Stay(f"{prefix}{i}", day, as_of_when)
-            if not this_tag or not this_tag.state:
-                s = tag_unknown
-            elif this_tag.state == USABLE:
-                s = tag_available
-            elif this_tag.state == BIKE_IN:
-                s = tag_bike_in
-            elif this_tag.state == BIKE_OUT:
-                s = tag_bike_out
-            elif this_tag.state == RETIRED:
-                s = tag_retired
-            else:
-                s = pr.text_style(" ?", style=cfg.ERROR_STYLE)
-            pr.iprint(f" {s}", end="")
-        pr.iprint()
-    index_line(max_tag_num)
 
 
 def colours_report(day: TrackerDay) -> None:
