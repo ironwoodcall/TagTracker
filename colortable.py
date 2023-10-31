@@ -171,7 +171,7 @@ def make_html_color_table(
     # bottom row (includes y_min)
     html.add("            <tr>")
     html.add(
-        f"               <td style='{y.css_fg_bg(y_min)}'>{round(y_min)}</td>"
+        f"               <td style='text-align: center;{y.css_fg_bg(y_min)}'>{round(y_min)}</td>"
     )
     x_index = x_min
     for _ in range(num_columns):
@@ -185,7 +185,7 @@ def make_html_color_table(
     html.add("<td></td>")
     html.add(
         f'<td colspan={bottom_row_merge} '
-        f'style="text-align: left;{x.css_fg_bg(x_min)};">'
+        f'style="text-align: center;{x.css_fg_bg(x_min)};">'
         f'{round(x_min)}</td>'
     )
     html.add(
