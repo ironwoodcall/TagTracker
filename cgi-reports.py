@@ -38,7 +38,8 @@ import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
-import colourmap as cm
+import datacolors as dc
+import colortable
 
 
 def selfref(
@@ -412,79 +413,37 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     max_precip = max(
         [1] + [r.precip_mm for r in drows if r.precip_mm is not None]
     )
-    max_temp = max([1] + [r.temp for r in drows if r.temp is not None])
+    ##max_temp = max([1] + [r.temp for r in drows if r.temp is not None])
 
     # Set up colour maps for shading cell backgrounds
-    max_parked_colour = cm.ColourMap()
-    max_parked_colour.set_up_map(
-        "white",
-        "lime green",
-        x_bottom=0,
-        x_top=max_parked,
-        x_exponent=2,
-    )
-    max_full_colour = cm.ColourMap()
-    max_full_colour.set_up_map(
-        "white",
-        "teal",#"lime green",
-        x_bottom=0,
-        x_top=max_full,
-        x_exponent=2,
-    )
-    max_left_colour = cm.ColourMap()
-    max_left_colour.set_up_map(
-        "white",
-        "red",
-        x_bottom=0,
-        x_top=10,
-        x_exponent=1,
-    )
-    max_bike_hours_colour = cm.ColourMap()
-    max_bike_hours_colour.set_up_map(
-        "white",
-        "medium purple",
-        x_bottom=0,
-        x_top=max_bike_hours,
-        x_exponent=2,
-    )
-    max_bike_hours_per_hour_colour = cm.ColourMap()
-    max_bike_hours_per_hour_colour.set_up_map(
-        "white",
-        "medium purple",
-        x_bottom=0,
-        x_top=max_bike_hours_per_hour,
-        x_exponent=2,
-    )
-    # Max temp is broken into two portions (color ramps)
-    max_temp_midpoint=10
-    # max_temp_high_colour is how much ABOVE midpoint
-    max_temp_high_colour = cm.ColourMap()
-    max_temp_high_colour.set_up_map(
-        (255, 255, 224),
-        #"gold",
-        "orange",#pink",
-        x_bottom=0,
-        x_top=25, #max_temp,
-        x_exponent=1,
-    )
-    # Low is how much BELOW midpoint. (They are REVERSED)
-    max_temp_low_colour = cm.ColourMap()
-    max_temp_low_colour.set_up_map(
-        (255, 255, 224),
-        #"gold",
-        "azure",
-        x_bottom=0,
-        x_top=10,
-        x_exponent=1,
-    )
-    max_precip_colour = cm.ColourMap()
-    max_precip_colour.set_up_map(
-        "white",
-        "azure",
-        x_bottom=0,
-        x_top=max_precip,
-        x_exponent=0.5,
-    )
+    max_parked_colour = dc.Dimension(interpolation_exponent=2)
+    max_parked_colour.add_config(0,'white')
+    max_parked_colour.add_config(max_parked,'green')
+
+    max_full_colour = dc.Dimension(interpolation_exponent=2)
+    max_full_colour.add_config(0,'white')
+    max_full_colour.add_config(max_full,'teal')
+
+    max_left_colour = dc.Dimension()
+    max_left_colour.add_config(0,'white')
+    max_left_colour.add_config(10,'red')
+
+    max_bike_hours_colour = dc.Dimension(interpolation_exponent=2)
+    max_bike_hours_colour.add_config(0,'white')
+    max_bike_hours_colour.add_config(max_bike_hours,'mediumpurple')
+
+    max_bike_hours_per_hour_colour = dc.Dimension(interpolation_exponent=2)
+    max_bike_hours_per_hour_colour.add_config(0, 'white')
+    max_bike_hours_per_hour_colour.add_config(max_bike_hours_per_hour, 'mediumpurple')
+
+    max_temp_colour = dc.Dimension()
+    max_temp_colour.add_config(11,'beige')#'rgb(255, 255, 224)')
+    max_temp_colour.add_config(35,'orange')
+    max_temp_colour.add_config(0,'azure')
+
+    max_precip_colour = dc.Dimension(interpolation_exponent=1)
+    max_precip_colour.add_config(0,'white')
+    max_precip_colour.add_config(max_precip,'azure')
 
     print(f"<h1>{title_bit}Bike valet overview</h1>")
     print(
@@ -534,15 +493,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     for row in drows:
         date_link = selfref(what="day_end", qdate=row.date)
         reg_str = "" if row.registrations is None else f"{row.registrations}"
-        if row.temp is None:
-            temp_str = ""
-            temp_style = "color:black; background-color:white;"
-        else:
-            temp_str = f"{row.temp:0.1f}"
-            if row.temp >= max_temp_midpoint:
-                temp_style = max_temp_high_colour.get_fg_bg(row.temp-max_temp_midpoint)
-            else:
-                temp_style = max_temp_low_colour.get_fg_bg(max_temp_midpoint-row.temp)
+        temp_str = "" if row.temp is None else f"{row.temp:0.1f}"
         precip_str = "" if row.precip_mm is None else f"{row.precip_mm:0.1f}"
         print(
             f"<tr>"
@@ -552,14 +503,14 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             f"<td>{row.parked_regular}</td>"
             f"<td>{row.parked_oversize}</td>"
             #f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
-            f"<td style='{max_parked_colour.get_fg_bg(row.parked_total)}'>{row.parked_total}</td>"
-            f"<td style='{max_left_colour.get_fg_bg(row.leftover)}'>{row.leftover}</td>"
-            f"<td style='{max_full_colour.get_fg_bg(row.max_total)}'>{row.max_total}</td>"
-            f"<td style='{max_bike_hours_colour.get_fg_bg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
-            f"<td style='{max_bike_hours_per_hour_colour.get_fg_bg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
+            f"<td style='{max_parked_colour.css_fg_bg(row.parked_total)}'>{row.parked_total}</td>"
+            f"<td style='{max_left_colour.css_fg_bg(row.leftover)}'>{row.leftover}</td>"
+            f"<td style='{max_full_colour.css_fg_bg(row.max_total)}'>{row.max_total}</td>"
+            f"<td style='{max_bike_hours_colour.css_fg_bg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
+            f"<td style='{max_bike_hours_per_hour_colour.css_fg_bg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
             f"<td>{reg_str}</td>"
-            f"<td style='{temp_style}'>{temp_str}</td>"
-            f"<td style='{max_precip_colour.get_fg_bg(row.precip_mm)}'>{precip_str}</td>"
+            f"<td style='{max_temp_colour.css_fg_bg(row.temp)}'>{temp_str}</td>"
+            f"<td style='{max_precip_colour.css_fg_bg(row.precip_mm)}'>{precip_str}</td>"
             f"<td>{row.sunset}</td>"
             "</tr>"
         )
@@ -844,48 +795,29 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             tabledata[date].blocks[block] = (num_in, num_out, busy, full)
 
     # Set up colour map
-    colours = cm.ColourMap()
-    colours.set_up_map(
-        "white",
-        (255, 80, 80),
-        (100, 100, 255),
-        0,
-        block_busiest,
-        0,
-        block_fullest,
-        0.75,
-        0.75,
-    )
-    day_busy_colours = cm.ColourMap()
-    day_busy_colours.set_up_map(
-        "white",
-        (255, 100, 100),
-        x_bottom=0,
-        x_top=day_busiest,
-        x_exponent=1.5,
-    )
-    day_full_colours = cm.ColourMap()
-    day_full_colours.set_up_map(
-        "white",
-        (100, 100, 255),
-        x_bottom=0,
-        x_top=day_fullest,
-        x_exponent=1.5,
-    )
+    busy_colour_init = 'red'
+    full_colour_init = 'green'
+    colours = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
+    d1 = colours.add_dimension(interpolation_exponent=0.75)
+    d1.add_config(0,"white")
+    d1.add_config(block_busiest,busy_colour_init)
+    d2 = colours.add_dimension(interpolation_exponent=0.75)
+    d2.add_config(0,"white")
+    d2.add_config(block_fullest,full_colour_init)
+
+    day_busy_colours = dc.Dimension(interpolation_exponent=1.5)
+    day_busy_colours.add_config(0,'white')
+    day_busy_colours.add_config(day_busiest,busy_colour_init)
+    day_full_colours = dc.Dimension(interpolation_exponent=1.5)
+    day_full_colours.add_config(0,'white')
+    day_full_colours.add_config(day_fullest,full_colour_init)
 
     print(f"<h1>{title_bit}Daily activity detail</h1>")
-    print("<table>")
-    # print("<style>td {text-align: left}</style>")
-    print(
-        f"<tr><td style=text-align:left>REDS</td><td style=text-align:left>Activity (bikes coming and going)</td><td style='background-color:{colours.get_rgb_str(4,0)}'>LESS</td><td style='background-color:{colours.get_rgb_str(20,0)}'>MORE</td></tr>"
-    )
-    print(
-        f"<tr><td style=text-align:left>BLUES</td><td style=text-align:left>Number of bikes at the valet</td><td style='background-color:{colours.get_rgb_str(0,20)}'>LESS</td><td style='background-color:{colours.get_rgb_str(0,70)}'>MORE</td></tr>"
-    )
-    print(
-        f"<tr><td style=text-align:left>PURPLES</td><td style=text-align:left>Lots of both!</td><td style='background-color:{colours.get_rgb_str(4,20)}'>LESS</td><td style='background-color:{colours.get_rgb_str(20,70)}'>MORE</td></tr>"
-    )
-    print("</table><p>&nbsp;</p>")
+
+    tab = colortable.make_html_color_table(colours,'<b>Legend</b>','Activity', 'Bikes at valet',8,8,20)
+    print(tab)
+
+    print("</p></p>")
 
     def print_gap():
         print(
@@ -925,17 +857,22 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             if num % 6 == 0:
                 print_gap()
             (num_in, num_out, busy, full) = data.blocks[block]
-            cell_colour = colours.get_rgb_str(busy, full)
+            cell_colour = colours.css_fg_bg((busy, full))
             print(
-                f"<td title='Bikes in: {num_in}\nBikes out: {num_out}\nBikes at end: {full}' style='background-color:{cell_colour} ;padding: 2px 8px;'><a href='{chartlink}' style='text-decoration:none;'>&nbsp;</a></td>"
+                f"<td title='Bikes in: {num_in}\nBikes out: {num_out}\nBikes at end: {full}' "
+                f"style='{cell_colour};padding: 2px 8px;'>"
+                f"<a href='{chartlink}' style='{cell_colour};text-decoration:none;'>"
+                "</a></td>"
             )
         print_gap()
 
+        s = day_busy_colours.css_fg_bg(data.total_bikes)
         print(
-            f"<td style='background-color:{day_busy_colours.get_rgb_str(data.total_bikes)}'><a href='{chartlink}'>{data.total_bikes}</a></td>"
+            f"<td style='{s}'><a href='{chartlink}' style='{s}'>{data.total_bikes}</a></td>"
         )
+        s = day_full_colours.css_fg_bg(data.max_full)
         print(
-            f"<td style='background-color:{day_full_colours.get_rgb_str(data.max_full)}'><a href='{chartlink}'>{data.max_full}</a></td>"
+            f"<td style='{s}'><a href='{chartlink}' style='{s}'>{data.max_full}</a></td>"
         )
         print("</tr>\n")
 

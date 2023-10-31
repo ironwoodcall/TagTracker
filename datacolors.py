@@ -190,7 +190,7 @@ class Color(tuple):
 
     def css_fg_bg(self) -> str:
         """Make CSS style background color component with contrasting text color."""
-        fg = "black" if self.luminance() >= 0.5 else "white"
+        fg = "black" if self.luminance() >= 128 else "white"
         return f"color:{fg};background-color:{self.html_color};"
 
     def __str__(self):
@@ -451,7 +451,7 @@ class Dimension:
     of the range.
     """
 
-    def __init__(self, interpolation_exponent: float = 1):
+    def __init__(self, interpolation_exponent: float = 1, none_color:str = "white"):
         """Set initial values for Dimension properties."""
         if interpolation_exponent < 0:
             raise ValueError("Interpolation exponent must be >= 0.")
@@ -461,6 +461,7 @@ class Dimension:
         self.min = None
         self.max = None
         self.range = None
+        self.none_color = None if none_color is None else Color(none_color)
 
     def add_config(self, determiner: float, color: str) -> None:
         """Add a MappingPoint to this dimension."""
@@ -482,6 +483,11 @@ class Dimension:
         """Blend within gradients to get a color for this determiner value."""
         if self.range <= 0:
             return self.configs[0].color
+        if determiner is None:
+            if self.none_color is None:
+                raise TypeError( "determiner is None and no default given")
+            else:
+                return Color(self.none_color)
 
         # Clamp determiner to self's range
         determiner = max(self.min, min(self.max, determiner))
@@ -539,7 +545,8 @@ class Dimension:
         lines.append(
             f"{indent}  ready: {self.ready}; configs: {len(self.configs)}; "
             f"min/max/range: {self.min}/{self.max}/{self.range}; "
-            f"interpolation_exponent: {self.interpolation_exponent}"
+            f"interpolation_exponent: {self.interpolation_exponent}; "
+            f"none_color: {self.none_color}"
         )
         for j, pt in enumerate(self.configs):
             pt: MappingPoint
@@ -563,7 +570,8 @@ class Dimension:
         - str() can be saved, then turned back into this structure using eval()
         """
         config_list = [[con.real, con.color.html_color] for con in self.configs]
-        return [self.interpolation_exponent,config_list]
+        none_color = None if self.none_color is None else self.none_color.html_color
+        return [self.interpolation_exponent,none_color,config_list]
 
 class MultiDimension:
     """MultiDimension looks after n-dimensional mappings of colors."""
@@ -573,9 +581,9 @@ class MultiDimension:
         self.blend_method = blend_method
         self.dimensions = []  # Each is a Dimension
 
-    def add_dimension(self, interpolation_exponent: float = 1) -> Dimension:
+    def add_dimension(self, interpolation_exponent: float = 1,none_color:str="white") -> Dimension:
         """Add an empty Dimension to the MultiDimension."""
-        d = Dimension(interpolation_exponent)
+        d = Dimension(interpolation_exponent,none_color)
         self.dimensions.append(d)
         return d
 
