@@ -40,7 +40,7 @@ d2.add_config(min_val,'white')
 d2.add_config(max_val,'rgb(147,10,20)')
 
 for (various x values, with text):
-    print(f"<td style={factory.css_fg_bg(x)}>{x}</td>")
+    print(f"<td style={factory.css_bg_fg(x)}>{x}</td>")
 
 for (various x,y values with no text)
     print(f"<td style={factory.css_bg(x,y)}>&nbsp;<td>")
@@ -184,11 +184,15 @@ class Color(tuple):
         luminance = 0.299 * self.red + 0.587 * self.green + 0.114 * self.blue
         return luminance
 
+    def css_fg(self) -> str:
+        """Make a CSS (foreground) color style string component."""
+        return f"color:{self.html_color};"
+
     def css_bg(self) -> str:
         """Make a CSS background color style string component."""
         return f"background-color:{self.html_color};"
 
-    def css_fg_bg(self) -> str:
+    def css_bg_fg(self) -> str:
         """Make CSS style background color component with contrasting text color."""
         fg = "black" if self.luminance() >= 128 else "white"
         return f"color:{fg};background-color:{self.html_color};"
@@ -517,15 +521,20 @@ class Dimension:
             gradient_min.color, gradient_max.color, blend_factor
         )
 
+    def css_fg(self, determiner: float) -> str:
+        """Make a CSS (foreground) color style string component."""
+        fg = self.get_color(determiner)
+        return Color(fg).css_fg()
+
     def css_bg(self, determiner: float) -> str:
         """Make a CSS background color style string component."""
         bg = self.get_color(determiner)
         return Color(bg).css_bg()
 
-    def css_fg_bg(self, determiner: float) -> str:
+    def css_bg_fg(self, determiner: float) -> str:
         """Make CSS style background color component with contrasting text color."""
         bg = self.get_color(determiner)
-        return Color(bg).css_fg_bg()
+        return Color(bg).css_bg_fg()
 
     def dump(
         self, indent: str = "", index: int = None, quiet: bool = False
@@ -619,15 +628,20 @@ class MultiDimension:
             all(d.ready for d in self.dimensions) if self.dimensions else False
         )
 
+    def css_fg(self, determiner: tuple) -> str:
+        """Make a CSS (foreground) color style string component."""
+        fg = self.get_color(*determiner)
+        return Color(fg).css_fg()
+
     def css_bg(self, determiner: tuple) -> str:
         """Make a CSS background color style string component."""
         bg = self.get_color(*determiner)
         return Color(bg).css_bg()
 
-    def css_fg_bg(self, determiner: tuple) -> str:
+    def css_bg_fg(self, determiner: tuple) -> str:
         """Make CSS style background color component with contrasting text color."""
         bg = self.get_color(*determiner)
-        return Color(bg).css_fg_bg()
+        return Color(bg).css_bg_fg()
 
     def unload(self) -> list:
         """Unload the multi-dimension configu info into nested list.

@@ -27,7 +27,7 @@ class HtmlHelper:
         return "</body></html>"
 
     @staticmethod
-    def html_top(title:str=""):
+    def html_top(title: str = ""):
         """Return a top-of-html document."""
         return f"""Content-type: text/html\n\n
             <!DOCTYPE html>
@@ -97,15 +97,28 @@ def make_html_color_table(
             lab = f"{lab}  exp={dim.interpolation_exponent}"
         return lab
 
-    def cell(factory: dc.MultiDimension, x_index, y_index) -> str:
+    def cell(
+        factory: dc.MultiDimension,
+        x_index,
+        y_index,
+        x_label: str = "",
+        y_label: str = "",
+        custom_labelling: bool = True,
+    ) -> str:
         """Return a coloured html table cell."""
+        this_color = factory.get_color(x_index, y_index)
+        if custom_labelling:
+            title_text = (
+                f"{x_label}: {round(x_index)}\n{y_label}: {round(y_index)}"
+            )
+        else:
+            title_text = this_color.html_color
         c = factory.get_color(x_index, y_index).html_color
-        return (
-            f"<td style={factory.css_bg((x_index,y_index))} title='{c}'></td>"
-        )
+        return f"<td style='{this_color.css_bg()}' title='{title_text}'></td>"
 
     x: dc.Dimension = factory.dimensions[0]
     y: dc.Dimension = factory.dimensions[1]
+    custom_labels = bool(x_label or y_label)
     if not x_label:
         x_label = axis_label(x)
     if not y_label:
@@ -141,11 +154,13 @@ def make_html_color_table(
     rownum = 1
     html.add("            <tr>")
     html.add(
-        f"               <td style='{y.css_fg_bg(y_max)}'>{round(y_max)}</td>"
+        f"               <td style='{y.css_bg_fg(y_max)}'>{round(y_max)}</td>"
     )
     x_index = x_min
     for _ in range(num_columns):
-        html.add(cell(factory, x_index, y_index))
+        html.add(
+            cell(factory, x_index, y_index, x_label, y_label, custom_labels)
+        )
         x_index += x_step
     html.add("</tr>\n")
     rownum += 1
@@ -162,7 +177,11 @@ def make_html_color_table(
         html.add("            <tr>")
         x_index = x_min
         for _ in range(num_columns):
-            html.add(cell(factory, x_index, y_index))
+            html.add(
+                cell(
+                    factory, x_index, y_index, x_label, y_label, custom_labels
+                )
+            )
             x_index += x_step
         html.add("</tr>\n")
         rownum += 1
@@ -171,11 +190,13 @@ def make_html_color_table(
     # bottom row (includes y_min)
     html.add("            <tr>")
     html.add(
-        f"               <td style='text-align: center;{y.css_fg_bg(y_min)}'>{round(y_min)}</td>"
+        f"               <td style='text-align: center;{y.css_bg_fg(y_min)}'>{round(y_min)}</td>"
     )
     x_index = x_min
     for _ in range(num_columns):
-        html.add(cell(factory, x_index, y_index))
+        html.add(
+            cell(factory, x_index, y_index, x_label, y_label, custom_labels)
+        )
         x_index += x_step
     html.add("</tr>\n")
 
@@ -184,18 +205,18 @@ def make_html_color_table(
     html.add("<tr>")
     html.add("<td></td>")
     html.add(
-        f'<td colspan={bottom_row_merge} '
-        f'style="text-align: center;{x.css_fg_bg(x_min)};">'
-        f'{round(x_min)}</td>'
+        f"<td colspan={bottom_row_merge} "
+        f'style="text-align: center;{x.css_bg_fg(x_min)};">'
+        f"{round(x_min)}</td>"
     )
     html.add(
-        f'<td colspan={num_columns - 2 * bottom_row_merge} '
+        f"<td colspan={num_columns - 2 * bottom_row_merge} "
         f'style="text-align: center">{x_label}</td>'
     )
     html.add(
-        f'<td colspan={bottom_row_merge} '
-        f'style="text-align: right; {x.css_fg_bg(x_max)};">'
-        f'{round(x_max)}</td>'
+        f"<td colspan={bottom_row_merge} "
+        f'style="text-align: right; {x.css_bg_fg(x_max)};">'
+        f"{round(x_max)}</td>"
     )
     html.add("</tr>")
 
@@ -214,10 +235,10 @@ if __name__ == "__main__":
     CELL_WIDTH = 20
 
     cf = dc.MultiDimension()  # dc.BLEND_MULTIPLICATIVE)
-    d = cf.add_dimension(.8)
+    d = cf.add_dimension(0.8)
     d.add_config(0, "white")
     d.add_config(50, "blue")  # (100,255,255))
-    d = cf.add_dimension(.8)
+    d = cf.add_dimension(0.8)
     d.add_config(0, "white")
     d.add_config(100, "red")  # "#4343d3")#"royalblue")
 
@@ -241,7 +262,7 @@ if __name__ == "__main__":
                 # y_label="Full (bikes present)",
                 num_columns=COLUMNS,
                 num_rows=ROWS,
-                cell_size=CELL_WIDTH
+                cell_size=CELL_WIDTH,
             )
         )
 

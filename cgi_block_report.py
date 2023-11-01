@@ -33,11 +33,64 @@ import cgi_common as cc
 import datacolors as dc
 import colortable
 
-
+ZERO_COLOUR_INIT = (252,252,248)
 BUSY_COLOUR_INIT = 'red'
 FULL_COLOUR_INIT = 'teal'
 BUSY_COLOUR_TOP = 60    # None to use calculated max
 FULL_COLOUR_TOP = 150   # None to use calculated max
+
+
+def process_iso_dow(iso_dow):
+    # Convert iso_dow to an integer and set title_bit and where
+    # ...
+    title_bit, where = (None,None)
+    return title_bit, where
+
+def fetch_data(ttdb, where, table_name, time_column=None):
+    if time_column:
+        query = f"SELECT date, round(2*(julianday({time_column})-julianday('00:15'))*24,0)/2 block, count({time_column}) bikes FROM {table_name} {where} GROUP BY date, block;"
+    else:
+        query = f"SELECT date, parked_total total_bikes, max_total max_full FROM {table_name} {where} ORDER BY date DESC"
+
+    # Fetch and return data from the database
+    # ...
+    data = None
+    return data
+
+def process_day_data(dayrows):
+    tabledata = {}
+    day_fullest = 0
+    day_busiest = 0
+    # Process day data and populate tabledata
+    # ...
+    return tabledata, day_fullest, day_busiest
+
+def process_visit_data(visitrows_in, visitrows_out, tabledata):
+    block_fullest = 0
+    block_busiest = 0
+    # Process visit data and update tabledata
+    # ...
+    return block_fullest, block_busiest
+
+def print_html_report(title_bit, tabledata, day_fullest, day_busiest, block_fullest, block_busiest):
+    pass
+    # Generate HTML report
+    # ...
+
+
+def NEW__blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
+    title_bit, where = process_iso_dow(iso_dow)
+
+    dayrows = fetch_data(ttdb, where, "day")
+    visitrows_in = fetch_data(ttdb, where, "visit", "time_in")
+    visitrows_out = fetch_data(ttdb, where, "visit", "time_out")
+
+    tabledata, day_fullest, day_busiest = process_day_data(dayrows)
+    block_fullest, block_busiest = process_visit_data(visitrows_in, visitrows_out, tabledata)
+
+    print_html_report(title_bit, tabledata, day_fullest, day_busiest, block_fullest, block_busiest)
+
+
 
 def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     """Print block-by-block colours report for all days
@@ -151,14 +204,14 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
 
     # Set up colour map
     colours = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
-    d1 = colours.add_dimension(interpolation_exponent=0.75)
-    d1.add_config(0,"white")
+    d1 = colours.add_dimension(interpolation_exponent=0.82)
+    d1.add_config(0,ZERO_COLOUR_INIT)
     if BUSY_COLOUR_TOP is None:
         d1.add_config(block_busiest,BUSY_COLOUR_INIT)
     else:
         d1.add_config(BUSY_COLOUR_TOP,BUSY_COLOUR_INIT)
-    d2 = colours.add_dimension(interpolation_exponent=0.75)
-    d2.add_config(0,"white")
+    d2 = colours.add_dimension(interpolation_exponent=0.82)
+    d2.add_config(0,ZERO_COLOUR_INIT)
     if FULL_COLOUR_TOP is None:
         d2.add_config(block_fullest,FULL_COLOUR_INIT)
     else:
@@ -216,7 +269,7 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             if num % 6 == 0:
                 print_gap()
             (num_in, num_out, busy, full) = data.blocks[block]
-            cell_colour = colours.css_fg_bg((busy, full))
+            cell_colour = colours.css_bg_fg((busy, full))
             print(
                 f"<td title='Bikes in: {num_in}\nBikes out: {num_out}\nBikes at end: {full}' "
                 f"style='{cell_colour};padding: 2px 8px;'>"
@@ -225,11 +278,11 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             )
         print_gap()
 
-        s = day_busy_colours.css_fg_bg(data.total_bikes)
+        s = day_busy_colours.css_bg_fg(data.total_bikes)
         print(
             f"<td style='{s}'><a href='{chartlink}' style='{s}'>{data.total_bikes}</a></td>"
         )
-        s = day_full_colours.css_fg_bg(data.max_full)
+        s = day_full_colours.css_bg_fg(data.max_full)
         print(
             f"<td style='{s}'><a href='{chartlink}' style='{s}'>{data.max_full}</a></td>"
         )
