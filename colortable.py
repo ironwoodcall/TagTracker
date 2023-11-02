@@ -103,26 +103,20 @@ def make_html_color_table(
         y_index,
         x_label: str = "",
         y_label: str = "",
-        custom_labelling: bool = True,
     ) -> str:
         """Return a coloured html table cell."""
         this_color = factory.get_color(x_index, y_index)
-        if custom_labelling:
-            title_text = (
-                f"{x_label}: {round(x_index)}\n{y_label}: {round(y_index)}"
-            )
-        else:
-            title_text = this_color.html_color
+        title_text = (
+            f"{x_label}: {round(x_index)}\n{y_label}: {round(y_index)}"
+        )
         c = factory.get_color(x_index, y_index).html_color
         return f"<td style='{this_color.css_bg()}' title='{title_text}'></td>"
 
     x: dc.Dimension = factory.dimensions[0]
     y: dc.Dimension = factory.dimensions[1]
-    custom_labels = bool(x_label or y_label)
-    if not x_label:
-        x_label = axis_label(x)
-    if not y_label:
-        y_label = axis_label(y)
+    # custom_labels = bool(x_label or y_label)
+    x_label = x.get_label()
+    y_label = y.get_label()
     if not title:
         title = f"Blend method: {factory.blend_method}"
 
@@ -158,9 +152,7 @@ def make_html_color_table(
     )
     x_index = x_min
     for _ in range(num_columns):
-        html.add(
-            cell(factory, x_index, y_index, x_label, y_label, custom_labels)
-        )
+        html.add(cell(factory, x_index, y_index, x_label, y_label))
         x_index += x_step
     html.add("</tr>\n")
     rownum += 1
@@ -177,11 +169,7 @@ def make_html_color_table(
         html.add("            <tr>")
         x_index = x_min
         for _ in range(num_columns):
-            html.add(
-                cell(
-                    factory, x_index, y_index, x_label, y_label, custom_labels
-                )
-            )
+            html.add(cell(factory, x_index, y_index, x_label, y_label))
             x_index += x_step
         html.add("</tr>\n")
         rownum += 1
@@ -194,9 +182,7 @@ def make_html_color_table(
     )
     x_index = x_min
     for _ in range(num_columns):
-        html.add(
-            cell(factory, x_index, y_index, x_label, y_label, custom_labels)
-        )
+        html.add(cell(factory, x_index, y_index, x_label, y_label))
         x_index += x_step
     html.add("</tr>\n")
 

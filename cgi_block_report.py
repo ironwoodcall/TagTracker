@@ -23,6 +23,7 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import sqlite3
+import copy
 
 ##from tt_globals import *
 
@@ -33,46 +34,64 @@ import cgi_common as cc
 import datacolors as dc
 import colortable
 
-ZERO_COLOUR_INIT = (252,252,248)
-BUSY_COLOUR_INIT = 'red'
-FULL_COLOUR_INIT = 'teal'
-BUSY_COLOUR_TOP = 60    # None to use calculated max
-FULL_COLOUR_TOP = 150   # None to use calculated max
+XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
+X_TOP_COLOR = "red"
+Y_TOP_COLOR = "royalblue"
+MARKER = chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
 
 
 def process_iso_dow(iso_dow):
-    # Convert iso_dow to an integer and set title_bit and where
-    # ...
-    title_bit, where = (None,None)
-    return title_bit, where
-
-def fetch_data(ttdb, where, table_name, time_column=None):
-    if time_column:
-        query = f"SELECT date, round(2*(julianday({time_column})-julianday('00:15'))*24,0)/2 block, count({time_column}) bikes FROM {table_name} {where} GROUP BY date, block;"
+    # Convert iso_dow to an integer and set title_bit and where_clause
+    if iso_dow:
+        iso_dow = int(iso_dow)
+    if not iso_dow:
+        title_bit = ""
+        where_clause = ""
     else:
-        query = f"SELECT date, parked_total total_bikes, max_total max_full FROM {table_name} {where} ORDER BY date DESC"
+        # sqlite uses unix dow, so need to adjust dow from 1->7 to 0->6.
+        title_bit = f"{ut.dow_str(iso_dow)} "
+        where_clause = f" where strftime('%w',date) = '{iso_dow % 7}' "
+
+    return title_bit, where_clause
+
+
+def fetch_data(ttdb, where_clause, table_name, time_column=None):
+    if time_column:
+        query = f"SELECT date, round(2*(julianday({time_column})-julianday('00:15'))*24,0)/2 block, count({time_column}) bikes FROM {table_name} {where_clause} GROUP BY date, block;"
+    else:
+        query = f"SELECT date, parked_total day_total_bikes, max_total day_max_bikes FROM {table_name} {where_clause} ORDER BY date DESC"
 
     # Fetch and return data from the database
     # ...
     data = None
     return data
 
+
 def process_day_data(dayrows):
     tabledata = {}
-    day_fullest = 0
-    day_busiest = 0
+    max_max_bikes = 0
+    max_total_bikes = 0
     # Process day data and populate tabledata
     # ...
-    return tabledata, day_fullest, day_busiest
+    return tabledata, max_max_bikes, max_total_bikes
+
 
 def process_visit_data(visitrows_in, visitrows_out, tabledata):
-    block_fullest = 0
-    block_busiest = 0
+    max_block_full = 0
+    max_block_activity = 0
     # Process visit data and update tabledata
     # ...
-    return block_fullest, block_busiest
+    return max_block_full, max_block_activity
 
-def print_html_report(title_bit, tabledata, day_fullest, day_busiest, block_fullest, block_busiest):
+
+def print_html_report(
+    title_bit,
+    tabledata,
+    max_max_bikes,
+    max_total_bikes,
+    max_block_full,
+    max_block_activity,
+):
     pass
     # Generate HTML report
     # ...
@@ -85,30 +104,55 @@ def NEW__blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     visitrows_in = fetch_data(ttdb, where, "visit", "time_in")
     visitrows_out = fetch_data(ttdb, where, "visit", "time_out")
 
-    tabledata, day_fullest, day_busiest = process_day_data(dayrows)
-    block_fullest, block_busiest = process_visit_data(visitrows_in, visitrows_out, tabledata)
+    tabledata, max_max_bikes, max_total_bikes = process_day_data(dayrows)
+    max_block_full, max_block_activity = process_visit_data(
+        visitrows_in, visitrows_out, tabledata
+    )
 
-    print_html_report(title_bit, tabledata, day_fullest, day_busiest, block_fullest, block_busiest)
+    print_html_report(
+        title_bit,
+        tabledata,
+        max_max_bikes,
+        max_total_bikes,
+        max_block_full,
+        max_block_activity,
+    )
 
+
+def fetch_days():
+    pass
 
 
 def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
-    """Print block-by-block colours report for all days
+    """Print block-by-block colors report for all days
 
     If dow is None then do for all days of the week, otherwise do
     for ISO int dow (1=Monday-->7=Sunday)
 
     """
 
-    class TableRow:
+    class OneBlock:
+        """Data about a single timeblock."""
+
+        def __init__(self):
+            self.num_in = 0
+            self.num_out = 0
+            self.full = 0
+            self.so_far = 0
+
+        @property
+        def activity(self):
+            return self.num_in + self.num_out
+
+    class OneDay:
         _allblocks = {}
         for t in range(6 * 60, 24 * 60, 30):
-            _allblocks[VTime(t)] = (0, 0)  # Activity,Fullness
+            _allblocks[VTime(t)] = OneBlock()
 
         def __init__(self) -> None:
-            self.total_bikes = None
-            self.max_full = None
-            self.blocks = TableRow._allblocks.copy()
+            self.day_total_bikes = None
+            self.day_max_bikes = None
+            self.blocks = copy.deepcopy(OneDay._allblocks)
 
     if iso_dow:
         iso_dow = int(iso_dow)
@@ -121,7 +165,7 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         where = f" where strftime('%w',date) = '{iso_dow % 7}' "
     sel = (
         "select "
-        "   date, parked_total total_bikes, max_total max_full "
+        "   date, parked_total day_total_bikes, max_total day_max_bikes "
         "from day "
         f"  {where} "
         "   order by date desc"
@@ -149,84 +193,110 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     )
     visitrows_out = db.db_fetch(ttdb, sel)
 
+    # Create structures for the html tables:
+    #   tabledata[ date : day summary (a OneDay) ]
+    #   max_total_bikes, max_max_bikes: greatest daily total and fullest
+
     tabledata = {}
-    day_fullest = 0
-    day_busiest = 0
-    for row in dayrows:
-        date = row.date
-        daydata = TableRow()
-        daydata.total_bikes = row.total_bikes
-        if daydata.total_bikes > day_busiest:
-            day_busiest = daydata.total_bikes
-        daydata.max_full = row.max_full
-        if daydata.max_full > day_fullest:
-            day_fullest = daydata.max_full
-        tabledata[date] = daydata
+    max_max_bikes = 0
+    max_total_bikes = 0
+    for dayrow in dayrows:
+        date = dayrow.date
+        day_summary = OneDay()
+        day_summary.day_total_bikes = dayrow.day_total_bikes
+        if day_summary.day_total_bikes > max_total_bikes:
+            max_total_bikes = day_summary.day_total_bikes
+        day_summary.day_max_bikes = dayrow.day_max_bikes
+        if day_summary.day_max_bikes > max_max_bikes:
+            max_max_bikes = day_summary.day_max_bikes
+        tabledata[date] = day_summary
 
     # Consolidate activity info from the VISIT table
     ins = {}
-    for row in visitrows_in:
-        thisdate = row.date
-        if not thisdate or not row.block or row.bikes_in is None:
+    for visitrow in visitrows_in:
+        thisdate = visitrow.date
+        if not thisdate or not visitrow.block or visitrow.bikes_in is None:
             continue
-        blocktime = VTime(row.block * 60)
+        blocktime = VTime(visitrow.block * 60)
         if thisdate not in ins:
             ins[thisdate] = {}
-        ins[thisdate][blocktime] = row.bikes_in
+        ins[thisdate][blocktime] = visitrow.bikes_in
+
     outs = {}
-    for row in visitrows_out:
-        thisdate = row.date
-        if not thisdate or not row.block or row.bikes_out is None:
+    for visitrow in visitrows_out:
+        thisdate = visitrow.date
+        if not thisdate or not visitrow.block or visitrow.bikes_out is None:
             continue
-        blocktime = VTime(row.block * 60)
+        blocktime = VTime(visitrow.block * 60)
         if thisdate not in outs:
             outs[thisdate] = {}
-        outs[thisdate][blocktime] = row.bikes_out
+        outs[thisdate][blocktime] = visitrow.bikes_out
 
-    block_fullest = 0
-    block_busiest = 0
+    block_maxes = OneBlock()
     for date in sorted(ins.keys()):
-        full = 0
-        for block in sorted(tabledata[date].blocks.keys()):
-            num_in = ins[date][block] if block in ins[date] else 0
-            num_out = (
-                outs[date][block]
-                if date in outs and block in outs[date]
+        full_today = 0
+        so_far_today = 0
+        for block_key in sorted(tabledata[date].blocks.keys()):
+            thisblock: OneBlock = tabledata[date].blocks[block_key]
+            thisblock.num_in = (
+                ins[date][block_key] if block_key in ins[date] else 0
+            )
+            thisblock.num_out = (
+                outs[date][block_key]
+                if date in outs and block_key in outs[date]
                 else 0
             )
-            busy = num_in + num_out
-            full += num_in - num_out
-            if full > block_fullest:
-                block_fullest = full
-            if busy > block_busiest:
-                block_busiest = busy
-            tabledata[date].blocks[block] = (num_in, num_out, busy, full)
+            so_far_today += thisblock.num_in
+            thisblock.so_far = so_far_today
+            full_today += thisblock.num_in - thisblock.num_out
+            thisblock.full = full_today
 
-    # Set up colour map
-    colours = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
-    d1 = colours.add_dimension(interpolation_exponent=0.82)
-    d1.add_config(0,ZERO_COLOUR_INIT)
-    if BUSY_COLOUR_TOP is None:
-        d1.add_config(block_busiest,BUSY_COLOUR_INIT)
-    else:
-        d1.add_config(BUSY_COLOUR_TOP,BUSY_COLOUR_INIT)
-    d2 = colours.add_dimension(interpolation_exponent=0.82)
-    d2.add_config(0,ZERO_COLOUR_INIT)
-    if FULL_COLOUR_TOP is None:
-        d2.add_config(block_fullest,FULL_COLOUR_INIT)
-    else:
-        d2.add_config(FULL_COLOUR_TOP,FULL_COLOUR_INIT)
+            # FIXME: below may overestimate max activity level
+            block_maxes.num_in = max(thisblock.num_in, block_maxes.num_in)
+            block_maxes.num_out = max(thisblock.num_out, block_maxes.num_out)
+            block_maxes.full = max(thisblock.full, block_maxes.full)
+            block_maxes.so_far = max(thisblock.so_far, block_maxes.so_far)
+            block_maxes.full = max(thisblock.full, block_maxes.full)
 
-    day_busy_colours = dc.Dimension(interpolation_exponent=1.5)
-    day_busy_colours.add_config(0,'white')
-    day_busy_colours.add_config(day_busiest,'green')
-    day_full_colours = dc.Dimension(interpolation_exponent=1.5)
-    day_full_colours.add_config(0,'white')
-    day_full_colours.add_config(day_fullest,FULL_COLOUR_INIT)
+    # Set up color map
+
+    colors = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
+    d1 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes in")
+    d1.add_config(0, XY_BOTTOM_COLOR)
+    d1.add_config(block_maxes.num_in, X_TOP_COLOR)
+    d2 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes out")
+    d2.add_config(0, XY_BOTTOM_COLOR)
+    d2.add_config(block_maxes.num_out, Y_TOP_COLOR)
+
+    block_parked_colors = dc.Dimension(
+        interpolation_exponent=0.5, label="Bikes at valet"
+    )
+    block_parked_colors.add_config(
+        0, colors.get_color(0, 0)
+    )  # exactly match the off-hours background
+    block_parked_colors.add_config(1 / 5 * block_maxes.full, "lightyellow")
+    block_parked_colors.add_config(2 / 5 * block_maxes.full, "orange")
+    block_parked_colors.add_config(3 / 5 * block_maxes.full, "red")
+    # block_parked_colors.add_config(4/5 * block_maxes.full, 'darkred')
+    block_parked_colors.add_config(5 / 5 * block_maxes.full, "black")
+
+    # These are for the right-most two columns
+    day_total_bikes_colors = dc.Dimension(
+        interpolation_exponent=1.5, label="Bikes parked this day"
+    )
+    day_total_bikes_colors.add_config(0, "white")
+    day_total_bikes_colors.add_config(max_total_bikes, "green")
+    day_full_colors = dc.Dimension(
+        interpolation_exponent=1.5, label="Most bikes this day"
+    )
+    day_full_colors.add_config(0, "white")
+    day_full_colors.add_config(max_max_bikes, "teal")
 
     print(f"<h1>{title_bit}Daily activity detail</h1>")
 
-    tab = colortable.make_html_color_table(colours,'<b>Legend</b>','Bikes In+Out', 'Bikes at valet',8,8,20)
+    tab = colortable.make_html_color_table(
+        colors, "<b>Legend</b>", "Bikes In+Out", "Bikes at valet", 8, 8, 20
+    )
     print(tab)
 
     print("</p></p>")
@@ -250,43 +320,62 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     print("<th>Most<br/>bikes</th>")
     print("</tr>")
 
+    date_today = ut.date_str("today")
+    time_now = VTime("now")
     for date in sorted(tabledata.keys(), reverse=True):
-        data: TableRow = tabledata[date]
-        summary_link = cc.selfref(what="day_end", qdate=date)
-        chartlink = cc.selfref(what="chart", qdate=date)
+        data: OneDay = tabledata[date]
+        summary_report_link = cc.selfref(what="day_end", qdate=date)
+        chart_report_link = cc.selfref(what="chart", qdate=date)
 
         dayname = ut.date_str(date, dow_str_len=3)
-        daylink = cc.selfref(what="dow_blocks", qdow=ut.dow_int(dayname))
-
-        print(
-            f"<tr><td style='text-align:center;'><a href='{summary_link}'>{date}</a></td>"
-        )
-        print(
-            f"<td style='text-align:center'><a href='{daylink}'>{dayname}</a></td>"
+        dow_report_link = cc.selfref(
+            what="dow_blocks", qdow=ut.dow_int(dayname)
         )
 
-        for num, block in enumerate(sorted(data.blocks.keys())):
+        print(
+            f"<tr><td style='text-align:center;'>"
+            f"<a href='{summary_report_link}'>{date}</a></td>"
+        )
+        print(
+            f"<td style='text-align:center'>"
+            f"<a href='{dow_report_link}'>{dayname}</a></td>"
+        )
+
+        for num, block_key in enumerate(sorted(data.blocks.keys())):
             if num % 6 == 0:
                 print_gap()
-            (num_in, num_out, busy, full) = data.blocks[block]
-            cell_colour = colours.css_bg_fg((busy, full))
+            thisblock: OneBlock = data.blocks[block_key]
+            # For times in the future, don't show results
+            if date == date_today and block_key > time_now:
+                cell_color = f"color:{XY_BOTTOM_COLOR};background-color:{XY_BOTTOM_COLOR};"
+                cell_title = "Future unknown"
+            else:
+                cell_color = (
+                    f"{colors.css_bg((thisblock.num_in, thisblock.num_out))};"
+                    f"{block_parked_colors.css_fg(thisblock.full)};"
+                )
+                cell_title = (
+                    f"Bikes in: {thisblock.num_in}\nBikes out: {thisblock.num_out}\n"
+                    f"Bikes so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
+                )
+
             print(
-                f"<td title='Bikes in: {num_in}\nBikes out: {num_out}\nBikes at end: {full}' "
-                f"style='{cell_colour};padding: 2px 8px;'>"
-                f"<a href='{chartlink}' style='{cell_colour};text-decoration:none;'>"
-                "</a></td>"
+                f"<td title='{cell_title}' style='{cell_color};padding: 2px 4px;'>"
+                f"<a href='{chart_report_link}' style='{cell_color};text-decoration:none;'>"
+                f"{MARKER}</a></td>"
             )
         print_gap()
 
-        s = day_busy_colours.css_bg_fg(data.total_bikes)
+        s = day_total_bikes_colors.css_bg_fg(data.day_total_bikes)
         print(
-            f"<td style='{s}'><a href='{chartlink}' style='{s}'>{data.total_bikes}</a></td>"
+            f"<td style='{s}'><a href='{chart_report_link}' style='{s}'>"
+            f"{data.day_total_bikes}</a></td>"
         )
-        s = day_full_colours.css_bg_fg(data.max_full)
+        s = day_full_colors.css_bg_fg(data.day_max_bikes)
         print(
-            f"<td style='{s}'><a href='{chartlink}' style='{s}'>{data.max_full}</a></td>"
+            f"<td style='{s}'><a href='{chart_report_link}' style='{s}'>"
+            f"{data.day_max_bikes}</a></td>"
         )
         print("</tr>\n")
 
     print("</table>")
-

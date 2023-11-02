@@ -63,6 +63,7 @@ BLEND_OVERLAY = "overlay"
 BLEND_MIN = "min"
 BLEND_MAX = "max"
 
+
 class Color(tuple):
     """A single color and its behaviors."""
 
@@ -249,12 +250,12 @@ class Color(tuple):
         return f"{closest_color} ({(1 - closeness)*100:.1f}% match)"
 
     @staticmethod
-    def invert( color:'Color') -> 'Color':
+    def invert(color: "Color") -> "Color":
         """Inverts the color."""
-        r = 255-color[0]
-        g = 255-color[1]
-        b = 255-color[2]
-        return Color(Color._clamp_tuple((r,g,b)))
+        r = 255 - color[0]
+        g = 255 - color[1]
+        b = 255 - color[2]
+        return Color(Color._clamp_tuple((r, g, b)))
 
     @staticmethod
     def blend(colors_list: list["Color"], blend_method=BLEND_ALPHA) -> tuple:
@@ -455,7 +456,12 @@ class Dimension:
     of the range.
     """
 
-    def __init__(self, interpolation_exponent: float = 1, none_color:str = "white"):
+    def __init__(
+        self,
+        interpolation_exponent: float = 1,
+        none_color: str = "white",
+        label=None,
+    ):
         """Set initial values for Dimension properties."""
         if interpolation_exponent < 0:
             raise ValueError("Interpolation exponent must be >= 0.")
@@ -466,6 +472,7 @@ class Dimension:
         self.max = None
         self.range = None
         self.none_color = None if none_color is None else Color(none_color)
+        self.label = label
 
     def add_config(self, determiner: float, color: str) -> None:
         """Add a MappingPoint to this dimension."""
@@ -483,13 +490,28 @@ class Dimension:
         self.range = self.max - self.min
         self.ready = True
 
+    def get_label(self) -> str:
+        """Return the known or a default label for this Dimension.
+
+        The default label will not be known until MappingPoint's are
+        added. If a self.label is known to exist, use that.  Else
+        use this."""
+
+        if self.label:
+            return self.label
+        # Create a default label
+        lab = " => ".join([p.color.similar_to() for p in self.configs])
+        if self.interpolation_exponent != 1:
+            lab = f"{lab}  exp={self.interpolation_exponent}"
+        return lab
+
     def get_color(self, determiner: float) -> Color:
         """Blend within gradients to get a color for this determiner value."""
         if self.range <= 0:
             return self.configs[0].color
         if determiner is None:
             if self.none_color is None:
-                raise TypeError( "determiner is None and no default given")
+                raise TypeError("determiner is None and no default given")
             else:
                 return Color(self.none_color)
 
@@ -578,9 +600,14 @@ class Dimension:
         Notes for later:  to use this as a way to save configurations...
         - str() can be saved, then turned back into this structure using eval()
         """
-        config_list = [[con.real, con.color.html_color] for con in self.configs]
-        none_color = None if self.none_color is None else self.none_color.html_color
-        return [self.interpolation_exponent,none_color,config_list]
+        config_list = [
+            [con.real, con.color.html_color] for con in self.configs
+        ]
+        none_color = (
+            None if self.none_color is None else self.none_color.html_color
+        )
+        return [self.interpolation_exponent, none_color, config_list]
+
 
 class MultiDimension:
     """MultiDimension looks after n-dimensional mappings of colors."""
@@ -590,9 +617,18 @@ class MultiDimension:
         self.blend_method = blend_method
         self.dimensions = []  # Each is a Dimension
 
-    def add_dimension(self, interpolation_exponent: float = 1,none_color:str="white") -> Dimension:
+    def add_dimension(
+        self,
+        interpolation_exponent: float = 1,
+        none_color: str = "white",
+        label: str = None,
+    ) -> Dimension:
         """Add an empty Dimension to the MultiDimension."""
-        d = Dimension(interpolation_exponent,none_color)
+        d = Dimension(
+            interpolation_exponent=interpolation_exponent,
+            none_color=none_color,
+            label=label,
+        )
         self.dimensions.append(d)
         return d
 
@@ -658,7 +694,7 @@ class MultiDimension:
         - str() can be saved, then turned back into this structure using eval()
         """
         dimlist = [dim.unload() for dim in self.dimensions]
-        return [self.blend_method,dimlist]
+        return [self.blend_method, dimlist]
 
     def dump(self, quiet: bool = False) -> list[str]:
         """Dump the contents of the MultiDimension.

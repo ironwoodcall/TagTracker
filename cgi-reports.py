@@ -82,7 +82,7 @@ def form(
     if not me_action:
         cc.error_out("bad")
 
-    print(f"<html><head><title>{title}</title></head>")
+    print(f"<html><head><title>{title}</title><meta charset='UTF-8'></head>")
     print(cc.style())
     print("<body>")
     print("<h2>TagTracker reports</h2>")
