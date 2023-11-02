@@ -1,8 +1,6 @@
-"""Create an html table showing shades of a 2d MultiDimension."""
+"""Create html tables that can act as legends for Dimension and MultiDimensions."""
 
 import datacolors as dc
-
-##import data_color_extras as extras
 
 
 class HtmlHelper:
@@ -43,14 +41,14 @@ class HtmlHelper:
         """Return a style sheet for the table."""
 
         s = f"""<style>
-            .colortable {{
+            .colortable2d {{
                 border-collapse: collapse;
                 font-size: 0.8rem;
             }}
-            .colortable, .colortable th, .colortable td {{
+            .colortable2d, .colortable2d th, .colortable2d td {{
                 border: none;
             }}
-            .colortable th, .colortable td {{
+            .colortable2d th, .colortable2d td {{
                 width: {cell_wid}px;
                 height: {cell_wid}px;
                 padding: 0;
@@ -70,16 +68,16 @@ class HtmlHelper:
                         margin-left: -10em;
                         margin-right: -10em;
             }}
-            .colortable {{ border: 1px solid #000;}}
-            .colortable tr {{border-top: 1px solid #000;}}
-            .colortable tr + tr {{border-top: 1px solid white;}}
-            .colortable td {{border-left: 1px solid #000;}}
-            .colortable td + td {{border-left: 1px solid white;}}
+            .colortable2d {{ border: 1px solid #000;}}
+            .colortable2d tr {{border-top: 1px solid #000;}}
+            .colortable2d tr + tr {{border-top: 1px solid white;}}
+            .colortable2d td {{border-left: 1px solid #000;}}
+            .colortable2d td + td {{border-left: 1px solid white;}}
             </style>"""
         return s
 
 
-def make_html_color_table(
+def html_2d_color_table(
     factory: dc.MultiDimension,
     title: str = "",
     x_label: str = "",
@@ -89,13 +87,6 @@ def make_html_color_table(
     cell_size: int = 25,
 ) -> str:
     """Create html color table for cf and return it as a string."""
-
-    def axis_label(dim: dc.Dimension) -> str:
-        """Make a default label for this dimension."""
-        lab = " => ".join([p.color.similar_to() for p in dim.configs])
-        if dim.interpolation_exponent != 1:
-            lab = f"{lab}  exp={dim.interpolation_exponent}"
-        return lab
 
     def cell(
         factory: dc.MultiDimension,
@@ -133,7 +124,7 @@ def make_html_color_table(
     # Generate the HTML code
     html.add(HtmlHelper.style_sheet(cell_size))
     html.add(
-        f"""<table class='colortable'>
+        f"""<table class='colortable2d'>
             <tbody>
             <tr>
                 <td colspan="{num_columns+1}" style="text-align: center">{title}</td>
@@ -214,6 +205,66 @@ def make_html_color_table(
     )
     return html.text
 
+def html_1d_text_color_table(
+    dim: dc.Dimension,
+    title: str = "",
+    marker:str = chr(0x25cf),
+    num_columns: int = 20,
+    cell_size: int = 25,
+    bg_color: dc.Color = dc.Color('white'),
+) -> str:
+    """Create html color table for cf and return it as a string."""
+
+    def cell(
+        dim: dc.Dimension,
+        index,
+        label: str = "",
+        bg_color: dc.Color = dc.Color('lightgrey'),
+    ) -> str:
+        """Return a text-coloured html table cell."""
+        this_color = dim.get_color(index).css_fg()
+        title_text = (
+            f"{label}: {round(index)}"
+        )
+        bg_color = dc.Color(bg_color).css_bg()
+        return f"<td style='text-align:center;{this_color};{bg_color};' title='{title_text}'>{marker}</td>"
+
+    label = dim.get_label()
+    title = title if title else label
+    html = HtmlHelper()
+    html.add(HtmlHelper.style_sheet(cell_size))
+    html.add(
+        f"""<table class='colortable2d'>
+            <tbody>
+            <tr>
+                <td colspan="{num_columns}" style="text-align: center"><b>{title}</b></td>
+            </tr>
+    """
+    )
+
+    # A row of colors
+    html.add("<tr>")
+    step = dim.range / (num_columns)
+    index = dim.min
+    for _ in range(num_columns):
+        html.add(cell(dim,index,label=label))
+        index += step
+    html.add("</tr>")
+    # A row to show the values
+    html.add("<tr>")
+    html.add(f"<td colspan=2 style='text-align:left;{dim.css_bg_fg(dim.min)};'>{round(dim.min)}</td>")
+    html.add(f"<td colspan={num_columns-4} style='text-align:center'></td>")
+    html.add(f"<td colspan=2 style='{dim.css_bg_fg(dim.max)};'>{round(dim.max)}</td>")
+    html.add("</tr>")
+
+    # Close the HTML
+    html.add(
+        """        </tbody>
+        </table>
+    """
+    )
+    return html.text
+
 
 if __name__ == "__main__":
     ROWS = 30
@@ -241,7 +292,7 @@ if __name__ == "__main__":
     ]:
         cf.blend_method = blend
         print(
-            make_html_color_table(
+            html_2d_color_table(
                 cf,
                 # title="Legend for activity chart",
                 # x_label="Busy (in+out)",
