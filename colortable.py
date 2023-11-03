@@ -208,6 +208,7 @@ def html_2d_color_table(
 def html_1d_text_color_table(
     dim: dc.Dimension,
     title: str = "",
+    subtitle: str = "",
     marker:str = chr(0x25cf),
     num_columns: int = 20,
     cell_size: int = 25,
@@ -253,7 +254,7 @@ def html_1d_text_color_table(
     # A row to show the values
     html.add("<tr>")
     html.add(f"<td colspan=2 style='text-align:left;{dim.css_bg_fg(dim.min)};'>{round(dim.min)}</td>")
-    html.add(f"<td colspan={num_columns-4} style='text-align:center'></td>")
+    html.add(f"<td colspan={num_columns-4} style='text-align:center'>{subtitle}</td>")
     html.add(f"<td colspan=2 style='{dim.css_bg_fg(dim.max)};'>{round(dim.max)}</td>")
     html.add("</tr>")
 

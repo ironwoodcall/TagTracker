@@ -37,7 +37,8 @@ import colortable
 XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 X_TOP_COLOR = "red"
 Y_TOP_COLOR = "royalblue"
-MARKER = chr(0x25a0) #chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
+NORMAL_MARKER = chr(0x25A0)  # chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
+HIGHLIGHT_MARKER = chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
 
 
 def process_iso_dow(iso_dow):
@@ -261,10 +262,10 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     # Set up color map
 
     colors = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
-    d1 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes in")
+    d1 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes parked")
     d1.add_config(0, XY_BOTTOM_COLOR)
     d1.add_config(block_maxes.num_in, X_TOP_COLOR)
-    d2 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes out")
+    d2 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes returned")
     d2.add_config(0, XY_BOTTOM_COLOR)
     d2.add_config(block_maxes.num_out, Y_TOP_COLOR)
 
@@ -277,7 +278,7 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     block_parked_colors.add_config(0.2 * block_maxes.full, "lightyellow")
     block_parked_colors.add_config(0.4 * block_maxes.full, "orange")
     block_parked_colors.add_config(0.6 * block_maxes.full, "red")
-    block_parked_colors.add_config( block_maxes.full, "black")
+    block_parked_colors.add_config(block_maxes.full, "black")
 
     # These are for the right-most two columns
     day_total_bikes_colors = dc.Dimension(
@@ -294,13 +295,23 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     print(f"<h1>{title_bit}Daily activity detail</h1>")
 
     tab = colortable.html_2d_color_table(
-        colors, "<b>In & Out Activity Legend</b>", "Bikes In+Out", "Bikes at valet", 8, 8, 20
+        colors,
+        "<b>Legend for In & Out Activity</b>",
+        "",
+        "",
+        8,
+        8,
+        20,
     )
     print(tab)
 
     print("</p></p>")
     tab = colortable.html_1d_text_color_table(
-        block_parked_colors, title="<b>Bikes at Valet Legend</b>", marker=MARKER,bg_color = "grey"#bg_color=colors.get_color(0,0).html_color
+        block_parked_colors,
+        title="<b>Legend for Number of bikes at valet</b>",
+        subtitle=f"{HIGHLIGHT_MARKER} = Valet fullest at this time",
+        marker=NORMAL_MARKER,
+        bg_color="grey",  # bg_color=colors.get_color(0,0).html_color
     )
     print(tab)
     print("</p></p>")
@@ -345,6 +356,12 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             f"<a href='{dow_report_link}'>{dayname}</a></td>"
         )
 
+        # Find which block was fullest
+        # pylint:disable-next=cell-var-from-loop
+        fullest_block_this_day = max(
+            data.blocks, key=lambda key: data.blocks[key].full
+        )
+
         for num, block_key in enumerate(sorted(data.blocks.keys())):
             if num % 6 == 0:
                 print_gap()
@@ -363,10 +380,15 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
                     f"Bikes so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
                 )
 
+            marker = marker = (
+                HIGHLIGHT_MARKER
+                if block_key == fullest_block_this_day
+                else NORMAL_MARKER
+            )
             print(
                 f"<td title='{cell_title}' style='{cell_color};padding: 2px 6px;'>"
                 f"<a href='{chart_report_link}' style='{cell_color};text-decoration:none;'>"
-                f"{MARKER}</a></td>"
+                f"{marker}</a></td>"
             )
         print_gap()
 
