@@ -30,6 +30,7 @@ import copy
 import tt_dbutil as db
 from tt_time import VTime
 import tt_util as ut
+import tt_block
 import cgi_common as cc
 import datacolors as dc
 import colortable
@@ -153,6 +154,7 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         def __init__(self) -> None:
             self.day_total_bikes = None
             self.day_max_bikes = None
+            self.day_max_bikes_time = None
             self.blocks = copy.deepcopy(OneDay._allblocks)
 
     if iso_dow:
@@ -166,7 +168,8 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         where = f" where strftime('%w',date) = '{iso_dow % 7}' "
     sel = (
         "select "
-        "   date, parked_total day_total_bikes, max_total day_max_bikes "
+        "   date, parked_total day_total_bikes, "
+        "      max_total day_max_bikes, time_max_total day_max_bikes_time "
         "from day "
         f"  {where} "
         "   order by date desc"
@@ -208,6 +211,7 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         if day_summary.day_total_bikes > max_total_bikes:
             max_total_bikes = day_summary.day_total_bikes
         day_summary.day_max_bikes = dayrow.day_max_bikes
+        day_summary.day_max_bikes_time = dayrow.day_max_bikes_time
         if day_summary.day_max_bikes > max_max_bikes:
             max_max_bikes = day_summary.day_max_bikes
         tabledata[date] = day_summary
@@ -270,15 +274,16 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     d2.add_config(block_maxes.num_out, Y_TOP_COLOR)
 
     block_parked_colors = dc.Dimension(
-        interpolation_exponent=0.67, label="Bikes at valet"
+        interpolation_exponent=0.85, label="Bikes at valet"
     )
-    block_parked_colors.add_config(
-        0, colors.get_color(0, 0)
-    )  # exactly match the off-hours background
-    block_parked_colors.add_config(0.2 * block_maxes.full, "lightyellow")
-    block_parked_colors.add_config(0.4 * block_maxes.full, "orange")
-    block_parked_colors.add_config(0.6 * block_maxes.full, "red")
-    block_parked_colors.add_config(block_maxes.full, "black")
+    ##block_colors = [colors.get_color(0,0),"lightyellow","orange","pink","tomato","red","purple","black"]
+    #block_colors = [colors.get_color(0,0),"lightgreen","teal","violet","black"]
+    ##block_colors = [colors.get_color(0,0),"lightgreen","lavender","violet","purple","black"]
+    ##block_parked_colors.add_config(0,colors.get_color(0,0))
+    block_colors = [colors.get_color(0,0), "thistle", "plum", "violet", "mediumpurple", "blueviolet", "darkviolet", "darkorchid", "indigo", "black"]
+
+    for n,c in enumerate(block_colors):
+        block_parked_colors.add_config(n/(len(block_colors))*(block_maxes.full),c)
 
     # These are for the right-most two columns
     day_total_bikes_colors = dc.Dimension(
@@ -309,9 +314,10 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     tab = colortable.html_1d_text_color_table(
         block_parked_colors,
         title="<b>Legend for Number of Bikes at Valet at One Time</b>",
-        subtitle=f"This marker ({HIGHLIGHT_MARKER}) indicates time valet was fullest",
+        subtitle=f"{HIGHLIGHT_MARKER} = Time that the valet was fullest",
         marker=NORMAL_MARKER,
         bg_color="grey",  # bg_color=colors.get_color(0,0).html_color
+        num_columns=20
     )
     print(tab)
     print("</p></p>")
@@ -358,9 +364,7 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
 
         # Find which block was fullest
         # pylint:disable-next=cell-var-from-loop
-        fullest_block_this_day = max(
-            data.blocks, key=lambda key: data.blocks[key].full
-        )
+        fullest_block_this_day = tt_block.block_start(data.day_max_bikes_time)
 
         for num, block_key in enumerate(sorted(data.blocks.keys())):
             if num % 6 == 0:
