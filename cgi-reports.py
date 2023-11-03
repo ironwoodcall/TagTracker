@@ -535,11 +535,15 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     print(f"{df.HEADER_VALET_OPENS} {day.opening_time}")
     print(f"{df.HEADER_VALET_CLOSES} {day.closing_time}")
     print(f"{df.HEADER_BIKES_IN}")
-    for tag, atime in day.bikes_in.items():
-        print(f"  {tag.lower()},{atime}")
+    sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
+    for tag, atime in sorted_bikes:
+        formatted_tag = f"{tag.lower()},   "[:6]
+        print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_BIKES_OUT}")
-    for tag, atime in day.bikes_out.items():
-        print(f"  {tag.lower()},{atime}")
+    sorted_bikes = sorted(day.bikes_out.items(), key=lambda x: x[1])
+    for tag, atime in sorted_bikes:
+        formatted_tag = f"{tag.lower()},   "[:6]
+        print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_REGULAR}")
     print(f"{df.HEADER_OVERSIZE}")
     print(f"{df.HEADER_RETIRED}")
