@@ -38,7 +38,7 @@ XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 X_TOP_COLOR = "red"
 Y_TOP_COLOR = "royalblue"
 NORMAL_MARKER = chr(0x25A0)  # chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
-HIGHLIGHT_MARKER = chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
+HIGHLIGHT_MARKER = chr(0x2b24)#"X"#chr(0x25cf) #chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
 
 
 def process_iso_dow(iso_dow):
@@ -308,8 +308,8 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     print("</p></p>")
     tab = colortable.html_1d_text_color_table(
         block_parked_colors,
-        title="<b>Legend for Number of bikes at valet</b>",
-        subtitle=f"{HIGHLIGHT_MARKER} = Valet fullest at this time",
+        title="<b>Legend for Number of Bikes at Valet at One Time</b>",
+        subtitle=f"This marker ({HIGHLIGHT_MARKER}) indicates time valet was fullest",
         marker=NORMAL_MARKER,
         bg_color="grey",  # bg_color=colors.get_color(0,0).html_color
     )
