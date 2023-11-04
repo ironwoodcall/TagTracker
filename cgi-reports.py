@@ -29,7 +29,7 @@ import urllib.parse
 import datetime
 import pathlib
 
-from tt_globals import *
+from tt_globals import MaybeTag
 
 import tt_dbutil as db
 import tt_conf as cfg
@@ -40,8 +40,8 @@ from tt_time import VTime
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
-import colortable
 import cgi_block_report
+
 
 def form(
     title: str = "TagTracker",
@@ -76,9 +76,7 @@ def form(
         "6": "Saturday",
     }
 
-    me_action = pathlib.Path(
-        ut.untaint(os.environ.get("SCRIPT_NAME", ""))
-    ).name
+    me_action = pathlib.Path(ut.untaint(os.environ.get("SCRIPT_NAME", ""))).name
     if not me_action:
         cc.error_out("bad")
 
@@ -97,9 +95,7 @@ def form(
     )
     for choice, descr in what_choices.items():
         if choice == default_what:
-            print(
-                f'<option value="{choice}" selected="selected">{descr}</option>'
-            )
+            print(f'<option value="{choice}" selected="selected">{descr}</option>')
         else:
             print(f'<option value="{choice}">{descr}</option>')
     print(
@@ -116,9 +112,7 @@ def form(
     )
     for choice, descr in dow_choices.items():
         if choice == default_dow:
-            print(
-                f'<option value="{choice}" selected="selected">{descr}</option>'
-            )
+            print(f'<option value="{choice}" selected="selected">{descr}</option>')
         else:
             print(f'<option value="{choice}">{descr}</option>')
     print(
@@ -134,10 +128,7 @@ def form(
     )
 
 
-
-def one_tag_history_report(
-    ttdb: sqlite3.Connection, maybe_tag: MaybeTag
-) -> None:
+def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
     """Report a tag's history."""
 
     tag = TagID(maybe_tag)
@@ -155,9 +146,7 @@ def one_tag_history_report(
     ).fetchall()
 
     print(f"<h1>History of tag {tag.upper()}</h1>")
-    print(
-        f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>"
-    )
+    print(f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>")
     print()
     if not rows:
         print(f"No record that {tag.upper()} ever used<br />")
@@ -211,9 +200,7 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
     day: db.DBRow = drows[0]
     day.bike_hours = vrows[0].bike_hours
     # Get total # of days of operation
-    day.num_days = db.db_fetch(ttdb, "select count(date) num_days from day")[
-        0
-    ].num_days
+    day.num_days = db.db_fetch(ttdb, "select count(date) num_days from day")[0].num_days
 
     if csv:
         print("measure,ytd_total")
@@ -320,40 +307,38 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             max_bike_hours = r.bike_hours
             max_bike_hours_date = r.date
 
-    max_precip = max(
-        [1] + [r.precip_mm for r in drows if r.precip_mm is not None]
-    )
+    max_precip = max([1] + [r.precip_mm for r in drows if r.precip_mm is not None])
     ##max_temp = max([1] + [r.temp for r in drows if r.temp is not None])
 
     # Set up colour maps for shading cell backgrounds
     max_parked_colour = dc.Dimension(interpolation_exponent=2)
-    max_parked_colour.add_config(0,'white')
-    max_parked_colour.add_config(max_parked,'green')
+    max_parked_colour.add_config(0, "white")
+    max_parked_colour.add_config(max_parked, "green")
 
     max_full_colour = dc.Dimension(interpolation_exponent=2)
-    max_full_colour.add_config(0,'white')
-    max_full_colour.add_config(max_full,'teal')
+    max_full_colour.add_config(0, "white")
+    max_full_colour.add_config(max_full, "teal")
 
     max_left_colour = dc.Dimension()
-    max_left_colour.add_config(0,'white')
-    max_left_colour.add_config(10,'red')
+    max_left_colour.add_config(0, "white")
+    max_left_colour.add_config(10, "red")
 
     max_bike_hours_colour = dc.Dimension(interpolation_exponent=2)
-    max_bike_hours_colour.add_config(0,'white')
-    max_bike_hours_colour.add_config(max_bike_hours,'mediumpurple')
+    max_bike_hours_colour.add_config(0, "white")
+    max_bike_hours_colour.add_config(max_bike_hours, "mediumpurple")
 
     max_bike_hours_per_hour_colour = dc.Dimension(interpolation_exponent=2)
-    max_bike_hours_per_hour_colour.add_config(0, 'white')
-    max_bike_hours_per_hour_colour.add_config(max_bike_hours_per_hour, 'mediumpurple')
+    max_bike_hours_per_hour_colour.add_config(0, "white")
+    max_bike_hours_per_hour_colour.add_config(max_bike_hours_per_hour, "mediumpurple")
 
     max_temp_colour = dc.Dimension()
-    max_temp_colour.add_config(11,'beige')#'rgb(255, 255, 224)')
-    max_temp_colour.add_config(35,'orange')
-    max_temp_colour.add_config(0,'azure')
+    max_temp_colour.add_config(11, "beige")  #'rgb(255, 255, 224)')
+    max_temp_colour.add_config(35, "orange")
+    max_temp_colour.add_config(0, "azure")
 
     max_precip_colour = dc.Dimension(interpolation_exponent=1)
-    max_precip_colour.add_config(0,'white')
-    max_precip_colour.add_config(max_precip,'azure')
+    max_precip_colour.add_config(0, "white")
+    max_precip_colour.add_config(max_precip, "azure")
 
     print(f"<h1>{title_bit}Bike valet overview</h1>")
     print(
@@ -412,7 +397,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             f"<td>{row.time_open}</td><td>{row.time_closed}</td>"
             f"<td>{row.parked_regular}</td>"
             f"<td>{row.parked_oversize}</td>"
-            #f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
+            # f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_parked_colour.css_bg_fg(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_left_colour.css_bg_fg(row.leftover)}'>{row.leftover}</td>"
             f"<td style='{max_full_colour.css_bg_fg(row.max_total)}'>{row.max_total}</td>"
@@ -442,12 +427,8 @@ def lost_tags(ttdb: sqlite3.Connection):
     print("<h1>Tags of abandoned bikes</h1>")
     print("<ul>")
     print("<li>Listed newest to oldest</li>")
-    print(
-        f"<li>Excludes dates with more than {too_many} supposed leftovers</li>"
-    )
-    print(
-        "<li>Tags might have been returned to use after the dates listed</li>"
-    )
+    print(f"<li>Excludes dates with more than {too_many} supposed leftovers</li>")
+    print("<li>Tags might have been returned to use after the dates listed</li>")
     print("</ul>")
 
     print("<table>")
@@ -496,9 +477,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
         v.duration = VTime(row[3])
         visits[tag] = v
 
-    print(
-        f"<h1>Tags report for {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
-    )
+    print(f"<h1>Tags report for {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>")
     print("<pre>")
     if not visits:
         print(f"No activity recorded for {thisday}")
@@ -523,9 +502,7 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     thisday = ut.date_str(date)
     if not thisday:
         bad_date(date)
-    print(
-        f"<h1>Reconstructed datafile for {ut.date_str(thisday,long_date=True)}</h1>"
-    )
+    print(f"<h1>Reconstructed datafile for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
 
     day = db.db2day(ttdb, thisday)
@@ -576,9 +553,7 @@ def one_day_chart(ttdb: sqlite3.Connection, date: str):
     if not thisday:
         bad_date(date)
     query_time = "now" if thisday == ut.date_str("today") else "24:00"
-    print(
-        f"<h1>Activity charts for {ut.date_str(thisday,long_date=True)}</h1>"
-    )
+    print(f"<h1>Activity charts for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
     rep.full_chart(db.db2day(ttdb, thisday), query_time)
     rep.busy_graph(db.db2day(ttdb, thisday), query_time)
@@ -630,9 +605,7 @@ if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
 if not dow_parameter:
     # If no day of week, set it to today.
     dow_parameter = str(
-        datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime(
-            "%u"
-        )
+        datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime("%u")
     )
 
 
