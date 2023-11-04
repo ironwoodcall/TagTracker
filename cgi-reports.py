@@ -38,76 +38,10 @@ import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
-import colourmap as cm
-
-
-def selfref(
-    what: str = "",
-    qdate: str = "",
-    qtime: str = "",
-    qtag: str = "",
-    qdow: str = "",
-) -> str:
-    """Return a self-reference with the given parameters."""
-
-    me = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
-    parms = []
-    if what:
-        parms.append(f"what={what}")
-    if qdate:
-        parms.append(f"date={qdate}")
-    if qtime:
-        parms.append(f"time={qtime}")
-    if qtag:
-        parms.append(f"tag={qtag}")
-    if qdow:
-        parms.append(f"dow={qdow}")
-    parms_str = f"?{'&'.join(parms)}" if parms else ""
-    return f"{me}{ut.untaint(parms_str)}"
-
-
-def style() -> str:
-    """Return a CSS stylesheet as a string."""
-    return """
-        <style>
-            html {
-        font-family: sans-serif;
-        }
-
-        table {
-        border-collapse: collapse;
-        border: 2px solid rgb(200,200,200);
-        letter-spacing: 1px;
-        font-size: 0.8rem;
-        }
-
-        td, th {
-        border: 1px solid rgb(190,190,190);
-        padding: 4px 6px;
-        }
-
-        th {
-        background-color: rgb(235,235,235);
-        }
-
-        td {
-        text-align: right;
-        }
-
-        tr:nth-child(even) td {
-        background-color: rgb(250,250,250);
-        }
-
-        tr:nth-child(odd) td {
-        background-color: rgb(245,245,245);
-        }
-
-        caption {
-        padding: 10px;
-        }
-        </style>
-    """
-
+import cgi_common as cc
+import datacolors as dc
+import colortable
+import cgi_block_report
 
 def form(
     title: str = "TagTracker",
@@ -146,10 +80,10 @@ def form(
         ut.untaint(os.environ.get("SCRIPT_NAME", ""))
     ).name
     if not me_action:
-        error_out("bad")
+        cc.error_out("bad")
 
-    print(f"<html><head><title>{title}</title></head>")
-    print(style())
+    print(f"<html><head><title>{title}</title><meta charset='UTF-8'></head>")
+    print(cc.style())
     print("<body>")
     print("<h2>TagTracker reports</h2>")
     print(
@@ -200,29 +134,6 @@ def form(
     )
 
 
-def error_out(msg: str = ""):
-    if msg:
-        print(msg)
-    else:
-        print("Bad or unknown parameter")
-    sys.exit(1)
-
-
-def show_help():
-    print("<pre>\n")
-    print("There is no help here. Read the code.")
-
-
-def padval(val, length: int = 0) -> str:
-    valstr = str(val)
-    if length < len(valstr):
-        length = len(valstr)
-    pad = " " * (length - len(valstr))
-    if isinstance(val, str):
-        return f"{valstr}{pad}"
-    else:
-        return f"{pad}{valstr}"
-
 
 def one_tag_history_report(
     ttdb: sqlite3.Connection, maybe_tag: MaybeTag
@@ -257,7 +168,7 @@ def one_tag_history_report(
         for row in rows:
             out = VTime(row[2]).tidy if row[2] else "     "
             linkdate = row[0]
-            link = selfref(what="one_day_tags", qdate=linkdate)
+            link = cc.selfref(what="one_day_tags", qdate=linkdate)
             print(
                 f"<tr><td>"
                 f"<a href='{link}'>{row[0]}</a>"
@@ -412,79 +323,37 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     max_precip = max(
         [1] + [r.precip_mm for r in drows if r.precip_mm is not None]
     )
-    max_temp = max([1] + [r.temp for r in drows if r.temp is not None])
+    ##max_temp = max([1] + [r.temp for r in drows if r.temp is not None])
 
     # Set up colour maps for shading cell backgrounds
-    max_parked_colour = cm.ColourMap()
-    max_parked_colour.set_up_map(
-        "white",
-        "lime green",
-        x_bottom=0,
-        x_top=max_parked,
-        x_exponent=2,
-    )
-    max_full_colour = cm.ColourMap()
-    max_full_colour.set_up_map(
-        "white",
-        "teal",#"lime green",
-        x_bottom=0,
-        x_top=max_full,
-        x_exponent=2,
-    )
-    max_left_colour = cm.ColourMap()
-    max_left_colour.set_up_map(
-        "white",
-        "red",
-        x_bottom=0,
-        x_top=10,
-        x_exponent=1,
-    )
-    max_bike_hours_colour = cm.ColourMap()
-    max_bike_hours_colour.set_up_map(
-        "white",
-        "medium purple",
-        x_bottom=0,
-        x_top=max_bike_hours,
-        x_exponent=2,
-    )
-    max_bike_hours_per_hour_colour = cm.ColourMap()
-    max_bike_hours_per_hour_colour.set_up_map(
-        "white",
-        "medium purple",
-        x_bottom=0,
-        x_top=max_bike_hours_per_hour,
-        x_exponent=2,
-    )
-    # Max temp is broken into two portions (color ramps)
-    max_temp_midpoint=10
-    # max_temp_high_colour is how much ABOVE midpoint
-    max_temp_high_colour = cm.ColourMap()
-    max_temp_high_colour.set_up_map(
-        (255, 255, 224),
-        #"gold",
-        "orange",#pink",
-        x_bottom=0,
-        x_top=25, #max_temp,
-        x_exponent=1,
-    )
-    # Low is how much BELOW midpoint. (They are REVERSED)
-    max_temp_low_colour = cm.ColourMap()
-    max_temp_low_colour.set_up_map(
-        (255, 255, 224),
-        #"gold",
-        "azure",
-        x_bottom=0,
-        x_top=10,
-        x_exponent=1,
-    )
-    max_precip_colour = cm.ColourMap()
-    max_precip_colour.set_up_map(
-        "white",
-        "azure",
-        x_bottom=0,
-        x_top=max_precip,
-        x_exponent=0.5,
-    )
+    max_parked_colour = dc.Dimension(interpolation_exponent=2)
+    max_parked_colour.add_config(0,'white')
+    max_parked_colour.add_config(max_parked,'green')
+
+    max_full_colour = dc.Dimension(interpolation_exponent=2)
+    max_full_colour.add_config(0,'white')
+    max_full_colour.add_config(max_full,'teal')
+
+    max_left_colour = dc.Dimension()
+    max_left_colour.add_config(0,'white')
+    max_left_colour.add_config(10,'red')
+
+    max_bike_hours_colour = dc.Dimension(interpolation_exponent=2)
+    max_bike_hours_colour.add_config(0,'white')
+    max_bike_hours_colour.add_config(max_bike_hours,'mediumpurple')
+
+    max_bike_hours_per_hour_colour = dc.Dimension(interpolation_exponent=2)
+    max_bike_hours_per_hour_colour.add_config(0, 'white')
+    max_bike_hours_per_hour_colour.add_config(max_bike_hours_per_hour, 'mediumpurple')
+
+    max_temp_colour = dc.Dimension()
+    max_temp_colour.add_config(11,'beige')#'rgb(255, 255, 224)')
+    max_temp_colour.add_config(35,'orange')
+    max_temp_colour.add_config(0,'azure')
+
+    max_precip_colour = dc.Dimension(interpolation_exponent=1)
+    max_precip_colour.add_config(0,'white')
+    max_precip_colour.add_config(max_precip,'azure')
 
     print(f"<h1>{title_bit}Bike valet overview</h1>")
     print(
@@ -532,17 +401,9 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     )
 
     for row in drows:
-        date_link = selfref(what="day_end", qdate=row.date)
+        date_link = cc.selfref(what="day_end", qdate=row.date)
         reg_str = "" if row.registrations is None else f"{row.registrations}"
-        if row.temp is None:
-            temp_str = ""
-            temp_style = "color:black; background-color:white;"
-        else:
-            temp_str = f"{row.temp:0.1f}"
-            if row.temp >= max_temp_midpoint:
-                temp_style = max_temp_high_colour.get_fg_bg(row.temp-max_temp_midpoint)
-            else:
-                temp_style = max_temp_low_colour.get_fg_bg(max_temp_midpoint-row.temp)
+        temp_str = "" if row.temp is None else f"{row.temp:0.1f}"
         precip_str = "" if row.precip_mm is None else f"{row.precip_mm:0.1f}"
         print(
             f"<tr>"
@@ -552,14 +413,14 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             f"<td>{row.parked_regular}</td>"
             f"<td>{row.parked_oversize}</td>"
             #f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
-            f"<td style='{max_parked_colour.get_fg_bg(row.parked_total)}'>{row.parked_total}</td>"
-            f"<td style='{max_left_colour.get_fg_bg(row.leftover)}'>{row.leftover}</td>"
-            f"<td style='{max_full_colour.get_fg_bg(row.max_total)}'>{row.max_total}</td>"
-            f"<td style='{max_bike_hours_colour.get_fg_bg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
-            f"<td style='{max_bike_hours_per_hour_colour.get_fg_bg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
+            f"<td style='{max_parked_colour.css_bg_fg(row.parked_total)}'>{row.parked_total}</td>"
+            f"<td style='{max_left_colour.css_bg_fg(row.leftover)}'>{row.leftover}</td>"
+            f"<td style='{max_full_colour.css_bg_fg(row.max_total)}'>{row.max_total}</td>"
+            f"<td style='{max_bike_hours_colour.css_bg_fg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
+            f"<td style='{max_bike_hours_per_hour_colour.css_bg_fg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
             f"<td>{reg_str}</td>"
-            f"<td style='{temp_style}'>{temp_str}</td>"
-            f"<td style='{max_precip_colour.get_fg_bg(row.precip_mm)}'>{precip_str}</td>"
+            f"<td style='{max_temp_colour.css_bg_fg(row.temp)}'>{temp_str}</td>"
+            f"<td style='{max_precip_colour.css_bg_fg(row.precip_mm)}'>{precip_str}</td>"
             f"<td>{row.sunset}</td>"
             "</tr>"
         )
@@ -596,8 +457,8 @@ def lost_tags(ttdb: sqlite3.Connection):
         tag = TagID(row[0])
         in_date = row[1]
         in_time = row[2]
-        tag_link = selfref(what="last_use", qtag=tag)
-        date_link = selfref(what="one_day_tags", qdate=in_date)
+        tag_link = cc.selfref(what="last_use", qtag=tag)
+        date_link = cc.selfref(what="one_day_tags", qdate=in_date)
 
         print(
             f"<tr><td>"
@@ -652,7 +513,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     for tag in sorted(visits.keys()):
         v: db.VisitRow = visits[tag]
         print(
-            f"{padval(tag,6)} {padval(v.time_in.tidy,5)} {padval(v.time_out.tidy,5)}  {v.duration.tidy}"
+            f"{cc.padval(tag,6)} {cc.padval(v.time_in.tidy,5)} {cc.padval(v.time_out.tidy,5)}  {v.duration.tidy}"
         )
     print("</pre></body></html>")
 
@@ -674,11 +535,15 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     print(f"{df.HEADER_VALET_OPENS} {day.opening_time}")
     print(f"{df.HEADER_VALET_CLOSES} {day.closing_time}")
     print(f"{df.HEADER_BIKES_IN}")
-    for tag, atime in day.bikes_in.items():
-        print(f"  {tag.lower()},{atime}")
+    sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
+    for tag, atime in sorted_bikes:
+        formatted_tag = f"{tag.lower()},   "[:6]
+        print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_BIKES_OUT}")
-    for tag, atime in day.bikes_out.items():
-        print(f"  {tag.lower()},{atime}")
+    sorted_bikes = sorted(day.bikes_out.items(), key=lambda x: x[1])
+    for tag, atime in sorted_bikes:
+        formatted_tag = f"{tag.lower()},   "[:6]
+        print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_REGULAR}")
     print(f"{df.HEADER_OVERSIZE}")
     print(f"{df.HEADER_RETIRED}")
@@ -689,7 +554,7 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
 
 def bad_date(bad_date: str = ""):
     """Print message about bad date & exit."""
-    error_out(
+    cc.error_out(
         f"Bad date '{ut.untaint(bad_date)}'. "
         "Use YYYY-MM-DD or 'today' or 'yesterday'."
     )
@@ -733,215 +598,6 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
     print("</pre>")
 
 
-def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
-    """Print block-by-block colours report for all days
-
-    If dow is None then do for all days of the week, otherwise do
-    for ISO int dow (1=Monday-->7=Sunday)
-
-    """
-
-    class TableRow:
-        _allblocks = {}
-        for t in range(6 * 60, 24 * 60, 30):
-            _allblocks[VTime(t)] = (0, 0)  # Activity,Fullness
-
-        def __init__(self) -> None:
-            self.total_bikes = None
-            self.max_full = None
-            self.blocks = TableRow._allblocks.copy()
-
-    if iso_dow:
-        iso_dow = int(iso_dow)
-    if not iso_dow:
-        title_bit = ""
-        where = ""
-    else:
-        # sqlite uses unix dow, so need to adjust dow from 1->7 to 0->6.
-        title_bit = f"{ut.dow_str(iso_dow)} "
-        where = f" where strftime('%w',date) = '{iso_dow % 7}' "
-    sel = (
-        "select "
-        "   date, parked_total total_bikes, max_total max_full "
-        "from day "
-        f"  {where} "
-        "   order by date desc"
-    )
-    dayrows = db.db_fetch(ttdb, sel)
-
-    sel = (
-        "select "
-        "    date,"
-        "    round(2*(julianday(time_in)-julianday('00:15'))*24,0)/2 block, "
-        "    count(time_in) bikes_in "
-        "from visit "
-        f"    {where} "
-        "group by date,block;"
-    )
-    visitrows_in = db.db_fetch(ttdb, sel)
-    sel = (
-        "select "
-        "    date,"
-        "    round(2*(julianday(time_out)-julianday('00:15'))*24,0)/2 block, "
-        "    count(time_out) bikes_out "
-        "from visit "
-        f"    {where} "
-        "group by date,block;"
-    )
-    visitrows_out = db.db_fetch(ttdb, sel)
-
-    tabledata = {}
-    day_fullest = 0
-    day_busiest = 0
-    for row in dayrows:
-        date = row.date
-        daydata = TableRow()
-        daydata.total_bikes = row.total_bikes
-        if daydata.total_bikes > day_busiest:
-            day_busiest = daydata.total_bikes
-        daydata.max_full = row.max_full
-        if daydata.max_full > day_fullest:
-            day_fullest = daydata.max_full
-        tabledata[date] = daydata
-
-    # Consolidate activity info from the VISIT table
-    ins = {}
-    for row in visitrows_in:
-        thisdate = row.date
-        if not thisdate or not row.block or row.bikes_in is None:
-            continue
-        blocktime = VTime(row.block * 60)
-        if thisdate not in ins:
-            ins[thisdate] = {}
-        ins[thisdate][blocktime] = row.bikes_in
-    outs = {}
-    for row in visitrows_out:
-        thisdate = row.date
-        if not thisdate or not row.block or row.bikes_out is None:
-            continue
-        blocktime = VTime(row.block * 60)
-        if thisdate not in outs:
-            outs[thisdate] = {}
-        outs[thisdate][blocktime] = row.bikes_out
-
-    block_fullest = 0
-    block_busiest = 0
-    for date in sorted(ins.keys()):
-        full = 0
-        for block in sorted(tabledata[date].blocks.keys()):
-            num_in = ins[date][block] if block in ins[date] else 0
-            num_out = (
-                outs[date][block]
-                if date in outs and block in outs[date]
-                else 0
-            )
-            busy = num_in + num_out
-            full += num_in - num_out
-            if full > block_fullest:
-                block_fullest = full
-            if busy > block_busiest:
-                block_busiest = busy
-            tabledata[date].blocks[block] = (num_in, num_out, busy, full)
-
-    # Set up colour map
-    colours = cm.ColourMap()
-    colours.set_up_map(
-        "white",
-        (255, 80, 80),
-        (100, 100, 255),
-        0,
-        block_busiest,
-        0,
-        block_fullest,
-        0.75,
-        0.75,
-    )
-    day_busy_colours = cm.ColourMap()
-    day_busy_colours.set_up_map(
-        "white",
-        (255, 100, 100),
-        x_bottom=0,
-        x_top=day_busiest,
-        x_exponent=1.5,
-    )
-    day_full_colours = cm.ColourMap()
-    day_full_colours.set_up_map(
-        "white",
-        (100, 100, 255),
-        x_bottom=0,
-        x_top=day_fullest,
-        x_exponent=1.5,
-    )
-
-    print(f"<h1>{title_bit}Daily activity detail</h1>")
-    print("<table>")
-    # print("<style>td {text-align: left}</style>")
-    print(
-        f"<tr><td style=text-align:left>REDS</td><td style=text-align:left>Activity (bikes coming and going)</td><td style='background-color:{colours.get_rgb_str(4,0)}'>LESS</td><td style='background-color:{colours.get_rgb_str(20,0)}'>MORE</td></tr>"
-    )
-    print(
-        f"<tr><td style=text-align:left>BLUES</td><td style=text-align:left>Number of bikes at the valet</td><td style='background-color:{colours.get_rgb_str(0,20)}'>LESS</td><td style='background-color:{colours.get_rgb_str(0,70)}'>MORE</td></tr>"
-    )
-    print(
-        f"<tr><td style=text-align:left>PURPLES</td><td style=text-align:left>Lots of both!</td><td style='background-color:{colours.get_rgb_str(4,20)}'>LESS</td><td style='background-color:{colours.get_rgb_str(20,70)}'>MORE</td></tr>"
-    )
-    print("</table><p>&nbsp;</p>")
-
-    def print_gap():
-        print(
-            "<td style='border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
-        )
-
-    print("<table>")
-    print("<style>td {text-align: right;}</style>")
-    print("<tr>")
-    print(f"<th colspan=3><a href='{selfref(what='blocks')}'>Date</a></th>")
-    print("<th colspan=7>6:00 - 9:00</th>")
-    print("<th colspan=7>9:00 - 12:00</th>")
-    print("<th colspan=7>12:00 - 15:00</th>")
-    print("<th colspan=7>15:00 - 18:00</th>")
-    print("<th colspan=7>18:00 - 21:00</th>")
-    print("<th colspan=7>21:00 - 24:00</th>")
-    print("<th>Bikes<br>parked</th>")
-    print("<th>Most<br/>bikes</th>")
-    print("</tr>")
-
-    for date in sorted(tabledata.keys(), reverse=True):
-        data: TableRow = tabledata[date]
-        summary_link = selfref(what="day_end", qdate=date)
-        chartlink = selfref(what="chart", qdate=date)
-
-        dayname = ut.date_str(date, dow_str_len=3)
-        daylink = selfref(what="dow_blocks", qdow=ut.dow_int(dayname))
-
-        print(
-            f"<tr><td style='text-align:center;'><a href='{summary_link}'>{date}</a></td>"
-        )
-        print(
-            f"<td style='text-align:center'><a href='{daylink}'>{dayname}</a></td>"
-        )
-
-        for num, block in enumerate(sorted(data.blocks.keys())):
-            if num % 6 == 0:
-                print_gap()
-            (num_in, num_out, busy, full) = data.blocks[block]
-            cell_colour = colours.get_rgb_str(busy, full)
-            print(
-                f"<td title='Bikes in: {num_in}\nBikes out: {num_out}\nBikes at end: {full}' style='background-color:{cell_colour} ;padding: 2px 8px;'><a href='{chartlink}' style='text-decoration:none;'>&nbsp;</a></td>"
-            )
-        print_gap()
-
-        print(
-            f"<td style='background-color:{day_busy_colours.get_rgb_str(data.total_bikes)}'><a href='{chartlink}'>{data.total_bikes}</a></td>"
-        )
-        print(
-            f"<td style='background-color:{day_full_colours.get_rgb_str(data.max_full)}'><a href='{chartlink}'>{data.max_full}</a></td>"
-        )
-        print("</tr>\n")
-
-    print("</table>")
-
-
 # =================================================================
 print("Content-type: text/html\n\n\n")
 
@@ -970,7 +626,7 @@ maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
 dow_parameter = query_params.get("dow", [""])[0]
 if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
-    error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
+    cc.error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
 if not dow_parameter:
     # If no day of week, set it to today.
     dow_parameter = str(
@@ -991,7 +647,7 @@ if not maybetime:
 else:
     qtime = VTime(maybetime)
 if not qtime:
-    error_out(f"Bad time: '{ut.untaint(maybetime)}")
+    cc.error_out(f"Bad time: '{ut.untaint(maybetime)}")
 form(
     default_what=what,
     default_date=maybedate,
@@ -1003,9 +659,9 @@ if not what:
 if what == "last_use":
     one_tag_history_report(database, tag)
 elif what == "blocks":
-    blocks_report(database)
+    cgi_block_report.blocks_report(database)
 elif what == "dow_blocks":
-    blocks_report(database, dow_parameter)
+    cgi_block_report.blocks_report(database, dow_parameter)
 elif what == "overview":
     overview_report(database)
 elif what == "dow_overview":
@@ -1023,7 +679,7 @@ elif what == "day_end":
 elif what == "chart" or what == "busy-graph":
     one_day_chart(database, qdate)
 else:
-    error_out(f"Unknown request: {ut.untaint(what)}")
+    cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)
 print("<pre>")
 print(db.db_latest(database))
