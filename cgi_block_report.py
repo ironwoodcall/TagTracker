@@ -108,30 +108,28 @@ def fetch_day_data(ttdb: sqlite3.Connection, day_filter: str):
     return db.db_fetch(ttdb, sel)
 
 
-def process_day_data(tabledata: dict, dayrows: list) -> tuple[int, int]:
-    max_max_bikes = 0
-    max_total_bikes = 0
+def process_day_data(dayrows: list) -> tuple[dict[str:_OneDay], _OneDay]:
+    tabledata = {}
     for dayrow in dayrows:
         date = dayrow.date
         day_summary = _OneDay()
         day_summary.day_total_bikes = dayrow.day_total_bikes
-        if day_summary.day_total_bikes > max_total_bikes:
-            max_total_bikes = day_summary.day_total_bikes
         day_summary.day_max_bikes = dayrow.day_max_bikes
         day_summary.day_max_bikes_time = dayrow.day_max_bikes_time
-        if day_summary.day_max_bikes > max_max_bikes:
-            max_max_bikes = day_summary.day_max_bikes
         tabledata[date] = day_summary
-    return max_total_bikes, max_max_bikes
+
+    day_maxes = _OneDay()
+    day_maxes.day_max_bikes = max([d.day_max_bikes for d in tabledata.values()])
+    day_maxes.day_total_bikes = max([d.day_total_bikes for d in tabledata.values()])
+    return tabledata, day_maxes
 
 
 def process_blocks_data(
     tabledata: dict, visitrows_in: list, visitrows_out: list
-) -> _OneBlock:
+) -> tuple[dict[VTime:_OneBlock], _OneBlock]:
     """Process data about timeblocks from visits table data.
 
     Changes the contents of tabledata and returns blocks_max."""
-    # Consolidate activity info from the VISIT table
     ins = {}
     for visitrow in visitrows_in:
         thisdate = visitrow.date
@@ -152,7 +150,6 @@ def process_blocks_data(
             outs[thisdate] = {}
         outs[thisdate][blocktime] = visitrow.bikes_out
 
-    block_maxes = _OneBlock()
     for date in sorted(ins.keys()):
         full_today = 0
         so_far_today = 0
@@ -167,14 +164,38 @@ def process_blocks_data(
             full_today += thisblock.num_in - thisblock.num_out
             thisblock.full = full_today
 
-            # FIXME: below may overestimate max activity level
-            block_maxes.num_in = max(thisblock.num_in, block_maxes.num_in)
-            block_maxes.num_out = max(thisblock.num_out, block_maxes.num_out)
-            block_maxes.full = max(thisblock.full, block_maxes.full)
-            block_maxes.so_far = max(thisblock.so_far, block_maxes.so_far)
-            block_maxes.full = max(thisblock.full, block_maxes.full)
+    # Find overall maximum values
+    block_maxes = _OneBlock()
+    block_maxes.num_in = max(
+        [
+            b.num_in
+            for t_instance in tabledata.values()
+            for b in t_instance.blocks.values()
+        ]
+    )
+    block_maxes.num_out = max(
+        [
+            b.num_out
+            for t_instance in tabledata.values()
+            for b in t_instance.blocks.values()
+        ]
+    )
+    block_maxes.full = max(
+        [
+            b.full
+            for t_instance in tabledata.values()
+            for b in t_instance.blocks.values()
+        ]
+    )
+    block_maxes.so_far = max(
+        [
+            b.so_far
+            for t_instance in tabledata.values()
+            for b in t_instance.blocks.values()
+        ]
+    )
 
-    return block_maxes
+    return tabledata, block_maxes
 
 
 def print_the_html(
@@ -185,19 +206,23 @@ def print_the_html(
     day_full_colors: dc.Dimension,
     page_title_prefix: str = "",
 ):
+    def print_gap():
+        """Print a thicker vertical cell border to mark off sets of blocks."""
+        print("<td style='border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>")
+
     print(f"<h1>{page_title_prefix}Daily activity detail</h1>")
 
+    # Legend for x/y (background colours)
     tab = colortable.html_2d_color_table(
         xy_colors,
-        "<b>Legend for in & out activity</b>",
-        "",
-        "",
-        9,
-        9,
-        20,
+        title="<b>Legend for in & out activity</b>",
+        num_columns=9,
+        num_rows=9,
+        cell_size=20,
     )
     print(tab)
 
+    # Legend for markers
     print("</p></p>")
     tab = colortable.html_1d_text_color_table(
         marker_colors,
@@ -210,9 +235,7 @@ def print_the_html(
     print(tab)
     print("</p></p>")
 
-    def print_gap():
-        print("<td style='border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>")
-
+    # Main table. Column headings
     print("<table>")
     print("<style>td {text-align: right;}</style>")
     print("<tr>")
@@ -230,13 +253,11 @@ def print_the_html(
     date_today = ut.date_str("today")
     time_now = VTime("now")
     for date in sorted(tabledata.keys(), reverse=True):
+        dayname = ut.date_str(date, dow_str_len=3)
         thisday: _OneDay = tabledata[date]
         summary_report_link = cc.selfref(what="day_end", qdate=date)
         chart_report_link = cc.selfref(what="chart", qdate=date)
-
-        dayname = ut.date_str(date, dow_str_len=3)
         dow_report_link = cc.selfref(what="dow_blocks", qdow=ut.dow_int(dayname))
-
         print(
             f"<tr><td style='text-align:center;'>"
             f"<a href='{summary_report_link}'>{date}</a></td>"
@@ -246,16 +267,16 @@ def print_the_html(
             f"<a href='{dow_report_link}'>{dayname}</a></td>"
         )
 
-        # Find which block was fullest
-        # pylint:disable-next=cell-var-from-loop
+        # Find which time block had the greatest num of bikes this day.
         fullest_block_this_day = tt_block.block_start(thisday.day_max_bikes_time)
 
+        # Print the blocks for this day.
         for num, block_key in enumerate(sorted(thisday.blocks.keys())):
             if num % 6 == 0:
                 print_gap()
             thisblock: _OneBlock = thisday.blocks[block_key]
             # For times in the future, don't show results
-            if date == date_today and block_key > time_now:
+            if date == date_today and block_key >= time_now:
                 cell_color = (
                     f"color:{XY_BOTTOM_COLOR};background-color:{XY_BOTTOM_COLOR};"
                 )
@@ -272,16 +293,15 @@ def print_the_html(
 
             if block_key == fullest_block_this_day:
                 marker = HIGHLIGHT_MARKER
-                cell_title = (
-                    f"{cell_title}\nMost bikes for day: {thisday.day_max_bikes}"
-                )
+                cell_title = f"{cell_title}\nMost bikes today: {thisday.day_max_bikes}"
             else:
                 marker = NORMAL_MARKER
 
             print(
-                f"<td title='{cell_title}' style='{cell_color};text-align: center; width: 15px;padding: 0px 3px;'>"
-                f"<a href='{chart_report_link}' style='{cell_color};text-decoration:none;'>"
-                f"{marker}</a></td>"
+                f"<td title='{cell_title}' style='{cell_color};"
+                "text-align: center; width: 15px;padding: 0px 3px;'>"
+                ##f"<a href='{chart_report_link}' style='{cell_color};text-decoration:none;'>"
+                f"{marker}</td>"  ##</a></td>"
             )
         print_gap()
 
@@ -313,15 +333,38 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     visitrows_in = fetch_visit_data(ttdb, where, "in")
     visitrows_out = fetch_visit_data(ttdb, where, "out")
 
-    # Create structures for the html tables:
-    #   tabledata[ date : day summary (a _OneDay) ]
-    #   max_total_bikes, max_max_bikes: greatest daily total and fullest
-    tabledata = {}
-    max_total_bikes, max_max_bikes = process_day_data(tabledata, dayrows)
-    block_maxes = process_blocks_data(tabledata, visitrows_in, visitrows_out)
+    # Create structures for the html tables
+    tabledata, day_maxes = process_day_data(dayrows)
+    tabledata, block_maxes = process_blocks_data(tabledata, visitrows_in, visitrows_out)
 
     # Set up color maps
+    (
+        colors,
+        block_parked_colors,
+        day_total_bikes_colors,
+        day_full_colors,
+    ) = create_color_maps(day_maxes, block_maxes)
 
+    # Print the report
+    print_the_html(
+        tabledata,
+        colors,
+        block_parked_colors,
+        day_total_bikes_colors,
+        day_full_colors,
+        title_bit,
+    )
+
+
+def create_color_maps(day_maxes: _OneDay, block_maxes: _OneBlock) -> tuple:
+    """Create color maps for the table.
+
+    Returns
+        colors,
+        block_parked_colors,
+        day_total_bikes_colors,
+        day_full_colors,"""
+    # Set up color maps
     colors = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
     d1 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes parked")
     d1.add_config(0, XY_BOTTOM_COLOR)
@@ -345,7 +388,6 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         "indigo",
         "black",
     ]
-
     for n, c in enumerate(block_colors):
         block_parked_colors.add_config(n / (len(block_colors)) * (block_maxes.full), c)
 
@@ -354,18 +396,11 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         interpolation_exponent=1.5, label="Bikes parked this day"
     )
     day_total_bikes_colors.add_config(0, "white")
-    day_total_bikes_colors.add_config(max_total_bikes, "green")
+    day_total_bikes_colors.add_config(day_maxes.day_total_bikes, "green")
     day_full_colors = dc.Dimension(
         interpolation_exponent=1.5, label="Most bikes this day"
     )
     day_full_colors.add_config(0, "white")
-    day_full_colors.add_config(max_max_bikes, "teal")
+    day_full_colors.add_config(day_maxes.day_max_bikes, "teal")
 
-    print_the_html(
-        tabledata,
-        colors,
-        block_parked_colors,
-        day_total_bikes_colors,
-        day_full_colors,
-        title_bit,
-    )
+    return colors, block_parked_colors, day_total_bikes_colors, day_full_colors
