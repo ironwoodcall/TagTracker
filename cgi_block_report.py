@@ -208,9 +208,12 @@ def print_the_html(
 ):
     def print_gap():
         """Print a thicker vertical cell border to mark off sets of blocks."""
-        print("<td style='border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>")
+        print("<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>")
 
     print(f"<h1>{page_title_prefix}Daily activity detail</h1>")
+
+    # We frequently use xycolors(0,0). Save & store it.
+    zero_bg = xy_colors.css_bg((0, 0))
 
     # Legend for x/y (background colours)
     tab = colortable.html_2d_color_table(
@@ -237,7 +240,7 @@ def print_the_html(
 
     # Main table. Column headings
     print("<table>")
-    print("<style>td {text-align: right;}</style>")
+    print("<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>")
     print("<tr>")
     print(f"<th colspan=3><a href='{cc.selfref(what='blocks')}'>Date</a></th>")
     print("<th colspan=7>6:00 - 9:00</th>")
@@ -258,14 +261,9 @@ def print_the_html(
         summary_report_link = cc.selfref(what="day_end", qdate=date)
         chart_report_link = cc.selfref(what="chart", qdate=date)
         dow_report_link = cc.selfref(what="dow_blocks", qdow=ut.dow_int(dayname))
-        print(
-            f"<tr><td style='text-align:center;'>"
-            f"<a href='{summary_report_link}'>{date}</a></td>"
-        )
-        print(
-            f"<td style='text-align:center'>"
-            f"<a href='{dow_report_link}'>{dayname}</a></td>"
-        )
+        print("<tr style='text-align: center; width: 15px;padding: 0px 3px;'>")
+        print(f"<td style=width:auto;><a href='{summary_report_link}'>{date}</a></td>")
+        print(f"<td style=width:auto;><a href='{dow_report_link}'>{dayname}</a></td>")
 
         # Find which time block had the greatest num of bikes this day.
         fullest_block_this_day = tt_block.block_start(thisday.day_max_bikes_time)
@@ -275,13 +273,21 @@ def print_the_html(
             if num % 6 == 0:
                 print_gap()
             thisblock: _OneBlock = thisday.blocks[block_key]
-            # For times in the future, don't show results
-            if date == date_today and block_key >= time_now:
+            if thisblock.num_in == 0 and thisblock.num_out == 0:
+                # No activity this block
+                cell_color = f"{zero_bg};" f"{marker_colors.css_fg(thisblock.full)};"
+                cell_title = (
+                    f"Bikes in: 0\nBikes out: 0\n"
+                    f"Bikes so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
+                )
+            elif date == date_today and block_key >= time_now:
+                # Today, later than now
                 cell_color = (
                     f"color:{XY_BOTTOM_COLOR};background-color:{XY_BOTTOM_COLOR};"
                 )
                 cell_title = "Future unknown"
             else:
+                # Regular block with activity in it
                 cell_color = (
                     f"{xy_colors.css_bg((thisblock.num_in, thisblock.num_out))};"
                     f"{marker_colors.css_fg(thisblock.full)};"
@@ -291,6 +297,7 @@ def print_the_html(
                     f"Bikes so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
                 )
 
+            # Special marker & hover text if this is the fullest block of the day
             if block_key == fullest_block_this_day:
                 marker = HIGHLIGHT_MARKER
                 cell_title = f"{cell_title}\nMost bikes today: {thisday.day_max_bikes}"
@@ -299,20 +306,20 @@ def print_the_html(
 
             print(
                 f"<td title='{cell_title}' style='{cell_color};"
-                "text-align: center; width: 15px;padding: 0px 3px;'>"
-                ##f"<a href='{chart_report_link}' style='{cell_color};text-decoration:none;'>"
+                # "text-align: center; width: 15px;padding: 0px 3px;"
+                "'>"
                 f"{marker}</td>"  ##</a></td>"
             )
         print_gap()
 
         s = day_total_bikes_colors.css_bg_fg(thisday.day_total_bikes)
         print(
-            f"<td style='{s}'><a href='{chart_report_link}' style='{s}'>"
+            f"<td style='{s};width:auto;'><a href='{chart_report_link}' style='{s}'>"
             f"{thisday.day_total_bikes}</a></td>"
         )
         s = day_full_colors.css_bg_fg(thisday.day_max_bikes)
         print(
-            f"<td style='{s}'><a href='{chart_report_link}' style='{s}'>"
+            f"<td style='{s};width:auto;'><a href='{chart_report_link}' style='{s}'>"
             f"{thisday.day_max_bikes}</a></td>"
         )
         print("</tr>\n")
