@@ -273,19 +273,19 @@ def print_the_html(
             if num % 6 == 0:
                 print_gap()
             thisblock: _OneBlock = thisday.blocks[block_key]
-            if thisblock.num_in == 0 and thisblock.num_out == 0:
+            if date == date_today and block_key >= time_now:
+                # Today, later than now
+                cell_color = (
+                    f"color:{XY_BOTTOM_COLOR};background-color:{XY_BOTTOM_COLOR};"
+                )
+                cell_title = "Future unknown"
+            elif thisblock.num_in == 0 and thisblock.num_out == 0:
                 # No activity this block
                 cell_color = f"{zero_bg};" f"{marker_colors.css_fg(thisblock.full)};"
                 cell_title = (
                     f"Bikes in: 0\nBikes out: 0\n"
                     f"Bikes so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
                 )
-            elif date == date_today and block_key >= time_now:
-                # Today, later than now
-                cell_color = (
-                    f"color:{XY_BOTTOM_COLOR};background-color:{XY_BOTTOM_COLOR};"
-                )
-                cell_title = "Future unknown"
             else:
                 # Regular block with activity in it
                 cell_color = (
