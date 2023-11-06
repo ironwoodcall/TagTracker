@@ -54,20 +54,6 @@ def form(
     if not default_date:
         default_date = ut.date_str("today")
 
-    what_choices = {
-        "overview": "Overview",
-        "dow_overview": "Overview for one day of the week [specify Day of Week]",
-        "blocks": "Colour-coded daily activity overview",
-        "dow_blocks": "Colour-coded daily activity overview for one day of the week",
-        "abandoned": "Lost tags report",
-        "leftovers_mismatch": "Leftover bikes: calculated vs reported discrepencies",
-        "day_end": "Day-end report for a given date",
-        "audit": "Audit report for a given date",
-        "last_use": "History of use for a given tag",
-        "one_day_tags": "Tags in/out activity for a given date",
-        "datafile": "Recreated datafile for a given date",
-        "chart": "Activity charts for a given date [specify Date]",
-    }
     dow_choices = {  # These are ISO days of week not unix.
         "7": "Sunday",
         "1": "Monday",
@@ -90,16 +76,37 @@ def form(
         f"""
     <form accept-charset="UTF-8" action="{me_action}" autocomplete="off" method="GET">
 
-
-    <label for="name">Report to create:</label>
-    <select name="what" id="what">
 """
     )
-    for choice, descr in what_choices.items():
-        if choice == default_what:
-            print(f'<option value="{choice}" selected="selected">{descr}</option>')
-        else:
-            print(f'<option value="{choice}">{descr}</option>')
+    print(
+        """
+    <label for="name">Report to create:</label>
+    <select name="what" id="what">
+      <optgroup label="Multi-day reports:">
+        <option value="overview">Overview</option>
+        <option value="overview_dow">Overview for particular day of the week</option>
+        <option value="blocks">Activity detail</option>
+        <option value="blocks_dow">Activity detail for particular day of the week</option>
+        <option value="mismatch">Leftover bikes mismatch: calculated vs reported</option>
+      </optgroup>
+      <optgroup label="Reports for a specific date:">
+        <option value="one_day_tags">Tags in/out</option>
+        <option value="chart">Activity charts</option>
+        <option value="day_end">Day-end summary</option>
+        <option value="audit">Audit report</option>
+        <option value="datafile">Re-created datafile</option>
+      </optgroup>
+      <optgroup label="Reports about tags:">
+        <option value="lost_tags">Lost tags report</option>
+        <option value="last_use">History of use for a given tag</option>
+      </optgroup>
+      """
+    )
+    # for choice, descr in what_choices.items():
+    #    if choice == default_what:
+    #        print(f'<option value="{choice}" selected="selected">{descr}</option>')
+    #    else:
+    #        print(f'<option value="{choice}">{descr}</option>')
     print(
         f"""
 
@@ -635,15 +642,15 @@ if what == "last_use":
     one_tag_history_report(database, tag)
 elif what == "blocks":
     cgi_block_report.blocks_report(database)
-elif what == "dow_blocks":
+elif what == "blocks_dow":
     cgi_block_report.blocks_report(database, dow_parameter)
 elif what == "overview":
     overview_report(database)
-elif what == "dow_overview":
+elif what == "overview_dow":
     overview_report(database, dow_parameter)
-elif what == "abandoned":
+elif what == "lost_tags":
     lost_tags(database)
-elif what == "leftovers_mismatch":
+elif what == "mismatch":
     cgi_leftovers_report.leftovers_report(database)
 elif what == "one_day_tags":
     one_day_tags_report(database, qdate)
