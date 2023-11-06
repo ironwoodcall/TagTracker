@@ -54,6 +54,27 @@ def form(
     if not default_date:
         default_date = ut.date_str("today")
 
+    what_choices = {
+        "Multi-day reports:": {
+            "overview": "Overview",
+            "overview_dow": "Overview for a given day of the week",
+            "blocks": "Activity detail",
+            "blocks_dow": "Activity detail for a given day of the week",
+            "mismatch": "Leftover bikes mismatch: calculated vs. reported",
+        },
+        "Reports for a specific date:": {
+            "one_day_tags": "Tags in/out",
+            "chart": "Activity charts",
+            "day_end": "Day-end summary",
+            "audit": "Audit report",
+            "datafile": "Reconstructed datafile",
+        },
+        "Reports about tags:": {
+            "lost_tags": "Lost tags report",
+            "last_use": "History of use for a given tag",
+        },
+    }
+
     dow_choices = {  # These are ISO days of week not unix.
         "7": "Sunday",
         "1": "Monday",
@@ -78,39 +99,27 @@ def form(
 
 """
     )
-    print(
-        """
+    html = """
     <label for="name">Report to create:</label>
-    <select name="what" id="what">
-      <optgroup label="Multi-day reports:">
-        <option value="overview">Overview</option>
-        <option value="overview_dow">Overview for particular day of the week</option>
-        <option value="blocks">Activity detail</option>
-        <option value="blocks_dow">Activity detail for particular day of the week</option>
-        <option value="mismatch">Leftover bikes mismatch: calculated vs reported</option>
-      </optgroup>
-      <optgroup label="Reports for a specific date:">
-        <option value="one_day_tags">Tags in/out</option>
-        <option value="chart">Activity charts</option>
-        <option value="day_end">Day-end summary</option>
-        <option value="audit">Audit report</option>
-        <option value="datafile">Re-created datafile</option>
-      </optgroup>
-      <optgroup label="Reports about tags:">
-        <option value="lost_tags">Lost tags report</option>
-        <option value="last_use">History of use for a given tag</option>
-      </optgroup>
-      """
-    )
+    <select name="what" id="what">"""
     # for choice, descr in what_choices.items():
     #    if choice == default_what:
     #        print(f'<option value="{choice}" selected="selected">{descr}</option>')
     #    else:
     #        print(f'<option value="{choice}">{descr}</option>')
+    for group, options in what_choices.items():
+        html += f'<optgroup label="{group}">'
+        for key, value in options.items():
+            if key == default_what:
+                html += f'<option value="{key}" selected="selected">{value}</option>'
+            else:
+                html += f'<option value="{key}">{value}</option>'
+        html += '</optgroup>'
+    html += "</select>"
+    print(html)
+
     print(
         f"""
-
-    </select>
     <br /><br />
     Date: <input name="date" type="text" value="{default_date}" />
     <br />
@@ -553,7 +562,7 @@ def audit_report(ttdb: sqlite3.Connection, thisday: str, whattime: VTime):
     print(f"<h1>Audit report for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
-    rep.audit_report(day, [VTime(whattime)],include_notes=False)
+    rep.audit_report(day, [VTime(whattime)], include_notes=False)
 
 
 def one_day_chart(ttdb: sqlite3.Connection, date: str):
