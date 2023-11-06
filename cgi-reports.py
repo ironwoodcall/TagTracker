@@ -553,7 +553,7 @@ def audit_report(ttdb: sqlite3.Connection, thisday: str, whattime: VTime):
     print(f"<h1>Audit report for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
-    rep.audit_report(day, [VTime(whattime)])
+    rep.audit_report(day, [VTime(whattime)],include_notes=False)
 
 
 def one_day_chart(ttdb: sqlite3.Connection, date: str):

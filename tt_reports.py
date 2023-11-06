@@ -245,11 +245,13 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
         ut.squawk(f"inout_summary() {num_bikes_on_hand=} != {sum_on_hand=}")
 
 
-def audit_report(day: TrackerDay, args: list[str]) -> None:
+def audit_report(day: TrackerDay, args: list[str],include_notes:bool = True) -> None:
     """Create & display audit report as at a particular time.
 
     On entry: as_of_when_args is a list that can optionally
     have a first element that's a time at which to make this for.
+
+    If include_notes is True, includes any notes from the day.
 
     This is smart about any checkouts that are later than as_of_when.
     If as_of_when is missing, then counts as of current time.
@@ -353,7 +355,8 @@ def audit_report(day: TrackerDay, args: list[str]) -> None:
     if not prefixes_returned_out:
         pr.iprint("-no bikes-")
 
-    notes_bit(day)
+    if include_notes:
+        notes_bit(day)
 
     return
 
