@@ -41,6 +41,7 @@ import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
 import cgi_block_report
+import cgi_leftovers_report
 
 
 def form(
@@ -59,6 +60,7 @@ def form(
         "blocks": "Colour-coded daily activity overview",
         "dow_blocks": "Colour-coded daily activity overview for one day of the week",
         "abandoned": "Lost tags report",
+        "leftovers_mismatch": "Leftover bikes: calculated vs reported discrepencies",
         "day_end": "Day-end report for a given date",
         "audit": "Audit report for a given date",
         "last_use": "History of use for a given tag",
@@ -641,6 +643,8 @@ elif what == "dow_overview":
     overview_report(database, dow_parameter)
 elif what == "abandoned":
     lost_tags(database)
+elif what == "leftovers_mismatch":
+    cgi_leftovers_report.leftovers_report(database)
 elif what == "one_day_tags":
     one_day_tags_report(database, qdate)
 elif what == "datafile":
