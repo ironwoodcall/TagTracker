@@ -114,7 +114,7 @@ def form(
                 html += f'<option value="{key}" selected="selected">{value}</option>'
             else:
                 html += f'<option value="{key}">{value}</option>'
-        html += '</optgroup>'
+        html += "</optgroup>"
     html += "</select>"
     print(html)
 
@@ -468,7 +468,7 @@ def lost_tags(ttdb: sqlite3.Connection):
     print(" </table>")
 
 
-def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
+def OLD__one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     thisday = ut.date_str(whatday)
     if not thisday:
         bad_date(whatday)
@@ -513,6 +513,88 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
             f"{cc.padval(tag,6)} {cc.padval(v.time_in.tidy,5)} {cc.padval(v.time_out.tidy,5)}  {v.duration.tidy}"
         )
     print("</pre></body></html>")
+
+
+def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
+
+    HIGHLIGHT_NONE = 0
+    HIGHLIGHT_WARN = 1
+    HIGHLIGHT_ERROR = 2
+    HIGHLIGHT_MAYBE_ERROR = 3
+    thisday = ut.date_str(whatday)
+    if not thisday:
+        bad_date(whatday)
+
+    # In the code below, 'next_*' are empty placeholders
+    sql = (
+        "select tag, '' next_tag, time_in, '' next_time_in, time_out, duration "
+        f"from visit where date = '{thisday}' order by tag asc"
+    )
+    rows = db.db_fetch(ttdb, sql)
+
+    # Process the rows
+    for v in rows:
+        v.tag = TagID(v.tag)
+    rows = sorted(rows, key=lambda x: x.tag)
+    # Calculate next_tag and next_time_in values
+    for i, v in enumerate(rows):
+        if i >= 1:
+            rows[i - 1].next_time_in = v.time_in
+            rows[i - 1].next_tag = v.tag
+    if not rows:
+        print(f"<pre>No activity recorded for {thisday}")
+        sys.exit()
+
+    leftovers = len([t.time_out for t in rows if t.time_out <= ""])
+    suspicious = len([t.next_time_in for t in rows if t.next_time_in < t.time_in and t.time_out <= ""])
+
+    highlights = dc.Dimension(interpolation_exponent=1)
+    highlights.add_config(HIGHLIGHT_NONE,"white")
+    highlights.add_config(HIGHLIGHT_WARN,"yellow")
+    highlights.add_config(HIGHLIGHT_ERROR,"red")
+    highlights.add_config(HIGHLIGHT_MAYBE_ERROR,"orange")
+
+    html = f"<h1>Tags report for {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
+    if leftovers:
+        spanstyle=f"style='{highlights.css_bg_fg(HIGHLIGHT_WARN)}'"
+    else:
+        spanstyle = ""
+    html += f"<p><b><span {spanstyle}>Not checked out: {leftovers}</span></br>"
+    if suspicious:
+        spanstyle=f"style='{highlights.css_bg_fg(HIGHLIGHT_ERROR)}'"
+    else:
+        spanstyle = ""
+    html += f"<span {spanstyle}>Likely not checked in: {suspicious}</span></b></p>"
+    html += "<table style=text-align:center>"
+    html += f"<tr><th colspan=4 style='text-align:center'>Tags for {thisday}</th></tr>"
+    html += "<tr><th>Bike</th><th>Time In</th><th>Time Out</th><th>Duration</th></tr>"
+    print(html)
+    for i,v in enumerate(rows):
+        print("<tr>")
+        print(f"<td style='text-align:center;'>{v.tag}</td>")
+        c = "color:auto"
+        if v.next_time_in < v.time_in and v.time_out <= "":
+            if v.tag[:1] == v.next_tag[:1]:
+                c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
+            elif i < len(rows)-1:
+                c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
+        print(f"<td style='{c}'>{VTime(v.time_in).tidy}</td>")
+        if v.time_out <= "":
+            c = highlights.css_bg_fg(HIGHLIGHT_WARN)
+        else:
+            c = "color:auto"
+        print(f"<td style='{c}'>{VTime(v.time_out).tidy}</td>")
+        print(f"<td>{VTime(v.duration).tidy}</td>")
+        print("</tr>")
+    html = ""
+    html += (
+        "<tr><td colspan=4 style='text-align:left'><i>"
+        "Where no check-out time exists, duration is</br>"
+        "estimated assuming bike is at valet until</br>"
+        "the end of the day</i></td></tr>"
+    )
+    html += "</table></body></html>"
+    print(html)
 
 
 def datafile(ttdb: sqlite3.Connection, date: str = ""):
