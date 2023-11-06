@@ -575,6 +575,7 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
         bad_date(thisday)
     day = db.db2day(ttdb, thisday)
     print(f"<h1>Day-end report for {ut.date_str(thisday,long_date=True)}</h1>")
+    print(f"Hours: {day.opening_time} - {day.closing_time}</p>")
     print("<pre>")
     rep.day_end_report(day, [qtime])
     print()
