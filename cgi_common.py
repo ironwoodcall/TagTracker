@@ -57,45 +57,49 @@ def selfref(
 
 def style() -> str:
     """Return a CSS stylesheet as a string."""
-    return """
+    style = """
         <style>
             html {
-        font-family: sans-serif;
-        }
+                font-family: sans-serif;
+            }
 
-        table {
-        border-collapse: collapse;
-        border: 2px solid rgb(200,200,200);
-        letter-spacing: 1px;
-        font-size: 0.8rem;
-        }
+            table {
+                border-collapse: collapse;
+                border: 2px solid rgb(200, 200, 200);
+                letter-spacing: 1px;
+                font-size: 0.8rem;
+            }
 
-        td, th {
-        border: 1px solid rgb(190,190,190);
-        padding: 4px 6px;
-        }
+            td, th {
+                border: 1px solid rgb(190, 190, 190);
+                padding: 4px 6px;
+                text-align: center; /* Center-align all td and th by default */
+            }
 
-        th {
-        background-color: rgb(235,235,235);
-        }
+            th {
+                background-color: rgb(235, 235, 235);
+            }
 
-        td {
-        text-align: right;
-        }
+            td:first-child {
+                text-align: left; /* Left-align the first column in each row */
+            }
 
-        tr:nth-child(even) td {
-        background-color: rgb(250,250,250);
-        }
+            tr:nth-child(even) td {
+                background-color: rgb(250, 250, 250);
+            }
 
-        tr:nth-child(odd) td {
-        background-color: rgb(245,245,245);
-        }
+            tr:nth-child(odd) td {
+                background-color: rgb(245, 245, 245);
+            }
 
-        caption {
-        padding: 10px;
-        }
+            caption {
+                padding: 10px;
+            }
         </style>
-    """
+
+        """
+    return style
+
 
 def error_out(msg: str = ""):
     if msg:
@@ -121,12 +125,9 @@ def padval(val, length: int = 0) -> str:
         return f"{pad}{valstr}"
 
 
-
 def bad_date(bad_date: str = ""):
     """Print message about bad date & exit."""
     error_out(
         f"Bad date '{ut.untaint(bad_date)}'. "
         "Use YYYY-MM-DD or 'today' or 'yesterday'."
     )
-
-
