@@ -89,8 +89,8 @@ def form(
     if not me_action:
         cc.error_out("bad")
 
-    print(f"<html><head><title>{title}</title><meta charset='UTF-8'></head>")
-    print(cc.style())
+    print(f"<html><head><title>{title}</title><meta charset='UTF-8'>{cc.style()}</head>")
+    ##print(cc.style())
     print("<body>")
     print("<h2>TagTracker reports</h2>")
     print(
@@ -506,43 +506,86 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
         ]
     )
 
+    daylight = dc.Dimension()
+    daylight.add_config(VTime("07:30").num, "LightSkyBlue")
+    #daylight.add_config(VTime("09:30").num, "PaleTurquoise")
+    daylight.add_config(VTime("12:00").num, "LightCyan")
+    #daylight.add_config(VTime("14:00").num, "LightGreen")
+    daylight.add_config(VTime("16:00").num, "YellowGreen")
+    daylight.add_config(VTime("22:00").num, "DarkOrange")
+
     highlights = dc.Dimension(interpolation_exponent=1)
     highlights.add_config(HIGHLIGHT_NONE, "white")
     highlights.add_config(HIGHLIGHT_WARN, "yellow")
     highlights.add_config(HIGHLIGHT_ERROR, "magenta")
     highlights.add_config(HIGHLIGHT_MAYBE_ERROR, "cyan")
 
+    duration_colors = dc.Dimension()
+    duration_colors.add_config(0,'white')
+    duration_colors.add_config(VTime('1200').num,'teal')
+
     html = f"<h1>Tags in & out on {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
-    if leftovers:
-        spanstyle = f"style='{highlights.css_bg_fg(HIGHLIGHT_WARN)}'"
-    else:
-        spanstyle = ""
-    html += f"<p><b><span {spanstyle}>Not checked out: {leftovers}</span></br>"
-    if suspicious:
-        spanstyle = f"style='{highlights.css_bg_fg(HIGHLIGHT_ERROR)}'"
-    else:
-        spanstyle = ""
-    html += f"<span {spanstyle}>Likely never checked in: {suspicious}</span></b></p>"
-    html += "<table style=text-align:center>"
-    html += f"<tr><th colspan=4 style='text-align:center'>Tags for {thisday}</th></tr>"
-    html += "<tr><th>Bike</th><th>Time In</th><th>Time Out</th><th>Duration</th></tr>"
     print(html)
+
+    print("<table>")
+    print(f"<tr><td colspan=2>Bikes not checked out:</td><td  width=40 style={highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}>{leftovers}</td></tr>")
+    print(f"<tr><td colspan=2>Bikes likely never checked in:</td><td style={highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}>{suspicious}</td></tr>")
+    print("</table><p></p>")
+    print("<table>")
+    print("<tr><td>Time of day colours:</td>")
+    print(f"<td style={daylight.css_bg_fg(daylight.min)}>Early</td>")
+    print(f"<td style={daylight.css_bg_fg((daylight.min+daylight.max)/2)}>Mid-day</td>")
+    print(f"<td style={daylight.css_bg_fg(daylight.max)}>Later</td>")
+    print("<tr><td>Length of stay colours:</td>")
+    print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
+    print(f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>Medium</td>")
+    print(f"<td style={duration_colors.css_bg_fg(duration_colors.max)}>Long</td>")
+    print("</table><p></p>")
+
+
+    html = "<table style=text-align:center>"
+    html += f"<tr><th colspan=4 style='text-align:center'>Tags for {thisday}</th></tr>"
+    html += "<tr><th>Bike</th><th>Time In</th><th>Time Out</th><th>Length<br>of stay</th></tr>"
+    print(html)
+
+
+    ## Legend for markers
+    #print("</p></p>")
+    #tab = colortable.html_1d_text_color_table(
+    #    daylight,
+    #    title="<b>Time of Day</b>",
+    #    subtitle="730 AM --> 10:00 PM",
+    #    marker=NORMAL_MARKER,
+    #    bg_color="grey",  # bg_color=xy_colors.get_color(0,0).html_color
+    #    num_columns=20,
+    #)
+    #print(tab)
+    #print("</p></p>")
+
     for i, v in enumerate(rows):
+        time_in = VTime(v.time_in)
+        time_out = VTime(v.time_out)
+        duration = VTime(v.duration)
         print("<tr>")
-        print(f"<td style='text-align:center;'>{v.tag}</td>")
-        c = "color:auto"
-        if v.next_time_in < v.time_in and v.time_out <= "":
+        # Tag
+        c = "color:auto;"
+        if v.next_time_in < time_in and time_out <= "":
             if v.tag[:1] == v.next_tag[:1]:
                 c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
             elif i < len(rows) - 1:
                 c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
-        print(f"<td style='{c}'>{VTime(v.time_in).tidy}</td>")
+        print(f"<td style='text-align:center;{c}'>{v.tag}</td>")
+        # Time in
+        c = daylight.css_bg_fg(time_in.num)
+        print(f"<td style='{c}'>{time_in.tidy}</td>")
+        # Time out
         if v.time_out <= "":
             c = highlights.css_bg_fg(HIGHLIGHT_WARN)
         else:
-            c = "color:auto"
-        print(f"<td style='{c}'>{VTime(v.time_out).tidy}</td>")
-        print(f"<td>{VTime(v.duration).tidy}</td>")
+            c = daylight.css_bg_fg(time_out.num)
+        print(f"<td style='{c}'>{time_out.tidy}</td>")
+        c = duration_colors.css_bg_fg(duration.num)
+        print(f"<td style='{c}'>{duration.tidy}</td>")
         print("</tr>")
     html = ""
     html += (
