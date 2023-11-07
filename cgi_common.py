@@ -25,7 +25,7 @@ Copyright (C) 2023 Julias Hocking
 import sys
 import os
 
-from tt_globals import *
+##from tt_globals import *
 
 import tt_util as ut
 
