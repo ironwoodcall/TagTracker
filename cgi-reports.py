@@ -63,7 +63,7 @@ def form(
             "mismatch": "Leftover bikes mismatch: calculated vs. reported",
         },
         "Reports for a specific date:": {
-            "one_day_tags": "Tags in/out",
+            "one_day_tags": "Bikes in & out",
             "chart": "Activity charts",
             "day_end": "Day-end summary",
             "audit": "Audit report",
@@ -473,13 +473,14 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     HIGHLIGHT_WARN = 1
     HIGHLIGHT_ERROR = 2
     HIGHLIGHT_MAYBE_ERROR = 3
+    BAR_MARKERS = { "R": chr(0x25cf), "O":chr(0x25a0)}
     thisday = ut.date_str(whatday)
     if not thisday:
         bad_date(whatday)
 
     # In the code below, 'next_*' are empty placeholders
     sql = (
-        "select tag, '' next_tag, time_in, '' next_time_in, time_out, duration "
+        "select tag, '' next_tag, type bike_type, time_in, '' next_time_in, time_out, duration "
         f"from visit where date = '{thisday}' order by tag asc"
     )
     rows = db.db_fetch(ttdb, sql)
@@ -505,18 +506,22 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
             if t.next_time_in < t.time_in and t.time_out <= ""
         ]
     )
+    # Earliest and latest event are for the bar graph
+    earliest_event = VTime(min([r.time_in for r in rows if r.time_in > ""])).num
+    max_visit = VTime(max([VTime(r.time_in).num+VTime(r.duration).num for r in rows]) -earliest_event).num
+    max_bar_cols = 60
+    bar_scaling_factor = max_bar_cols/(max_visit)
+    bar_offset = round(earliest_event * bar_scaling_factor)
 
     daylight = dc.Dimension()
     daylight.add_config(VTime("07:30").num, "LightSkyBlue")
-    #daylight.add_config(VTime("09:30").num, "PaleTurquoise")
     daylight.add_config(VTime("12:00").num, "LightCyan")
-    #daylight.add_config(VTime("14:00").num, "LightGreen")
     daylight.add_config(VTime("16:00").num, "YellowGreen")
     daylight.add_config(VTime("22:00").num, "DarkOrange")
 
     highlights = dc.Dimension(interpolation_exponent=1)
     highlights.add_config(HIGHLIGHT_NONE, "white")
-    highlights.add_config(HIGHLIGHT_WARN, "yellow")
+    highlights.add_config(HIGHLIGHT_WARN, "khaki")
     highlights.add_config(HIGHLIGHT_ERROR, "magenta")
     highlights.add_config(HIGHLIGHT_MAYBE_ERROR, "cyan")
 
@@ -524,7 +529,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     duration_colors.add_config(0,'white')
     duration_colors.add_config(VTime('1200').num,'teal')
 
-    html = f"<h1>Tags in & out on {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
+    html = f"<h1>Bikes in & out on {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
     print(html)
 
     print("<table>")
@@ -544,23 +549,10 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
 
 
     html = "<table style=text-align:center>"
-    html += f"<tr><th colspan=4 style='text-align:center'>Tags for {thisday}</th></tr>"
-    html += "<tr><th>Bike</th><th>Time In</th><th>Time Out</th><th>Length<br>of stay</th></tr>"
+    html += f"<tr><th colspan=5 style='text-align:center'>Bikes on {thisday}</th></tr>"
+    html += "<tr><th>Bike</th><th>Time In</th><th>Time Out</th><th>Length<br>of stay</th>"
+    html += f"<th>Bar graph of this visit<br>{BAR_MARKERS['R']} = Regular bike; {BAR_MARKERS['O']} = Oversize bike</th></tr>"
     print(html)
-
-
-    ## Legend for markers
-    #print("</p></p>")
-    #tab = colortable.html_1d_text_color_table(
-    #    daylight,
-    #    title="<b>Time of Day</b>",
-    #    subtitle="730 AM --> 10:00 PM",
-    #    marker=NORMAL_MARKER,
-    #    bg_color="grey",  # bg_color=xy_colors.get_color(0,0).html_color
-    #    num_columns=20,
-    #)
-    #print(tab)
-    #print("</p></p>")
 
     for i, v in enumerate(rows):
         time_in = VTime(v.time_in)
@@ -584,14 +576,27 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
         else:
             c = daylight.css_bg_fg(time_out.num)
         print(f"<td style='{c}'>{time_out.tidy}</td>")
+        # Duration
         c = duration_colors.css_bg_fg(duration.num)
         print(f"<td style='{c}'>{duration.tidy}</td>")
+        # picture of the bike's visit.
+        #   Bar start is based on time_in
+        #   Bar length is based on duration
+        #   Bar scaling factor is based on latest - earliest
+        bar_marker = BAR_MARKERS[v.bike_type.upper()]
+        bar_before_len = round(((time_in.num)* bar_scaling_factor)) - bar_offset
+        bar_before = bar_before_len * "&nbsp;" if bar_before_len else ""
+        bar_itself_len = round((duration.num * bar_scaling_factor))
+        bar_itself_len = bar_itself_len if bar_itself_len else 1
+        bar_itself = bar_itself_len * bar_marker
+        c = "background-color:auto" if time_out else "background-color:khaki" #"rgb(255, 230, 0)"
+        print(f"<td style='text-align:left;font-family: monospace;color:purple;{c}'>{bar_before}{bar_itself}</td>")
         print("</tr>")
     html = ""
     html += (
-        "<tr><td colspan=4 style='text-align:left'><i>"
-        "Where no check-out time exists, duration is</br>"
-        "estimated assuming bike is at valet until</br>"
+        "<tr><td colspan=5 style='text-align:center'><i>"
+        "Where no check-out time exists, duration is "
+        "estimated assuming bike is at valet until "
         "the end of the day</i></td></tr>"
     )
     html += "</table></body></html>"
