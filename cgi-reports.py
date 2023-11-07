@@ -534,7 +534,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
 
     print("<table>")
     print(f"<tr><td colspan=2>Bikes not checked out:</td><td  width=40 style={highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}>{leftovers}</td></tr>")
-    print(f"<tr><td colspan=2>Bikes likely never checked in:</td><td style={highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}>{suspicious}</td></tr>")
+    print(f"<tr><td colspan=2>Bikes possibly never checked in:</td><td style={highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}>{suspicious}</td></tr>")
     print("</table><p></p>")
     print("<table>")
     print("<tr><td>Colours for Time of day:</td>")
