@@ -28,6 +28,7 @@ import sqlite3
 
 import tt_dbutil as db
 import datacolors as dc
+import cgi_common as cc
 
 def leftovers_report(ttdb: sqlite3.Connection):
     rows = fetch_data(ttdb)
@@ -57,8 +58,9 @@ def leftovers_report(ttdb: sqlite3.Connection):
     print("<tr><th>Date</th><th>As recorded<br>in TagTracker</th><th>As reported on<br>day-end form</th></tr>")
 
     for row in rows:
+        link = cc.selfref(what="one_day_tags", qdate=row.date)
         style = f"style='{colors.css_bg_fg(abs(row.difference))}'"
-        print(f"<tr><td style='{colors.css_bg_fg(abs(row.difference))}'>{row.date}</td><td {style}>{row.calculated}</td><td {style}>{row.reported}</td></tr>")
+        print(f"<tr><td style='{colors.css_bg_fg(abs(row.difference))}'><a href='{link}'>{row.date}</a></td><td {style}>{row.calculated}</td><td {style}>{row.reported}</td></tr>")
     print("</table>")
 
 def fetch_data(ttdb:sqlite3.Connection) -> list:
