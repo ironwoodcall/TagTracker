@@ -117,11 +117,11 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
         )
     print("</table><p></p>")
     print("<table>")
-    print("<tr><td>Colours for Time of day:</td>")
+    print("<tr><td>Colours for time of day:</td>")
     print(f"<td style={daylight.css_bg_fg(daylight.min)}>Early</td>")
     print(f"<td style={daylight.css_bg_fg((daylight.min+daylight.max)/2)}>Mid-day</td>")
     print(f"<td style={daylight.css_bg_fg(daylight.max)}>Later</td>")
-    print("<tr><td>Colours for Length of stay:</td>")
+    print("<tr><td>Colours for length of stay:</td>")
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
     print(
         f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>Medium</td>"
@@ -144,7 +144,8 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
         sort_msg = "time out"
     elif sort_by == cc.SORT_DURATION:
         rows = sorted(rows, key=lambda x: x.time_in)
-        rows = sorted(rows, key=lambda x: (not x.time_out,-1 * x.duration))
+        ##rows = sorted(rows, key=lambda x: (x.time_out == '',-1 * x.duration))
+        rows = sorted(rows, reverse=True, key=lambda x: (x.time_out != '', 1000000 if x.time_out == '' else x.duration))
         sort_msg = "length of stay"
     else:
         rows = sorted(rows, key=lambda x: x.tag)
@@ -170,8 +171,8 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
         f"Bikes on {thisday}<br>{sort_msg}</th></tr>"
     )
     html += f"<tr><th><a href='{link_sort_tag}'>Bike</a></th>"
-    html += f"<th><a href='{link_sort_time}'>Time In</a></th>"
-    html += f"<th><a href='{link_sort_time_out}'>Time Out</a></th>"
+    html += f"<th><a href='{link_sort_time}'>Time in</a></th>"
+    html += f"<th><a href='{link_sort_time_out}'>Time out</a></th>"
     html += f"<th><a href='{link_sort_duration}'>Length<br>of stay</a></th>"
     html += f"<th>Bar graph of this visit<br>{BAR_MARKERS['R']} = Regular bike; {BAR_MARKERS['O']} = Oversize bike</th></tr>"
     print(html)
