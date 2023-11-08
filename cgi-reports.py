@@ -209,6 +209,21 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         "from day "
     )
     drows = db.db_fetch(ttdb, sel)
+    # Find the max bikes and max fullness
+    maxparked:db.DBRow = db.db_fetch(
+        ttdb,
+        """
+            SELECT date, MAX(parked_total) as maxval
+            FROM day;
+        """,
+    )[0]
+    maxfull:db.DBRow = db.db_fetch(
+        ttdb,
+        """
+            SELECT date, MAX(max_total) as maxval
+            FROM day;
+        """,
+    )[0]
     # Find the total bike-hours
     vrows = db.db_fetch(
         ttdb,
@@ -227,7 +242,7 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         html_tr_mid = ","
         html_tr_end = "\n"
     else:
-        print("<table><tr><th colspan=2>Year to date totals</th></tr>")
+        print("<table><tr><th colspan=2>Year to date</th></tr>")
         html_tr_start = "<tr><td style='text-align:left'>"
         html_tr_mid = "</td><td style='text-align:right'>"
         html_tr_end = "</td></tr>\n"
@@ -250,6 +265,11 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         f"  {(day.parked_total/day.num_days):0.1f}{html_tr_end}"
         f"{html_tr_start}Average stay length{html_tr_mid}"
         f"  {VTime((day.bike_hours/day.parked_total)*60).short}{html_tr_end}"
+        f"{html_tr_start}Most bikes parked<br>({maxparked.date})"
+        f"  {html_tr_mid}{maxparked.maxval}{html_tr_end}"
+        f"{html_tr_start}Fullest (most bikes at once)<br>({maxfull.date})"
+        f"  {html_tr_mid}{maxfull.maxval}{html_tr_end}"
+
         "</table>"
     )
 
@@ -360,23 +380,10 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     max_precip_colour.add_config(max_precip, "azure")
 
     print(f"<h1>{title_bit}Bike valet overview</h1>")
-    print(
-        f"<p><b>Most bikes parked:</b> "
-        f"  {max_parked} bikes on {ut.date_str(max_parked_date,long_date=True)}<br />"
-        f"<b>Valet was fullest:</b> "
-        f"  with {max_full} bikes on {ut.date_str(max_full_date,long_date=True)}<br />"
-        f"<b>Greatest utilization:</b> "
-        f"  {round(max_bike_hours)} bike-hours "
-        f"      on {ut.date_str(max_bike_hours_date,long_date=True)}<br />"
-        f"<b>Greatest utilization per hour:</b> "
-        f"  {round(max_bike_hours_per_hour,2)} bike-hours per valet hour "
-        f"      on {ut.date_str(max_bike_hours_per_hour_date,long_date=True)}</p>"
-    )
-    print("<p>&nbsp;</p>")
 
     if not iso_dow:
         ytd_totals_table(ttdb, csv=False)
-        print("<p>&nbsp;</p>")
+        print("<br>")
 
     print("<table>")
     print("<style>td {text-align: right;}</style>")
@@ -387,8 +394,8 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         "<th colspan=3>Bike Parked</th>"
         "<th rowspan=2>Bikes<br />Left at<br />Valet</th>"
         "<th rowspan=2>Most<br />Bikes<br />at Once</th>"
-        "<th rowspan=2>Bike-<br />hours</th>"
-        "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
+        # "<th rowspan=2>Bike-<br />hours</th>"
+        # "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
         "<th rowspan=2>529<br />Regs</th>"
         "<th colspan=3>Environment</th>"
         "</tr>"
@@ -420,8 +427,8 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             f"<td style='{max_parked_colour.css_bg_fg(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_left_colour.css_bg_fg(row.leftover)}'>{row.leftover}</td>"
             f"<td style='{max_full_colour.css_bg_fg(row.max_total)}'>{row.max_total}</td>"
-            f"<td style='{max_bike_hours_colour.css_bg_fg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
-            f"<td style='{max_bike_hours_per_hour_colour.css_bg_fg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
+            # f"<td style='{max_bike_hours_colour.css_bg_fg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
+            # f"<td style='{max_bike_hours_per_hour_colour.css_bg_fg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
             f"<td>{reg_str}</td>"
             f"<td style='{max_temp_colour.css_bg_fg(row.temp)}'>{temp_str}</td>"
             f"<td style='{max_precip_colour.css_bg_fg(row.precip_mm)}'>{precip_str}</td>"
@@ -518,7 +525,7 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
         cc.bad_date(date)
     query_time = "now" if thisday == ut.date_str("today") else "24:00"
     query_time = VTime(query_time)
-    print(f"<h1>Activity charts for {ut.date_str(thisday,long_date=True)}</h1>")
+    print(f"<h1>Data Entry reports for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
     rep.day_end_report(day, [qtime])
