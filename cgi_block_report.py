@@ -258,8 +258,8 @@ def print_the_html(
     for date in sorted(tabledata.keys(), reverse=True):
         dayname = ut.date_str(date, dow_str_len=3)
         thisday: _OneDay = tabledata[date]
-        summary_report_link = cc.selfref(what="day_end", qdate=date)
-        chart_report_link = cc.selfref(what="chart", qdate=date)
+        summary_report_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=date)
+        tags_report_link = cc.selfref(what=cc.WHAT_ONE_DAY_TAGS, qdate=date)
         dow_report_link = cc.selfref(what="dow_blocks", qdow=ut.dow_int(dayname))
         print("<tr style='text-align: center; width: 15px;padding: 0px 3px;'>")
         print(f"<td style=width:auto;><a href='{summary_report_link}'>{date}</a></td>")
@@ -314,12 +314,12 @@ def print_the_html(
 
         s = day_total_bikes_colors.css_bg_fg(thisday.day_total_bikes)
         print(
-            f"<td style='{s};width:auto;'><a href='{chart_report_link}' style='{s}'>"
+            f"<td style='{s};width:auto;'><a href='{tags_report_link}' style='{s}'>"
             f"{thisday.day_total_bikes}</a></td>"
         )
         s = day_full_colors.css_bg_fg(thisday.day_max_bikes)
         print(
-            f"<td style='{s};width:auto;'><a href='{chart_report_link}' style='{s}'>"
+            f"<td style='{s};width:auto;'><a href='{tags_report_link}' style='{s}'>"
             f"{thisday.day_max_bikes}</a></td>"
         )
         print("</tr>\n")

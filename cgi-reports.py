@@ -405,7 +405,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     )
 
     for row in drows:
-        date_link = cc.selfref(what="day_end", qdate=row.date)
+        date_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=row.date)
         reg_str = "" if row.registrations is None else f"{row.registrations}"
         temp_str = "" if row.temp is None else f"{row.temp:0.1f}"
         precip_str = "" if row.precip_mm is None else f"{row.precip_mm:0.1f}"
