@@ -57,7 +57,7 @@ def selfref(
 
 def style() -> str:
     """Return a CSS stylesheet as a string."""
-    style = """
+    style_str = """
         <style>
             html {
                 font-family: sans-serif;
@@ -98,7 +98,7 @@ def style() -> str:
         </style>
 
         """
-    return style
+    return style_str
 
 
 def error_out(msg: str = ""):
@@ -125,9 +125,9 @@ def padval(val, length: int = 0) -> str:
         return f"{pad}{valstr}"
 
 
-def bad_date(bad_date: str = ""):
+def bad_date(bad_date_str: str = ""):
     """Print message about bad date & exit."""
     error_out(
-        f"Bad date '{ut.untaint(bad_date)}'. "
+        f"Bad date '{ut.untaint(bad_date_str)}'. "
         "Use YYYY-MM-DD or 'today' or 'yesterday'."
     )
