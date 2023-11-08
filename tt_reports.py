@@ -853,7 +853,7 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     )
 
 
-def day_end_report(day: TrackerDay, args: list) -> None:
+def day_end_report(day: TrackerDay, args: list,include_notes:bool = True) -> None:
     """Report summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
@@ -888,7 +888,8 @@ def day_end_report(day: TrackerDay, args: list) -> None:
     visit_lengths_by_category_report(visits)
     visit_statistics_report(visits)
 
-    notes_bit(day)
+    if include_notes:
+        notes_bit(day)
 
 
 def notes_bit(day: TrackerDay) -> None:

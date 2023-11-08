@@ -24,36 +24,32 @@ Copyright (C) 2023 Julias Hocking
 
 import sqlite3
 import sys
-import os
-import urllib.parse
-import datetime
-import pathlib
 
-from tt_globals import MaybeTag
+##from tt_globals import MaybeTag
 
 import tt_dbutil as db
-import tt_conf as cfg
-import tt_reports as rep
-import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
-import cgi_block_report
-import cgi_leftovers_report
 
 
-def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
-    HIGHLIGHT_NONE = 0
-    HIGHLIGHT_WARN = 1
-    HIGHLIGHT_ERROR = 2
-    HIGHLIGHT_MAYBE_ERROR = 3
-    BAR_MARKERS = { "R": chr(0x25cf), "O":chr(0x25a0)}
+HIGHLIGHT_NONE = 0
+HIGHLIGHT_WARN = 1
+HIGHLIGHT_ERROR = 2
+HIGHLIGHT_MAYBE_ERROR = 3
+BAR_MARKERS = { "R": chr(0x25cf), "O":chr(0x25a0)}
+BAR_COL_WIDTH = 80
+
+def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "",sort_by=cc.SORT_TIME):
     thisday = ut.date_str(whatday)
     if not thisday:
         cc.bad_date(whatday)
     is_today = bool(thisday == ut.date_str('today'))
+
+
+    me = cc.selfref()
 
     # In the code below, 'next_*' are empty placeholders
     sql = (
@@ -86,8 +82,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     # Earliest and latest event are for the bar graph
     earliest_event = VTime(min([r.time_in for r in rows if r.time_in > ""])).num
     max_visit = VTime(max([VTime(r.time_in).num+VTime(r.duration).num for r in rows]) -earliest_event).num
-    max_bar_cols = 60
-    bar_scaling_factor = max_bar_cols/(max_visit)
+    bar_scaling_factor = BAR_COL_WIDTH/(max_visit)
     bar_offset = round(earliest_event * bar_scaling_factor)
 
     daylight = dc.Dimension()
@@ -125,6 +120,16 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.max)}>Long</td>")
     print("</table><p></p>")
 
+
+    # Sort the rows list according to the sort parameter
+    if sort_by == cc.SORT_TAG:
+        pass
+    elif sort_by == cc.SORT_TIME:
+        rows = sorted(rows, key=lambda x: x.time_in)
+    elif sort_by == cc.SORT_DURATION:
+        rows = sorted(rows, key=lambda x: x.time_in)
+    else:
+        print( f"<p><span style='color=white;background-color:darkred'>Cannot sort by '{sort_by}</span></p>")
 
     html = "<table style=text-align:center>"
     html += f"<tr><th colspan=5 style='text-align:center'>Bikes on {thisday}</th></tr>"

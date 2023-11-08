@@ -29,6 +29,28 @@ import os
 
 import tt_util as ut
 
+WHAT_OVERVIEW = "overview"
+WHAT_BLOCKS = "blocks"
+WHAT_OVERVIEW_DOW = "overview_dow"
+WHAT_BLOCKS_DOW = "blocks_dow"
+WHAT_MISMATCH = "mismatch"
+WHAT_ONE_DAY_TAGS = "one_day_tags"
+WHAT_DATA_ENTRY = "data_entry"
+WHAT_DATAFILE = "datafile"
+WHAT_TAGS_LOST = "tags_lost"
+WHAT_TAG_HISTORY = "tag_history"
+
+# These constants are used to manage how report columns are sorted.
+SORT_TAG = "tag"
+SORT_DATE = "date"
+SORT_TIME = "time"
+SORT_DAY = "day"
+SORT_DURATION = "duration"
+SORT_LEFTOVERS = "leftovers"
+SORT_FULLNESS = "fullness"
+SORT_PARKED = "parked"
+SORT_OPEN = "open"
+SORT_CLOSE = "close"
 
 def selfref(
     what: str = "",
@@ -36,6 +58,7 @@ def selfref(
     qtime: str = "",
     qtag: str = "",
     qdow: str = "",
+    qsort:str = "",
 ) -> str:
     """Return a self-reference with the given parameters."""
 
@@ -51,6 +74,8 @@ def selfref(
         parms.append(f"tag={qtag}")
     if qdow:
         parms.append(f"dow={qdow}")
+    if qsort:
+        parms.append(f"sort={qsort}")
     parms_str = f"?{'&'.join(parms)}" if parms else ""
     return f"{me}{ut.untaint(parms_str)}"
 

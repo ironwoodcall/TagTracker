@@ -47,7 +47,7 @@ from cgi_1day_tags_report import one_day_tags_report
 
 def form(
     title: str = "TagTracker",
-    default_what: str = "overview",
+    default_what: str = cc.WHAT_OVERVIEW,
     default_date: str = "",
     default_tag: str = "",
     default_dow: str = "Sunday",
@@ -57,22 +57,20 @@ def form(
 
     what_choices = {
         "Multi-day reports:": {
-            "overview": "Overview",
-            "overview_dow": "Overview for a given day of the week",
-            "blocks": "Activity detail",
-            "blocks_dow": "Activity detail for a given day of the week",
-            "mismatch": "Leftover bikes mismatch: calculated vs. reported",
+            cc.WHAT_OVERVIEW: "Overview",
+            cc.WHAT_OVERVIEW_DOW: "Overview for a given day of the week",
+            cc.WHAT_BLOCKS: "Activity detail",
+            cc.WHAT_BLOCKS_DOW: "Activity detail for a given day of the week",
+            cc.WHAT_MISMATCH: "Leftover bikes mismatch: calculated vs. reported",
         },
         "Reports for a specific date:": {
-            "one_day_tags": "Bikes in & out",
-            "chart": "Activity charts",
-            "day_end": "Day-end summary",
-            "audit": "Audit report",
-            "datafile": "Reconstructed datafile",
+            cc.WHAT_ONE_DAY_TAGS: "Bikes in & out",
+            cc.WHAT_DATA_ENTRY: "TagTracker data-entry reports",
+            cc.WHAT_DATAFILE: "Reconstructed datafile",
         },
         "Reports about tags:": {
-            "lost_tags": "Lost tags report",
-            "last_use": "History of use for a given tag",
+            cc.WHAT_TAGS_LOST: "Lost tags report",
+            cc.WHAT_TAG_HISTORY: "History of use for a given tag",
         },
     }
 
@@ -178,7 +176,7 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> Non
         for row in rows:
             out = VTime(row[2]).tidy if row[2] else "     "
             linkdate = row[0]
-            link = cc.selfref(what="one_day_tags", qdate=linkdate)
+            link = cc.selfref(what=cc.WHAT_ONE_DAY_TAGS, qdate=linkdate)
             print(
                 f"<tr><td>"
                 f"<a href='{link}'>{row[0]}</a>"
@@ -459,8 +457,8 @@ def lost_tags(ttdb: sqlite3.Connection):
         tag = TagID(row[0])
         in_date = row[1]
         in_time = row[2]
-        tag_link = cc.selfref(what="last_use", qtag=tag)
-        date_link = cc.selfref(what="one_day_tags", qdate=in_date)
+        tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, qtag=tag)
+        date_link = cc.selfref(what=cc.WHAT_ONE_DAY_TAGS, qdate=in_date)
 
         print(
             f"<tr><td>"
@@ -513,13 +511,35 @@ def audit_report(ttdb: sqlite3.Connection, thisday: str, whattime: VTime):
     rep.audit_report(day, [VTime(whattime)], include_notes=False)
 
 
+def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
+    """One-day chart."""
+    thisday = ut.date_str(date)
+    if not thisday:
+        cc.bad_date(date)
+    query_time = "now" if thisday == ut.date_str("today") else "24:00"
+    query_time = VTime(query_time)
+    print(f"<h1>Activity charts for {ut.date_str(thisday,long_date=True)}</h1>")
+    print("<pre>")
+    day = db.db2day(ttdb,thisday)
+    rep.day_end_report(day, [qtime])
+    print()
+    rep.busyness_report(day, [qtime])
+    print()
+    rep.audit_report(day, [query_time], include_notes=False)
+    print()
+    rep.full_chart(day, query_time)
+    print()
+    rep.busy_graph(day, query_time)
+    print()
+    rep.fullness_graph(day, query_time)
+
 def one_day_chart(ttdb: sqlite3.Connection, date: str):
     """One-day chart."""
     thisday = ut.date_str(date)
     if not thisday:
         cc.bad_date(date)
     query_time = "now" if thisday == ut.date_str("today") else "24:00"
-    print(f"<h1>Activity charts for {ut.date_str(thisday,long_date=True)}</h1>")
+    print(f"<h1>Data Entry reports for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
     rep.full_chart(db.db2day(ttdb, thisday), query_time)
     rep.busy_graph(db.db2day(ttdb, thisday), query_time)
@@ -562,7 +582,7 @@ if os.getenv("TAGTRACKER_DEV"):
 
 query_params = urllib.parse.parse_qs(query_string)
 what = query_params.get("what", [""])[0]
-what = what if what else "overview"
+what = what if what else cc.WHAT_OVERVIEW
 maybedate = query_params.get("date", [""])[0]
 maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
@@ -596,30 +616,26 @@ form(
 )
 if not what:
     sys.exit()
-if what == "last_use":
+if what == cc.WHAT_TAG_HISTORY:
     one_tag_history_report(database, tag)
-elif what == "blocks":
+elif what == cc.WHAT_BLOCKS:
     cgi_block_report.blocks_report(database)
-elif what == "blocks_dow":
+elif what == cc.WHAT_BLOCKS_DOW:
     cgi_block_report.blocks_report(database, dow_parameter)
-elif what == "overview":
+elif what == cc.WHAT_OVERVIEW:
     overview_report(database)
-elif what == "overview_dow":
+elif what == cc.WHAT_OVERVIEW_DOW:
     overview_report(database, dow_parameter)
-elif what == "lost_tags":
+elif what == cc.WHAT_TAGS_LOST:
     lost_tags(database)
-elif what == "mismatch":
+elif what == cc.WHAT_MISMATCH:
     cgi_leftovers_report.leftovers_report(database)
-elif what == "one_day_tags":
+elif what == cc.WHAT_ONE_DAY_TAGS:
     one_day_tags_report(database, qdate)
-elif what == "datafile":
+elif what == cc.WHAT_DATAFILE:
     datafile(database, qdate)
-elif what == "audit":
-    audit_report(database, qdate, qtime)
-elif what == "day_end":
-    one_day_summary(database, qdate, qtime)
-elif what == "chart" or what == "busy-graph":
-    one_day_chart(database, qdate)
+elif what == cc.WHAT_DATA_ENTRY:
+    one_day_data_enry_reports(database,qdate)
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)
