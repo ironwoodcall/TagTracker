@@ -477,6 +477,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
     thisday = ut.date_str(whatday)
     if not thisday:
         bad_date(whatday)
+    is_today = bool(thisday == ut.date_str('today'))
 
     # In the code below, 'next_*' are empty placeholders
     sql = (
@@ -534,7 +535,8 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
 
     print("<table>")
     print(f"<tr><td colspan=2>Bikes not checked out:</td><td  width=40 style={highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}>{leftovers}</td></tr>")
-    print(f"<tr><td colspan=2>Bikes possibly never checked in:</td><td style={highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}>{suspicious}</td></tr>")
+    if not is_today:
+        print(f"<tr><td colspan=2>Bikes possibly never checked in:</td><td style={highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}>{suspicious}</td></tr>")
     print("</table><p></p>")
     print("<table>")
     print("<tr><td>Colours for Time of day:</td>")
@@ -561,7 +563,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = ""):
         print("<tr>")
         # Tag
         c = "color:auto;"
-        if v.next_time_in < time_in and time_out <= "":
+        if v.next_time_in < time_in and time_out <= "" and not is_today:
             if v.tag[:1] == v.next_tag[:1]:
                 c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
             elif i < len(rows) - 1:
