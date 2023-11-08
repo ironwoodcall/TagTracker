@@ -520,7 +520,7 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     query_time = VTime(query_time)
     print(f"<h1>Activity charts for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
-    day = db.db2day(ttdb,thisday)
+    day = db.db2day(ttdb, thisday)
     rep.day_end_report(day, [qtime])
     print()
     rep.busyness_report(day, [qtime])
@@ -532,6 +532,7 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     rep.busy_graph(day, query_time)
     print()
     rep.fullness_graph(day, query_time)
+
 
 def one_day_chart(ttdb: sqlite3.Connection, date: str):
     """One-day chart."""
@@ -594,7 +595,7 @@ if not dow_parameter:
     dow_parameter = str(
         datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime("%u")
     )
-
+sort_by = query_params.get("sort", [""])[0]
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)
@@ -631,11 +632,11 @@ elif what == cc.WHAT_TAGS_LOST:
 elif what == cc.WHAT_MISMATCH:
     cgi_leftovers_report.leftovers_report(database)
 elif what == cc.WHAT_ONE_DAY_TAGS:
-    one_day_tags_report(database, qdate)
+    one_day_tags_report(database, whatday=qdate, sort_by=sort_by)
 elif what == cc.WHAT_DATAFILE:
     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:
-    one_day_data_enry_reports(database,qdate)
+    one_day_data_enry_reports(database, qdate)
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)

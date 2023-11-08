@@ -39,17 +39,15 @@ HIGHLIGHT_NONE = 0
 HIGHLIGHT_WARN = 1
 HIGHLIGHT_ERROR = 2
 HIGHLIGHT_MAYBE_ERROR = 3
-BAR_MARKERS = { "R": chr(0x25cf), "O":chr(0x25a0)}
+BAR_MARKERS = {"R": chr(0x25CF), "O": chr(0x25A0)}
 BAR_COL_WIDTH = 80
 
-def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "",sort_by=cc.SORT_TIME):
+
+def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = ""):
     thisday = ut.date_str(whatday)
     if not thisday:
         cc.bad_date(whatday)
-    is_today = bool(thisday == ut.date_str('today'))
-
-
-    me = cc.selfref()
+    is_today = bool(thisday == ut.date_str("today"))
 
     # In the code below, 'next_*' are empty placeholders
     sql = (
@@ -81,8 +79,11 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "",sort_by=cc.S
     )
     # Earliest and latest event are for the bar graph
     earliest_event = VTime(min([r.time_in for r in rows if r.time_in > ""])).num
-    max_visit = VTime(max([VTime(r.time_in).num+VTime(r.duration).num for r in rows]) -earliest_event).num
-    bar_scaling_factor = BAR_COL_WIDTH/(max_visit)
+    max_visit = VTime(
+        max([VTime(r.time_in).num + VTime(r.duration).num for r in rows])
+        - earliest_event
+    ).num
+    bar_scaling_factor = BAR_COL_WIDTH / (max_visit)
     bar_offset = round(earliest_event * bar_scaling_factor)
 
     daylight = dc.Dimension()
@@ -98,16 +99,22 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "",sort_by=cc.S
     highlights.add_config(HIGHLIGHT_MAYBE_ERROR, "cyan")
 
     duration_colors = dc.Dimension()
-    duration_colors.add_config(0,'white')
-    duration_colors.add_config(VTime('1200').num,'teal')
+    duration_colors.add_config(0, "white")
+    duration_colors.add_config(VTime("1200").num, "teal")
 
-    html = f"<h1>Bikes in & out on {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
+    html = (
+        f"<h1>Bikes in & out on {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
+    )
     print(html)
 
     print("<table>")
-    print(f"<tr><td colspan=2>Bikes not checked out:</td><td  width=40 style={highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}>{leftovers}</td></tr>")
+    print(
+        f"<tr><td colspan=2>Bikes not checked out:</td><td  width=40 style={highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}>{leftovers}</td></tr>"
+    )
     if not is_today:
-        print(f"<tr><td colspan=2>Bikes possibly never checked in:</td><td style={highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}>{suspicious}</td></tr>")
+        print(
+            f"<tr><td colspan=2>Bikes possibly never checked in:</td><td style={highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}>{suspicious}</td></tr>"
+        )
     print("</table><p></p>")
     print("<table>")
     print("<tr><td>Colours for Time of day:</td>")
@@ -116,24 +123,56 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "",sort_by=cc.S
     print(f"<td style={daylight.css_bg_fg(daylight.max)}>Later</td>")
     print("<tr><td>Colours for Length of stay:</td>")
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
-    print(f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>Medium</td>")
+    print(
+        f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>Medium</td>"
+    )
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.max)}>Long</td>")
     print("</table><p></p>")
 
-
     # Sort the rows list according to the sort parameter
+    sort_by = sort_by if sort_by else cc.SORT_TIME_IN
     if sort_by == cc.SORT_TAG:
-        pass
-    elif sort_by == cc.SORT_TIME:
+        rows = sorted(rows, key=lambda x: x.tag)
+        sort_msg = "bike tag"
+    elif sort_by == cc.SORT_TIME_IN:
         rows = sorted(rows, key=lambda x: x.time_in)
+        sort_msg = "time in"
+    elif sort_by == cc.SORT_TIME_OUT:
+        rows = sorted(rows, key=lambda x: x.time_in)
+        rows = sorted(rows, key=lambda x: (not x.time_out, x.time_out))
+        ##rows = sorted(rows, key=lambda x: x.time_out)
+        sort_msg = "time out"
     elif sort_by == cc.SORT_DURATION:
         rows = sorted(rows, key=lambda x: x.time_in)
+        rows = sorted(rows, key=lambda x: (not x.time_out,-1 * x.duration))
+        sort_msg = "length of stay"
     else:
-        print( f"<p><span style='color=white;background-color:darkred'>Cannot sort by '{sort_by}</span></p>")
+        rows = sorted(rows, key=lambda x: x.tag)
+        sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
+    sort_msg = f"(Sorted by {sort_msg}) "
+
+    link_sort_time = cc.selfref(
+        what=cc.WHAT_ONE_DAY_TAGS, qdate=thisday, qsort=cc.SORT_TIME_IN
+    )
+    link_sort_time_out = cc.selfref(
+        what=cc.WHAT_ONE_DAY_TAGS, qdate=thisday, qsort=cc.SORT_TIME_OUT
+    )
+    link_sort_tag = cc.selfref(
+        what=cc.WHAT_ONE_DAY_TAGS, qdate=thisday, qsort=cc.SORT_TAG
+    )
+    link_sort_duration = cc.selfref(
+        what=cc.WHAT_ONE_DAY_TAGS, qdate=thisday, qsort=cc.SORT_DURATION
+    )
 
     html = "<table style=text-align:center>"
-    html += f"<tr><th colspan=5 style='text-align:center'>Bikes on {thisday}</th></tr>"
-    html += "<tr><th>Bike</th><th>Time In</th><th>Time Out</th><th>Length<br>of stay</th>"
+    html += (
+        "<tr><th colspan=5 style='text-align:center'>"
+        f"Bikes on {thisday}<br>{sort_msg}</th></tr>"
+    )
+    html += f"<tr><th><a href='{link_sort_tag}'>Bike</a></th>"
+    html += f"<th><a href='{link_sort_time}'>Time In</a></th>"
+    html += f"<th><a href='{link_sort_time_out}'>Time Out</a></th>"
+    html += f"<th><a href='{link_sort_duration}'>Length<br>of stay</a></th>"
     html += f"<th>Bar graph of this visit<br>{BAR_MARKERS['R']} = Regular bike; {BAR_MARKERS['O']} = Oversize bike</th></tr>"
     print(html)
 
@@ -147,7 +186,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "",sort_by=cc.S
         if v.next_time_in < time_in and time_out <= "" and not is_today:
             if v.tag[:1] == v.next_tag[:1]:
                 c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
-            elif i < len(rows) - 1:
+            elif v.next_tag:
                 c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
         print(f"<td style='text-align:center;{c}'>{v.tag}</td>")
         # Time in
@@ -167,13 +206,17 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "",sort_by=cc.S
         #   Bar length is based on duration
         #   Bar scaling factor is based on latest - earliest
         bar_marker = BAR_MARKERS[v.bike_type.upper()]
-        bar_before_len = round(((time_in.num)* bar_scaling_factor)) - bar_offset
+        bar_before_len = round(((time_in.num) * bar_scaling_factor)) - bar_offset
         bar_before = bar_before_len * "&nbsp;" if bar_before_len else ""
         bar_itself_len = round((duration.num * bar_scaling_factor))
         bar_itself_len = bar_itself_len if bar_itself_len else 1
         bar_itself = bar_itself_len * bar_marker
-        c = "background-color:auto" if time_out else "background-color:khaki" #"rgb(255, 230, 0)"
-        print(f"<td style='text-align:left;font-family: monospace;color:purple;{c}'>{bar_before}{bar_itself}</td>")
+        c = (
+            "background-color:auto" if time_out else "background-color:khaki"
+        )  # "rgb(255, 230, 0)"
+        print(
+            f"<td style='text-align:left;font-family: monospace;color:purple;{c}'>{bar_before}{bar_itself}</td>"
+        )
         print("</tr>")
     html = ""
     html += (
@@ -184,4 +227,3 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "",sort_by=cc.S
     )
     html += "</table></body></html>"
     print(html)
-
