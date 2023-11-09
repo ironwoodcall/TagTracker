@@ -43,6 +43,7 @@ import datacolors as dc
 import cgi_block_report
 import cgi_leftovers_report
 from cgi_1day_tags_report import one_day_tags_report
+import cgi_season_report
 
 
 def form(
@@ -62,6 +63,7 @@ def form(
             cc.WHAT_BLOCKS: "Activity detail",
             cc.WHAT_BLOCKS_DOW: "Activity detail for a given day of the week",
             cc.WHAT_MISMATCH: "Leftover bikes mismatch: calculated vs. reported",
+            cc.WHAT_SUMMARY: "TEST TEST TEST Summary TEST TEST TEST",
         },
         "Reports for a specific date:": {
             cc.WHAT_ONE_DAY_TAGS: "Bikes in & out",
@@ -210,14 +212,14 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
     )
     drows = db.db_fetch(ttdb, sel)
     # Find the max bikes and max fullness
-    maxparked:db.DBRow = db.db_fetch(
+    maxparked: db.DBRow = db.db_fetch(
         ttdb,
         """
             SELECT date, MAX(parked_total) as maxval
             FROM day;
         """,
     )[0]
-    maxfull:db.DBRow = db.db_fetch(
+    maxfull: db.DBRow = db.db_fetch(
         ttdb,
         """
             SELECT date, MAX(max_total) as maxval
@@ -259,8 +261,8 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         f"  {day.num_days}{html_tr_end}"
         f"{html_tr_start}Total hours open{html_tr_mid}"
         f"  {day.hours_open:0.1f}{html_tr_end}"
-        f"{html_tr_start}Bike-hours total{html_tr_mid}"
-        f"  {day.bike_hours:0.0f}{html_tr_end}"
+        # f"{html_tr_start}Bike-hours total{html_tr_mid}"
+        # f"  {day.bike_hours:0.0f}{html_tr_end}"
         f"{html_tr_start}Average bikes / day{html_tr_mid}"
         f"  {(day.parked_total/day.num_days):0.1f}{html_tr_end}"
         f"{html_tr_start}Average stay length{html_tr_mid}"
@@ -269,7 +271,6 @@ def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
         f"  {html_tr_mid}{maxparked.maxval}{html_tr_end}"
         f"{html_tr_start}Fullest (most bikes at once)<br>({maxfull.date})"
         f"  {html_tr_mid}{maxfull.maxval}{html_tr_end}"
-
         "</table>"
     )
 
@@ -630,6 +631,8 @@ elif what == cc.WHAT_BLOCKS:
     cgi_block_report.blocks_report(database)
 elif what == cc.WHAT_BLOCKS_DOW:
     cgi_block_report.blocks_report(database, dow_parameter)
+elif what == cc.WHAT_SUMMARY:
+    cgi_season_report.season_report(database, sort_by=sort_by)
 elif what == cc.WHAT_OVERVIEW:
     overview_report(database)
 elif what == cc.WHAT_OVERVIEW_DOW:

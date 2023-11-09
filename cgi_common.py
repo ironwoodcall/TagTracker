@@ -39,6 +39,7 @@ WHAT_DATA_ENTRY = "data_entry"
 WHAT_DATAFILE = "datafile"
 WHAT_TAGS_LOST = "tags_lost"
 WHAT_TAG_HISTORY = "tag_history"
+WHAT_SUMMARY = "summary"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"
@@ -52,6 +53,8 @@ SORT_FULLNESS = "fullness"
 SORT_PARKED = "parked"
 SORT_OPEN = "open"
 SORT_CLOSE = "close"
+SORT_TEMPERATURE = "temperature"
+SORT_PRECIPITATAION = "precipitation"
 
 def selfref(
     what: str = "",
