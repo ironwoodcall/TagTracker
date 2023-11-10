@@ -604,6 +604,7 @@ if not dow_parameter:
         datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime("%u")
     )
 sort_by = query_params.get("sort", [""])[0]
+sort_direction = query_params.get("dir", [""])[0]
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)
@@ -632,7 +633,7 @@ elif what == cc.WHAT_BLOCKS:
 elif what == cc.WHAT_BLOCKS_DOW:
     cgi_block_report.blocks_report(database, dow_parameter)
 elif what == cc.WHAT_SUMMARY:
-    cgi_season_report.season_report(database, sort_by=sort_by)
+    cgi_season_report.season_report(database, sort_by=sort_by,sort_direction=sort_direction)
 elif what == cc.WHAT_OVERVIEW:
     overview_report(database)
 elif what == cc.WHAT_OVERVIEW_DOW:

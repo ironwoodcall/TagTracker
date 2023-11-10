@@ -50,10 +50,14 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     is_today = bool(thisday == ut.date_str("today"))
 
     # In the code below, 'next_*' are empty placeholders
-    sql = (
-        "select tag, '' next_tag, type bike_type, time_in, '' next_time_in, time_out, duration "
-        f"from visit where date = '{thisday}' order by tag asc"
-    )
+    sql = f"""
+        select
+           tag, '' next_tag, type bike_type,
+           time_in, '' next_time_in, time_out, duration
+        from visit
+        where date = '{thisday}'
+        order by tag asc
+    """
     rows = db.db_fetch(ttdb, sql)
 
     # Process the rows
@@ -109,11 +113,21 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
 
     print("<table>")
     print(
-        f"<tr><td colspan=2>Bikes not checked out:</td><td  width=40 style={highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}>{leftovers}</td></tr>"
+        "<tr><td colspan=2>Bikes parked:</td><td  width=40 style='text-align:right'>"
+        f"{len(rows)}</td></tr>"
+    )
+    print(
+        "<tr><td colspan=2>Bikes not checked out:</td>"
+        "<td  width=40 style='text-align:right;"
+        f"{highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}'>"
+        f"{leftovers}</td></tr>"
     )
     if not is_today:
         print(
-            f"<tr><td colspan=2>Bikes possibly never checked in:</td><td style={highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}>{suspicious}</td></tr>"
+            "<tr><td colspan=2>Bikes possibly never checked in:</td>"
+            "<td style='text-align:right;"
+            f"{highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>"
+            f"{suspicious}</td></tr>"
         )
     print("</table><p></p>")
     print("<table>")
@@ -145,7 +159,14 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     elif sort_by == cc.SORT_DURATION:
         rows = sorted(rows, key=lambda x: x.time_in)
         ##rows = sorted(rows, key=lambda x: (x.time_out == '',-1 * x.duration))
-        rows = sorted(rows, reverse=True, key=lambda x: (x.time_out != '', 1000000 if x.time_out == '' else x.duration))
+        rows = sorted(
+            rows,
+            reverse=True,
+            key=lambda x: (
+                x.time_out != "",
+                1000000 if x.time_out == "" else x.duration,
+            ),
+        )
         sort_msg = "length of stay"
     else:
         rows = sorted(rows, key=lambda x: x.tag)

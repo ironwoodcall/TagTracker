@@ -208,7 +208,9 @@ def print_the_html(
 ):
     def print_gap():
         """Print a thicker vertical cell border to mark off sets of blocks."""
-        print("<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>")
+        print(
+            "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
+        )
 
     print(f"<h1>{page_title_prefix}Daily activity detail</h1>")
 
@@ -240,7 +242,9 @@ def print_the_html(
 
     # Main table. Column headings
     print("<table>")
-    print("<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>")
+    print(
+        "<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>"
+    )
     print("<tr>")
     print(f"<th colspan=3><a href='{cc.selfref(what='blocks')}'>Date</a></th>")
     print("<th colspan=7>6:00 - 9:00</th>")

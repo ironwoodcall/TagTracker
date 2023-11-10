@@ -56,6 +56,9 @@ SORT_CLOSE = "close"
 SORT_TEMPERATURE = "temperature"
 SORT_PRECIPITATAION = "precipitation"
 
+ORDER_FORWARD = "forward"
+ORDER_REVERSE = "reverse"
+
 def selfref(
     what: str = "",
     qdate: str = "",
@@ -63,6 +66,7 @@ def selfref(
     qtag: str = "",
     qdow: str = "",
     qsort:str = "",
+    qdir:str = ""
 ) -> str:
     """Return a self-reference with the given parameters."""
 
@@ -80,6 +84,8 @@ def selfref(
         parms.append(f"dow={qdow}")
     if qsort:
         parms.append(f"sort={qsort}")
+    if qdir:
+        parms.append(f"dir={qdir}")
     parms_str = f"?{'&'.join(parms)}" if parms else ""
     return f"{me}{ut.untaint(parms_str)}"
 

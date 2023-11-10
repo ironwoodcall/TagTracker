@@ -195,13 +195,21 @@ import sqlite3
 import copy
 from dataclasses import dataclass, field
 
-#from tt_globals import MaybeTag
+# from tt_globals import MaybeTag
 
 import tt_dbutil as db
 from tt_time import VTime
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
+
+BLOCK_XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
+BLOCK_X_TOP_COLOR = "red"
+BLOCK_Y_TOP_COLOR = "royalblue"
+BLOCK_NORMAL_MARKER = chr(0x25A0)  # chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
+BLOCK_HIGHLIGHT_MARKER = chr(
+    0x2B24
+)  # chr(0x25cf) #chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
 
 
 @dataclass
@@ -210,7 +218,7 @@ class SingleBlock:
 
     num_in: int = 0
     num_out: int = 0
-    #activity: int = 0
+    # activity: int = 0
     full: int = 0
     so_far: int = 0
 
@@ -240,7 +248,7 @@ class SingleDay:
     """Data about a single day."""
 
     date: str = ""
-    dow:int = None
+    dow: int = None
     valet_open: VTime = ""
     valet_close: VTime = ""
     total_bikes: int = 0
@@ -266,10 +274,12 @@ class DaysSummary:
     """Summary data for all days."""
 
     total_total_bikes: int = 0
-    total_regular_bikes:int = 0
-    total_oversize_bikes:int = 0
+    total_regular_bikes: int = 0
+    total_oversize_bikes: int = 0
     max_total_bikes: int = 0
+    max_total_bikes_date: str = ""
     max_max_bikes: int = 0
+    max_max_bikes_date: str = ""
     total_registrations: int = 0
     max_registrations: int = 0
     min_temperature: float = None
@@ -278,8 +288,11 @@ class DaysSummary:
     max_precip: float = 0
     total_leftovers: int = 0
     max_leftovers: int = 0
-    total_hours: float = 0
-    total_days: int = 0
+    total_valet_hours: float = 0
+    total_valet_days: int = 0
+    total_visit_hours: float = 0
+    visits_mean: str = ""
+    visits_median: str = ""
 
 
 def create_days_list(ttdb: sqlite3.Connection) -> list[SingleDay]:
@@ -336,20 +349,78 @@ def create_days_list(ttdb: sqlite3.Connection) -> list[SingleDay]:
     return days
 
 
+def get_common_properties(obj1: object, obj2: object) -> list:
+    """Return a list of callable properties common to the two objects (but not _*)."""
+    common_properties = set(
+        prop
+        for prop in obj1.__dict__
+        if not prop.startswith("_")
+        and getattr(obj2, prop, None) is not None
+        and not callable(getattr(obj1, prop))
+    )
+    return list(common_properties)
+
+
+def copy_properties(
+    source: object, target: object, common_properties: list = None
+) -> None:
+    """Copy common non-callable properties from source to target (but not _*).
+
+    If common_properties exists, it will use that.  If not, it will figure
+    them out.
+    """
+    if common_properties is None:
+        common_properties = get_common_properties(source, target)
+
+    for prop in common_properties:
+        setattr(target, prop, getattr(source, prop))
+
+
+def get_visit_stats(ttdb: sqlite3.Connection) -> tuple[float, str, str]:
+    """Calculate stats for stay length.
+
+    Returns:
+        total visit hours: float
+        mean: VTime
+        median: VTime
+    """
+    visits = db.db_fetch(ttdb, "select duration from visit")
+    durations = [VTime(v.duration).num for v in visits]
+    durations = sorted([d for d in durations if d])
+    num_visits = len(durations)
+    total_duration = sum(durations)  # minutes
+    if num_visits <= 0:
+        return "", ""
+    if num_visits == 1:
+        mean = durations[0]
+        median = durations[0]
+    else:
+        mean = total_duration / num_visits
+        median = (durations[num_visits // 2] + durations[(num_visits - 1) // 2]) / 2
+
+    return total_duration / 60, VTime(mean).tidy, VTime(median).tidy
+
+
 def create_days_summary(
     ttdb: sqlite3.Connection, season_dailies: list[SingleDay]
 ) -> DaysSummary:
     """Fetch whole-season stats."""
 
-    dbrow: db.DBRow = db.db_fetch(
+    def set_obj_from_sql(database: sqlite3.Connection, sql_query: str, target: object):
+        """Sets target's properties from row 0 of the return from SQL."""
+        dbrows: list[db.DBRow] = db.db_fetch(database, sql_query)
+        if not dbrows:
+            return
+        copy_properties(dbrows[0], target)
+
+    summ = DaysSummary()
+    set_obj_from_sql(
         ttdb,
         """
         select
             sum(parked_total) total_total_bikes,
-            max(parked_total) max_total_bikes,
             sum(parked_regular) total_regular_bikes,
             sum(parked_oversize) total_oversize_bikes,
-            max(max_total) max_max_bikes,
             sum(registrations) total_registrations,
             max(registrations) max_registrations,
             min(temp) min_temperature,
@@ -358,25 +429,45 @@ def create_days_summary(
             max(precip_mm) max_precip,
             sum(leftover) total_leftovers,
             max(leftover) max_leftovers,
-            count(date) total_days
+            count(date) total_valet_days
         from day;
         """,
-    )[0]
-
-    summ = DaysSummary()
-    # Look for properties in common (these are the ones we will copy over)
-    shared_properties = set(
-        prop
-        for prop in dbrow.__dict__.keys()
-        if prop[0] != "_" and prop in DaysSummary.__annotations__
+        summ,
     )
-    for prop in shared_properties:
-        setattr(summ, prop, getattr(dbrow, prop))
 
-    # Still need to calculate total_hours
-    summ.total_hours = (
+    set_obj_from_sql(
+        ttdb,
+        """
+            SELECT
+                parked_total as max_total_bikes,
+                date as max_total_bikes_date
+            FROM day
+            ORDER BY parked_total DESC, date ASC
+            LIMIT 1;
+        """,
+        summ,
+    )
+
+    set_obj_from_sql(
+        ttdb,
+        """
+            SELECT
+                max_total as max_max_bikes,
+                date as max_max_bikes_date
+            FROM day
+            ORDER BY max_total DESC, date ASC
+            LIMIT 1;
+        """,
+        summ,
+    )
+
+    # Still need to calculate total_valet_hours
+    summ.total_valet_hours = (
         sum([d.valet_close.num - d.valet_open.num for d in season_dailies]) / 60
     )
+
+    # Stats about visits
+    summ.total_visit_hours, summ.visits_mean, summ.visits_median = get_visit_stats(ttdb)
 
     return summ
 
@@ -455,10 +546,15 @@ def create_blocks_summary(days: list[SingleDay]) -> BlocksSummary:
     return summ
 
 
-
-def totals_table(totals:DaysSummary):
+def totals_table(totals: DaysSummary):
     """Print a table of YTD totals."""
-    # FIXME - pass a SingleDay obj into this w the YTD totals etc (or most of them)
+
+    most_parked_link = cc.selfref(
+        what=cc.WHAT_ONE_DAY_TAGS, qdate=totals.max_total_bikes_date
+    )
+    fullest_link = cc.selfref(
+        what=cc.WHAT_ONE_DAY_TAGS, qdate=totals.max_max_bikes_date
+    )
 
     html_tr_start = "<tr><td style='text-align:left'>"
     html_tr_mid = "</td><td style='text-align:right'>"
@@ -467,24 +563,36 @@ def totals_table(totals:DaysSummary):
     print(
         f"""
         <table>
-          <tr><th colspan=2>Year to date</th></tr>
+          <tr><th colspan=2>Summary</th></tr>
         {html_tr_start}Total bikes parked{html_tr_mid}
-          {totals.total_total_bikes}{html_tr_end}
-        {html_tr_start}Regular bikes parked{html_tr_mid}
-          {totals.total_regular_bikes}{html_tr_end}
-        {html_tr_start}Oversize bikes parked{html_tr_mid}
-          {totals.total_oversize_bikes}{html_tr_end}
-        {html_tr_start}529 Registrations{html_tr_mid}
-          {totals.total_registrations}{html_tr_end}
-        {html_tr_start}Total days open{html_tr_mid}
-          {totals.total_days}{html_tr_end}
-        {html_tr_start}Total hours open{html_tr_mid}
-          {totals.total_hours:0.1f}{html_tr_end}
+          {totals.total_total_bikes:,}{html_tr_end}
+        {html_tr_start}&nbsp;&nbsp;&nbsp;Regular bikes parked{html_tr_mid}
+          {totals.total_regular_bikes:,}{html_tr_end}
+        {html_tr_start}&nbsp;&nbsp;&nbsp;Oversize bikes parked{html_tr_mid}
+          {totals.total_oversize_bikes:,}{html_tr_end}
         {html_tr_start}Average bikes / day{html_tr_mid}
-          {(totals.total_total_bikes/totals.total_days):0.1f}{html_tr_end}
-        {html_tr_start}Most bikes parked<br>({totals.max_total_bikes} FIXME)
+          {(totals.total_total_bikes/totals.total_valet_days):0.1f}{html_tr_end}
+        {html_tr_start}Total 529 registrations{html_tr_mid}
+          {totals.total_registrations:,}{html_tr_end}
+        {html_tr_start}Total days valet open{html_tr_mid}
+          {totals.total_valet_days:,}{html_tr_end}
+        {html_tr_start}Total hours valet open{html_tr_mid}
+          {totals.total_valet_hours:,.1f}{html_tr_end}
+        {html_tr_start}Total hours of visits{html_tr_mid}
+          {(totals.total_visit_hours):,.1f}{html_tr_end}
+        {html_tr_start}Mean visit duration{html_tr_mid}
+          {totals.visits_mean}{html_tr_end}
+"""
+    )
+    print(
+        f"""
+        {html_tr_start}Median visit duration{html_tr_mid}
+          {totals.visits_median}{html_tr_end}
+        {html_tr_start}Most bikes parked
+            (<a href='{most_parked_link}'>{totals.max_total_bikes_date}</a>)
           {html_tr_mid}{totals.max_total_bikes}{html_tr_end}
-        {html_tr_start}Fullest (most bikes at once)<br>({totals.max_max_bikes} FIXME)
+        {html_tr_start}Most bikes at once
+            (<a href='{fullest_link}'>{totals.max_max_bikes_date}</a>)
           {html_tr_mid}{totals.max_max_bikes}{html_tr_end}
         </table>
     """
@@ -494,10 +602,8 @@ def totals_table(totals:DaysSummary):
     # FIXME -- add average stay length (??)
 
 
-def season_report(ttdb: sqlite3.Connection,sort_by=None):
-    """Print new version of the all-days default report.
-
-    """
+def season_report(ttdb: sqlite3.Connection, sort_by=None, sort_direction=None):
+    """Print new version of the all-days default report."""
     all_days = create_days_list(ttdb)
     incorporate_blocks_data(ttdb, all_days)
     days_totals = create_days_summary(ttdb, all_days)
@@ -505,31 +611,49 @@ def season_report(ttdb: sqlite3.Connection,sort_by=None):
 
     # Sort the all_days list according to the sort parameter
     sort_by = sort_by if sort_by else cc.SORT_DATE
-    all_days = sorted(all_days, reverse=True,key=lambda x: x.date)
+    sort_direction = sort_direction if sort_direction else cc.ORDER_REVERSE
+    if sort_direction == cc.ORDER_FORWARD:
+        other_direction = cc.ORDER_REVERSE
+        direction_msg = ""
+    elif sort_direction == cc.ORDER_REVERSE:
+        other_direction = cc.ORDER_FORWARD
+        direction_msg = " (descending)"
+    else:
+        other_direction = cc.ORDER_REVERSE
+        direction_msg = f" (sort direction '{sort_direction}' unrecognized)"
+    reverse_sort = sort_direction == cc.ORDER_REVERSE
+
+    all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.date)
     if sort_by == cc.SORT_DATE:
-        sort_msg = "date (descending)"
+        sort_msg = f"date{direction_msg}"
     elif sort_by == cc.SORT_DAY:
-        all_days = sorted(all_days, key=lambda x: x.dow)
-        sort_msg = "day of week"
+        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.dow)
+        sort_msg = f"day of week{direction_msg}"
     elif sort_by == cc.SORT_PARKED:
-        all_days = sorted(all_days, reverse=True,key=lambda x: x.total_bikes)
-        sort_msg = "bikes parked (descending)"
+        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.total_bikes)
+        sort_msg = f"bikes parked{direction_msg}"
     elif sort_by == cc.SORT_FULLNESS:
-        all_days = sorted(all_days, reverse=True,key=lambda x: x.max_bikes)
-        sort_msg = "most bikes at once (descending)"
+        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.max_bikes)
+        sort_msg = f"most bikes at once{direction_msg}"
     elif sort_by == cc.SORT_LEFTOVERS:
-        all_days = sorted(all_days, reverse=True,key=lambda x: x.leftovers)
-        sort_msg = "bikes left at valet (descending)"
+        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.leftovers)
+        sort_msg = f"bikes left at valet{direction_msg}"
     elif sort_by == cc.SORT_PRECIPITATAION:
-        all_days = sorted(all_days, reverse=True, key=lambda x: (x.precip if x.precip else 0))
-        sort_msg = "precipitation (descending)"
+        all_days = sorted(
+            all_days, reverse=reverse_sort, key=lambda x: (x.precip if x.precip else 0)
+        )
+        sort_msg = f"precipitation{direction_msg}"
     elif sort_by == cc.SORT_TEMPERATURE:
-        all_days = sorted(all_days, reverse=True, key=lambda x: (x.temperature if x.temperature else -999))
-        sort_msg = "temperature (descending)"
+        all_days = sorted(
+            all_days,
+            reverse=reverse_sort,
+            key=lambda x: (x.temperature if x.temperature else -999),
+        )
+        sort_msg = f"temperature{direction_msg}"
     else:
         all_days = sorted(all_days, key=lambda x: x.tag)
         sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
-    sort_msg = f"Year activity, sorted by {sort_msg} "
+    sort_msg = f"Detail, sorted by {sort_msg} "
 
     # Set up colour maps for shading cell backgrounds
     max_parked_colour = dc.Dimension(interpolation_exponent=2)
@@ -559,15 +683,26 @@ def season_report(ttdb: sqlite3.Connection,sort_by=None):
     # FIXME - call the legend tables here
     print("<br>")
 
-    sort_date_link = cc.selfref(cc.WHAT_SUMMARY,qsort=cc.SORT_DATE)
-    sort_day_link = cc.selfref(cc.WHAT_SUMMARY,qsort=cc.SORT_DAY)
-    sort_parked_link = cc.selfref(cc.WHAT_SUMMARY,qsort=cc.SORT_PARKED)
-    sort_fullness_link = cc.selfref(cc.WHAT_SUMMARY,qsort=cc.SORT_FULLNESS)
-    sort_leftovers_link = cc.selfref(cc.WHAT_SUMMARY,qsort=cc.SORT_LEFTOVERS)
-    sort_precipitation_link = cc.selfref(cc.WHAT_SUMMARY,qsort=cc.SORT_PRECIPITATAION)
-    sort_temperature_link = cc.selfref(cc.WHAT_SUMMARY,qsort=cc.SORT_TEMPERATURE)
-
-
+    sort_date_link = cc.selfref(
+        cc.WHAT_SUMMARY, qsort=cc.SORT_DATE, qdir=other_direction
+    )
+    sort_day_link = cc.selfref(cc.WHAT_SUMMARY, qsort=cc.SORT_DAY, qdir=other_direction)
+    sort_parked_link = cc.selfref(
+        cc.WHAT_SUMMARY, qsort=cc.SORT_PARKED, qdir=other_direction
+    )
+    sort_fullness_link = cc.selfref(
+        cc.WHAT_SUMMARY, qsort=cc.SORT_FULLNESS, qdir=other_direction
+    )
+    sort_leftovers_link = cc.selfref(
+        cc.WHAT_SUMMARY, qsort=cc.SORT_LEFTOVERS, qdir=other_direction
+    )
+    sort_precipitation_link = cc.selfref(
+        cc.WHAT_SUMMARY, qsort=cc.SORT_PRECIPITATAION, qdir=other_direction
+    )
+    sort_temperature_link = cc.selfref(
+        cc.WHAT_SUMMARY, qsort=cc.SORT_TEMPERATURE, qdir=other_direction
+    )
+    mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
 
     print("<table>")
     print(f"<tr><th colspan=13><br>{sort_msg}<br>&nbsp;</th></tr>")
@@ -575,10 +710,10 @@ def season_report(ttdb: sqlite3.Connection,sort_by=None):
     print(
         "<tr>"
         "<th colspan=2>Date</th>"
-        "<th colspan=2>Valet Hours</th>"
-        "<th colspan=3>Bike Parked</th>"
-        f"<th rowspan=2><a href={sort_leftovers_link}>Bikes<br />Left at<br />Valet</a></th>"
-        f"<th rowspan=2><a href={sort_fullness_link}>Most<br />Bikes<br />at Once</a></th>"
+        "<th colspan=2>Valet hours</th>"
+        "<th colspan=3>Bikes parked</th>"
+        f"<th rowspan=2><a href={sort_leftovers_link}>Bikes<br />left at<br />valet</a></th>"
+        f"<th rowspan=2><a href={sort_fullness_link}>Most<br />bikes<br />at once</a></th>"
         # "<th rowspan=2>Bike-<br />hours</th>"
         # "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
         "<th rowspan=2>529<br />Regs</th>"
@@ -593,7 +728,7 @@ def season_report(ttdb: sqlite3.Connection,sort_by=None):
         f"<th>Reg</th><th>Ovr</th><th><a href={sort_parked_link}>Total</a></th>"
         # "<th>Left</th>"
         # "<th>Fullest</th>"
-        f"<th><a href={sort_temperature_link}>Max<br />Temp</a></th>"
+        f"<th><a href={sort_temperature_link}>Max<br />temp</a></th>"
         f"<th><a href={sort_precipitation_link}>Rain</a></th><th>Dusk</th>"
         "</tr>"
     )
@@ -604,6 +739,11 @@ def season_report(ttdb: sqlite3.Connection,sort_by=None):
         reg_str = "" if row.registrations is None else f"{row.registrations}"
         temp_str = "" if row.temperature is None else f"{row.temperature:0.1f}"
         precip_str = "" if row.precip is None else f"{row.precip:0.1f}"
+        leftovers_str = (
+            row.leftovers
+            if row.leftovers_calculated == row.leftovers_reported
+            else f"<a href={mismatches_link}>&nbsp;*&nbsp;</a>&nbsp;&nbsp;&nbsp;{row.leftovers}"
+        )
         print(
             f"<tr>"
             f"<td><a href='{date_link}'>{row.date}</a></td>"
@@ -613,7 +753,7 @@ def season_report(ttdb: sqlite3.Connection,sort_by=None):
             f"<td>{row.oversize_bikes}</td>"
             # f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_parked_colour.css_bg_fg(row.total_bikes)}'>{row.total_bikes}</td>"
-            f"<td style='{max_left_colour.css_bg_fg(row.leftovers)}'>{row.leftovers}</td>"
+            f"<td style='{max_left_colour.css_bg_fg(row.leftovers)}'>{leftovers_str}</td>"
             f"<td style='{max_full_colour.css_bg_fg(row.max_bikes)}'>{row.max_bikes}</td>"
             # f"<td style='{max_bike_hours_colour.css_bg_fg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
             # f"<td style='{max_bike_hours_per_hour_colour.css_bg_fg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
@@ -624,3 +764,40 @@ def season_report(ttdb: sqlite3.Connection,sort_by=None):
             "</tr>"
         )
     print(" </table>")
+
+
+def create_blocks_color_maps(block_maxes: BlocksSummary) -> tuple:
+    """Create color maps for the blocks table.
+
+    Returns
+        inout_colors,
+        fullness_colors,
+    """
+    # Set up color maps
+    inout_colors = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
+    d1 = inout_colors.add_dimension(interpolation_exponent=0.82, label="Bikes parked")
+    d1.add_config(0, BLOCK_XY_BOTTOM_COLOR)
+    d1.add_config(block_maxes.num_in, BLOCK_X_TOP_COLOR)
+    d2 = inout_colors.add_dimension(interpolation_exponent=0.82, label="Bikes returned")
+    d2.add_config(0, BLOCK_XY_BOTTOM_COLOR)
+    d2.add_config(block_maxes.num_out, BLOCK_Y_TOP_COLOR)
+
+    fullness_colors = dc.Dimension(interpolation_exponent=0.85, label="Bikes at valet")
+    fullness_colors_list = [
+        inout_colors.get_color(0, 0),
+        "thistle",
+        "plum",
+        "violet",
+        "mediumpurple",
+        "blueviolet",
+        "darkviolet",
+        "darkorchid",
+        "indigo",
+        "black",
+    ]
+    for n, c in enumerate(fullness_colors_list):
+        fullness_colors.add_config(
+            n / (len(fullness_colors_list)) * (block_maxes.full), c
+        )
+
+    return inout_colors, fullness_colors
