@@ -63,7 +63,8 @@ def form(
             cc.WHAT_BLOCKS: "Activity detail",
             cc.WHAT_BLOCKS_DOW: "Activity detail for a given day of the week",
             cc.WHAT_MISMATCH: "Leftover bikes mismatch: calculated vs. reported",
-            cc.WHAT_SUMMARY: "TEST TEST TEST Summary TEST TEST TEST",
+            cc.WHAT_SEASON_DETAIL: "TEST TEST TEST Summary TEST TEST TEST",
+            cc.WHAT_SEASON_SUMMARY: "TEST TEST TEST Short Summary TEST TEST TEST",
         },
         "Reports for a specific date:": {
             cc.WHAT_ONE_DAY_TAGS: "Bikes in & out",
@@ -91,7 +92,18 @@ def form(
         cc.error_out("bad")
 
     print(
-        f"<html><head><title>{title}</title><meta charset='UTF-8'>{cc.style()}</head>"
+        f"""
+        <html><head>
+        <title>{title}</title>
+        <meta charset='UTF-8'>
+        {cc.style()}
+        <script>
+            // Return to previous page
+            function goBack() {{
+                window.history.back();
+        }}
+        </script>
+        </head>"""
     )
     ##print(cc.style())
     print("<body>")
@@ -632,8 +644,10 @@ elif what == cc.WHAT_BLOCKS:
     cgi_block_report.blocks_report(database)
 elif what == cc.WHAT_BLOCKS_DOW:
     cgi_block_report.blocks_report(database, dow_parameter)
-elif what == cc.WHAT_SUMMARY:
-    cgi_season_report.season_report(database, sort_by=sort_by,sort_direction=sort_direction)
+elif what == cc.WHAT_SEASON_DETAIL:
+    cgi_season_report.season_detail(database, sort_by=sort_by,sort_direction=sort_direction)
+elif what == cc.WHAT_SEASON_SUMMARY:
+    cgi_season_report.season_summary(database)
 elif what == cc.WHAT_OVERVIEW:
     overview_report(database)
 elif what == cc.WHAT_OVERVIEW_DOW:

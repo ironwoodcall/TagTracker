@@ -30,6 +30,7 @@ import sys
 import tt_dbutil as db
 from tt_tag import TagID
 from tt_time import VTime
+from tt_conf import SITE_NAME
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
@@ -107,7 +108,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     duration_colors.add_config(VTime("1200").num, "teal")
 
     html = (
-        f"<h1>Bikes in & out on {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
+        f"<h1>{SITE_NAME} Bikes in & out on {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
     )
     print(html)
 
