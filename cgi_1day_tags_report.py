@@ -24,13 +24,13 @@ Copyright (C) 2023 Julias Hocking
 
 import sqlite3
 import sys
+from statistics import mean, median
 
 ##from tt_globals import MaybeTag
 
 import tt_dbutil as db
 from tt_tag import TagID
 from tt_time import VTime
-from tt_conf import SITE_NAME
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
@@ -60,8 +60,12 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
         order by tag asc
     """
     rows = db.db_fetch(ttdb, sql)
+    if not rows:
+        print(f"<pre>No activity recorded for {thisday}")
+        sys.exit()
 
     # Process the rows
+    durations = [VTime(v.duration).num for v in rows]
     for v in rows:
         v.tag = TagID(v.tag)
     rows = sorted(rows, key=lambda x: x.tag)
@@ -70,9 +74,6 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
         if i >= 1:
             rows[i - 1].next_time_in = v.time_in
             rows[i - 1].next_tag = v.tag
-    if not rows:
-        print(f"<pre>No activity recorded for {thisday}")
-        sys.exit()
 
     leftovers = len([t.time_out for t in rows if t.time_out <= ""])
     suspicious = len(
@@ -107,29 +108,54 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     duration_colors.add_config(0, "white")
     duration_colors.add_config(VTime("1200").num, "teal")
 
-    html = (
-        f"<h1>{SITE_NAME} Bikes in & out on {thisday} ({ut.date_str(thisday,dow_str_len=10)})</h1>"
-    )
+    # Get overall stats for the day
+    day_data: cc.SingleDay = cc.get_days_data(ttdb, thisday, thisday)[0]
+    min_stay = VTime(min(durations)).tidy
+    max_stay = VTime(max(durations)).tidy
+    mean_stay = VTime(mean(durations)).tidy
+    median_stay = VTime(median(durations)).tidy
+
+    de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=thisday)
+    df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=thisday)
+
+    print("<button onclick='goBack()'>Go Back</button><br>")
+    h1 = cc.titleize(f": {thisday} ({ut.date_str(thisday,dow_str_len=10)})")
+    html = f"<h1>{h1}</h1>"
     print(html)
 
-    print("<table>")
+    print("<table><style>table td {text-align:right}</style>")
     print(
-        "<tr><td colspan=2>Bikes parked:</td><td  width=40 style='text-align:right'>"
-        f"{len(rows)}</td></tr>"
-    )
-    print(
-        "<tr><td colspan=2>Bikes not checked out:</td>"
-        "<td  width=40 style='text-align:right;"
-        f"{highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}'>"
-        f"{leftovers}</td></tr>"
+        f"""
+        <tr><td colspan=3>Valet hours:{day_data.valet_open.tidy} - {day_data.valet_close.tidy}</td></tr>
+        <tr><td colspan=2>Total bikes parked:</td><td>{day_data.total_bikes}</td></tr>
+        <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td><td>{day_data.max_bikes}</td></tr>
+        <tr><td colspan=2>529 registrations:</td><td>{day_data.registrations}</td></tr>
+        <tr><td colspan=2>High temperature:</td><td>{day_data.temperature}</td></tr>
+        <tr><td colspan=2>Precipitation:</td><td>{day_data.precip}</td></tr>
+        <tr><td colspan=2>Shortest stay:</td><td>{min_stay}</td></tr>
+        <tr><td colspan=2>Longest stay:</td><td>{max_stay}</td></tr>
+        <tr><td colspan=2>Average stay:</td><td>{mean_stay}</td></tr>
+        <tr><td colspan=2>Median stay:</td><td>{median_stay}</td></tr>
+        <tr><td colspan=2>Bikes left at valet (recorded in TagTracker):</td>
+        <td  width=40 style='{highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}'>{leftovers}</td></tr>
+    """
     )
     if not is_today:
         print(
-            "<tr><td colspan=2>Bikes possibly never checked in:</td>"
-            "<td style='text-align:right;"
-            f"{highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>"
-            f"{suspicious}</td></tr>"
+            f"""
+            <tr><td colspan=2>Bikes left at valet (reported in day end form):</td><td>{day_data.leftovers_reported}</td></tr>
+            <tr><td colspan=2>Bikes possibly never checked in:</td>
+            <td style='text-align:right;
+            {highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>
+            {suspicious}</td></tr>
+        """
         )
+    print(
+        f"""
+        <tr><td colspan=3><a href='{de_link}'>Data entry reports</a></td></tr>
+        <tr><td colspan=3><a href='{df_link}'>Reconstructed datafile</a></td></tr>
+        """
+    )
     print("</table><p></p>")
     print("<table>")
     print("<tr><td>Colours for time of day:</td>")
@@ -155,11 +181,9 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     elif sort_by == cc.SORT_TIME_OUT:
         rows = sorted(rows, key=lambda x: x.time_in)
         rows = sorted(rows, key=lambda x: (not x.time_out, x.time_out))
-        ##rows = sorted(rows, key=lambda x: x.time_out)
         sort_msg = "time out"
     elif sort_by == cc.SORT_DURATION:
         rows = sorted(rows, key=lambda x: x.time_in)
-        ##rows = sorted(rows, key=lambda x: (x.time_out == '',-1 * x.duration))
         rows = sorted(
             rows,
             reverse=True,
@@ -175,16 +199,14 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     sort_msg = f"(Sorted by {sort_msg}) "
 
     link_sort_time = cc.selfref(
-        what=cc.WHAT_ONE_DAY_TAGS, qdate=thisday, qsort=cc.SORT_TIME_IN
+        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TIME_IN
     )
     link_sort_time_out = cc.selfref(
-        what=cc.WHAT_ONE_DAY_TAGS, qdate=thisday, qsort=cc.SORT_TIME_OUT
+        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TIME_OUT
     )
-    link_sort_tag = cc.selfref(
-        what=cc.WHAT_ONE_DAY_TAGS, qdate=thisday, qsort=cc.SORT_TAG
-    )
+    link_sort_tag = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TAG)
     link_sort_duration = cc.selfref(
-        what=cc.WHAT_ONE_DAY_TAGS, qdate=thisday, qsort=cc.SORT_DURATION
+        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_DURATION
     )
 
     html = "<table style=text-align:center>"
@@ -205,13 +227,16 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
         duration = VTime(v.duration)
         print("<tr>")
         # Tag
+        tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, qtag=v.tag)
         c = "color:auto;"
         if v.next_time_in < time_in and time_out <= "" and not is_today:
             if v.tag[:1] == v.next_tag[:1]:
                 c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
             elif v.next_tag:
                 c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
-        print(f"<td style='text-align:center;{c}'>{v.tag}</td>")
+        print(
+            f"<td style='text-align:center;{c}'><a href='{tag_link}'>{v.tag}</a></td>"
+        )
         # Time in
         c = daylight.css_bg_fg(time_in.num)
         print(f"<td style='{c}'>{time_in.tidy}</td>")

@@ -27,7 +27,6 @@ import sys
 import os
 import urllib.parse
 import datetime
-import pathlib
 
 from tt_globals import MaybeTag
 
@@ -45,10 +44,10 @@ import cgi_leftovers_report
 from cgi_1day_tags_report import one_day_tags_report
 import cgi_season_report
 
-
+'''
 def form(
     title: str = "TagTracker",
-    default_what: str = cc.WHAT_OVERVIEW,
+    default_what: str = cc.WHAT_SUMMARY,
     default_date: str = "",
     default_tag: str = "",
     default_dow: str = "Sunday",
@@ -58,16 +57,16 @@ def form(
 
     what_choices = {
         "Multi-day reports:": {
-            cc.WHAT_OVERVIEW: "Overview",
-            cc.WHAT_OVERVIEW_DOW: "Overview for a given day of the week",
-            cc.WHAT_BLOCKS: "Activity detail",
-            cc.WHAT_BLOCKS_DOW: "Activity detail for a given day of the week",
+            cc.WHAT_SUMMARY: "NEW Summary",
+            cc.WHAT_DETAIL: "NEW Detail",
+            cc.WHAT_OVERVIEW: "OLD Overview",
+            cc.WHAT_OVERVIEW_DOW: "OLD Overview for a given day of the week",
+            cc.WHAT_BLOCKS: "OLD Activity detail",
+            cc.WHAT_BLOCKS_DOW: "OLD Activity detail for a given day of the week",
             cc.WHAT_MISMATCH: "Leftover bikes mismatch: calculated vs. reported",
-            cc.WHAT_SEASON_DETAIL: "TEST TEST TEST Summary TEST TEST TEST",
-            cc.WHAT_SEASON_SUMMARY: "TEST TEST TEST Short Summary TEST TEST TEST",
         },
         "Reports for a specific date:": {
-            cc.WHAT_ONE_DAY_TAGS: "Bikes in & out",
+            cc.WHAT_ONE_DAY: "Bikes in & out",
             cc.WHAT_DATA_ENTRY: "TagTracker data-entry reports",
             cc.WHAT_DATAFILE: "Reconstructed datafile",
         },
@@ -91,20 +90,6 @@ def form(
     if not me_action:
         cc.error_out("bad")
 
-    print(
-        f"""
-        <html><head>
-        <title>{title}</title>
-        <meta charset='UTF-8'>
-        {cc.style()}
-        <script>
-            // Return to previous page
-            function goBack() {{
-                window.history.back();
-        }}
-        </script>
-        </head>"""
-    )
     ##print(cc.style())
     print("<body>")
     print("<h2>TagTracker reports</h2>")
@@ -159,43 +144,42 @@ def form(
     <hr>
 """
     )
-
+'''
 
 def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
     """Report a tag's history."""
 
-    tag = TagID(maybe_tag)
-    if not tag:
-        print(f"Not a tag: '{ut.untaint(tag.original)}'")
+    this_tag = TagID(maybe_tag)
+    if not this_tag:
+        print(f"Not a tag: '{ut.untaint(this_tag.original)}'")
         sys.exit()
     # Fetch all info about this tag.
-    (last_date, last_in, last_out) = ("", "", "")
-    curs = ttdb.cursor()
-    rows = curs.execute(
+    ##(last_date, last_in, last_out) = ("", "", "")
+    rows = db.db_fetch(
+        ttdb,
         "select date,time_in,time_out "
         "from visit "
-        f"where tag = '{tag.lower()}' "
-        "order by date desc;"
-    ).fetchall()
-
-    print(f"<h1>History of tag {tag.upper()}</h1>")
+        f"where tag = '{this_tag.lower()}' "
+        "order by date desc;",
+    )
+    print("<button onclick='goBack()'>Go Back</button><br>")
+    print(f"<h1>History of tag {this_tag.upper()}</h1>")
     print(f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>")
     print()
     if not rows:
-        print(f"No record that {tag.upper()} ever used<br />")
+        print(f"No record that {this_tag.upper()} ever used<br />")
     else:
         print("<table>")
         print("<style>td {text-align: right;}</style>")
         print("<tr><th>Date</th><th>BikeIn</th><th>BikeOut</th></tr>")
         for row in rows:
-            out = VTime(row[2]).tidy if row[2] else "     "
-            linkdate = row[0]
-            link = cc.selfref(what=cc.WHAT_ONE_DAY_TAGS, qdate=linkdate)
+            out = VTime(row.time_out).tidy
+            link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date)
             print(
                 f"<tr><td>"
-                f"<a href='{link}'>{row[0]}</a>"
+                f"<a href='{link}'>{row.date}</a>"
                 "</td>"
-                f"<td>{VTime(row[1]).tidy}</td><td>{out}</td></tr>"
+                f"<td>{VTime(row.time_in).tidy}</td><td>{out}</td></tr>"
             )
         print("</table>")
     print("</body></html>")
@@ -303,7 +287,9 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         # sqlite uses unix dow, so need to adjust dow from 1->7 to 0->6.
         title_bit = f"{ut.dow_str(iso_dow)} "
         where = f" where strftime('%w',date) = '{iso_dow % 7}' "
-    sel = (
+
+    drows = db.db_fetch(
+        ttdb,
         "select "
         "   date, time_open, time_closed, "
         "   (julianday(time_closed)-julianday(time_open))*24 hours_open, "
@@ -314,53 +300,12 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         "   precip_mm, temp, sunset "
         "from day "
         f"  {where} "
-        "   order by date desc"
+        "   order by date desc",
     )
-    drows = db.db_fetch(ttdb, sel)
 
-    # Find the bike-hours for each day
-    vrows = db.db_fetch(
-        ttdb,
-        "select "
-        "   sum(julianday(duration)-julianday('00:00'))*24 bike_hours, "
-        "   date "
-        "from visit "
-        f"  {where} "
-        "   group by date order by date desc;",
-    )
-    for rownum, vday in enumerate(vrows):
-        if drows[rownum].date != vday.date:
-            print(f"oops {rownum=}; {drows[rownum].date=} != {vday.date=}")
-            drows[rownum].bike_hours = ""
-        else:
-            drows[rownum].bike_hours = vday.bike_hours
-
-    max_parked = 0
-    max_parked_date = ""
-    max_full = 0
-    max_full_date = ""
-    max_bike_hours = 0
-    max_bike_hours_date = ""
-    max_bike_hours_per_hour = 0
-    max_bike_hours_per_hour_date = ""
-
-    for r in drows:
-        r.bike_hours_per_hour = r.bike_hours / r.hours_open
-        if r.bike_hours_per_hour > max_bike_hours_per_hour:
-            max_bike_hours_per_hour = r.bike_hours_per_hour
-            max_bike_hours_per_hour_date = r.date
-        if r.parked_total > max_parked:
-            max_parked = r.parked_total
-            max_parked_date = r.date
-        if r.max_total > max_full:
-            max_full = r.max_total
-            max_full_date = r.date
-        if r.bike_hours > max_bike_hours:
-            max_bike_hours = r.bike_hours
-            max_bike_hours_date = r.date
-
+    max_parked = max(r.parked_total for r in drows)
+    max_full = max(r.max_total for r in drows)
     max_precip = max([1] + [r.precip_mm for r in drows if r.precip_mm is not None])
-    ##max_temp = max([1] + [r.temp for r in drows if r.temp is not None])
 
     # Set up colour maps for shading cell backgrounds
     max_parked_colour = dc.Dimension(interpolation_exponent=2)
@@ -375,14 +320,6 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     max_left_colour.add_config(0, "white")
     max_left_colour.add_config(10, "red")
 
-    max_bike_hours_colour = dc.Dimension(interpolation_exponent=2)
-    max_bike_hours_colour.add_config(0, "white")
-    max_bike_hours_colour.add_config(max_bike_hours, "mediumpurple")
-
-    max_bike_hours_per_hour_colour = dc.Dimension(interpolation_exponent=2)
-    max_bike_hours_per_hour_colour.add_config(0, "white")
-    max_bike_hours_per_hour_colour.add_config(max_bike_hours_per_hour, "mediumpurple")
-
     max_temp_colour = dc.Dimension()
     max_temp_colour.add_config(11, "beige")  #'rgb(255, 255, 224)')
     max_temp_colour.add_config(35, "orange")
@@ -392,6 +329,7 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     max_precip_colour.add_config(0, "white")
     max_precip_colour.add_config(max_precip, "azure")
 
+    print("<button onclick='goBack()'>Go Back</button><br>")
     print(f"<h1>{title_bit}Bike valet overview</h1>")
 
     if not iso_dow:
@@ -407,19 +345,14 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         "<th colspan=3>Bike Parked</th>"
         "<th rowspan=2>Bikes<br />Left at<br />Valet</th>"
         "<th rowspan=2>Most<br />Bikes<br />at Once</th>"
-        # "<th rowspan=2>Bike-<br />hours</th>"
-        # "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
         "<th rowspan=2>529<br />Regs</th>"
         "<th colspan=3>Environment</th>"
         "</tr>"
     )
     print(
         "<tr>"
-        # "<th>Date</th>"
         "<th>Open</th><th>Close</th>"
         "<th>Reg</th><th>Ovr</th><th>Total</th>"
-        # "<th>Left</th>"
-        # "<th>Fullest</th>"
         "<th>Max<br />Temp</th><th>Rain</th><th>Dusk</th>"
         "</tr>"
     )
@@ -436,12 +369,9 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             f"<td>{row.time_open}</td><td>{row.time_closed}</td>"
             f"<td>{row.parked_regular}</td>"
             f"<td>{row.parked_oversize}</td>"
-            # f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_parked_colour.css_bg_fg(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_left_colour.css_bg_fg(row.leftover)}'>{row.leftover}</td>"
             f"<td style='{max_full_colour.css_bg_fg(row.max_total)}'>{row.max_total}</td>"
-            # f"<td style='{max_bike_hours_colour.css_bg_fg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
-            # f"<td style='{max_bike_hours_per_hour_colour.css_bg_fg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
             f"<td>{reg_str}</td>"
             f"<td style='{max_temp_colour.css_bg_fg(row.temp)}'>{temp_str}</td>"
             f"<td style='{max_precip_colour.css_bg_fg(row.precip_mm)}'>{precip_str}</td>"
@@ -453,16 +383,15 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
 
 def lost_tags(ttdb: sqlite3.Connection):
     too_many = 10
-    curs = ttdb.cursor()
-    rows = curs.execute(
+    rows = db.db_fetch(
+        ttdb,
         "select tag,date,time_in from visit "
         f"where date not in (select date from day where leftover > {too_many}) "
         'and (time_out is null or time_out = "")'
-        # "and date < strftime('%Y-%m-%d') "
-        "order by date desc;"
-    ).fetchall()
+        "order by date desc;",
+    )
 
-    # print("<pre>")
+    print("<button onclick='goBack()'>Go Back</button><br>")
     print("<h1>Tags of abandoned bikes</h1>")
     print("<ul>")
     print("<li>Listed newest to oldest</li>")
@@ -474,17 +403,15 @@ def lost_tags(ttdb: sqlite3.Connection):
     print("<style>td {text-align: left;}</style>")
     print("<tr><th>Tag</th><th>Last check-in</th></tr>")
     for row in rows:
-        tag = TagID(row[0])
-        in_date = row[1]
-        in_time = row[2]
-        tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, qtag=tag)
-        date_link = cc.selfref(what=cc.WHAT_ONE_DAY_TAGS, qdate=in_date)
+        this_tag = TagID(row.tag)
+        tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, qtag=this_tag)
+        date_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date)
 
         print(
             f"<tr><td>"
-            f"<a href='{tag_link}'>{tag.cased}</a>"
+            f"<a href='{tag_link}'>{this_tag.cased}</a>"
             "</td>"
-            f"<td><a href='{date_link}'>{in_date}</a> {in_time}</td></tr>"
+            f"<td><a href='{date_link}'>{row.date}</a> {row.time_in}</td></tr>"
         )
     print(" </table>")
 
@@ -494,7 +421,9 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     thisday = ut.date_str(date)
     if not thisday:
         cc.bad_date(date)
-    print(f"<h1>Reconstructed datafile for {ut.date_str(thisday,long_date=True)}</h1>")
+
+    print("<button onclick='goBack()'>Go Back</button><br>")
+    print(f"<h1>Reconstructed datafile for {ut.date_str(thisday)}</h1>")
     print("<pre>")
 
     day = db.db2day(ttdb, thisday)
@@ -505,13 +434,13 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     print(f"{df.HEADER_VALET_CLOSES} {day.closing_time}")
     print(f"{df.HEADER_BIKES_IN}")
     sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
-    for tag, atime in sorted_bikes:
-        formatted_tag = f"{tag.lower()},   "[:6]
+    for this_tag, atime in sorted_bikes:
+        formatted_tag = f"{this_tag.lower()},   "[:6]
         print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_BIKES_OUT}")
     sorted_bikes = sorted(day.bikes_out.items(), key=lambda x: x[1])
-    for tag, atime in sorted_bikes:
-        formatted_tag = f"{tag.lower()},   "[:6]
+    for this_tag, atime in sorted_bikes:
+        formatted_tag = f"{this_tag.lower()},   "[:6]
         print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_REGULAR}")
     print(f"{df.HEADER_OVERSIZE}")
@@ -538,6 +467,7 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
         cc.bad_date(date)
     query_time = "now" if thisday == ut.date_str("today") else "24:00"
     query_time = VTime(query_time)
+    print("<button onclick='goBack()'>Go Back</button><br>")
     print(f"<h1>Data Entry reports for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
@@ -567,18 +497,42 @@ def one_day_chart(ttdb: sqlite3.Connection, date: str):
     rep.fullness_graph(db.db2day(ttdb, thisday), query_time)
 
 
-def one_day_summary(ttdb: sqlite3.Connection, thisday: str, qtime: VTime):
+def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
     """One-day busy report."""
     if not thisday:
         cc.bad_date(thisday)
     day = db.db2day(ttdb, thisday)
+    print("<button onclick='goBack()'>Go Back</button><br>")
     print(f"<h1>Day-end report for {ut.date_str(thisday,long_date=True)}</h1>")
     print(f"Hours: {day.opening_time} - {day.closing_time}</p>")
     print("<pre>")
-    rep.day_end_report(day, [qtime])
+    rep.day_end_report(day, [query_time])
     print()
-    rep.busyness_report(day, [qtime])
+    rep.busyness_report(day, [query_time])
     print("</pre>")
+
+
+def html_head(
+    title: str = "TagTracker",
+):
+    print(
+        f"""
+        <html><head>
+        <title>{title}</title>
+        <meta charset='UTF-8'>
+        {cc.style()}
+        <script>
+          function goBack(pagesToGoBack = 1) {{
+            // Go back the specified number of pages
+            for (let i = 0; i < pagesToGoBack; i++) {{
+                window.history.back();
+            }}
+          }}
+        </script>
+        </head>"""
+    )
+    ##print(cc.style())
+    print("<body>")
 
 
 # =================================================================
@@ -599,11 +553,9 @@ if os.getenv("TAGTRACKER_DEV"):
         f"export SERVER_PORT={os.environ.get('SERVER_PORT')}\n\n"
         "</pre>"
     )
-
-
 query_params = urllib.parse.parse_qs(query_string)
 what = query_params.get("what", [""])[0]
-what = what if what else cc.WHAT_OVERVIEW
+what = what if what else cc.WHAT_SUMMARY
 maybedate = query_params.get("date", [""])[0]
 maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
@@ -617,6 +569,8 @@ if not dow_parameter:
     )
 sort_by = query_params.get("sort", [""])[0]
 sort_direction = query_params.get("dir", [""])[0]
+pages_back: str = query_params.get("back", "0")[0]
+pages_back: int = int(pages_back) if pages_back.isdigit() else 0
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)
@@ -630,12 +584,9 @@ else:
     qtime = VTime(maybetime)
 if not qtime:
     cc.error_out(f"Bad time: '{ut.untaint(maybetime)}")
-form(
-    default_what=what,
-    default_date=maybedate,
-    default_tag=tag,
-    default_dow=dow_parameter,
-)
+
+html_head()
+
 if not what:
     sys.exit()
 if what == cc.WHAT_TAG_HISTORY:
@@ -644,9 +595,11 @@ elif what == cc.WHAT_BLOCKS:
     cgi_block_report.blocks_report(database)
 elif what == cc.WHAT_BLOCKS_DOW:
     cgi_block_report.blocks_report(database, dow_parameter)
-elif what == cc.WHAT_SEASON_DETAIL:
-    cgi_season_report.season_detail(database, sort_by=sort_by,sort_direction=sort_direction)
-elif what == cc.WHAT_SEASON_SUMMARY:
+elif what == cc.WHAT_DETAIL:
+    cgi_season_report.season_detail(
+        database, sort_by=sort_by, sort_direction=sort_direction, pages_back=pages_back
+    )
+elif what == cc.WHAT_SUMMARY:
     cgi_season_report.season_summary(database)
 elif what == cc.WHAT_OVERVIEW:
     overview_report(database)
@@ -656,7 +609,7 @@ elif what == cc.WHAT_TAGS_LOST:
     lost_tags(database)
 elif what == cc.WHAT_MISMATCH:
     cgi_leftovers_report.leftovers_report(database)
-elif what == cc.WHAT_ONE_DAY_TAGS:
+elif what == cc.WHAT_ONE_DAY:
     one_day_tags_report(database, whatday=qdate, sort_by=sort_by)
 elif what == cc.WHAT_DATAFILE:
     datafile(database, qdate)

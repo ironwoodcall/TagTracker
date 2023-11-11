@@ -38,6 +38,7 @@ def leftovers_report(ttdb: sqlite3.Connection):
     colors.add_config(0,'white')
     colors.add_config(max_diff,'tomato')
 
+    print("<button onclick='goBack()'>Go Back</button><br>")
     print("<h1>TagTracker vs Day-End Form</h1>")
     print("<h2>Discrepencies between calculated and reported leftovers</h2>")
     print( """Discrepencies between the number of leftovers calculated from TagTracker data
@@ -58,7 +59,7 @@ def leftovers_report(ttdb: sqlite3.Connection):
     print("<tr><th>Date</th><th>As recorded<br>in TagTracker</th><th>As reported on<br>day-end form</th></tr>")
 
     for row in rows:
-        link = cc.selfref(what=cc.WHAT_ONE_DAY_TAGS, qdate=row.date, qsort=cc.SORT_TAG)
+        link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date, qsort=cc.SORT_TAG)
         style = f"style='{colors.css_bg_fg(abs(row.difference))}'"
         print(f"<tr><td style='{colors.css_bg_fg(abs(row.difference))}'><a href='{link}'>{row.date}</a></td><td {style}>{row.calculated}</td><td {style}>{row.reported}</td></tr>")
     print("</table>")

@@ -27,26 +27,26 @@ import os
 import sqlite3
 from dataclasses import dataclass, field
 import copy
+import statistics
 
+from tt_conf import SITE_NAME
 from tt_time import VTime
 import tt_dbutil as db
-
-##from tt_globals import *
-
 import tt_util as ut
 
-WHAT_OVERVIEW = "overview"
-WHAT_BLOCKS = "blocks"
-WHAT_OVERVIEW_DOW = "overview_dow"
-WHAT_BLOCKS_DOW = "blocks_dow"
-WHAT_MISMATCH = "mismatch"
-WHAT_ONE_DAY_TAGS = "one_day_tags"
-WHAT_DATA_ENTRY = "data_entry"
-WHAT_DATAFILE = "datafile"
-WHAT_TAGS_LOST = "tags_lost"
-WHAT_TAG_HISTORY = "tag_history"
-WHAT_SEASON_DETAIL = "summary"
-WHAT_SEASON_SUMMARY = "short_summary"
+
+WHAT_OVERVIEW = "Ov"
+WHAT_BLOCKS = "Blk"
+WHAT_OVERVIEW_DOW = "OvD"
+WHAT_BLOCKS_DOW = "BlkD"
+WHAT_MISMATCH = "MM"
+WHAT_ONE_DAY = "1D"
+WHAT_DATA_ENTRY = "DE"
+WHAT_DATAFILE = "DF"
+WHAT_TAGS_LOST = "TL"
+WHAT_TAG_HISTORY = "TH"
+WHAT_DETAIL = "Dt"
+WHAT_SUMMARY = "Sm"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"
@@ -66,6 +66,13 @@ SORT_PRECIPITATAION = "precipitation"
 ORDER_FORWARD = "forward"
 ORDER_REVERSE = "reverse"
 
+def titleize( title:str="" ) -> str:
+    """Puts SITE_NAME in front of title and makes it pretty."""
+    name = SITE_NAME if SITE_NAME else "Valet"
+    if not title:
+        return name
+    return f"{SITE_NAME} {title}"
+
 def selfref(
     what: str = "",
     qdate: str = "",
@@ -73,7 +80,8 @@ def selfref(
     qtag: str = "",
     qdow: str = "",
     qsort:str = "",
-    qdir:str = ""
+    qdir:str = "",
+    pages_back = None
 ) -> str:
     """Return a self-reference with the given parameters."""
 
@@ -93,6 +101,8 @@ def selfref(
         parms.append(f"sort={qsort}")
     if qdir:
         parms.append(f"dir={qdir}")
+    if pages_back is not None:
+        parms.append(f"back={pages_back}")
     parms_str = f"?{'&'.join(parms)}" if parms else ""
     return f"{me}{ut.untaint(parms_str)}"
 
@@ -361,17 +371,13 @@ def get_visit_stats(ttdb: sqlite3.Connection) -> tuple[float, VTime, VTime]:
     """
     visits = db.db_fetch(ttdb, "select duration from visit")
     durations = [VTime(v.duration).num for v in visits]
-    durations = sorted([d for d in durations if d])
+    ##durations = sorted([d for d in durations if d])
     num_visits = len(durations)
     total_duration = sum(durations)  # minutes
     if num_visits <= 0:
         return 0, "", ""
-    if num_visits == 1:
-        mean = durations[0]
-        median = durations[0]
-    else:
-        mean = total_duration / num_visits
-        median = (durations[num_visits // 2] + durations[(num_visits - 1) // 2]) / 2
+    mean = statistics.mean(durations)
+    median = statistics.median(durations)
 
     return (total_duration / 60), VTime(mean).tidy, VTime(median).tidy
 

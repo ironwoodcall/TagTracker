@@ -192,35 +192,24 @@ Filtering & sorting:
 '''
 
 import sqlite3
-import copy
-
-# from tt_globals import MaybeTag
-
-import tt_dbutil as db
-from tt_time import VTime
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
-from tt_conf import SITE_NAME
 
 BLOCK_XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 BLOCK_X_TOP_COLOR = "red"
 BLOCK_Y_TOP_COLOR = "royalblue"
-BLOCK_NORMAL_MARKER = chr(0x25A0)  # chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
-BLOCK_HIGHLIGHT_MARKER = chr(
-    0x2B24
-)  # chr(0x25cf) #chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
+BLOCK_NORMAL_MARKER = chr(0x25A0)
+BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
 def totals_table(totals: cc.DaysSummary):
     """Print a table of YTD totals."""
 
     most_parked_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY_TAGS, qdate=totals.max_total_bikes_date
+        what=cc.WHAT_ONE_DAY, qdate=totals.max_total_bikes_date
     )
-    fullest_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY_TAGS, qdate=totals.max_max_bikes_date
-    )
+    fullest_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=totals.max_max_bikes_date)
 
     html_tr_start = "<tr><td style='text-align:left'>"
     html_tr_mid = "</td><td style='text-align:right'>"
@@ -265,26 +254,33 @@ def totals_table(totals: cc.DaysSummary):
     )
 
 
-def season_summary(ttdb: sqlite3.Connection, sort_by=None, sort_direction=None):
+def season_summary(ttdb: sqlite3.Connection):
     """Print super-brief summary report."""
     all_days = cc.get_days_data(ttdb)
     days_totals = cc.get_season_summary_data(ttdb, all_days)
-    detail_link = cc.selfref(what=cc.WHAT_SEASON_DETAIL)
-    print(
-        f"<h1 style='display: inline;'>{SITE_NAME} Bike Valet summary&nbsp;&nbsp;</h1>"
-    )
+    detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
+    blocks_link = cc.selfref(what=cc.WHAT_BLOCKS,pages_back=1)
+    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}&nbsp;&nbsp;</h1>")
     print(
         f"""
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Detail</b></button>
+          <b>General Detail</b></button>
+        <button onclick="window.location.href='{blocks_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Activity Detail</b></button>
         <br><br>
           """
     )
     totals_table(days_totals)
 
 
-def season_detail(ttdb: sqlite3.Connection, sort_by=None, sort_direction=None):
+def season_detail(
+    ttdb: sqlite3.Connection,
+    sort_by=None,
+    sort_direction=None,
+    pages_back: int = 1,
+):
     """Print new version of the all-days default report."""
     all_days = cc.get_days_data(ttdb)
     cc.incorporate_blocks_data(ttdb, all_days)
@@ -359,44 +355,63 @@ def season_detail(ttdb: sqlite3.Connection, sort_by=None, sort_direction=None):
     max_precip_colour.add_config(0, "white")
     max_precip_colour.add_config(days_totals.max_precip, "azure")
 
-    summary_link = cc.selfref(what=cc.WHAT_SEASON_SUMMARY)
-    print("<button onclick='goBack()'>Go Back</button><br>")
-    print(
-        f"<h1 style='display: inline;'>{SITE_NAME} Bike Valet detail&nbsp;&nbsp;</h1>"
-    )
-    print(
-        f"""
-          <button onclick="window.location.href='{summary_link}'"
-                style="padding: 10px; display: inline-block;">
-              <b>Summary</b></button>
-          <br><br>
-          """
-    )
+    print(f"<button onclick='goBack({pages_back})'>Go Back ({pages_back})</button><br>")
+    print(f"<h1 style='display: inline;'>{cc.titleize(': Detail')}&nbsp;&nbsp;</h1>")
+    #summary_link = cc.selfref(what=cc.WHAT_SUMMARY)
+    # print(
+    #    f"""
+    #      <button onclick="window.location.href='{summary_link}'"
+    #            style="padding: 10px; display: inline-block;">
+    #          <b>Summary</b></button>
+    #      <br><br>
+    #      """
+    # )
 
     ##totals_table(days_totals)
-    # FIXME - call the legend tables here
-    print("<br>")
+    # FIXME - call the legend tables here (??)
+    print("<br><br>")
 
     sort_date_link = cc.selfref(
-        cc.WHAT_SEASON_DETAIL, qsort=cc.SORT_DATE, qdir=other_direction
+        cc.WHAT_DETAIL,
+        qsort=cc.SORT_DATE,
+        qdir=other_direction,
+        pages_back=pages_back + 1
     )
     sort_day_link = cc.selfref(
-        cc.WHAT_SEASON_DETAIL, qsort=cc.SORT_DAY, qdir=other_direction
+        cc.WHAT_DETAIL,
+        qsort=cc.SORT_DAY,
+        qdir=other_direction,
+        pages_back=pages_back + 1,
     )
     sort_parked_link = cc.selfref(
-        cc.WHAT_SEASON_DETAIL, qsort=cc.SORT_PARKED, qdir=other_direction
+        cc.WHAT_DETAIL,
+        qsort=cc.SORT_PARKED,
+        qdir=other_direction,
+        pages_back=pages_back + 1,
     )
     sort_fullness_link = cc.selfref(
-        cc.WHAT_SEASON_DETAIL, qsort=cc.SORT_FULLNESS, qdir=other_direction
+        cc.WHAT_DETAIL,
+        qsort=cc.SORT_FULLNESS,
+        qdir=other_direction,
+        pages_back=pages_back + 1,
     )
     sort_leftovers_link = cc.selfref(
-        cc.WHAT_SEASON_DETAIL, qsort=cc.SORT_LEFTOVERS, qdir=other_direction
+        cc.WHAT_DETAIL,
+        qsort=cc.SORT_LEFTOVERS,
+        qdir=other_direction,
+        pages_back=pages_back + 1,
     )
     sort_precipitation_link = cc.selfref(
-        cc.WHAT_SEASON_DETAIL, qsort=cc.SORT_PRECIPITATAION, qdir=other_direction
+        cc.WHAT_DETAIL,
+        qsort=cc.SORT_PRECIPITATAION,
+        qdir=other_direction,
+        pages_back=pages_back + 1,
     )
     sort_temperature_link = cc.selfref(
-        cc.WHAT_SEASON_DETAIL, qsort=cc.SORT_TEMPERATURE, qdir=other_direction
+        cc.WHAT_DETAIL,
+        qsort=cc.SORT_TEMPERATURE,
+        qdir=other_direction,
+        pages_back=pages_back + 1,
     )
     mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
 
@@ -431,15 +446,17 @@ def season_detail(ttdb: sqlite3.Connection, sort_by=None, sort_direction=None):
 
     for row in all_days:
         row: cc.SingleDay
-        date_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=row.date)
+        date_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date)
         reg_str = "" if row.registrations is None else f"{row.registrations}"
         temp_str = "" if row.temperature is None else f"{row.temperature:0.1f}"
         precip_str = "" if row.precip is None else f"{row.precip:0.1f}"
-        leftovers_str = (
-            row.leftovers
-            if row.leftovers_calculated == row.leftovers_reported
-            else f"<a href={mismatches_link}>&nbsp;*&nbsp;</a>&nbsp;&nbsp;&nbsp;{row.leftovers}"
-        )
+        if row.leftovers_calculated == row.leftovers_reported:
+            leftovers_hover = ""
+            leftovers_str = row.leftovers_reported
+        else:
+            leftovers_hover = f"title='Calculated: {row.leftovers_calculated}\nReported: {row.leftovers_reported}'"
+            leftovers_str = f"<a href={mismatches_link}>&nbsp;*&nbsp;</a>&nbsp;&nbsp;&nbsp;{row.leftovers_reported}"
+
         print(
             f"<tr>"
             f"<td><a href='{date_link}'>{row.date}</a></td>"
@@ -449,7 +466,7 @@ def season_detail(ttdb: sqlite3.Connection, sort_by=None, sort_direction=None):
             f"<td>{row.oversize_bikes}</td>"
             # f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_parked_colour.css_bg_fg(row.total_bikes)}'>{row.total_bikes}</td>"
-            f"<td style='{max_left_colour.css_bg_fg(row.leftovers)}'>{leftovers_str}</td>"
+            f"<td {leftovers_hover} style='{max_left_colour.css_bg_fg(row.leftovers)}'>{leftovers_str}</td>"
             f"<td style='{max_full_colour.css_bg_fg(row.max_bikes)}'>{row.max_bikes}</td>"
             # f"<td style='{max_bike_hours_colour.css_bg_fg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
             # f"<td style='{max_bike_hours_per_hour_colour.css_bg_fg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"

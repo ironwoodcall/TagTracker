@@ -204,6 +204,7 @@ def print_the_html(
     marker_colors: dc.Dimension,
     day_total_bikes_colors: dc.Dimension,
     day_full_colors: dc.Dimension,
+    pages_back: int,
     page_title_prefix: str = "",
 ):
     def print_gap():
@@ -212,6 +213,7 @@ def print_the_html(
             "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
         )
 
+    print(f"<button onclick='goBack({pages_back})'>Go Back ({pages_back})</button><br>")
     print(f"<h1>{page_title_prefix}Daily activity detail</h1>")
 
     # We frequently use xycolors(0,0). Save & store it.
@@ -246,7 +248,7 @@ def print_the_html(
         "<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>"
     )
     print("<tr>")
-    print(f"<th colspan=3><a href='{cc.selfref(what='blocks')}'>Date</a></th>")
+    print(f"<th colspan=3><a href='{cc.selfref(what=cc.WHAT_BLOCKS)}'>Date</a></th>")
     print("<th colspan=7>6:00 - 9:00</th>")
     print("<th colspan=7>9:00 - 12:00</th>")
     print("<th colspan=7>12:00 - 15:00</th>")
@@ -262,11 +264,10 @@ def print_the_html(
     for date in sorted(tabledata.keys(), reverse=True):
         dayname = ut.date_str(date, dow_str_len=3)
         thisday: _OneDay = tabledata[date]
-        summary_report_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=date)
-        tags_report_link = cc.selfref(what=cc.WHAT_ONE_DAY_TAGS, qdate=date)
-        dow_report_link = cc.selfref(what="dow_blocks", qdow=ut.dow_int(dayname))
+        tags_report_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=date)
+        dow_report_link = cc.selfref(what=cc.WHAT_BLOCKS_DOW, qdow=ut.dow_int(dayname))
         print("<tr style='text-align: center; width: 15px;padding: 0px 3px;'>")
-        print(f"<td style=width:auto;><a href='{summary_report_link}'>{date}</a></td>")
+        print(f"<td style=width:auto;><a href='{tags_report_link}'>{date}</a></td>")
         print(f"<td style=width:auto;><a href='{dow_report_link}'>{dayname}</a></td>")
 
         # Find which time block had the greatest num of bikes this day.
@@ -317,21 +318,19 @@ def print_the_html(
         print_gap()
 
         s = day_total_bikes_colors.css_bg_fg(thisday.day_total_bikes)
-        print(
-            f"<td style='{s};width:auto;'><a href='{tags_report_link}' style='{s}'>"
-            f"{thisday.day_total_bikes}</a></td>"
-        )
+        print(f"<td style='{s};width:auto;'>{thisday.day_total_bikes}</td>")
         s = day_full_colors.css_bg_fg(thisday.day_max_bikes)
-        print(
-            f"<td style='{s};width:auto;'><a href='{tags_report_link}' style='{s}'>"
-            f"{thisday.day_max_bikes}</a></td>"
-        )
+        print(f"<td style='{s};width:auto;'>{thisday.day_max_bikes}</td>")
         print("</tr>\n")
 
     print("</table>")
 
 
-def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
+def blocks_report(
+    ttdb: sqlite3.Connection,
+    iso_dow: str | int = "",
+    pages_back: int = 1,
+):
     """Print block-by-block colors report for all days
 
     If dow is None then do for all days of the week, otherwise do
@@ -363,7 +362,8 @@ def blocks_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
         block_parked_colors,
         day_total_bikes_colors,
         day_full_colors,
-        title_bit,
+        pages_back,
+        page_title_prefix=title_bit,
     )
 
 
