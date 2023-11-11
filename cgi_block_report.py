@@ -213,7 +213,7 @@ def print_the_html(
             "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
         )
 
-    print(f"<button onclick='goBack({pages_back})'>Go Back ({pages_back})</button><br>")
+    print(f"<button onclick='goBack({pages_back})'>Go Back</button><br>")
     print(f"<h1>{page_title_prefix}Daily activity detail</h1>")
 
     # We frequently use xycolors(0,0). Save & store it.

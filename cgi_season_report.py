@@ -355,7 +355,7 @@ def season_detail(
     max_precip_colour.add_config(0, "white")
     max_precip_colour.add_config(days_totals.max_precip, "azure")
 
-    print(f"<button onclick='goBack({pages_back})'>Go Back ({pages_back})</button><br>")
+    print(f"<button onclick='goBack({pages_back})'>Go Back</button><br>")
     print(f"<h1 style='display: inline;'>{cc.titleize(': Detail')}&nbsp;&nbsp;</h1>")
     #summary_link = cc.selfref(what=cc.WHAT_SUMMARY)
     # print(

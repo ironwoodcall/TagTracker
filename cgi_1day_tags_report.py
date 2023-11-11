@@ -44,7 +44,7 @@ BAR_MARKERS = {"R": chr(0x25CF), "O": chr(0x25A0)}
 BAR_COL_WIDTH = 80
 
 
-def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = ""):
+def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = "",pages_back:int=1):
     thisday = ut.date_str(whatday)
     if not thisday:
         cc.bad_date(whatday)
@@ -118,7 +118,7 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=thisday)
     df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=thisday)
 
-    print("<button onclick='goBack()'>Go Back</button><br>")
+    print(f"<button onclick='goBack({pages_back})'>Go Back</button><br>")
     h1 = cc.titleize(f": {thisday} ({ut.date_str(thisday,dow_str_len=10)})")
     html = f"<h1>{h1}</h1>"
     print(html)
@@ -199,14 +199,14 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     sort_msg = f"(Sorted by {sort_msg}) "
 
     link_sort_time = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TIME_IN
+        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TIME_IN,pages_back=pages_back+1
     )
     link_sort_time_out = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TIME_OUT
+        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TIME_OUT,pages_back=pages_back+1
     )
-    link_sort_tag = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TAG)
+    link_sort_tag = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TAG,pages_back=pages_back+1)
     link_sort_duration = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_DURATION
+        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_DURATION,pages_back=pages_back+1
     )
 
     html = "<table style=text-align:center>"
