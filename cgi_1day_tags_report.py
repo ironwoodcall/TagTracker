@@ -44,7 +44,28 @@ BAR_MARKERS = {"R": chr(0x25CF), "O": chr(0x25A0)}
 BAR_COL_WIDTH = 80
 
 
-def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = "",pages_back:int=1):
+def _nav_buttons(ttdb,thisday,pages_back) -> str:
+    """Make nav buttons for the one-day report."""
+
+    def prev_next_button(label, offset) -> str:
+        target = ut.date_offset(thisday,offset)
+        if target < earliest_date or target > latest_date:
+            return f""" <button type="button" disabled style="opacity: 0.5; cursor: not-allowed;">{label}</button>"""
+        link = cc.selfref(what=cc.WHAT_ONE_DAY,qdate=ut.date_offset(thisday,offset),pages_back=pages_back+1)
+        return f""" <button type="button" onclick="window.location.href='{link}';">{label}</button>"""
+
+    date_range = db.db_fetch(ttdb,"select min(date) earliest,max(date) latest from day")[0]
+    earliest_date = date_range.earliest
+    latest_date = date_range.latest
+
+    buttons = f"{cc.back_button(pages_back)}"
+    buttons += prev_next_button("Previous day",-1)
+    buttons += prev_next_button("Next day",1)
+    return buttons
+
+def one_day_tags_report(
+    ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = "", pages_back: int = 1
+):
     thisday = ut.date_str(whatday)
     if not thisday:
         cc.bad_date(whatday)
@@ -118,10 +139,12 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=thisday)
     df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=thisday)
 
-    print(f"<button onclick='goBack({pages_back})'>Go Back</button><br>")
     h1 = cc.titleize(f": {thisday} ({ut.date_str(thisday,dow_str_len=10)})")
     html = f"<h1>{h1}</h1>"
     print(html)
+
+    print(_nav_buttons(ttdb,thisday,pages_back))
+    print("<br><br>")
 
     print("<table><style>table td {text-align:right}</style>")
     print(
@@ -199,14 +222,28 @@ def one_day_tags_report(ttdb: sqlite3.Connection, whatday: str = "", sort_by: st
     sort_msg = f"(Sorted by {sort_msg}) "
 
     link_sort_time = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TIME_IN,pages_back=pages_back+1
+        what=cc.WHAT_ONE_DAY,
+        qdate=thisday,
+        qsort=cc.SORT_TIME_IN,
+        pages_back=pages_back + 1,
     )
     link_sort_time_out = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TIME_OUT,pages_back=pages_back+1
+        what=cc.WHAT_ONE_DAY,
+        qdate=thisday,
+        qsort=cc.SORT_TIME_OUT,
+        pages_back=pages_back + 1,
     )
-    link_sort_tag = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_TAG,pages_back=pages_back+1)
+    link_sort_tag = cc.selfref(
+        what=cc.WHAT_ONE_DAY,
+        qdate=thisday,
+        qsort=cc.SORT_TAG,
+        pages_back=pages_back + 1,
+    )
     link_sort_duration = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=thisday, qsort=cc.SORT_DURATION,pages_back=pages_back+1
+        what=cc.WHAT_ONE_DAY,
+        qdate=thisday,
+        qsort=cc.SORT_DURATION,
+        pages_back=pages_back + 1,
     )
 
     html = "<table style=text-align:center>"

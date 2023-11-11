@@ -146,6 +146,7 @@ def form(
     )
 '''
 
+
 def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
     """Report a tag's history."""
 
@@ -162,8 +163,9 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> Non
         f"where tag = '{this_tag.lower()}' "
         "order by date desc;",
     )
-    print("<button onclick='goBack()'>Go Back</button><br>")
     print(f"<h1>History of tag {this_tag.upper()}</h1>")
+    print(f"{cc.back_button(1)}<br>")
+
     print(f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>")
     print()
     if not rows:
@@ -329,8 +331,8 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
     max_precip_colour.add_config(0, "white")
     max_precip_colour.add_config(max_precip, "azure")
 
-    print("<button onclick='goBack()'>Go Back</button><br>")
     print(f"<h1>{title_bit}Bike valet overview</h1>")
+    print(f"{cc.back_button(1)}<br>")
 
     if not iso_dow:
         ytd_totals_table(ttdb, csv=False)
@@ -391,8 +393,9 @@ def lost_tags(ttdb: sqlite3.Connection):
         "order by date desc;",
     )
 
-    print("<button onclick='goBack()'>Go Back</button><br>")
     print("<h1>Tags of abandoned bikes</h1>")
+    print(f"{cc.back_button(1)}<br>")
+
     print("<ul>")
     print("<li>Listed newest to oldest</li>")
     print(f"<li>Excludes dates with more than {too_many} supposed leftovers</li>")
@@ -422,8 +425,9 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     if not thisday:
         cc.bad_date(date)
 
-    print("<button onclick='goBack()'>Go Back</button><br>")
     print(f"<h1>Reconstructed datafile for {ut.date_str(thisday)}</h1>")
+    print(f"{cc.back_button(1)}<br>")
+
     print("<pre>")
 
     day = db.db2day(ttdb, thisday)
@@ -467,8 +471,8 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
         cc.bad_date(date)
     query_time = "now" if thisday == ut.date_str("today") else "24:00"
     query_time = VTime(query_time)
-    print("<button onclick='goBack()'>Go Back</button><br>")
     print(f"<h1>Data Entry reports for {ut.date_str(thisday,long_date=True)}</h1>")
+    print(f"{cc.back_button(1)}<br>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
     rep.day_end_report(day, [qtime])
@@ -502,8 +506,9 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
     if not thisday:
         cc.bad_date(thisday)
     day = db.db2day(ttdb, thisday)
-    print("<button onclick='goBack()'>Go Back</button><br>")
     print(f"<h1>Day-end report for {ut.date_str(thisday,long_date=True)}</h1>")
+    print(f"{cc.back_button(1)}<br>")
+
     print(f"Hours: {day.opening_time} - {day.closing_time}</p>")
     print("<pre>")
     rep.day_end_report(day, [query_time])
@@ -569,7 +574,7 @@ if not dow_parameter:
     )
 sort_by = query_params.get("sort", [""])[0]
 sort_direction = query_params.get("dir", [""])[0]
-pages_back: str = query_params.get("back", "0")[0]
+pages_back: str = query_params.get("back", "1")[0]
 pages_back: int = int(pages_back) if pages_back.isdigit() else 0
 
 # Date will be 'today' or 'yesterday' or ...
@@ -610,7 +615,7 @@ elif what == cc.WHAT_TAGS_LOST:
 elif what == cc.WHAT_MISMATCH:
     cgi_leftovers_report.leftovers_report(database)
 elif what == cc.WHAT_ONE_DAY:
-    one_day_tags_report(database, whatday=qdate, sort_by=sort_by)
+    one_day_tags_report(database, whatday=qdate, sort_by=sort_by, pages_back=pages_back)
 elif what == cc.WHAT_DATAFILE:
     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:

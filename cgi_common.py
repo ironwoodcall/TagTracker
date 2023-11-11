@@ -73,6 +73,11 @@ def titleize( title:str="" ) -> str:
         return name
     return f"{SITE_NAME} {title}"
 
+def back_button(pages_back:int) -> str:
+    """Make the 'back' button."""
+    return (f"<button onclick='goBack({pages_back})'>Back</button>")
+
+
 def selfref(
     what: str = "",
     qdate: str = "",

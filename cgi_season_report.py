@@ -261,18 +261,19 @@ def season_summary(ttdb: sqlite3.Connection):
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS,pages_back=1)
     print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}&nbsp;&nbsp;</h1>")
+    totals_table(days_totals)
     print(
         f"""
+        <br>
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>General Detail</b></button>
+          <b>Daily Detail</b></button>
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Activity Detail</b></button>
+          <b>Daily Activity Detail</b></button>
         <br><br>
           """
     )
-    totals_table(days_totals)
 
 
 def season_detail(
@@ -355,8 +356,8 @@ def season_detail(
     max_precip_colour.add_config(0, "white")
     max_precip_colour.add_config(days_totals.max_precip, "azure")
 
-    print(f"<button onclick='goBack({pages_back})'>Go Back</button><br>")
-    print(f"<h1 style='display: inline;'>{cc.titleize(': Detail')}&nbsp;&nbsp;</h1>")
+    print(f"<h1>{cc.titleize(': Detail')}</h1>")
+    print(f"{cc.back_button(pages_back)}<br>")
     #summary_link = cc.selfref(what=cc.WHAT_SUMMARY)
     # print(
     #    f"""
