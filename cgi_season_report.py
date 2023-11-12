@@ -260,7 +260,7 @@ def season_summary(ttdb: sqlite3.Connection):
     days_totals = cc.get_season_summary_data(ttdb, all_days)
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS,pages_back=1)
-    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}&nbsp;&nbsp;</h1>")
+    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br>")
     totals_table(days_totals)
     print(
         f"""
