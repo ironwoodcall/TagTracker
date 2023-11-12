@@ -527,11 +527,9 @@ def html_head(
         <meta charset='UTF-8'>
         {cc.style()}
         <script>
+          // (this fn courtesy of chatgpt)
           function goBack(pagesToGoBack = 1) {{
-            // Go back the specified number of pages
-            for (let i = 0; i < pagesToGoBack; i++) {{
-                window.history.back();
-            }}
+            window.history.go(-pagesToGoBack);
           }}
         </script>
         </head>"""
