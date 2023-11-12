@@ -28,9 +28,9 @@ import datetime
 import re
 
 # This is for type hints instead of (eg) int|str
-from typing import Union, Tuple
+from typing import Union
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+#from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_time import VTime
 from tt_tag import TagID
 
