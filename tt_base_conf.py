@@ -29,6 +29,9 @@ from typing import Tuple
 from tt_colours import Style, Fore, Back
 
 
+# Arbitrary string to describe this location
+SITE_NAME = ""
+
 # Screen appearance
 SCREEN_WIDTH = 80  # characters
 USE_COLOUR = True

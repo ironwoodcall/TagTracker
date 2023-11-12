@@ -28,9 +28,9 @@ import datetime
 import re
 
 # This is for type hints instead of (eg) int|str
-from typing import Union, Tuple
+from typing import Union
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+#from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_time import VTime
 from tt_tag import TagID
 
@@ -104,11 +104,7 @@ def date_str(
 
     """
     # FIXME: replace get_date() with a call to this
-    if (
-        not maybe_date
-        or not isinstance(maybe_date, str)
-        or maybe_date.isspace()
-    ):
+    if not maybe_date or not isinstance(maybe_date, str) or maybe_date.isspace():
         return ""
     thisday = None
     if not strict:
@@ -145,6 +141,23 @@ def date_str(
         return thisday.strftime("%A %B %d (%Y-%m-%d)")
     return thisday.strftime("%Y-%m-%d")
 
+
+def date_offset(start_date: str, offset: int) -> str:
+    """Return a day some number of days before or after a date.
+
+    start_date: is any date string that date_str() will recognize
+    offset: is the number of days later(+) or earlier(-)
+    Returns:
+        YYYY-MM-DD of date which is offset from start_date
+        "" if start_date is bad
+    """
+    start_date = date_str(start_date)
+    if not start_date:
+        return ""
+    offset_day = datetime.datetime.strptime(
+        start_date, "%Y-%m-%d"
+    ) + datetime.timedelta(offset)
+    return offset_day.strftime("%Y-%m-%d")
 
 def dow_int(date_or_dayname: str) -> int:
     """Get ISO day of week from a date or weekday name."""
@@ -303,9 +316,7 @@ def pretty_time(atime: Union[int, str, float], trim: bool = False) -> str:
     return atime
 
 
-def parse_tag(
-    maybe_tag: str, must_be_in=None, uppercase: bool = False
-) -> list[str]:
+def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[str]:
     """Test maybe_tag as a tag, return it as tag and bits.
 
     Tests maybe_tag by breaking it down into its constituent parts.
@@ -347,9 +358,7 @@ def parse_tag(
     return [tag_id, tag_colour, tag_letter, tag_number]
 
 
-def fix_tag(
-    maybe_tag: str, must_be_in: list = None, uppercase: bool = False
-) -> str:
+def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) -> str:
     """Turn 'str' into a canonical tag name.
 
     If must_be_in is exists & not an empty list then, will force

@@ -24,6 +24,9 @@ Copyright (C) 2023 Julias Hocking
 from tt_base_conf import *  # pylint:disable=unused-wildcard-import,wildcard-import
 
 
+# Arbitrary string to describe this location
+##SITE_NAME = ""
+
 # Screen appearance
 ##SCREEN_WIDTH = 80 # characters
 ##USE_COLOUR = True
