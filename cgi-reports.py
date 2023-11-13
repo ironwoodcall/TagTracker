@@ -43,108 +43,7 @@ import cgi_block_report
 import cgi_leftovers_report
 from cgi_1day_tags_report import one_day_tags_report
 import cgi_season_report
-
-'''
-def form(
-    title: str = "TagTracker",
-    default_what: str = cc.WHAT_SUMMARY,
-    default_date: str = "",
-    default_tag: str = "",
-    default_dow: str = "Sunday",
-):
-    if not default_date:
-        default_date = ut.date_str("today")
-
-    what_choices = {
-        "Multi-day reports:": {
-            cc.WHAT_SUMMARY: "NEW Summary",
-            cc.WHAT_DETAIL: "NEW Detail",
-            cc.WHAT_OVERVIEW: "OLD Overview",
-            cc.WHAT_OVERVIEW_DOW: "OLD Overview for a given day of the week",
-            cc.WHAT_BLOCKS: "OLD Activity detail",
-            cc.WHAT_BLOCKS_DOW: "OLD Activity detail for a given day of the week",
-            cc.WHAT_MISMATCH: "Leftover bikes mismatch: calculated vs. reported",
-        },
-        "Reports for a specific date:": {
-            cc.WHAT_ONE_DAY: "Bikes in & out",
-            cc.WHAT_DATA_ENTRY: "TagTracker data-entry reports",
-            cc.WHAT_DATAFILE: "Reconstructed datafile",
-        },
-        "Reports about tags:": {
-            cc.WHAT_TAGS_LOST: "Lost tags report",
-            cc.WHAT_TAG_HISTORY: "History of use for a given tag",
-        },
-    }
-
-    dow_choices = {  # These are ISO days of week not unix.
-        "7": "Sunday",
-        "1": "Monday",
-        "2": "Tuesday",
-        "3": "Wednesday",
-        "4": "Thursday",
-        "5": "Friday",
-        "6": "Saturday",
-    }
-
-    me_action = pathlib.Path(ut.untaint(os.environ.get("SCRIPT_NAME", ""))).name
-    if not me_action:
-        cc.error_out("bad")
-
-    ##print(cc.style())
-    print("<body>")
-    print("<h2>TagTracker reports</h2>")
-    print(
-        f"""
-    <form accept-charset="UTF-8" action="{me_action}" autocomplete="off" method="GET">
-
-"""
-    )
-    html = """
-    <label for="name">Report to create:</label>
-    <select name="what" id="what">"""
-    # for choice, descr in what_choices.items():
-    #    if choice == default_what:
-    #        print(f'<option value="{choice}" selected="selected">{descr}</option>')
-    #    else:
-    #        print(f'<option value="{choice}">{descr}</option>')
-    for group, options in what_choices.items():
-        html += f'<optgroup label="{group}">'
-        for key, value in options.items():
-            if key == default_what:
-                html += f'<option value="{key}" selected="selected">{value}</option>'
-            else:
-                html += f'<option value="{key}">{value}</option>'
-        html += "</optgroup>"
-    html += "</select>"
-    print(html)
-
-    print(
-        f"""
-    <br /><br />
-    Date: <input name="date" type="text" value="{default_date}" />
-    <br />
-    Tag: <input name="tag" type="text" value="{default_tag}" />
-    <br />
-    Day of week:
-        <select name="dow" id="dow">"""
-    )
-    for choice, descr in dow_choices.items():
-        if choice == default_dow:
-            print(f'<option value="{choice}" selected="selected">{descr}</option>')
-        else:
-            print(f'<option value="{choice}">{descr}</option>')
-    print(
-        """
-        </select>
-
-    <br /><br />
-    <button type="submit" value="Submit">Create report</button>
-
-    </form>
-    <hr>
-"""
-    )
-'''
+import cgi_tags_report
 
 
 def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
@@ -186,7 +85,7 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> Non
         print("</table>")
     print("</body></html>")
 
-
+'''
 def ytd_totals_table(ttdb: sqlite3.Connection, csv: bool = False):
     """Print a table of YTD totals.
 
@@ -381,42 +280,8 @@ def overview_report(ttdb: sqlite3.Connection, iso_dow: str | int = ""):
             "</tr>"
         )
     print(" </table>")
+'''
 
-
-def lost_tags(ttdb: sqlite3.Connection):
-    too_many = 10
-    rows = db.db_fetch(
-        ttdb,
-        "select tag,date,time_in from visit "
-        f"where date not in (select date from day where leftover > {too_many}) "
-        'and (time_out is null or time_out = "")'
-        "order by date desc;",
-    )
-
-    print("<h1>Tags of abandoned bikes</h1>")
-    print(f"{cc.back_button(1)}<br>")
-
-    print("<ul>")
-    print("<li>Listed newest to oldest</li>")
-    print(f"<li>Excludes dates with more than {too_many} supposed leftovers</li>")
-    print("<li>Tags might have been returned to use after the dates listed</li>")
-    print("</ul>")
-
-    print("<table>")
-    print("<style>td {text-align: left;}</style>")
-    print("<tr><th>Tag</th><th>Last check-in</th></tr>")
-    for row in rows:
-        this_tag = TagID(row.tag)
-        tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, qtag=this_tag)
-        date_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date)
-
-        print(
-            f"<tr><td>"
-            f"<a href='{tag_link}'>{this_tag.cased}</a>"
-            "</td>"
-            f"<td><a href='{date_link}'>{row.date}</a> {row.time_in}</td></tr>"
-        )
-    print(" </table>")
 
 
 def datafile(ttdb: sqlite3.Connection, date: str = ""):
@@ -604,12 +469,12 @@ elif what == cc.WHAT_DETAIL:
     )
 elif what == cc.WHAT_SUMMARY:
     cgi_season_report.season_summary(database)
-elif what == cc.WHAT_OVERVIEW:
-    overview_report(database)
-elif what == cc.WHAT_OVERVIEW_DOW:
-    overview_report(database, dow_parameter)
+#elif what == cc.WHAT_OVERVIEW:
+#    overview_report(database)
+#elif what == cc.WHAT_OVERVIEW_DOW:
+#    overview_report(database, dow_parameter)
 elif what == cc.WHAT_TAGS_LOST:
-    lost_tags(database)
+    cgi_tags_report.tags_report(database)
 elif what == cc.WHAT_MISMATCH:
     cgi_leftovers_report.leftovers_report(database)
 elif what == cc.WHAT_ONE_DAY:
