@@ -32,10 +32,10 @@ import cgi_common as cc
 from tt_tag import TagID
 
 
-STYLE_GOOD = "color:black;background-color:cornsilk;"
-STYLE_NOW_LOST = "color:black;background-color:tomato;"
-STYLE_EVER_LOST = "color:black;background-color:pink;"
-STYLE_EMPTY = "background-color:lavender"
+STYLE_GOOD = "color:black;background:cornsilk;"
+STYLE_NOW_LOST = "color:black;background:tomato;"
+STYLE_EVER_LOST = "color:black;background:pink;"
+STYLE_EMPTY = "background:lavender"
 
 
 def tags_report(ttdb: sqlite3.Connection):
@@ -113,7 +113,7 @@ def tags_report(ttdb: sqlite3.Connection):
                         color = STYLE_NOW_LOST
                     else:
                         color = STYLE_EVER_LOST
-                print(f"  <td title='{hover}' style='background-color:{color}'>"
+                print(f"  <td title='{hover}' style='background:{color}'>"
                       f"<a href='{taglink}'>{info.tag.upper()}</a></td>")
             else:
                 print(f"  <td title='Tag {tag.upper()} unknown' style='{STYLE_EMPTY}'>&nbsp;</td>")

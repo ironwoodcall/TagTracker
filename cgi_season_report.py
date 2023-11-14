@@ -470,7 +470,7 @@ def season_detail(
             f"<td>{row.valet_open}</td><td>{row.valet_close}</td>"
             f"<td>{row.regular_bikes}</td>"
             f"<td>{row.oversize_bikes}</td>"
-            # f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
+            # f"<td style='background: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_parked_colour.css_bg_fg(row.total_bikes)}'>{row.total_bikes}</td>"
             f"<td {leftovers_hover} style='{max_left_colour.css_bg_fg(row.leftovers)}'>{leftovers_str}</td>"
             f"<td style='{max_full_colour.css_bg_fg(row.max_bikes)}'>{row.max_bikes}</td>"

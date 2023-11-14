@@ -212,12 +212,12 @@ class Color(tuple):
 
     def css_bg(self) -> str:
         """Make a CSS background color style string component."""
-        return f"background-color:{self.html_color};"
+        return f"background:{self.html_color};"
 
     def css_bg_fg(self) -> str:
         """Make CSS style background color component with contrasting text color."""
         fg = "black" if self.luminance() >= 128 else "white"
-        return f"color:{fg};background-color:{self.html_color};"
+        return f"color:{fg};background:{self.html_color};"
 
     def __str__(self):
         """Str representation.

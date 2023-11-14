@@ -297,7 +297,7 @@ def one_day_tags_report(
         bar_itself_len = bar_itself_len if bar_itself_len else 1
         bar_itself = bar_itself_len * bar_marker
         c = (
-            "background-color:auto" if time_out else "background-color:khaki"
+            "background:auto" if time_out else "background:khaki"
         )  # "rgb(255, 230, 0)"
         print(
             f"<td style='text-align:left;font-family: monospace;color:purple;{c}'>{bar_before}{bar_itself}</td>"

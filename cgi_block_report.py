@@ -281,7 +281,7 @@ def print_the_html(
             if date == date_today and block_key >= time_now:
                 # Today, later than now
                 cell_color = (
-                    f"color:{XY_BOTTOM_COLOR};background-color:{XY_BOTTOM_COLOR};"
+                    f"color:{XY_BOTTOM_COLOR};background:{XY_BOTTOM_COLOR};"
                 )
                 cell_title = "Future unknown"
             elif thisblock.num_in == 0 and thisblock.num_out == 0:
