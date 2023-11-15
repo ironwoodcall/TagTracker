@@ -278,43 +278,6 @@ class Color(tuple):
         b = 255 - color[2]
         return Color(Color._clamp_tuple((r, g, b)))
 
-    @staticmethod
-    def blend(colors_list: list["Color"], blend_method=BLEND_ALPHA) -> tuple:
-        """Blend unspecified number of colors together."""
-        if not colors_list:
-            raise ValueError("The list of colors must not be empty.")
-
-        if len(colors_list) == 1:
-            return colors_list[0]
-        # Blend first two colors until only one color left
-        while len(colors_list) > 2:
-            # Reduce list by blending 1st 2 colors.
-            colors_list = [
-                Color.blend(colors_list[:2], blend_method)
-            ] + colors_list[2:]
-
-        # At this point, there are exactly two colors.
-        color1, color2 = colors_list[0:2]
-        if blend_method == BLEND_MULTIPLICATIVE:
-            result = Color._blend_multiply(color1, color2)
-        elif blend_method in [BLEND_LERP, BLEND_ALPHA]:
-            result = Color.blend_lerp(color1, color2)
-        elif blend_method == BLEND_ADDITIVE:
-            result = Color._blend_additive(color1, color2)
-        elif blend_method == BLEND_SUBTRACTIVE:
-            result = Color._blend_subtractive(color1, color2)
-        elif blend_method == BLEND_DIFFERENCE:
-            result = Color._blend_difference(color1, color2)
-        elif blend_method == BLEND_MIN:
-            result = Color._blend_min(color1, color2)
-        elif blend_method == BLEND_MAX:
-            result = Color._blend_max(color1, color2)
-        elif blend_method == BLEND_OVERLAY:
-            result = Color._blend_overlay(color1, color2)
-        else:
-            raise ValueError(f"Invalid blend method: {blend_method}")
-
-        return result
 
     @staticmethod
     def blend_lerp(
@@ -422,6 +385,45 @@ class Color(tuple):
             overlay_channel(base_color[2], blend_color[2]),
         )
         return Color(blended_color)
+
+
+
+    # Map blend methods to blend functions
+    _blend_functions = {
+        BLEND_MULTIPLICATIVE: _blend_multiply,
+        BLEND_LERP: blend_lerp,
+        BLEND_ALPHA: blend_lerp,  # Same as BLEND_LERP
+        BLEND_ADDITIVE: _blend_additive,
+        BLEND_SUBTRACTIVE: _blend_subtractive,
+        BLEND_DIFFERENCE: _blend_difference,
+        BLEND_MIN: _blend_min,
+        BLEND_MAX: _blend_max,
+        BLEND_OVERLAY: _blend_overlay,
+    }
+
+    @classmethod
+    def blend(cls,colors_list: list["Color"], blend_method=BLEND_ALPHA) -> "Color":
+        """Blend an unspecified number of colors together."""
+        if not colors_list:
+            raise ValueError("The list of colors must not be empty.")
+
+        if len(colors_list) == 1:
+            return colors_list[0]
+
+        while len(colors_list) > 2:
+            # Reduce list by blending the first two colors.
+            colors_list = [Color.blend(colors_list[:2], blend_method)] + colors_list[2:]
+
+        color1, color2 = colors_list[0:2]
+
+
+        if blend_method in cls._blend_functions:
+            result = cls._blend_functions[blend_method](color1, color2)
+        else:
+            raise ValueError(f"Invalid blend method: {blend_method}")
+
+        return result
+
 
 
 class MappingPoint(float):
