@@ -41,7 +41,7 @@ import cgi_common as cc
 import datacolors as dc
 import cgi_block_report
 import cgi_leftovers_report
-from cgi_1day_tags_report import one_day_tags_report
+from cgi_day_detail import one_day_tags_report
 import cgi_season_report
 import cgi_tags_report
 

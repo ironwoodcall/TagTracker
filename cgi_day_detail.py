@@ -141,7 +141,7 @@ def one_day_tags_report(
     duration_colors.add_config(0, "white")
     duration_colors.add_config(VTime("1200").num, "teal")
 
-    h1 = cc.titleize(f": {thisday} ({day_str})")
+    h1 = cc.titleize(f"<br>{thisday} ({day_str}) Detail")
     html = f"<h1>{h1}</h1>"
     print(html)
 
