@@ -34,6 +34,7 @@ from tt_time import VTime
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
+import tt_estimator
 
 
 HIGHLIGHT_NONE = 0
@@ -329,6 +330,16 @@ def summary_table(
             return ""
         return obj
 
+    the_estimate = None
+    if is_today:
+        est = tt_estimator.Estimator()
+        est.guess()
+        mores = [est.simple_model.min,est.simple_model.max,est.lr_model.further_bikes,est.rf_model.further_bikes]
+        if mores and est.closing_time > VTime("now"):
+            est_min = est.bikes_so_far + min(mores)
+            est_max = est.bikes_so_far + max(mores)
+            the_estimate = str(est_min) if est_min == est_max else f"{est_min}-{est_max}"
+
     print("<table><style>table td {text-align:right}</style>")
     print(
         f"""
@@ -336,28 +347,41 @@ def summary_table(
             {day_data.valet_open.tidy} - {day_data.valet_close.tidy}</td></tr>
         <tr><td colspan=2>Total bikes parked (visits):</td>
             <td>{day_data.total_bikes}</td></tr>
+            """)
+    if is_today and the_estimate is not None:
+        print(f"""
+        <tr><td colspan=2>&nbsp;&nbsp;Estimated total bikes today:</td>
+            <td>{the_estimate}</td></tr>
+        """)
+    print(
+        f"""
         <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td>
             <td>{day_data.max_bikes}</td></tr>
-        <tr><td colspan=2>529 registrations:</td>
-            <td>{fmt_none(day_data.registrations)}</td></tr>
-        <tr><td colspan=2>High temperature:</td>
-            <td>{fmt_none(day_data.temperature)}</td></tr>
-        <tr><td colspan=2>Precipitation:</td>
-            <td>{fmt_none(day_data.precip)}</td></tr>
-        <tr><td colspan=2>Shortest visit:</td>
-            <td>{day_data.min_stay}</td></tr>
-        <tr><td colspan=2>Longest visit:</td>
-            <td>{day_data.max_stay}</td></tr>
-        <tr><td colspan=2>Mean visit length:</td>
-            <td>{day_data.mean_stay}</td></tr>
-        <tr><td colspan=2>Median visit length:</td>
-            <td>{day_data.median_stay}</td></tr>
-        <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')} visit length ({day_data.modes_occurences} occurences):</td>
-            <td>{'<br>'.join(day_data.modes_stay)}</td></tr>
         <tr><td colspan=2>Bikes left at valet (from TagTracker):</td>
             <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers_calculated>0)*HIGHLIGHT_WARN)}'>{day_data.leftovers_calculated}</td></tr>
-        <tr><td colspan=2>Bikes left at valet (from day-end form):</td>
-            <td>{"" if is_today else day_data.leftovers_reported}</td></tr>
+            """)
+
+    if not is_today:
+        print(
+            f"""
+            <tr><td colspan=2>Bikes left at valet (from day-end form):</td>
+            <td>{day_data.leftovers_reported}</td></tr>
+            <tr><td colspan=2>Shortest visit:</td>
+                <td>{day_data.min_stay}</td></tr>
+            <tr><td colspan=2>Longest visit:</td>
+                <td>{day_data.max_stay}</td></tr>
+            <tr><td colspan=2>Mean visit length:</td>
+                <td>{day_data.mean_stay}</td></tr>
+            <tr><td colspan=2>Median visit length:</td>
+                <td>{day_data.median_stay}</td></tr>
+            <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')} visit length ({day_data.modes_occurences} occurences):</td>
+                <td>{'<br>'.join(day_data.modes_stay)}</td></tr>
+            <tr><td colspan=2>529 registrations:</td>
+            <td>{fmt_none(day_data.registrations)}</td></tr>
+            <tr><td colspan=2>High temperature:</td>
+                <td>{fmt_none(day_data.temperature)}</td></tr>
+            <tr><td colspan=2>Precipitation:</td>
+                <td>{fmt_none(day_data.precip)}</td></tr>
     """
     )
     if not is_today and suspicious:
