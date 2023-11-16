@@ -97,7 +97,7 @@ def tags_report(ttdb: sqlite3.Connection):
           </tr>
           <tr><td colspan=2><i>A tag is considered 'lost' if on a bike that was not
                 picked up by end of day.</i></td></tr>
-          <tr><td colspan=2><i>'Lost' counts exclude bikes today ({today}).</i></td></tr>
+          <tr><td colspan=2><i>Lost tag counts exclude bikes today ({today}).</i></td></tr>
           </table><br>
           """
           )

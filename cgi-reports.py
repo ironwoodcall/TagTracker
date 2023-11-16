@@ -45,7 +45,6 @@ from cgi_day_detail import one_day_tags_report
 import cgi_season_report
 import cgi_tags_report
 
-
 def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
     """Report a tag's history."""
 
