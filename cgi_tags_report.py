@@ -48,9 +48,10 @@ def tags_report(ttdb: sqlite3.Connection):
     #   last_lost: str = when it was last not-returned ("" if never)
     #   times_lost: (number of times not-returned?)
     #   times_used: (number of times used?)
+    today = ut.date_str("today")
     tagrows = db.db_fetch(
         ttdb,
-        """
+        f"""
         SELECT
             TAG,
             MAX(CASE WHEN TIME_OUT = '' THEN DATE END) AS LAST_LOST,
@@ -58,6 +59,7 @@ def tags_report(ttdb: sqlite3.Connection):
             MAX(DATE) AS LAST_USED,
             COUNT(DATE) AS TIMES_USED
         FROM VISIT
+        WHERE DATE != '{today}'
         GROUP BY TAG;
         """,
     )
@@ -84,14 +86,20 @@ def tags_report(ttdb: sqlite3.Connection):
     print("<h1>Index of all tags</h1>")
     print(f"{cc.back_button(1)}<br><br>")
 
-    print("<table><style>table td {text-align:left;}</style><tr><th colspan=2>Legend</th></tr>"
-          "<tr>"
-          f"<td style='{STYLE_EVER_LOST}'>Tag lost at least once</td>"
-          f"<td style='{STYLE_GOOD}'>Tag used but never lost</td>"
-          "</tr><tr>"
-          f"<td style='{STYLE_NOW_LOST}'>Tag not used since last lost</td>"
-          f"<td style='{STYLE_EMPTY}'>Tag never used or doesn't exist</td>"
-          "</tr></table><br>"
+    print(f"""
+          <table><style>table td {{text-align:left;}}</style><tr><th colspan=2>Legend</th></tr>
+          <tr>
+          <td style='{STYLE_EVER_LOST}'>Tag lost at least once</td>
+          <td style='{STYLE_GOOD}'>Tag used but never lost</td>
+          </tr><tr>
+          <td style='{STYLE_NOW_LOST}'>Tag not reused since lost</td>
+          <td style='{STYLE_EMPTY}'>Tag never used or doesn't exist</td>
+          </tr>
+          <tr><td colspan=2><i>A tag is considered 'lost' if on a bike that was not
+                picked up by end of day.</i></td></tr>
+          <tr><td colspan=2><i>'Lost' counts exclude bikes today ({today}).</i></td></tr>
+          </table><br>
+          """
           )
 
     print("<table>")
