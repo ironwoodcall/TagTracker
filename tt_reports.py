@@ -507,14 +507,14 @@ def visit_statistics_report(visits: dict) -> None:
         pr.iprint(f"{key:17s}{value}", style=cfg.NORMAL_STYLE)
 
     def visits_mode(durations_list: list[int]) -> None:
-        """Calculat and print the mode info."""
+        """Calculate and print the mode info."""
         # Find the mode value(s), with visit durations rounded
         # to nearest ROUND_TO_NEAREST time.
-        modes = ut.calculate_visit_modes(
+        modes, mode_occurences = ut.calculate_visit_modes(
             durations_list, rounding_block_size=MODE_ROUND_TO_NEAREST)
         modes_str = ",".join(modes)
         modes_str = (
-            f"{modes_str}  (times " f"rounded to {MODE_ROUND_TO_NEAREST} minutes)"
+            f"{modes_str}  ({mode_occurences} occurences; times " f"rounded to {MODE_ROUND_TO_NEAREST} minutes)"
         )
         one_line("Mode stay:", modes_str)
 

@@ -235,11 +235,12 @@ def totals_table(totals: cc.DaysSummary):
           {totals.total_valet_hours:,.1f}{html_tr_end}
         {html_tr_start}Total hours of visits{html_tr_mid}
           {(totals.total_visit_hours):,.1f}{html_tr_end}
-        {html_tr_start}Mean visit duration{html_tr_mid}
+        {html_tr_start}Mean visit length{html_tr_mid}
           {totals.visits_mean}{html_tr_end}
-        {html_tr_start}Median visit duration{html_tr_mid}
+        {html_tr_start}Median visit length{html_tr_mid}
           {totals.visits_median}{html_tr_end}
-        {html_tr_start}Mode(s) visit duration{html_tr_mid}
+        {html_tr_start}{ut.plural(len(totals.visits_modes),'Mode')} visit length
+                ({totals.visits_modes_occurences} occurences){html_tr_mid}
           {"<br>".join(totals.visits_modes)}{html_tr_end}
         {html_tr_start}Most bikes parked
             (<a href='{most_parked_link}'>{totals.max_total_bikes_date}</a>)
@@ -361,15 +362,6 @@ def season_detail(
 
     print(f"<h1>{cc.titleize(': Detail')}</h1>")
     print(f"{cc.back_button(pages_back)}<br>")
-    #summary_link = cc.selfref(what=cc.WHAT_SUMMARY)
-    # print(
-    #    f"""
-    #      <button onclick="window.location.href='{summary_link}'"
-    #            style="padding: 10px; display: inline-block;">
-    #          <b>Summary</b></button>
-    #      <br><br>
-    #      """
-    # )
 
     ##totals_table(days_totals)
     # FIXME - call the legend tables here (??)

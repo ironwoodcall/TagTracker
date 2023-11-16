@@ -158,7 +158,7 @@ def one_day_tags_report(
     day_data.max_stay = VTime(max(durations)).tidy
     day_data.mean_stay = VTime(mean(durations)).tidy
     day_data.median_stay = VTime(median(durations)).tidy
-    day_data.modes_stay = cc.calculate_visit_modes(durations,30)
+    day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(durations,30)
 
     summary_table(day_data, highlights, is_today, suspicious)
 
@@ -333,8 +333,8 @@ def summary_table(
             <td>{day_data.mean_stay}</td></tr>
         <tr><td colspan=2>Median visit length:</td>
             <td>{day_data.median_stay}</td></tr>
-        <tr><td colspan=2>Mode(s) visit length:</td>
-            <td>{'<br>'.join([t for t in day_data.modes_stay])}</td></tr>
+        <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')} visit length ({day_data.modes_occurences} occurences):</td>
+            <td>{'<br>'.join(day_data.modes_stay)}</td></tr>
         <tr><td colspan=2>Bikes left at valet (from TagTracker):</td>
             <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers_calculated>0)*HIGHLIGHT_WARN)}'>{day_data.leftovers_calculated}</td></tr>
         <tr><td colspan=2>Bikes left at valet (from day-end form):</td>

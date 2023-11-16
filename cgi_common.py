@@ -363,6 +363,7 @@ class SingleDay:
     mean_stay = None
     median_stay = None
     modes_stay = []
+    modes_occurences = 0
 
     @property
     def leftovers_reported(self) -> int:
@@ -394,6 +395,7 @@ class DaysSummary:
     visits_mean: str = ""
     visits_median: str = ""
     visits_modes: list = None
+    visits_modes_occurences = 0
 
 
 def get_days_data(
@@ -496,14 +498,17 @@ def copy_properties(
         setattr(target, prop, getattr(source, prop))
 
 
-def get_visit_stats(ttdb: sqlite3.Connection) -> tuple[float, VTime, VTime]:
+def get_visit_stats(
+    ttdb: sqlite3.Connection
+) -> tuple[float, VTime, VTime, list[str], int]:
     """Calculate stats for stay length.
 
     Returns:
         total visit hours: float
         mean: VTime
         median: VTime
-        modes: list of VTimes
+        modes: list of str VTime().tidy
+        mode_occurances: the number of visits of mode duration
     """
     visits = db.db_fetch(ttdb, "select duration from visit")
     durations = [VTime(v.duration).num for v in visits]
@@ -514,9 +519,15 @@ def get_visit_stats(ttdb: sqlite3.Connection) -> tuple[float, VTime, VTime]:
         return 0, "", ""
     mean = statistics.mean(durations)
     median = statistics.median(durations)
-    modes = ut.calculate_visit_modes(durations)
+    modes, modes_occurences = ut.calculate_visit_modes(durations)
 
-    return (total_duration / 60), VTime(mean).tidy, VTime(median).tidy,modes
+    return (
+        (total_duration / 60),
+        VTime(mean).tidy,
+        VTime(median).tidy,
+        modes,
+        modes_occurences,
+    )
 
 
 def get_season_summary_data(
@@ -585,7 +596,13 @@ def get_season_summary_data(
     )
 
     # Stats about visits
-    summ.total_visit_hours, summ.visits_mean, summ.visits_median,summ.visits_modes = get_visit_stats(ttdb)
+    (
+        summ.total_visit_hours,
+        summ.visits_mean,
+        summ.visits_median,
+        summ.visits_modes,
+        summ.visits_modes_occurences,
+    ) = get_visit_stats(ttdb)
 
     return summ
 

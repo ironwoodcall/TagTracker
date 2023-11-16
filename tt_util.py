@@ -530,7 +530,7 @@ def line_splitter(
 
 def calculate_visit_modes(
     durations_list: list, rounding_block_size: int = 30
-) -> list[VTime]:
+) -> tuple[list[VTime], int]:
     """Calculate the mode(s) for the list of durations.
 
     The elements in durations can be VTime, str, or int,
@@ -540,7 +540,8 @@ def calculate_visit_modes(
     block of time of length rounding_block_size are
     considered identical.  Defaulit 30 (1/2 hour)
 
-    Returns a list of sorted VTimes().tidy of all the modes.
+    Returns a list of sorted VTimes().tidy of all the modes
+    and the number of times it/they occurred.
     """
     my_durations = []
     for i, d in enumerate(durations_list):
@@ -553,8 +554,13 @@ def calculate_visit_modes(
     rounded = [
         round(x / rounding_block_size) * rounding_block_size for x in my_durations
     ]
-    modes_list = [VTime(x) for x in statistics.multimode(rounded)]
+    modes_numeric = statistics.multimode(rounded)
+    if not modes_numeric:
+        return 0,[]
+    modes_list = [VTime(x) for x in modes_numeric]
     modes_list.sort()
     modes_list = [x.tidy for x in modes_list]
-    return modes_list
+    occurences = len([x for x in rounded if x == modes_numeric[0]])
+
+    return modes_list, occurences
 
