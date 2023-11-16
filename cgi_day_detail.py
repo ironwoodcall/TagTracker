@@ -65,15 +65,34 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
             onclick="window.location.href='{link}';">{label}</button>
             """
 
+    def today_button(label) -> str:
+        target = ut.date_str("today")
+        if target == thisday:
+            return f"""
+                <button type="button" disabled
+                    style="opacity: 0.5; cursor: not-allowed;">
+                {label}</button>
+                """
+        link = cc.selfref(
+            what=cc.WHAT_ONE_DAY,
+            qdate=target,
+            pages_back=pages_back + 1,
+        )
+        return f"""
+            <button type="button"
+            onclick="window.location.href='{link}';">{label}</button>
+            """
+
     date_range = db.db_fetch(
         ttdb, "select min(date) earliest,max(date) latest from day"
     )[0]
     earliest_date = date_range.earliest
     latest_date = date_range.latest
 
-    buttons = f"{cc.back_button(pages_back)}"
+    buttons = f"{cc.back_button(pages_back)}&nbsp;&nbsp;&nbsp;&nbsp;"
     buttons += prev_next_button("Previous day", -1)
     buttons += prev_next_button("Next day", 1)
+    buttons += today_button("Today")
     return buttons
 
 
