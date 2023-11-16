@@ -260,6 +260,7 @@ def season_summary(ttdb: sqlite3.Connection):
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS,pages_back=1)
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST,pages_back=1)
+    today_link = cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today")
 
     print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br>")
     totals_table(days_totals)
@@ -272,6 +273,9 @@ def season_summary(ttdb: sqlite3.Connection):
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Daily Activity Detail</b></button>
+        <button onclick="window.location.href='{today_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Today Detail</b></button>
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Tags Report</b></button>
