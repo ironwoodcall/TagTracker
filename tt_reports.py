@@ -499,7 +499,11 @@ def visit_lengths_by_category_report(visits: dict) -> None:
 
 
 def visit_statistics_report(visits: dict) -> None:
-    """Max, min, mean, median, mode of visits."""
+    """Max, min, mean, median, mode of visits.
+
+    On entry:
+        visits is dict of tag:Stay
+        """
     noun = "stay"
 
     def one_line(key: str, value: str) -> None:
@@ -535,20 +539,20 @@ def visit_statistics_report(visits: dict) -> None:
         duration_tags[dur].append(tag)
     if not duration_tags:
         return  # No durations
-    pr.iprint()
-    pr.iprint("Stay-length statistics", style=cfg.SUBTITLE_STYLE)
+    durations_list = [x.duration for x in visits.values()]
     longest = max(list(duration_tags.keys()))
     long_tags = make_tags_str(duration_tags[longest])
     shortest = min(list(duration_tags.keys()))
     short_tags = make_tags_str(duration_tags[shortest])
+    pr.iprint()
+    pr.iprint("Stay-length statistics", style=cfg.SUBTITLE_STYLE)
     one_line(f"Longest {noun}:", f"{VTime(longest).tidy}  ({long_tags})")
     one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}  ({short_tags})")
     # Make a list of stay-lengths (for mean, median, mode)
-    durations_list = [x.duration for x in visits.values()]
     one_line(f"Mean {noun}:", VTime(statistics.mean(durations_list)).tidy)
     one_line(
         f"Median {noun}:",
-        VTime(statistics.median(list(duration_tags.keys()))).tidy,
+        VTime(statistics.median(durations_list)).tidy,
     )
     visits_mode(durations_list)
 
