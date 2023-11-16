@@ -294,7 +294,7 @@ def season_detail(
     all_days = cc.get_days_data(ttdb)
     cc.incorporate_blocks_data(ttdb, all_days)
     days_totals = cc.get_season_summary_data(ttdb, all_days)
-    blocks_totals = cc.get_blocks_summary(all_days)
+    ##blocks_totals = cc.get_blocks_summary(all_days)
 
     # Sort the all_days ldataccording to the sort parameter
     sort_by = sort_by if sort_by else cc.SORT_DATE
