@@ -25,7 +25,8 @@ Copyright (C) 2023 Julias Hocking
 import statistics
 from typing import Union
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+#from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+from tt_globals import REGULAR,OVERSIZE,BIKE_IN,BIKE_OUT
 from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
