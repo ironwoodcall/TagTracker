@@ -26,6 +26,7 @@ import os
 import sys
 import datetime
 import re
+import statistics
 
 # This is for type hints instead of (eg) int|str
 from typing import Union
@@ -526,3 +527,34 @@ def line_splitter(
         print_handler(input_string, **print_handler_args)
 
     return lines
+
+def calculate_visit_modes(
+    durations_list: list, rounding_block_size: int = 30
+) -> list[VTime]:
+    """Calculate the mode(s) for the list of durations.
+
+    The elements in durations can be VTime, str, or int,
+    as long as they all evaluate to a VTime.
+
+    For purposes of determining mode, times within one
+    block of time of length rounding_block_size are
+    considered identical.  Defaulit 30 (1/2 hour)
+
+    Returns a list of sorted VTimes().tidy of all the modes.
+    """
+    my_durations = []
+    for i, d in enumerate(durations_list):
+        if isinstance(d, int):
+            my_durations.append(d)
+        else:
+            my_durations.append(VTime(d).num)
+    my_durations = [d for d in my_durations if isinstance(d, int)]
+
+    rounded = [
+        round(x / rounding_block_size) * rounding_block_size for x in my_durations
+    ]
+    modes_list = [VTime(x) for x in statistics.multimode(rounded)]
+    modes_list.sort()
+    modes_list = [x.tidy for x in modes_list]
+    return modes_list
+

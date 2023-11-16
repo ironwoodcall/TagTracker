@@ -219,7 +219,7 @@ def totals_table(totals: cc.DaysSummary):
         f"""
         <table>
           <tr><th colspan=2>Summary</th></tr>
-        {html_tr_start}Total bikes parked{html_tr_mid}
+        {html_tr_start}Total bikes parked (visits){html_tr_mid}
           {totals.total_total_bikes:,}{html_tr_end}
         {html_tr_start}&nbsp;&nbsp;&nbsp;Regular bikes parked{html_tr_mid}
           {totals.total_regular_bikes:,}{html_tr_end}
@@ -237,12 +237,10 @@ def totals_table(totals: cc.DaysSummary):
           {(totals.total_visit_hours):,.1f}{html_tr_end}
         {html_tr_start}Mean visit duration{html_tr_mid}
           {totals.visits_mean}{html_tr_end}
-"""
-    )
-    print(
-        f"""
         {html_tr_start}Median visit duration{html_tr_mid}
           {totals.visits_median}{html_tr_end}
+        {html_tr_start}Mode(s) visit duration{html_tr_mid}
+          {"<br>".join(totals.visits_modes)}{html_tr_end}
         {html_tr_start}Most bikes parked
             (<a href='{most_parked_link}'>{totals.max_total_bikes_date}</a>)
           {html_tr_mid}{totals.max_total_bikes}{html_tr_end}

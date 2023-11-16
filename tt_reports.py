@@ -146,21 +146,15 @@ def simplified_taglist(tags: Union[list[TagID], str]) -> str:
         # ends is matching list of ending values.
         # singles is list of ints that are not part of sequences.
         nums_set = set(nums)
-        starts = [
-            x for x in nums_set if x - 1 not in nums_set and x + 1 in nums_set
-        ]
+        starts = [x for x in nums_set if x - 1 not in nums_set and x + 1 in nums_set]
         startset = set(starts)
         ends = [
             x
             for x in nums_set
-            if x - 1 in nums_set
-            and x + 1 not in nums_set
-            and x not in startset
+            if x - 1 in nums_set and x + 1 not in nums_set and x not in startset
         ]
         singles = [
-            x
-            for x in nums_set
-            if x - 1 not in nums_set and x + 1 not in nums_set
+            x for x in nums_set if x - 1 not in nums_set and x + 1 not in nums_set
         ]
         # Build start & end into dictionary, rejecting any sequences
         # shorter than an arbitrary shortest length
@@ -226,12 +220,9 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
 
     # Print summary of bikes in/out/here
     pr.iprint()
+    pr.iprint("Summary             Regular Oversize Total", style=cfg.SUBTITLE_STYLE)
     pr.iprint(
-        "Summary             Regular Oversize Total", style=cfg.SUBTITLE_STYLE
-    )
-    pr.iprint(
-        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}"
-        f"    {sum_in:4d}"
+        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}" f"    {sum_in:4d}"
     )
     pr.iprint(
         f"Bikes returned out:   {regular_out:4d}    {oversize_out:4d}"
@@ -245,7 +236,7 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
         ut.squawk(f"inout_summary() {num_bikes_on_hand=} != {sum_on_hand=}")
 
 
-def audit_report(day: TrackerDay, args: list[str],include_notes:bool = True) -> None:
+def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -> None:
     """Create & display audit report as at a particular time.
 
     On entry: as_of_when_args is a list that can optionally
@@ -401,16 +392,12 @@ def csv_dump(day: TrackerDay, args) -> None:
         blocks_outs[start] += ev.num_outs
     prev_here = 0
     for atime in sorted(blocks_heres.keys()):
-        blocks_heres[atime] = (
-            prev_here + blocks_ins[atime] - blocks_outs[atime]
-        )
+        blocks_heres[atime] = prev_here + blocks_ins[atime] - blocks_outs[atime]
         prev_here = blocks_heres[atime]
     pr.iprint()
     print("Time period,Incoming,Outgoing,At Valet")
     for atime in sorted(blocks_ins.keys()):
-        print(
-            f"{atime},{blocks_ins[atime]},{blocks_outs[atime]},{blocks_heres[atime]}"
-        )
+        print(f"{atime},{blocks_ins[atime]},{blocks_outs[atime]},{blocks_heres[atime]}")
     pr.iprint()
 
     # stay_start(hrs),duration(hrs),stay_end(hrs)
@@ -456,9 +443,7 @@ def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
         - set([x for x in day.bikes_out if day.bikes_out[x] <= as_of_when])
     )
     num_bikes_ttl = len(these_check_ins)
-    these_checkins_am = [
-        x for x in these_check_ins if these_check_ins[x] < "12:00"
-    ]
+    these_checkins_am = [x for x in these_check_ins if these_check_ins[x] < "12:00"]
     num_bikes_am = len(these_checkins_am)
     num_bikes_regular = len([x for x in these_check_ins if x in day.regular])
     num_bikes_oversize = len([x for x in these_check_ins if x in day.oversize])
@@ -485,8 +470,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         noun = "Stay"
         if not lower and not upper:
             pr.iprint(
-                f"PROGRAM ERROR: called one_range(lower='{lower}',"
-                f"upper='{upper}')",
+                f"PROGRAM ERROR: called one_range(lower='{lower}'," f"upper='{upper}')",
                 style=cfg.ERROR_STYLE,
             )
             return None
@@ -526,16 +510,11 @@ def visit_statistics_report(visits: dict) -> None:
         """Calculat and print the mode info."""
         # Find the mode value(s), with visit durations rounded
         # to nearest ROUND_TO_NEAREST time.
-        rounded = [
-            round(x / MODE_ROUND_TO_NEAREST) * MODE_ROUND_TO_NEAREST
-            for x in durations_list
-        ]
-        modes_str = ",".join(
-            [VTime(x).tidy for x in statistics.multimode(rounded)]
-        )
+        modes = ut.calculate_visit_modes(
+            durations_list, rounding_block_size=MODE_ROUND_TO_NEAREST)
+        modes_str = ",".join(modes)
         modes_str = (
-            f"{modes_str}  (times "
-            f"rounded to {MODE_ROUND_TO_NEAREST} minutes)"
+            f"{modes_str}  (times " f"rounded to {MODE_ROUND_TO_NEAREST} minutes)"
         )
         one_line("Mode stay:", modes_str)
 
@@ -578,9 +557,7 @@ def highwater_report(events: dict) -> None:
     """Make a highwater table as at as_of_when."""
 
     # High-water mark for bikes in valet at any one time
-    def one_line(
-        header: str, events: dict, atime: VTime, highlight_field: int
-    ) -> None:
+    def one_line(header: str, events: dict, atime: VTime, highlight_field: int) -> None:
         """Print one line for highwater_report."""
         values = [
             events[atime].num_here_regular,
@@ -610,20 +587,14 @@ def highwater_report(events: dict) -> None:
     max_total_time = None
     # Find the first time at which these took place
     for atime in sorted(events.keys()):
-        if (
-            events[atime].num_here_regular >= max_regular_num
-            and not max_regular_time
-        ):
+        if events[atime].num_here_regular >= max_regular_num and not max_regular_time:
             max_regular_time = atime
         if (
             events[atime].num_here_oversize >= max_oversize_num
             and not max_oversize_time
         ):
             max_oversize_time = atime
-        if (
-            events[atime].num_here_total >= max_total_num
-            and not max_total_time
-        ):
+        if events[atime].num_here_total >= max_total_num and not max_total_time:
             max_total_time = atime
     pr.iprint("                 Reglr OvrSz Total WhenAchieved")
     one_line("Most regular:", events, max_regular_time, 0)
@@ -781,9 +752,7 @@ def busy_report(
     pr.iprint()
     pr.iprint("Busiest times of day", style=cfg.SUBTITLE_STYLE)
     pr.iprint("Rank  Ins&Outs  When")
-    for rank, activity in enumerate(
-        sorted(busy_times.keys(), reverse=True), start=1
-    ):
+    for rank, activity in enumerate(sorted(busy_times.keys(), reverse=True), start=1):
         if rank > BUSIEST_RANKS:
             break
         one_line(rank, activity, busy_times[activity])
@@ -804,9 +773,7 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     stackish = 0
     neutralish = 0
     visit_compares = 0
-    total_possible_compares = int(
-        (len(visit_times) * (len(visit_times) - 1)) / 2
-    )
+    total_possible_compares = int((len(visit_times) * (len(visit_times) - 1)) / 2)
 
     for time_in, time_out in visit_times:
         earlier_visits = [
@@ -835,8 +802,7 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     queue_proportion = queueish / (queueish + stackish + neutralish)
     stack_proportion = stackish / (queueish + stackish + neutralish)
     pr.iprint(
-        f"The {total_possible_compares} compares of today's {len(visits)} "
-        "stays are:"
+        f"The {total_possible_compares} compares of today's {len(visits)} " "stays are:"
     )
     pr.iprint(
         f"{(queue_proportion):0.3f} queue-like (overlapping stays)",
@@ -853,7 +819,7 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     )
 
 
-def day_end_report(day: TrackerDay, args: list,include_notes:bool = True) -> None:
+def day_end_report(day: TrackerDay, args: list, include_notes: bool = True) -> None:
     """Report summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
@@ -877,9 +843,7 @@ def day_end_report(day: TrackerDay, args: list,include_notes:bool = True) -> Non
     )
     later_events_warning(day, as_of_when)
     if not day.latest_event(as_of_when):
-        pr.iprint(
-            f"No bikes checked in by {as_of_when}", style=cfg.SUBTITLE_STYLE
-        )
+        pr.iprint(f"No bikes checked in by {as_of_when}", style=cfg.SUBTITLE_STYLE)
         return
     # Bikes in, in various categories.
     bike_check_ins_report(day, as_of_when)
@@ -921,9 +885,7 @@ def busyness_report(day: TrackerDay, args: list) -> None:
     )
     later_events_warning(day, as_of_when)
     if not day.latest_event(as_of_when):
-        pr.iprint(
-            f"No bikes checked in by {as_of_when}", style=cfg.SUBTITLE_STYLE
-        )
+        pr.iprint(f"No bikes checked in by {as_of_when}", style=cfg.SUBTITLE_STYLE)
         return
     # Dict of time (events)
     events = Event.calc_events(day, as_of_when)
@@ -946,9 +908,7 @@ def dataform_report(day: TrackerDay, args: list[str]) -> None:
     """
     end_time = VTime((args + ["now"])[0])
     if not end_time:
-        pr.iprint(
-            f"Unrecognized time {end_time.original}", style=cfg.WARNING_STYLE
-        )
+        pr.iprint(f"Unrecognized time {end_time.original}", style=cfg.WARNING_STYLE)
         return
     # Special case: allow "24:00"
     if end_time != "24:00":
@@ -968,8 +928,7 @@ def dataform_report(day: TrackerDay, args: list[str]) -> None:
     if not all_blocks:
         earliest = day.earliest_event()
         pr.iprint(
-            f"No bikes checked in before {end_time} "
-            f"(earliest in at {earliest})",
+            f"No bikes checked in before {end_time} " f"(earliest in at {earliest})",
             style=cfg.HIGHLIGHT_STYLE,
         )
         return
