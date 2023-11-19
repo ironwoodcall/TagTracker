@@ -516,10 +516,10 @@ def visit_statistics_report(visits: dict) -> None:
         # Find the mode value(s), with visit durations rounded
         # to nearest ROUND_TO_NEAREST time.
         modes, mode_occurences = ut.calculate_visit_modes(
-            durations_list, rounding_block_size=MODE_ROUND_TO_NEAREST)
+            durations_list, category_width=MODE_ROUND_TO_NEAREST)
         modes_str = ",".join(modes)
         modes_str = (
-            f"{modes_str}  ({mode_occurences} occurences; times " f"rounded to {MODE_ROUND_TO_NEAREST} minutes)"
+            f"{modes_str}  ({mode_occurences} occurences; {MODE_ROUND_TO_NEAREST} minute categories)"
         )
         one_line("Mode stay:", modes_str)
 

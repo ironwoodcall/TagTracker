@@ -27,11 +27,12 @@ import sys
 import datetime
 import re
 import statistics
+import collections
 
 # This is for type hints instead of (eg) int|str
 from typing import Union
 
-#from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_time import VTime
 from tt_tag import TagID
 
@@ -159,6 +160,7 @@ def date_offset(start_date: str, offset: int) -> str:
         start_date, "%Y-%m-%d"
     ) + datetime.timedelta(offset)
     return offset_day.strftime("%Y-%m-%d")
+
 
 def dow_int(date_or_dayname: str) -> int:
     """Get ISO day of week from a date or weekday name."""
@@ -528,8 +530,26 @@ def line_splitter(
 
     return lines
 
+def calculate_visit_frequences(
+    durations_list: list, category_width: int = 30
+) -> collections.Counter:
+    durations = []
+    for d in durations_list:
+        if isinstance(d, int):
+            durations.append(d)
+        else:
+            durations.append(VTime(d).num)
+    durations = [d for d in durations if isinstance(d, int)]
+
+    # Make a new list of the durations, categorized
+    categorized = [(d // category_width) * category_width for d in durations]
+
+    # Count how many are in each category
+    return collections.Counter(categorized)
+
+
 def calculate_visit_modes(
-    durations_list: list, rounding_block_size: int = 30
+    durations_list: list, category_width: int = 30
 ) -> tuple[list[VTime], int]:
     """Calculate the mode(s) for the list of durations.
 
@@ -537,30 +557,20 @@ def calculate_visit_modes(
     as long as they all evaluate to a VTime.
 
     For purposes of determining mode, times within one
-    block of time of length rounding_block_size are
+    block of time of length category_width are
     considered identical.  Defaulit 30 (1/2 hour)
 
-    Returns a list of sorted VTimes().tidy of all the modes
-    and the number of times it/they occurred.
+    Returns a list of sorted VTimes().tidy of all the centre times of
+    the modes and the number of times it/they occurred.
     """
-    my_durations = []
-    for i, d in enumerate(durations_list):
-        if isinstance(d, int):
-            my_durations.append(d)
-        else:
-            my_durations.append(VTime(d).num)
-    my_durations = [d for d in my_durations if isinstance(d, int)]
-
-    rounded = [
-        round(x / rounding_block_size) * rounding_block_size for x in my_durations
-    ]
-    modes_numeric = statistics.multimode(rounded)
-    if not modes_numeric:
-        return 0,[]
-    modes_list = [VTime(x) for x in modes_numeric]
-    modes_list.sort()
-    modes_list = [x.tidy for x in modes_list]
-    occurences = len([x for x in rounded if x == modes_numeric[0]])
+    freq_list = calculate_visit_frequences(durations_list,category_width)
+    mosts = freq_list.most_common()
+    occurences = mosts[0][1]
+    modes_numeric = sorted(
+        [element for element, count in mosts if count == occurences]
+    )
+    modes_list = [f"{VTime(x+category_width/2).short}" for x in modes_numeric]
+    # modes_list = []
+    # modes_list = [x.tidy for x in modes_list]
 
     return modes_list, occurences
-
