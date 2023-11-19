@@ -350,7 +350,7 @@ def summary_table(
             """)
     if is_today and the_estimate is not None:
         print(f"""
-        <tr><td colspan=2>&nbsp;&nbsp;Estimated total bikes today:</td>
+        <tr><td colspan=2>&nbsp;&nbsp;Predicted total bikes today:</td>
             <td>{the_estimate}</td></tr>
         """)
     print(
