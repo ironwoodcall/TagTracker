@@ -568,7 +568,7 @@ def calculate_visit_modes(
     modes_numeric = sorted(
         [element for element, count in mosts if count == occurences]
     )
-    modes_list = [f"{VTime(x+category_width/2).short}" for x in modes_numeric]
+    modes_list = [f"{VTime(x+category_width/2).tidy}" for x in modes_numeric]
     # modes_list = []
     # modes_list = [x.tidy for x in modes_list]
 
