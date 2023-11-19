@@ -26,7 +26,6 @@ import os
 import sys
 import datetime
 import re
-import statistics
 import collections
 
 # This is for type hints instead of (eg) int|str
@@ -530,7 +529,7 @@ def line_splitter(
 
     return lines
 
-def calculate_visit_frequences(
+def calculate_visit_frequencies(
     durations_list: list, category_width: int = 30
 ) -> collections.Counter:
     durations = []
@@ -563,7 +562,7 @@ def calculate_visit_modes(
     Returns a list of sorted VTimes().tidy of all the centre times of
     the modes and the number of times it/they occurred.
     """
-    freq_list = calculate_visit_frequences(durations_list,category_width)
+    freq_list = calculate_visit_frequencies(durations_list,category_width)
     mosts = freq_list.most_common()
     occurences = mosts[0][1]
     modes_numeric = sorted(
