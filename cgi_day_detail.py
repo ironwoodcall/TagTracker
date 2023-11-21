@@ -334,10 +334,9 @@ def summary_table(
     if is_today:
         est = tt_estimator.Estimator()
         est.guess()
-        mores = [est.simple_model.min,est.simple_model.max,est.lr_model.further_bikes,est.rf_model.further_bikes]
-        if mores and est.closing_time > VTime("now"):
-            est_min = est.bikes_so_far + min(mores)
-            est_max = est.bikes_so_far + max(mores)
+        if est.state != tt_estimator.ERROR and est.closing_time > VTime("now"):
+            est_min = est.bikes_so_far + est.min
+            est_max = est.bikes_so_far + est.max
             the_estimate = str(est_min) if est_min == est_max else f"{est_min}-{est_max}"
 
     print("<table><style>table td {text-align:right}</style>")

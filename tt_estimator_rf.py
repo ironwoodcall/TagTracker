@@ -30,7 +30,7 @@ try:
     from sklearn.metrics import mean_absolute_error, mean_squared_error
 
     POSSIBLE = True
-except ModuleNotFoundError:
+except (ModuleNotFoundError,ImportError):
     POSSIBLE = False
 
 import tt_util as ut

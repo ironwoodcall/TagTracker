@@ -372,6 +372,10 @@ class Estimator:
         # This stays empty unless set to an error message.
         self.error = ""  # Error message
 
+        # Min and Max from all the models
+        self.min = None
+        self.max = None
+
         # These are inputs
         self.bikes_so_far = None
         self.dow = None
@@ -547,9 +551,15 @@ class Estimator:
         self.lr_model.calculate_model(list(zip(self.befores, self.afters)))
         self.lr_model.guess(self.bikes_so_far)
 
+        # min and max of the guesses so far
+        self.min = min(self.simple_model.min,self.lr_model.further_bikes)
+        self.max = max(self.simple_model.max,self.lr_model.further_bikes)
+
         if rf.POSSIBLE:
             self.rf_model.create_model([], self.befores, self.afters)
             self.rf_model.guess(self.bikes_so_far)
+            self.min = min(self.min,self.rf_model.further_bikes)
+            self.max = max(self.max,self.rf_model.further_bikes)
 
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
