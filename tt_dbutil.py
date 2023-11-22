@@ -121,9 +121,23 @@ def db_fetch(
 def db_latest(ttdb: sqlite3.Connection) -> str:
     """Return str describing latest db update date/time."""
 
-    day_latest = db_fetch(ttdb, "select max(batch) last from day;")[0].last
-    visit_latest = db_fetch(ttdb, "select max(batch) last from visit;")[0].last
-    return f"Last DB updates: DAY={day_latest} VISIT={visit_latest}"
+    latest_event = db_fetch(ttdb, """
+        SELECT DATE || 'T' || MAX(TIME_IN, TIME_OUT) AS latest
+        FROM VISIT
+        GROUP BY DATE
+        ORDER BY DATE DESC
+        LIMIT 1;
+        """)[0].latest
+    latest_load = db_fetch(ttdb,"""
+        SELECT MAX(BATCH) AS latest
+        FROM (
+            SELECT BATCH FROM VISIT
+            UNION
+            SELECT BATCH FROM DAY
+        );
+    """)[0].latest
+
+    return f"Latest DB load={latest_load}; Latest event: {latest_event}"
 
 
 def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
