@@ -142,7 +142,7 @@ def db_latest(ttdb: sqlite3.Connection) -> str:
     """,
     )[0].latest
 
-    return f"Latest DB load={latest_load}; Latest event: {latest_event}"
+    return f"Latest DB: load={latest_load}; event={latest_event}"
 
 
 def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
