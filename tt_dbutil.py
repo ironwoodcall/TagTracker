@@ -24,7 +24,7 @@ Copyright (C) 2023 Julias Hocking
 import sqlite3
 import sys
 import os
-from typing import Tuple, Iterable
+from typing import Iterable
 from tt_trackerday import TrackerDay
 from tt_tag import TagID
 from tt_time import VTime
@@ -110,9 +110,7 @@ def db_fetch(
     raw_rows = curs.execute(select_statement).fetchall()
     # Make sure we have a list of the target names for the columns(attributes)
     if not col_names:
-        col_names = [
-            flatten(description[0]) for description in curs.description
-        ]
+        col_names = [flatten(description[0]) for description in curs.description]
 
     rows = [DBRow(col_names, r) for r in raw_rows]
     return rows
@@ -121,18 +119,37 @@ def db_fetch(
 def db_latest(ttdb: sqlite3.Connection) -> str:
     """Return str describing latest db update date/time."""
 
-    day_latest = db_fetch(ttdb, "select max(batch) last from day;")[0].last
-    visit_latest = db_fetch(ttdb, "select max(batch) last from visit;")[0].last
-    return f"Last DB updates: DAY={day_latest} VISIT={visit_latest}"
+    latest_event = db_fetch(
+        ttdb,
+        """
+        SELECT DATE || 'T' || MAX(MAX(TIME_IN), MAX(TIME_OUT))
+            AS latest
+        FROM VISIT
+        GROUP BY DATE
+        ORDER BY DATE DESC
+        LIMIT 1;
+        """,
+    )[0].latest
+    latest_load = db_fetch(
+        ttdb,
+        """
+        SELECT MAX(BATCH) AS latest
+        FROM (
+            SELECT BATCH FROM VISIT
+            UNION
+            SELECT BATCH FROM DAY
+        );
+    """,
+    )[0].latest
+
+    return f"Latest DB: load={latest_load}; event={latest_event}"
 
 
 def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     """Create one day's TrackerDay from the database."""
     # Do we have info about the day?  Need its open/close times
     curs = ttdb.cursor()
-    rows = curs.execute(
-        "select time_open,time_closed from day limit 1"
-    ).fetchall()
+    rows = curs.execute("select time_open,time_closed from day limit 1").fetchall()
     if not rows:
         return None
     day = TrackerDay()
@@ -204,9 +221,7 @@ def db_commit(db: sqlite3.Connection):
     db.commit()
 
 
-def db_update(
-    db: sqlite3.Connection, update_sql: str, commit: bool = True
-) -> bool:
+def db_update(db: sqlite3.Connection, update_sql: str, commit: bool = True) -> bool:
     """Execute a SQL UPDATE statement.  T/F indicates success.
 
     (This could be any SQL statement, but the error checking and

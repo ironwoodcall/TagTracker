@@ -24,6 +24,7 @@ Copyright (C) 2023 Julias Hocking
 
 import sqlite3
 import copy
+from collections import defaultdict
 
 ##from tt_globals import *
 
@@ -88,7 +89,7 @@ def fetch_visit_data(ttdb: sqlite3.Connection, day_filter: str, in_or_out: str):
         "select "
         "    date,"
         f"    round(2*(julianday(time_{in_or_out})-julianday('00:15'))*24,0)/2 block, "
-        f"    count(time_{in_or_out}) bikes_{in_or_out} "
+        f"    count(time_{in_or_out}) num_bikes "
         "from visit "
         f"    {day_filter} "
         "group by date,block;"
@@ -130,35 +131,28 @@ def process_blocks_data(
     """Process data about timeblocks from visits table data.
 
     Changes the contents of tabledata and returns blocks_max."""
-    ins = {}
-    for visitrow in visitrows_in:
-        thisdate = visitrow.date
-        if not thisdate or not visitrow.block or visitrow.bikes_in is None:
-            continue
-        blocktime = VTime(visitrow.block * 60)
-        if thisdate not in ins:
-            ins[thisdate] = {}
-        ins[thisdate][blocktime] = visitrow.bikes_in
 
-    outs = {}
-    for visitrow in visitrows_out:
-        thisdate = visitrow.date
-        if not thisdate or not visitrow.block or visitrow.bikes_out is None:
-            continue
-        blocktime = VTime(visitrow.block * 60)
-        if thisdate not in outs:
-            outs[thisdate] = {}
-        outs[thisdate][blocktime] = visitrow.bikes_out
+    def process_visitrows(visitrows):
+        result_dict = defaultdict(dict)
+        for visitrow in visitrows:
+            this_date = visitrow.date
+            if not this_date or not visitrow.block or visitrow.num_bikes is None:
+                continue
+            block_time = VTime(visitrow.block * 60)
+            result_dict[this_date][block_time] = visitrow.num_bikes
+        return result_dict
+
+    ins = process_visitrows(visitrows_in)
+    outs = process_visitrows(visitrows_out)
 
     for date in sorted(ins.keys()):
         full_today = 0
         so_far_today = 0
+        date_outs = outs.get(date, {})
         for block_key in sorted(tabledata[date].blocks.keys()):
             thisblock: _OneBlock = tabledata[date].blocks[block_key]
-            thisblock.num_in = ins[date][block_key] if block_key in ins[date] else 0
-            thisblock.num_out = (
-                outs[date][block_key] if date in outs and block_key in outs[date] else 0
-            )
+            thisblock.num_in = ins[date].get(block_key, 0)
+            thisblock.num_out = date_outs.get(block_key, 0)
             so_far_today += thisblock.num_in
             thisblock.so_far = so_far_today
             full_today += thisblock.num_in - thisblock.num_out
@@ -166,34 +160,13 @@ def process_blocks_data(
 
     # Find overall maximum values
     block_maxes = _OneBlock()
-    block_maxes.num_in = max(
-        [
-            b.num_in
-            for t_instance in tabledata.values()
-            for b in t_instance.blocks.values()
-        ]
-    )
-    block_maxes.num_out = max(
-        [
-            b.num_out
-            for t_instance in tabledata.values()
-            for b in t_instance.blocks.values()
-        ]
-    )
-    block_maxes.full = max(
-        [
-            b.full
-            for t_instance in tabledata.values()
-            for b in t_instance.blocks.values()
-        ]
-    )
-    block_maxes.so_far = max(
-        [
-            b.so_far
-            for t_instance in tabledata.values()
-            for b in t_instance.blocks.values()
-        ]
-    )
+    all_blocks = [b for t in tabledata.values() for b in t.blocks.values()]
+
+    block_maxes.num_in = max(b.num_in for b in all_blocks)
+    block_maxes.num_out = max(b.num_out for b in all_blocks)
+    block_maxes.full = max(b.full for b in all_blocks)
+    block_maxes.so_far = max(b.so_far for b in all_blocks)
+
 
     return tabledata, block_maxes
 
@@ -207,11 +180,9 @@ def print_the_html(
     pages_back: int,
     page_title_prefix: str = "",
 ):
-    def print_gap():
-        """Print a thicker vertical cell border to mark off sets of blocks."""
-        print(
-            "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
-        )
+    def column_gap() -> str:
+        """Make a thicker vertical cell border to mark off sets of blocks."""
+        return "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
 
     print(f"<h1>{page_title_prefix}Daily activity detail</h1>")
     print(f"{cc.back_button(pages_back)}<br><br>")
@@ -274,15 +245,14 @@ def print_the_html(
         fullest_block_this_day = tt_block.block_start(thisday.day_max_bikes_time)
 
         # Print the blocks for this day.
+        html = ""
         for num, block_key in enumerate(sorted(thisday.blocks.keys())):
             if num % 6 == 0:
-                print_gap()
+                html += column_gap()
             thisblock: _OneBlock = thisday.blocks[block_key]
             if date == date_today and block_key >= time_now:
                 # Today, later than now
-                cell_color = (
-                    f"color:{XY_BOTTOM_COLOR};background-color:{XY_BOTTOM_COLOR};"
-                )
+                cell_color = f"color:{XY_BOTTOM_COLOR};background:{XY_BOTTOM_COLOR};"
                 cell_title = "Future unknown"
             elif thisblock.num_in == 0 and thisblock.num_out == 0:
                 # No activity this block
@@ -309,19 +279,20 @@ def print_the_html(
             else:
                 marker = NORMAL_MARKER
 
-            print(
+            html += (
                 f"<td title='{cell_title}' style='{cell_color};"
                 # "text-align: center; width: 15px;padding: 0px 3px;"
                 "'>"
                 f"{marker}</td>"  ##</a></td>"
             )
-        print_gap()
+        html += column_gap()
 
         s = day_total_bikes_colors.css_bg_fg(thisday.day_total_bikes)
-        print(f"<td style='{s};width:auto;'>{thisday.day_total_bikes}</td>")
+        html += f"<td style='{s};width:auto;'>{thisday.day_total_bikes}</td>"
         s = day_full_colors.css_bg_fg(thisday.day_max_bikes)
-        print(f"<td style='{s};width:auto;'>{thisday.day_max_bikes}</td>")
-        print("</tr>\n")
+        html += f"<td style='{s};width:auto;'>{thisday.day_max_bikes}</td>"
+        html += "</tr>\n"
+        print(html)
 
     print("</table>")
 

@@ -219,7 +219,7 @@ def totals_table(totals: cc.DaysSummary):
         f"""
         <table>
           <tr><th colspan=2>Summary</th></tr>
-        {html_tr_start}Total bikes parked{html_tr_mid}
+        {html_tr_start}Total bikes parked (visits){html_tr_mid}
           {totals.total_total_bikes:,}{html_tr_end}
         {html_tr_start}&nbsp;&nbsp;&nbsp;Regular bikes parked{html_tr_mid}
           {totals.total_regular_bikes:,}{html_tr_end}
@@ -235,14 +235,13 @@ def totals_table(totals: cc.DaysSummary):
           {totals.total_valet_hours:,.1f}{html_tr_end}
         {html_tr_start}Total hours of visits{html_tr_mid}
           {(totals.total_visit_hours):,.1f}{html_tr_end}
-        {html_tr_start}Mean visit duration{html_tr_mid}
+        {html_tr_start}Mean visit length{html_tr_mid}
           {totals.visits_mean}{html_tr_end}
-"""
-    )
-    print(
-        f"""
-        {html_tr_start}Median visit duration{html_tr_mid}
+        {html_tr_start}Median visit length{html_tr_mid}
           {totals.visits_median}{html_tr_end}
+        {html_tr_start}{ut.plural(len(totals.visits_modes),'Mode')} visit length
+                ({totals.visits_modes_occurences} occurences){html_tr_mid}
+          {"<br>".join(totals.visits_modes)}{html_tr_end}
         {html_tr_start}Most bikes parked
             (<a href='{most_parked_link}'>{totals.max_total_bikes_date}</a>)
           {html_tr_mid}{totals.max_total_bikes}{html_tr_end}
@@ -261,6 +260,7 @@ def season_summary(ttdb: sqlite3.Connection):
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS,pages_back=1)
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST,pages_back=1)
+    today_link = cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today")
 
     print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br>")
     totals_table(days_totals)
@@ -269,13 +269,16 @@ def season_summary(ttdb: sqlite3.Connection):
         <br>
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Daily Detail</b></button>
+          <b>Details</b></button>
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Daily Activity Detail</b></button>
+          <b>Activity Details</b></button>
+        <button onclick="window.location.href='{today_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Today Detail</b></button>
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Tags Report</b></button>
+          <b>Tags</b></button>
         <br><br>
           """
     )
@@ -291,7 +294,7 @@ def season_detail(
     all_days = cc.get_days_data(ttdb)
     cc.incorporate_blocks_data(ttdb, all_days)
     days_totals = cc.get_season_summary_data(ttdb, all_days)
-    blocks_totals = cc.get_blocks_summary(all_days)
+    ##blocks_totals = cc.get_blocks_summary(all_days)
 
     # Sort the all_days ldataccording to the sort parameter
     sort_by = sort_by if sort_by else cc.SORT_DATE
@@ -363,15 +366,6 @@ def season_detail(
 
     print(f"<h1>{cc.titleize(': Detail')}</h1>")
     print(f"{cc.back_button(pages_back)}<br>")
-    #summary_link = cc.selfref(what=cc.WHAT_SUMMARY)
-    # print(
-    #    f"""
-    #      <button onclick="window.location.href='{summary_link}'"
-    #            style="padding: 10px; display: inline-block;">
-    #          <b>Summary</b></button>
-    #      <br><br>
-    #      """
-    # )
 
     ##totals_table(days_totals)
     # FIXME - call the legend tables here (??)
@@ -470,7 +464,7 @@ def season_detail(
             f"<td>{row.valet_open}</td><td>{row.valet_close}</td>"
             f"<td>{row.regular_bikes}</td>"
             f"<td>{row.oversize_bikes}</td>"
-            # f"<td style='background-color: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
+            # f"<td style='background: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
             f"<td style='{max_parked_colour.css_bg_fg(row.total_bikes)}'>{row.total_bikes}</td>"
             f"<td {leftovers_hover} style='{max_left_colour.css_bg_fg(row.leftovers)}'>{leftovers_str}</td>"
             f"<td style='{max_full_colour.css_bg_fg(row.max_bikes)}'>{row.max_bikes}</td>"

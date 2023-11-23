@@ -34,6 +34,7 @@ from tt_time import VTime
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
+import tt_estimator
 
 
 HIGHLIGHT_NONE = 0
@@ -44,24 +45,57 @@ BAR_MARKERS = {"R": chr(0x25CF), "O": chr(0x25A0)}
 BAR_COL_WIDTH = 80
 
 
-def _nav_buttons(ttdb,thisday,pages_back) -> str:
+def _nav_buttons(ttdb, thisday, pages_back) -> str:
     """Make nav buttons for the one-day report."""
 
     def prev_next_button(label, offset) -> str:
-        target = ut.date_offset(thisday,offset)
+        target = ut.date_offset(thisday, offset)
         if target < earliest_date or target > latest_date:
-            return f""" <button type="button" disabled style="opacity: 0.5; cursor: not-allowed;">{label}</button>"""
-        link = cc.selfref(what=cc.WHAT_ONE_DAY,qdate=ut.date_offset(thisday,offset),pages_back=pages_back+1)
-        return f""" <button type="button" onclick="window.location.href='{link}';">{label}</button>"""
+            return f"""
+                <button type="button" disabled
+                    style="opacity: 0.5; cursor: not-allowed;">
+                {label}</button>
+                """
+        link = cc.selfref(
+            what=cc.WHAT_ONE_DAY,
+            qdate=ut.date_offset(thisday, offset),
+            pages_back=pages_back + 1,
+        )
+        return f"""
+            <button type="button"
+            onclick="window.location.href='{link}';">{label}</button>
+            """
 
-    date_range = db.db_fetch(ttdb,"select min(date) earliest,max(date) latest from day")[0]
+    def today_button(label) -> str:
+        target = ut.date_str("today")
+        if target == thisday:
+            return f"""
+                <button type="button" disabled
+                    style="opacity: 0.5; cursor: not-allowed;">
+                {label}</button>
+                """
+        link = cc.selfref(
+            what=cc.WHAT_ONE_DAY,
+            qdate=target,
+            pages_back=pages_back + 1,
+        )
+        return f"""
+            <button type="button"
+            onclick="window.location.href='{link}';">{label}</button>
+            """
+
+    date_range = db.db_fetch(
+        ttdb, "select min(date) earliest,max(date) latest from day"
+    )[0]
     earliest_date = date_range.earliest
     latest_date = date_range.latest
 
-    buttons = f"{cc.back_button(pages_back)}"
-    buttons += prev_next_button("Previous day",-1)
-    buttons += prev_next_button("Next day",1)
+    buttons = f"{cc.back_button(pages_back)}&nbsp;&nbsp;&nbsp;&nbsp;"
+    buttons += prev_next_button("Previous day", -1)
+    buttons += prev_next_button("Next day", 1)
+    buttons += today_button("Today")
     return buttons
+
 
 def one_day_tags_report(
     ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = "", pages_back: int = 1
@@ -70,6 +104,12 @@ def one_day_tags_report(
     if not thisday:
         cc.bad_date(whatday)
     is_today = bool(thisday == ut.date_str("today"))
+    if is_today:
+        day_str = "Today"
+    elif thisday == ut.date_str("yesterday"):
+        day_str = "Yesterday"
+    else:
+        day_str = ut.date_str(thisday, dow_str_len=10)
 
     # In the code below, 'next_*' are empty placeholders
     sql = f"""
@@ -81,9 +121,9 @@ def one_day_tags_report(
         order by tag asc
     """
     rows = db.db_fetch(ttdb, sql)
-    if not rows:
-        print(f"<pre>No activity recorded for {thisday}")
-        sys.exit()
+    # if not rows:
+    #     print(f"<pre>No activity recorded for {thisday}")
+    #     sys.exit()
 
     # Process the rows
     durations = [VTime(v.duration).num for v in rows]
@@ -96,7 +136,7 @@ def one_day_tags_report(
             rows[i - 1].next_time_in = v.time_in
             rows[i - 1].next_tag = v.tag
 
-    leftovers = len([t.time_out for t in rows if t.time_out <= ""])
+    # leftovers = len([t.time_out for t in rows if t.time_out <= ""])
     suspicious = len(
         [
             t.next_time_in
@@ -104,14 +144,6 @@ def one_day_tags_report(
             if t.next_time_in < t.time_in and t.time_out <= ""
         ]
     )
-    # Earliest and latest event are for the bar graph
-    earliest_event = VTime(min([r.time_in for r in rows if r.time_in > ""])).num
-    max_visit = VTime(
-        max([VTime(r.time_in).num + VTime(r.duration).num for r in rows])
-        - earliest_event
-    ).num
-    bar_scaling_factor = BAR_COL_WIDTH / (max_visit)
-    bar_offset = round(earliest_event * bar_scaling_factor)
 
     daylight = dc.Dimension()
     daylight.add_config(VTime("07:30").num, "LightSkyBlue")
@@ -129,70 +161,32 @@ def one_day_tags_report(
     duration_colors.add_config(0, "white")
     duration_colors.add_config(VTime("1200").num, "teal")
 
-    # Get overall stats for the day
-    day_data: cc.SingleDay = cc.get_days_data(ttdb, thisday, thisday)[0]
-    min_stay = VTime(min(durations)).tidy
-    max_stay = VTime(max(durations)).tidy
-    mean_stay = VTime(mean(durations)).tidy
-    median_stay = VTime(median(durations)).tidy
-
-    de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=thisday)
-    df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=thisday)
-
-    h1 = cc.titleize(f": {thisday} ({ut.date_str(thisday,dow_str_len=10)})")
+    h1 = cc.titleize(f"<br>{thisday} ({day_str}) Detail")
     html = f"<h1>{h1}</h1>"
     print(html)
 
-    print(_nav_buttons(ttdb,thisday,pages_back))
+    print(_nav_buttons(ttdb, thisday, pages_back))
     print("<br><br>")
 
-    print("<table><style>table td {text-align:right}</style>")
-    print(
-        f"""
-        <tr><td colspan=3>Valet hours:{day_data.valet_open.tidy} - {day_data.valet_close.tidy}</td></tr>
-        <tr><td colspan=2>Total bikes parked:</td><td>{day_data.total_bikes}</td></tr>
-        <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td><td>{day_data.max_bikes}</td></tr>
-        <tr><td colspan=2>529 registrations:</td><td>{day_data.registrations}</td></tr>
-        <tr><td colspan=2>High temperature:</td><td>{day_data.temperature}</td></tr>
-        <tr><td colspan=2>Precipitation:</td><td>{day_data.precip}</td></tr>
-        <tr><td colspan=2>Shortest stay:</td><td>{min_stay}</td></tr>
-        <tr><td colspan=2>Longest stay:</td><td>{max_stay}</td></tr>
-        <tr><td colspan=2>Average stay:</td><td>{mean_stay}</td></tr>
-        <tr><td colspan=2>Median stay:</td><td>{median_stay}</td></tr>
-        <tr><td colspan=2>Bikes left at valet (recorded in TagTracker):</td>
-        <td  width=40 style='{highlights.css_bg_fg(int(leftovers>0)*HIGHLIGHT_WARN)}'>{leftovers}</td></tr>
-    """
-    )
-    if not is_today:
-        print(
-            f"""
-            <tr><td colspan=2>Bikes left at valet (reported in day end form):</td><td>{day_data.leftovers_reported}</td></tr>
-            <tr><td colspan=2>Bikes possibly never checked in:</td>
-            <td style='text-align:right;
-            {highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>
-            {suspicious}</td></tr>
-        """
-        )
-    print(
-        f"""
-        <tr><td colspan=3><a href='{de_link}'>Data entry reports</a></td></tr>
-        <tr><td colspan=3><a href='{df_link}'>Reconstructed datafile</a></td></tr>
-        """
-    )
-    print("</table><p></p>")
-    print("<table>")
-    print("<tr><td>Colours for time of day:</td>")
-    print(f"<td style={daylight.css_bg_fg(daylight.min)}>Early</td>")
-    print(f"<td style={daylight.css_bg_fg((daylight.min+daylight.max)/2)}>Mid-day</td>")
-    print(f"<td style={daylight.css_bg_fg(daylight.max)}>Later</td>")
-    print("<tr><td>Colours for length of stay:</td>")
-    print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
-    print(
-        f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>Medium</td>"
-    )
-    print(f"<td style={duration_colors.css_bg_fg(duration_colors.max)}>Long</td>")
-    print("</table><p></p>")
+    if not rows:
+        print(f"No information in database for {thisday}")
+        return
 
+    # Get overall stats for the day
+    day_data: cc.SingleDay = cc.get_days_data(ttdb, thisday, thisday)[0]
+    day_data.min_stay = VTime(min(durations)).tidy
+    day_data.max_stay = VTime(max(durations)).tidy
+    day_data.mean_stay = VTime(mean(durations)).tidy
+    day_data.median_stay = VTime(median(durations)).tidy
+    day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(durations,30)
+
+    summary_table(day_data, highlights, is_today, suspicious)
+
+    legend_table(daylight, duration_colors)
+
+    visits_table(thisday,is_today, rows,highlights,daylight,duration_colors,sort_by, pages_back,)
+
+def visits_table(thisday,is_today, rows,highlights,daylight,duration_colors,sort_by, pages_back,):
     # Sort the rows list according to the sort parameter
     sort_by = sort_by if sort_by else cc.SORT_TIME_IN
     if sort_by == cc.SORT_TAG:
@@ -246,6 +240,17 @@ def one_day_tags_report(
         pages_back=pages_back + 1,
     )
 
+    # Earliest and latest event are for the bar graph
+    earliest_event = VTime(min([r.time_in for r in rows if r.time_in > ""])).num
+    max_visit = VTime(
+        max([VTime(r.time_in).num + VTime(r.duration).num for r in rows])
+        - earliest_event
+    ).num
+    bar_scaling_factor = BAR_COL_WIDTH / (max_visit)
+    bar_offset = round(earliest_event * bar_scaling_factor)
+
+
+
     html = "<table style=text-align:center>"
     html += (
         "<tr><th colspan=5 style='text-align:center'>"
@@ -255,7 +260,11 @@ def one_day_tags_report(
     html += f"<th><a href='{link_sort_time}'>Time in</a></th>"
     html += f"<th><a href='{link_sort_time_out}'>Time out</a></th>"
     html += f"<th><a href='{link_sort_duration}'>Length<br>of stay</a></th>"
-    html += f"<th>Bar graph of this visit<br>{BAR_MARKERS['R']} = Regular bike; {BAR_MARKERS['O']} = Oversize bike</th></tr>"
+    html += (
+        "<th>Bar graph of this visit<br>"
+        f"{BAR_MARKERS['R']} = Regular bike; "
+        f"{BAR_MARKERS['O']} = Oversize bike</th></tr>"
+    )
     print(html)
 
     for i, v in enumerate(rows):
@@ -296,11 +305,10 @@ def one_day_tags_report(
         bar_itself_len = round((duration.num * bar_scaling_factor))
         bar_itself_len = bar_itself_len if bar_itself_len else 1
         bar_itself = bar_itself_len * bar_marker
-        c = (
-            "background-color:auto" if time_out else "background-color:khaki"
-        )  # "rgb(255, 230, 0)"
+        c = "background:auto" if time_out else "background:khaki"  # "rgb(255, 230, 0)"
         print(
-            f"<td style='text-align:left;font-family: monospace;color:purple;{c}'>{bar_before}{bar_itself}</td>"
+            f"<td style='text-align:left;font-family: monospace;color:purple;{c}'>"
+            f"{bar_before}{bar_itself}</td>"
         )
         print("</tr>")
     html = ""
@@ -312,3 +320,100 @@ def one_day_tags_report(
     )
     html += "</table></body></html>"
     print(html)
+
+
+def summary_table(
+    day_data: cc.SingleDay, highlights: dc.Dimension, is_today: bool, suspicious: int
+):
+    def fmt_none(obj) -> object:
+        if obj is None:
+            return ""
+        return obj
+
+    the_estimate = None
+    if is_today:
+        est = tt_estimator.Estimator()
+        est.guess()
+        if est.state != tt_estimator.ERROR and est.closing_time > VTime("now"):
+            est_min = est.bikes_so_far + est.min
+            est_max = est.bikes_so_far + est.max
+            the_estimate = str(est_min) if est_min == est_max else f"{est_min}-{est_max}"
+
+    print("<table><style>table td {text-align:right}</style>")
+    print(
+        f"""
+        <tr><td colspan=3>Valet hours:
+            {day_data.valet_open.tidy} - {day_data.valet_close.tidy}</td></tr>
+        <tr><td colspan=2>Total bikes parked (visits):</td>
+            <td>{day_data.total_bikes}</td></tr>
+            """)
+    if is_today and the_estimate is not None:
+        print(f"""
+        <tr><td colspan=2>&nbsp;&nbsp;Predicted total bikes today:</td>
+            <td>{the_estimate}</td></tr>
+        """)
+    print(
+        f"""
+        <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td>
+            <td>{day_data.max_bikes}</td></tr>
+        <tr><td colspan=2>Bikes left at valet (from TagTracker):</td>
+            <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers_calculated>0)*HIGHLIGHT_WARN)}'>{day_data.leftovers_calculated}</td></tr>
+            """)
+
+    if not is_today:
+        print(
+            f"""
+            <tr><td colspan=2>Bikes left at valet (from day-end form):</td>
+            <td>{day_data.leftovers_reported}</td></tr>
+            <tr><td colspan=2>Shortest visit:</td>
+                <td>{day_data.min_stay}</td></tr>
+            <tr><td colspan=2>Longest visit:</td>
+                <td>{day_data.max_stay}</td></tr>
+            <tr><td colspan=2>Mean visit length:</td>
+                <td>{day_data.mean_stay}</td></tr>
+            <tr><td colspan=2>Median visit length:</td>
+                <td>{day_data.median_stay}</td></tr>
+            <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')} visit length ({day_data.modes_occurences} occurences):</td>
+                <td>{'<br>'.join(day_data.modes_stay)}</td></tr>
+            <tr><td colspan=2>529 registrations:</td>
+            <td>{fmt_none(day_data.registrations)}</td></tr>
+            <tr><td colspan=2>High temperature:</td>
+                <td>{fmt_none(day_data.temperature)}</td></tr>
+            <tr><td colspan=2>Precipitation:</td>
+                <td>{fmt_none(day_data.precip)}</td></tr>
+    """
+    )
+    if not is_today and suspicious:
+        print(
+            f"""
+            <tr><td colspan=2>Bikes possibly never checked in:</td>
+            <td style='text-align:right;
+                {highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>
+                {suspicious}</td></tr>
+        """
+        )
+    de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=day_data.date)
+    df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=day_data.date)
+
+    print(
+        f"""
+        <tr><td colspan=3><a href='{de_link}'>Data entry reports</a></td></tr>
+        <tr><td colspan=3><a href='{df_link}'>Reconstructed datafile</a></td></tr>
+        """
+    )
+    print("</table><p></p>")
+
+
+def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):
+    print("<table>")
+    print("<tr><td>Colours for time of day:</td>")
+    print(f"<td style={daylight.css_bg_fg(daylight.min)}>Early</td>")
+    print(f"<td style={daylight.css_bg_fg((daylight.min+daylight.max)/2)}>Mid-day</td>")
+    print(f"<td style={daylight.css_bg_fg(daylight.max)}>Later</td>")
+    print("<tr><td>Colours for length of stay:</td>")
+    print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
+    print(
+        f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>Medium</td>"
+    )
+    print(f"<td style={duration_colors.css_bg_fg(duration_colors.max)}>Long</td>")
+    print("</table><p></p>")
