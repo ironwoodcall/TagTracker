@@ -1,5 +1,8 @@
 TagTracker by Julias Hocking
 
+1.1.0:
+~ many changes, mostly in web reporting.
+
 1.0.0:
 + production version with updated licensing information
 
