@@ -54,7 +54,7 @@ def leftovers_report(ttdb: sqlite3.Connection):
           back end server.
           <li>Historically, the pre-TagTracker data is of notoriously low quality.<p></p>
 """)
-    print("<table style=text-align:center>")
+    print("<table style=text-align:center class='general_table'>")
     print("<tr><th colspan=3 style='text-align:center'>Leftover bike mismatches</th></tr>")
     print("<tr><th>Date</th><th>As recorded<br>in TagTracker</th><th>As reported on<br>day-end form</th></tr>")
 

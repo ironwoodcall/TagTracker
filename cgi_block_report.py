@@ -214,7 +214,7 @@ def print_the_html(
     print("</p></p>")
 
     # Main table. Column headings
-    print("<table>")
+    print("<table class=general_table>")
     print(
         "<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>"
     )

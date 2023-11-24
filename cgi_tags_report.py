@@ -87,7 +87,7 @@ def tags_report(ttdb: sqlite3.Connection):
     print(f"{cc.back_button(1)}<br><br>")
 
     print(f"""
-          <table><style>table td {{text-align:left;}}</style><tr><th colspan=2>Legend</th></tr>
+          <table class='general_table'><style>table td {{text-align:left;}}</style><tr><th colspan=2>Legend</th></tr>
           <tr>
           <td style='{STYLE_EVER_LOST}'>Tag lost at least once</td>
           <td style='{STYLE_GOOD}'>Tag used but never lost</td>
@@ -102,7 +102,7 @@ def tags_report(ttdb: sqlite3.Connection):
           """
           )
 
-    print("<table>")
+    print("<table class=general_table>")
     print(f"<tr><th colspan={max_tag+1}>Every tag ever used</th></tr>")
     for pre in sorted(prefixes.keys()):
         print("<tr>")

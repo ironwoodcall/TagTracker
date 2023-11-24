@@ -237,32 +237,32 @@ def style() -> str:
                 font-family: sans-serif;
             }
 
-            table {
+            .general_table {
                 border-collapse: collapse;
                 border: 2px solid rgb(200, 200, 200);
                 letter-spacing: 1px;
                 font-size: 0.8rem;
             }
 
-            td, th {
+            .general_table td, .general_table th {
                 border: 1px solid rgb(190, 190, 190);
                 padding: 4px 6px;
                 text-align: center; /* Center-align all td and th by default */
             }
 
-            th {
+            .general_table th {
                 background: rgb(235, 235, 235);
             }
 
-            td:first-child {
+            .general_table td:first-child {
                 text-align: left; /* Left-align the first column in each row */
             }
 
-            tr:nth-child(even) td {
+            .general_table tr:nth-child(even) td {
                 background: rgb(250, 250, 250);
             }
 
-            tr:nth-child(odd) td {
+            .general_table tr:nth-child(odd) td {
                 background: rgb(245, 245, 245);
             }
 

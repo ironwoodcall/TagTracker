@@ -27,6 +27,9 @@ import sys
 import datetime
 import re
 import collections
+import random
+import string
+
 
 # This is for type hints instead of (eg) int|str
 from typing import Union
@@ -573,3 +576,8 @@ def calculate_visit_modes(
     # modes_list = [x.tidy for x in modes_list]
 
     return modes_list, occurences
+
+def random_string(length):
+    """Create a random alphaetic string of a given length."""
+    return "".join(random.choice(string.ascii_letters) for _ in range(length))
+

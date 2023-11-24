@@ -70,7 +70,7 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> Non
     if not rows:
         print(f"No record that {this_tag.upper()} ever used<br />")
     else:
-        print("<table>")
+        print("<table class=general_table>")
         print("<style>td {text-align: right;}</style>")
         print("<tr><th>Date</th><th>BikeIn</th><th>BikeOut</th></tr>")
         for row in rows:

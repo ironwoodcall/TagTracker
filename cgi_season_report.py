@@ -217,7 +217,7 @@ def totals_table(totals: cc.DaysSummary):
     print("")
     print(
         f"""
-        <table>
+        <table class='general_table'>
           <tr><th colspan=2>Summary</th></tr>
         {html_tr_start}Total bikes parked (visits){html_tr_mid}
           {totals.total_total_bikes:,}{html_tr_end}
@@ -415,7 +415,7 @@ def season_detail(
     )
     mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
 
-    print("<table>")
+    print("<table class='general_table'>")
     print(f"<tr><th colspan=13><br>{sort_msg}<br>&nbsp;</th></tr>")
     print("<style>td {text-align: right;}</style>")
     print(
