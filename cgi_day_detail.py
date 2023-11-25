@@ -193,7 +193,7 @@ def one_day_tags_report(
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##print("</div><div>")
-    mini_freq_table(durations)
+    mini_freq_tables(ttdb, thisday)
     print("</div>")
     print("</div>")
     print("<br>")
@@ -211,33 +211,37 @@ def one_day_tags_report(
     )
 
 
-
-def mini_freq_table(durations:list):
-    m1200 = 12*60
-    freq_dist_int = ut.calculate_visit_frequencies(durations,30)
-    for t in range(0,m1200+1,30):
-        if t not in freq_dist_int:
-            freq_dist_int[t] = 0
-    for t in [k for k in freq_dist_int if k > m1200]:
-        freq_dist_int[m1200] += freq_dist_int[t]
-    freq_dist = {
-        str(VTime(key).tidy): value
-        for key, value in freq_dist_int.items() if key <= m1200
-    }
-    freq_dist['12:00+'] = freq_dist['12:00']
-    freq_dist.pop('12:00')
-
+def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     print(
-        cgi_histogram.html_histogram(
-            dict(freq_dist),
-            num_data_rows=10,
-            bottom_caption="Stay Length Frequency",
-            table_width=80,
-            show_labels=False,
-            bar_color="royalblue",
-            border_color="white",
+        cgi_histogram.times_hist_table(
+            ttdb,
+            "duration",
+            today,
+            today,
+            mini=False,
+            color="teal",
+            title="Stay length",
         )
     )
+    print("<br>")
+    print(
+        cgi_histogram.times_hist_table(
+            ttdb, "time_in", today, today, mini=False, color="tomato", title="When in"
+        )
+    )
+    print("<br>")
+    print(
+        cgi_histogram.times_hist_table(
+            ttdb,
+            "time_out",
+            today,
+            today,
+            mini=False,
+            color="royalblue",
+            title="When out",
+        )
+    )
+    print("<br>")
 
 
 def visits_table(
@@ -402,7 +406,9 @@ def summary_table(
                 str(est_min) if est_min == est_max else f"{est_min}-{est_max}"
             )
 
-    print("<table class=general_table><style>.general_table td {text-align:right}</style>")
+    print(
+        "<table class=general_table><style>.general_table td {text-align:right}</style>"
+    )
     print(
         f"""
         <tr><td colspan=3>Valet hours:

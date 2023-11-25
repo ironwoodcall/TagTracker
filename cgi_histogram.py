@@ -1,6 +1,13 @@
 #!/usr/bin/python3
 
-from tt_util import random_string
+import sqlite3
+# import collections
+
+import tt_util as ut
+
+# from tt_time import VTime
+import tt_dbutil as db
+
 
 def html_histogram(
     data: dict,
@@ -9,8 +16,8 @@ def html_histogram(
     title: str = "",
     bottom_caption: str = "",
     table_width: int = 40,
-    show_labels: bool = True,
     border_color: str = "black",
+    mini:bool=False
 ) -> str:
     """Create an html histogram from a dictionary.
 
@@ -34,12 +41,14 @@ def html_histogram(
         return "Invalid input."
 
     # Each style sheet must be unique wrt its classes in case mult on one page
-    prefix = random_string(4)
+    prefix = ut.random_string(4)
 
     # Normalize data values to fit within the num of rows
     max_value = max(data.values(), default=0)
+
     normalized_data = {
-        key: int(value / max_value * num_data_rows) for key, value in data.items()
+        key: 0 if not max_value else int(value / max_value * num_data_rows)
+        for key, value in data.items()
     }
 
     # Sort data keys for consistent order
@@ -103,29 +112,29 @@ def html_histogram(
 
         for key in sorted_keys:
             if i == num_data_rows:
-                if show_labels:
+                if not mini:
                     # Category label at the bottom (rotated 90 degrees)
                     html_table += f"<td class='{prefix}-category-label'>{key}</td>"
             elif i >= num_data_rows - normalized_data[key]:
                 # Blue-colored cells for data
                 if i == num_data_rows - normalized_data[key]:
                     # Print the value in the highest cell with a {bar_color} background
-                    val = data[key] if show_labels else ""
+                    val = "" if mini else data[key]
                     html_table += f"""<td class='{prefix}-bar-cell
                         {prefix}-bar-top-cell'>{val}</td>"""
                 else:
                     # Other {bar_color} cells
-                    html_table += f"<td class='{prefix}-bar-cell'>&nbsp;</td>"
+                    html_table += f"<td class='{prefix}-bar-cell'></td>"
             else:
                 if i == num_data_rows - 1:
                     # Bottom-most cell for a column with no colored blocks
-                    val = data[key] if show_labels else ""
+                    val = "" if mini else data[key]
                     html_table += (
                         f"<td class='{prefix}-zero-bar-cell'><b>{val}</b></td>"
                     )
                 else:
                     # White background cells above the data
-                    html_table += f"<td class='{prefix}-emptiness-cell'>&nbsp;</td>"
+                    html_table += f"<td class='{prefix}-emptiness-cell'></td>"
 
         html_table += "</tr>\n"
 
@@ -138,8 +147,67 @@ def html_histogram(
     return html_table
 
 
-if __name__ == "__main__":
+def times_hist_table(
+    ttdb: sqlite3.Connection,
+    query_column: str,
+    start_date: str = None,
+    end_date: str = None,
+    days_of_week: list = None,
+    title: str = "",
+    color: str = None,
+    mini:bool=False
+) -> str:
+    """Create one html histogram table on lengths of stay.
 
+    Parameters:
+        query_column: time_in, time_out or duration (VISIT table)
+        start_date, end_date: the date range as date_str() compatible strings.
+            If missing, uses earliest & latest date in database.
+        days_of_week: list of int ISO8601 integer days of week. If multiple
+            days of week are given, will include only those days of the week.
+    """
+    if query_column.lower() not in ["time_in", "time_out", "duration"]:
+        raise ValueError(f"Bad value for query column, '{query_column}' ")
+
+    def make_sql(
+        time_column: str,
+        start_date: str = None,
+        end_date: str = None,
+        days_of_week: list = None,
+    ) -> str:
+        """Make sql query to fetch the time values from one column."""
+        # convert days of week from ISO8601 to as-used by sqlite3
+
+        filter_items = [f"{time_column} != ''"]
+        if start_date:
+            filter_items.append(f"DATE >= '{start_date}'")
+        if end_date:
+            filter_items.append(f"DATE <= '{end_date}'")
+        if days_of_week:
+            zero_based_days_of_week = ["0" if i == 7 else str(i) for i in days_of_week]
+            filter_items.append(
+                f"""strftime('%w',DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
+            )
+        sql = f"SELECT {time_column} FROM VISIT WHERE {' AND '.join(filter_items)};"
+
+        return sql
+
+    sql_query = make_sql(query_column, start_date, end_date, days_of_week)
+    rows = db.db_fetch(
+        ttdb, sql_query, ["time_column"]
+    )
+    #print(f"{sql_query=};{len(rows)=}; {query_column=}")
+    times_list = [r.time_column for r in rows]
+    if query_column == "duration":
+        start_time, end_time = ("00:00", "12:00")
+    else:
+        start_time, end_time = ("07:00", "22:00")
+
+    times_freq = ut.time_distribution(times_list, start_time, end_time, 30)
+    return html_histogram(times_freq, 20, color, mini=mini, bottom_caption=title)
+
+
+if __name__ == "__main__":
     # Example usage
     data_example = {
         "00:00": 2003,
@@ -174,19 +242,23 @@ if __name__ == "__main__":
         num_data_rows=6,
         bottom_caption="Frequency distribution of stay lengths",
         table_width=20,
-        show_labels=False,
+        mini=True,
         bar_color="blue",
-        border_color="white"
+        border_color="white",
     )
 
-    print("""<div style="display: flex;">
+    print(
+        """<div style="display: flex;">
         <!-- Left Column -->
-        <div XXstyle="flex: 0; margin-right: 20px;">""")
+        <div XXstyle="flex: 0; margin-right: 20px;">"""
+    )
     print(result)
 
-    print(""" </div>
+    print(
+        """ </div>
         <!-- Right Column -->
-        <div XXstyle="flex: 0;">""")
+        <div XXstyle="flex: 0;">"""
+    )
     print("<br><br>")
     result = html_histogram(
         data_example,
@@ -195,7 +267,7 @@ if __name__ == "__main__":
         "<b>Lengths of stay 2023</b>",
         "Category start (30 minute categories)",
         10,
-        show_labels=True,
+        mini=False,
     )
     print(result)
     print("</div></div>")
