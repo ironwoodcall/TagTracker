@@ -204,6 +204,50 @@ BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
+def _freq_nav_buttons(pages_back) -> str:
+    """Make nav buttons for the season-frequency report.
+
+    Buttons will be "Mon", "Tue", "Wed", etc, "All days", "Weekdays",
+    """
+
+    buttons = f"{cc.back_button(pages_back)}&nbsp;&nbsp;&nbsp;"
+    for d in range(1, 8):
+        link = cc.selfref(
+            what=cc.WHAT_SUMMARY_FREQUENCIES,
+            qdow=d,
+            pages_back=pages_back + 1,
+        )
+        label = ut.dow_str(d, 3)
+        buttons += f"""
+            <button type="button"
+            onclick="window.location.href='{link}';">{label}</button>
+            """
+    buttons += f"""
+        &nbsp;&nbsp;&nbsp;
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                qdow="1,2,3,4,5",
+                pages_back=pages_back + 1,
+            )
+            }';">Weekdays</button>
+        """
+    buttons += f"""
+        &nbsp;&nbsp;&nbsp;
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                pages_back=pages_back + 1,
+            )
+            }';">All days</button>
+        """
+    buttons += "<br><br>"
+
+    return buttons
+
+
 def totals_table(totals: cc.DaysSummary):
     """Print a table of YTD totals."""
 
@@ -254,56 +298,68 @@ def totals_table(totals: cc.DaysSummary):
     )
 
 
-def season_frequencies_report(ttdb: sqlite3.Connection):
-
+def season_frequencies_report(ttdb: sqlite3.Connection, dow_parameter):
     table_vars = (
-        ("duration","Length of stays at valet","Frequency distribution of lengths of stays at valet","teal"),
-        ("time_in","When bikes arrived","Frequency distribution of arrival times","crimson"),
-        ("time_out","When bikes departed","Frequency distribution of departure times","royalblue"),
+        (
+            "duration",
+            "Length of stays at valet",
+            "Frequency distribution of lengths of stays at valet",
+            "teal",
+        ),
+        (
+            "time_in",
+            "When bikes arrived",
+            "Frequency distribution of arrival times",
+            "crimson",
+        ),
+        (
+            "time_out",
+            "When bikes departed",
+            "Frequency distribution of departure times",
+            "royalblue",
+        ),
     )
     back_button = f"{cc.back_button(1)}<p></p>"
 
-
     print("<h1>Distribution of stays</h1>")
-    print(back_button)
+    print(_freq_nav_buttons(1))
 
     for parameters in table_vars:
         column, title, subtitle, color = parameters
         title = f"<h2>{title}</h2>"
         print(
             cgi_histogram.times_hist_table(
-            ttdb,
-            query_column=column,
-            color=color,
-            title=title,
-            subtitle=subtitle
+                ttdb,
+                query_column=column,
+                days_of_week=dow_parameter,
+                color=color,
+                title=title,
+                subtitle=subtitle,
+            )
         )
-    )
         print("<br><br>")
     print(back_button)
 
 
 def mini_freq_tables(ttdb: sqlite3.Connection):
     table_vars = (
-        ("duration","Stay length","teal"),
-        ("time_in","Time in","crimson"),
-        ("time_out","Time out","royalblue"),
+        ("duration", "Stay length", "teal"),
+        ("time_in", "Time in", "crimson"),
+        ("time_out", "Time out", "royalblue"),
     )
     for parameters in table_vars:
         column, title, color = parameters
         title = f"<a href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'>{title}</a>"
         print(
             cgi_histogram.times_hist_table(
-            ttdb,
-            query_column=column,
-            mini=True,
-            color=color,
-            title=title,
+                ttdb,
+                query_column=column,
+                mini=True,
+                color=color,
+                title=title,
+            )
         )
-    )
         print("<br>")
-
-
 
 
 def season_summary(ttdb: sqlite3.Connection):
@@ -311,9 +367,9 @@ def season_summary(ttdb: sqlite3.Connection):
     all_days = cc.get_days_data(ttdb)
     days_totals = cc.get_season_summary_data(ttdb, all_days)
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
-    blocks_link = cc.selfref(what=cc.WHAT_BLOCKS,pages_back=1)
-    tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST,pages_back=1)
-    today_link = cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today")
+    blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
+    tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
+    today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
 
     print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br><br>")
     print("<div style='display:inline-block'>")
@@ -325,7 +381,6 @@ def season_summary(ttdb: sqlite3.Connection):
     print("</div>")
     print("</div>")
     print("<br>")
-
 
     print(
         f"""
@@ -438,7 +493,7 @@ def season_detail(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DATE,
         qdir=other_direction,
-        pages_back=pages_back + 1
+        pages_back=pages_back + 1,
     )
     sort_day_link = cc.selfref(
         cc.WHAT_DETAIL,

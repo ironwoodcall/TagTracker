@@ -217,12 +217,26 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
         return
 
     table_vars = (
-        ("duration","Length of stays at valet","Frequency distribution of lengths of stays at valet","teal"),
-        ("time_in","When bikes arrived","Frequency distribution of arrival times","crimson"),
-        ("time_out","When bikes departed","Frequency distribution of departure times","royalblue"),
+        (
+            "duration",
+            "Length of stays at valet",
+            "Frequency distribution of lengths of stays at valet",
+            "teal",
+        ),
+        (
+            "time_in",
+            "When bikes arrived",
+            "Frequency distribution of arrival times",
+            "crimson",
+        ),
+        (
+            "time_out",
+            "When bikes departed",
+            "Frequency distribution of departure times",
+            "royalblue",
+        ),
     )
     back_button = f"{cc.back_button(1)}<p></p>"
-
 
     print(f"<h1>Distribution of stays on {today}</h1>")
     print(back_button)
@@ -232,39 +246,39 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
         title = f"<h2>{title}</h2>"
         print(
             cgi_histogram.times_hist_table(
-            ttdb,
-            query_column=column,
-            start_date=today,
-            end_date=today,
-            color=color,
-            title=title,
-            subtitle=subtitle
+                ttdb,
+                query_column=column,
+                start_date=today,
+                end_date=today,
+                color=color,
+                title=title,
+                subtitle=subtitle,
+            )
         )
-    )
         print("<br><br>")
     print(back_button)
 
 
 def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     table_vars = (
-        ("duration","Stay length","teal"),
-        ("time_in","Time in","crimson"),
-        ("time_out","Time out","royalblue"),
+        ("duration", "Stay length", "teal"),
+        ("time_in", "Time in", "crimson"),
+        ("time_out", "Time out", "royalblue"),
     )
     for parameters in table_vars:
         column, title, color = parameters
         title = f"<a href='{cc.selfref(cc.WHAT_ONE_DAY_FREQUENCIES,qdate=today)}'>{title}</a>"
         print(
             cgi_histogram.times_hist_table(
-            ttdb,
-            query_column=column,
-            start_date=today,
-            end_date=today,
-            mini=True,
-            color=color,
-            title=title,
+                ttdb,
+                query_column=column,
+                start_date=today,
+                end_date=today,
+                mini=True,
+                color=color,
+                title=title,
+            )
         )
-    )
         print("<br>")
 
 

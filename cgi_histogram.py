@@ -1,13 +1,10 @@
 #!/usr/bin/python3
 
 import sqlite3
-# import collections
 
 import tt_util as ut
-
-# from tt_time import VTime
 import tt_dbutil as db
-
+import cgi_common as cc
 
 def html_histogram(
     data: dict,
@@ -152,7 +149,7 @@ def times_hist_table(
     query_column: str,
     start_date: str = None,
     end_date: str = None,
-    days_of_week: list = None,
+    days_of_week: str = None,
     title: str = "",
     subtitle:str = "",
     color: str = None,
@@ -164,7 +161,7 @@ def times_hist_table(
         query_column: time_in, time_out or duration (VISIT table)
         start_date, end_date: the date range as date_str() compatible strings.
             If missing, uses earliest & latest date in database.
-        days_of_week: list of int ISO8601 integer days of week. If multiple
+        days_of_week: "" or "6" or "4,5,6" etc. ISO8601 integer days of week. If multiple
             days of week are given, will include only those days of the week.
     """
     if query_column.lower() not in ["time_in", "time_out", "duration"]:
@@ -185,12 +182,14 @@ def times_hist_table(
         if end_date:
             filter_items.append(f"DATE <= '{end_date}'")
         if days_of_week:
-            zero_based_days_of_week = ["0" if i == 7 else str(i) for i in days_of_week]
+            cc.test_dow_parameter(days_of_week,list_ok=True)
+            dow_bits = [int(s) for s in days_of_week.split(",")]
+            zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
             filter_items.append(
                 f"""strftime('%w',DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
+                #f"""strftime('%w',DATE) IN ('{days_of_week}')"""
             )
         sql = f"SELECT {time_column} FROM VISIT WHERE {' AND '.join(filter_items)};"
-
         return sql
 
     sql_query = make_sql(query_column, start_date, end_date, days_of_week)
@@ -252,7 +251,7 @@ if __name__ == "__main__":
         subtitle="Frequency distribution of stay lengths",
         table_width=20,
         mini=True,
-        bar_color="blue",
+        bar_color="royalblue",
         border_color="white",
     )
 

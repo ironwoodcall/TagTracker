@@ -229,13 +229,13 @@ maybedate = query_params.get("date", [""])[0]
 maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
 dow_parameter = query_params.get("dow", [""])[0]
-if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
-    cc.error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
-if not dow_parameter:
-    # If no day of week, set it to today.
-    dow_parameter = str(
-        datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime("%u")
-    )
+#if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
+#    cc.error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
+# if not dow_parameter:
+#     # If no day of week, set it to today. FIXME: why? Disablling this.
+#     dow_parameter = str(
+#         datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime("%u")
+#     )
 sort_by = query_params.get("sort", [""])[0]
 sort_direction = query_params.get("dir", [""])[0]
 pages_back: str = query_params.get("back", "1")[0]
@@ -271,7 +271,7 @@ elif what == cc.WHAT_DETAIL:
 elif what == cc.WHAT_SUMMARY:
     cgi_season_report.season_summary(database)
 elif what == cc.WHAT_SUMMARY_FREQUENCIES:
-    cgi_season_report.season_frequencies_report(database)
+    cgi_season_report.season_frequencies_report(database,dow_parameter)
 # elif what == cc.WHAT_OVERVIEW:
 #    overview_report(database)
 # elif what == cc.WHAT_OVERVIEW_DOW:

@@ -71,6 +71,15 @@ SORT_PRECIPITATAION = "precipitation"
 ORDER_FORWARD = "forward"
 ORDER_REVERSE = "reverse"
 
+def test_dow_parameter(dow_parameter:str,list_ok:bool=False):
+    """Check if dow_parameter is ok."""
+    if list_ok:
+        testme = dow_parameter.split(",")
+    else:
+        testme = dow_parameter
+    for day in testme:
+        if day not in [str(i) for i in range(1,8)]:
+            error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
 
 def titleize(title: str = "") -> str:
     """Puts SITE_NAME in front of title and makes it pretty."""
