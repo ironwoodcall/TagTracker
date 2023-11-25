@@ -234,6 +234,16 @@ def _freq_nav_buttons(pages_back) -> str:
             }';">Weekdays</button>
         """
     buttons += f"""
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                qdow="6,7",
+                pages_back=pages_back + 1,
+            )
+            }';">Weekdends</button>
+        """
+    buttons += f"""
         &nbsp;&nbsp;&nbsp;
         <button type="button"
         onclick="window.location.href='{
