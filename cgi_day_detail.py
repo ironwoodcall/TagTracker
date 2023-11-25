@@ -218,7 +218,7 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
             "duration",
             today,
             today,
-            mini=False,
+            mini=True,
             color="teal",
             title="Stay length",
         )
@@ -226,7 +226,7 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     print("<br>")
     print(
         cgi_histogram.times_hist_table(
-            ttdb, "time_in", today, today, mini=False, color="tomato", title="When in"
+            ttdb, "time_in", today, today, mini=True, color="tomato", title="When in"
         )
     )
     print("<br>")
@@ -236,7 +236,7 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
             "time_out",
             today,
             today,
-            mini=False,
+            mini=True,
             color="royalblue",
             title="When out",
         )
