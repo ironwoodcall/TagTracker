@@ -41,7 +41,7 @@ import cgi_common as cc
 import datacolors as dc
 import cgi_block_report
 import cgi_leftovers_report
-from cgi_day_detail import one_day_tags_report
+from cgi_day_detail import one_day_tags_report,day_frequencies_report
 import cgi_season_report
 import cgi_tags_report
 
@@ -281,6 +281,8 @@ elif what == cc.WHAT_MISMATCH:
     cgi_leftovers_report.leftovers_report(database)
 elif what == cc.WHAT_ONE_DAY:
     one_day_tags_report(database, whatday=qdate, sort_by=sort_by, pages_back=pages_back)
+elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
+    day_frequencies_report(database, whatday=qdate)
 elif what == cc.WHAT_DATAFILE:
     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:

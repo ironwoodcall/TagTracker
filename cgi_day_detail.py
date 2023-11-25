@@ -211,37 +211,62 @@ def one_day_tags_report(
     )
 
 
+def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
+    today = ut.date_str(whatday)
+    if not today:
+        print(f"Not a valid date: {whatday}")
+        return
+
+    table_vars = (
+        ("duration","Length of stays at valet","Frequency distribution of lengths of stays at valet","teal"),
+        ("time_in","When bikes arrived","Frequency distribution of arrival times","crimson"),
+        ("time_out","When bikes departed","Frequency distribution of departure times","royalblue"),
+    )
+    back_button = f"{cc.back_button(1)}<p></p>"
+
+
+    print(f"<h1>Distribution of stays on {today}</h1>")
+    print(back_button)
+
+    for parameters in table_vars:
+        column, title, subtitle, color = parameters
+        title = f"<h2>{title}</h2>"
+        print(
+            cgi_histogram.times_hist_table(
+            ttdb,
+            query_column=column,
+            start_date=today,
+            end_date=today,
+            color=color,
+            title=title,
+            subtitle=subtitle
+        )
+    )
+        print("<br><br>")
+    print(back_button)
+
+
 def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
-    print(
-        cgi_histogram.times_hist_table(
+    table_vars = (
+        ("duration","Stay length","teal"),
+        ("time_in","Time in","crimson"),
+        ("time_out","Time out","royalblue"),
+    )
+    for parameters in table_vars:
+        column, title, color = parameters
+        title = f"<a href='{cc.selfref(cc.WHAT_ONE_DAY_FREQUENCIES,qdate=today)}'>{title}</a>"
+        print(
+            cgi_histogram.times_hist_table(
             ttdb,
-            "duration",
-            today,
-            today,
+            query_column=column,
+            start_date=today,
+            end_date=today,
             mini=True,
-            color="teal",
-            title="Stay length",
+            color=color,
+            title=title,
         )
     )
-    print("<br>")
-    print(
-        cgi_histogram.times_hist_table(
-            ttdb, "time_in", today, today, mini=True, color="tomato", title="When in"
-        )
-    )
-    print("<br>")
-    print(
-        cgi_histogram.times_hist_table(
-            ttdb,
-            "time_out",
-            today,
-            today,
-            mini=True,
-            color="royalblue",
-            title="When out",
-        )
-    )
-    print("<br>")
+        print("<br>")
 
 
 def visits_table(

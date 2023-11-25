@@ -14,7 +14,7 @@ def html_histogram(
     num_data_rows: int = 20,
     bar_color: str = "blue",
     title: str = "",
-    bottom_caption: str = "",
+    subtitle: str = "",
     table_width: int = 40,
     border_color: str = "black",
     mini:bool=False
@@ -101,11 +101,11 @@ def html_histogram(
     html_table += f"""<tr><td colspan='{len(data)}' class='{prefix}-titles'
         >{title}</td></tr>"""
 
-    # # Add an empty row at the top
-    # html_table += "<tr>"
-    # for key in sorted_keys:
-    #     html_table += "<td class='{prefix}-empty-cell'>&nbsp;</td>"
-    # html_table += "</tr>"
+    # Add an empty row at the top
+    html_table += "<tr>"
+    for key in sorted_keys:
+        html_table += "<td class='{prefix}-empty-cell'>&nbsp;</td>"
+    html_table += "</tr>"
 
     for i in range(num_data_rows + 1):
         html_table += "<tr>"
@@ -139,9 +139,9 @@ def html_histogram(
         html_table += "</tr>\n"
 
     # Add a caption below category labels
-    if bottom_caption:
+    if subtitle:
         html_table += f"""<tr><td colspan='{len(data)}' class='{prefix}-titles'
-            style='font-size:0.85em'>{bottom_caption}</td></tr>"""
+            style='font-size:0.85em'>{subtitle}</td></tr>"""
 
     html_table += "</table>"
     return html_table
@@ -154,6 +154,7 @@ def times_hist_table(
     end_date: str = None,
     days_of_week: list = None,
     title: str = "",
+    subtitle:str = "",
     color: str = None,
     mini:bool=False
 ) -> str:
@@ -204,7 +205,15 @@ def times_hist_table(
         start_time, end_time = ("07:00", "22:00")
 
     times_freq = ut.time_distribution(times_list, start_time, end_time, 30)
-    return html_histogram(times_freq, 20, color, mini=mini, bottom_caption=title)
+    if mini:
+        top_text = ""
+        bottom_text = title
+        rows = 20
+    else:
+        top_text = title
+        bottom_text = subtitle
+        rows = 35
+    return html_histogram(times_freq, rows, color, mini=mini, title=top_text,subtitle=bottom_text)
 
 
 if __name__ == "__main__":
@@ -240,7 +249,7 @@ if __name__ == "__main__":
     result = html_histogram(
         data_example,
         num_data_rows=6,
-        bottom_caption="Frequency distribution of stay lengths",
+        subtitle="Frequency distribution of stay lengths",
         table_width=20,
         mini=True,
         bar_color="blue",
