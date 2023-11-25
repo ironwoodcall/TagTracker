@@ -38,7 +38,6 @@ from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 import cgi_common as cc
-import datacolors as dc
 import cgi_block_report
 import cgi_leftovers_report
 from cgi_day_detail import one_day_tags_report,day_frequencies_report
@@ -271,6 +270,8 @@ elif what == cc.WHAT_DETAIL:
     )
 elif what == cc.WHAT_SUMMARY:
     cgi_season_report.season_summary(database)
+elif what == cc.WHAT_SUMMARY_FREQUENCIES:
+    cgi_season_report.season_frequencies_report(database)
 # elif what == cc.WHAT_OVERVIEW:
 #    overview_report(database)
 # elif what == cc.WHAT_OVERVIEW_DOW:

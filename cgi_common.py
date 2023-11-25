@@ -51,6 +51,7 @@ WHAT_TAGS_LOST = "TL"
 WHAT_TAG_HISTORY = "TH"
 WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
+WHAT_SUMMARY_FREQUENCIES = "SQ"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"

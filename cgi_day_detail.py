@@ -23,7 +23,6 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import sqlite3
-import sys
 from statistics import mean, median
 
 ##from tt_globals import MaybeTag
@@ -357,7 +356,7 @@ def visits_table(
     )
     print(html)
 
-    for i, v in enumerate(rows):
+    for v in rows:
         time_in = VTime(v.time_in)
         time_out = VTime(v.time_out)
         duration = VTime(v.duration)

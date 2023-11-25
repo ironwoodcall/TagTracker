@@ -195,6 +195,7 @@ import sqlite3
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
+import cgi_histogram
 
 BLOCK_XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 BLOCK_X_TOP_COLOR = "red"
@@ -253,6 +254,58 @@ def totals_table(totals: cc.DaysSummary):
     )
 
 
+def season_frequencies_report(ttdb: sqlite3.Connection):
+
+    table_vars = (
+        ("duration","Length of stays at valet","Frequency distribution of lengths of stays at valet","teal"),
+        ("time_in","When bikes arrived","Frequency distribution of arrival times","crimson"),
+        ("time_out","When bikes departed","Frequency distribution of departure times","royalblue"),
+    )
+    back_button = f"{cc.back_button(1)}<p></p>"
+
+
+    print("<h1>Distribution of stays</h1>")
+    print(back_button)
+
+    for parameters in table_vars:
+        column, title, subtitle, color = parameters
+        title = f"<h2>{title}</h2>"
+        print(
+            cgi_histogram.times_hist_table(
+            ttdb,
+            query_column=column,
+            color=color,
+            title=title,
+            subtitle=subtitle
+        )
+    )
+        print("<br><br>")
+    print(back_button)
+
+
+def mini_freq_tables(ttdb: sqlite3.Connection):
+    table_vars = (
+        ("duration","Stay length","teal"),
+        ("time_in","Time in","crimson"),
+        ("time_out","Time out","royalblue"),
+    )
+    for parameters in table_vars:
+        column, title, color = parameters
+        title = f"<a href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'>{title}</a>"
+        print(
+            cgi_histogram.times_hist_table(
+            ttdb,
+            query_column=column,
+            mini=True,
+            color=color,
+            title=title,
+        )
+    )
+        print("<br>")
+
+
+
+
 def season_summary(ttdb: sqlite3.Connection):
     """Print super-brief summary report."""
     all_days = cc.get_days_data(ttdb)
@@ -262,8 +315,18 @@ def season_summary(ttdb: sqlite3.Connection):
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST,pages_back=1)
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today")
 
-    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br>")
+    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br><br>")
+    print("<div style='display:inline-block'>")
+    print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
     totals_table(days_totals)
+    print("</div>")
+    print("<div style='display:inline-block; vertical-align: top;'>")
+    mini_freq_tables(ttdb)
+    print("</div>")
+    print("</div>")
+    print("<br>")
+
+
     print(
         f"""
         <br>
