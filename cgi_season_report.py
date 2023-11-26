@@ -204,60 +204,6 @@ BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
-def _freq_nav_buttons(pages_back) -> str:
-    """Make nav buttons for the season-frequency report.
-
-    Buttons will be "Mon", "Tue", "Wed", etc, "All days", "Weekdays",
-    """
-
-    buttons = f"{cc.back_button(pages_back)}&nbsp;&nbsp;&nbsp;"
-    for d in range(1, 8):
-        link = cc.selfref(
-            what=cc.WHAT_SUMMARY_FREQUENCIES,
-            qdow=d,
-            pages_back=pages_back + 1,
-        )
-        label = ut.dow_str(d, 3)
-        buttons += f"""
-            <button type="button"
-            onclick="window.location.href='{link}';">{label}</button>
-            """
-    buttons += f"""
-        &nbsp;&nbsp;&nbsp;
-        <button type="button"
-        onclick="window.location.href='{
-            cc.selfref(
-                what=cc.WHAT_SUMMARY_FREQUENCIES,
-                qdow="1,2,3,4,5",
-                pages_back=pages_back + 1,
-            )
-            }';">Weekdays</button>
-        """
-    buttons += f"""
-        <button type="button"
-        onclick="window.location.href='{
-            cc.selfref(
-                what=cc.WHAT_SUMMARY_FREQUENCIES,
-                qdow="6,7",
-                pages_back=pages_back + 1,
-            )
-            }';">Weekdends</button>
-        """
-    buttons += f"""
-        &nbsp;&nbsp;&nbsp;
-        <button type="button"
-        onclick="window.location.href='{
-            cc.selfref(
-                what=cc.WHAT_SUMMARY_FREQUENCIES,
-                pages_back=pages_back + 1,
-            )
-            }';">All days</button>
-        """
-    buttons += "<br><br>"
-
-    return buttons
-
-
 def totals_table(totals: cc.DaysSummary):
     """Print a table of YTD totals."""
 
@@ -308,7 +254,73 @@ def totals_table(totals: cc.DaysSummary):
     )
 
 
-def season_frequencies_report(ttdb: sqlite3.Connection, dow_parameter):
+def _freq_nav_buttons(pages_back) -> str:
+    """Make nav buttons for the season-frequency report.
+
+    Buttons will be "Mon", "Tue", "Wed", etc, "All days", "Weekdays",
+    """
+    buttons = f"{cc.back_button(pages_back)}&nbsp;&nbsp;&nbsp;"
+
+    buttons += f"""
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                pages_back=pages_back + 1,
+                text_note=""
+            )
+            }';">All days</button>
+            &nbsp;&nbsp;&nbsp;
+                    """
+    buttons += f"""
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                qdow="1,2,3,4,5",
+                pages_back=pages_back + 1,
+                text_note="weekdays"
+            )
+            }';">Weekdays</button>
+        """
+    buttons += f"""
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                qdow="6,7",
+                pages_back=pages_back + 1,
+                text_note="weekends"
+            )
+            }';">Weekdends</button>
+            &nbsp;&nbsp;&nbsp;
+        """
+
+    for d in range(1, 8):
+        link = cc.selfref(
+            what=cc.WHAT_SUMMARY_FREQUENCIES,
+            qdow=d,
+            pages_back=pages_back + 1,
+            text_note=ut.dow_str(d, 10) + "s",
+        )
+        label = ut.dow_str(d, 3)
+        buttons += f"""
+            <button type="button"
+            onclick="window.location.href='{link}';">{label}</button>
+            """
+
+    buttons += "<br><br>"
+
+    return buttons
+
+
+def season_frequencies_report(
+    ttdb: sqlite3.Connection,
+    dow_parameter: str = "",
+    title_bit: str = "",
+    pages_back: int = 0,
+):
+    title_bit = title_bit if title_bit else "all days of the week"
     table_vars = (
         (
             "duration",
@@ -329,13 +341,16 @@ def season_frequencies_report(ttdb: sqlite3.Connection, dow_parameter):
             "royalblue",
         ),
     )
-    back_button = f"{cc.back_button(1)}<p></p>"
+    back_button = f"{cc.back_button(pages_back)}<p></p>"
 
-    print("<h1>Distribution of stays</h1>")
-    print(_freq_nav_buttons(1))
+    h1 = "Distribution of stays"
+    h1 = f"{h1} for {title_bit}" if title_bit else h1
+    print(f"<h1>{h1}</h1>")
+    print(_freq_nav_buttons(pages_back))
 
     for parameters in table_vars:
         column, title, subtitle, color = parameters
+        title = f"{title} ({title_bit})" if title_bit else title
         title = f"<h2>{title}</h2>"
         print(
             cgi_histogram.times_hist_table(

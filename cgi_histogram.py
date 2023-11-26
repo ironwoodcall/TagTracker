@@ -104,6 +104,7 @@ def html_histogram(
         html_table += "<td class='{prefix}-empty-cell'>&nbsp;</td>"
     html_table += "</tr>"
 
+    empty_text = "" if mini else "&nbsp;"
     for i in range(num_data_rows + 1):
         html_table += "<tr>"
 
@@ -121,7 +122,7 @@ def html_histogram(
                         {prefix}-bar-top-cell'>{val}</td>"""
                 else:
                     # Other {bar_color} cells
-                    html_table += f"<td class='{prefix}-bar-cell'></td>"
+                    html_table += f"<td class='{prefix}-bar-cell'>{empty_text}</td>"
             else:
                 if i == num_data_rows - 1:
                     # Bottom-most cell for a column with no colored blocks
@@ -131,7 +132,7 @@ def html_histogram(
                     )
                 else:
                     # White background cells above the data
-                    html_table += f"<td class='{prefix}-emptiness-cell'></td>"
+                    html_table += f"<td class='{prefix}-emptiness-cell'>{empty_text}</td>"
 
         html_table += "</tr>\n"
 
@@ -211,7 +212,7 @@ def times_hist_table(
     else:
         top_text = title
         bottom_text = subtitle
-        rows = 35
+        rows = 20
     return html_histogram(times_freq, rows, color, mini=mini, title=top_text,subtitle=bottom_text)
 
 

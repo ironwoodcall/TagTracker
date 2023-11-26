@@ -214,6 +214,7 @@ def selfref(
     qdow: str = "",
     qsort: str = "",
     qdir: str = "",
+    text_note:str = "",
     pages_back=None,
 ) -> str:
     """Return a self-reference with the given parameters."""
@@ -234,6 +235,8 @@ def selfref(
         parms.append(f"sort={qsort}")
     if qdir:
         parms.append(f"dir={qdir}")
+    if text_note:
+        parms.append(f"text={text_note}")
     if pages_back is not None:
         parms.append(f"back={pages_back}")
     parms_str = f"?{'&'.join(parms)}" if parms else ""
