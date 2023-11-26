@@ -552,8 +552,8 @@ class Estimator:
         self.lr_model.guess(self.bikes_so_far)
 
         # min and max of the guesses so far
-        self.min = min(self.simple_model.min,self.lr_model.further_bikes)
-        self.max = max(self.simple_model.max,self.lr_model.further_bikes)
+        self.min = min(self.simple_model.min or 0,self.lr_model.further_bikes or 0)
+        self.max = max(self.simple_model.max or 0,self.lr_model.further_bikes or 0)
 
         if rf.POSSIBLE:
             self.rf_model.create_model([], self.befores, self.afters)
