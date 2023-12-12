@@ -214,6 +214,7 @@ def times_hist_table(
         bottom_text = subtitle
         rows = 20
     return html_histogram(times_freq, rows, color, mini=mini, title=top_text,subtitle=bottom_text)
+    #return chartjs_histogram(times_freq,400,400,bar_color=color,title=top_text,subtitle=bottom_text,)
 
 
 if __name__ == "__main__":
