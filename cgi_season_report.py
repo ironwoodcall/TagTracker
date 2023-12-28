@@ -402,7 +402,7 @@ def season_summary(ttdb: sqlite3.Connection):
     totals_table(days_totals)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
-    mini_freq_tables(ttdb)
+    ##mini_freq_tables(ttdb)
     print("</div>")
     print("</div>")
     print("<br>")
@@ -410,18 +410,22 @@ def season_summary(ttdb: sqlite3.Connection):
     print(
         f"""
         <br>
-        <button onclick="window.location.href='{detail_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Details</b></button>
-        <button onclick="window.location.href='{blocks_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Activity Details</b></button>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Today Detail</b></button>
+        <br><br>
+        <button onclick="window.location.href='{detail_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Season Details</b></button>
+        <button onclick="window.location.href='{blocks_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Activity Details</b></button>
+        <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Activity Graphs</b></button>
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Tags</b></button>
+          <b>Tags Inventory</b></button>
         <br><br>
           """
     )
