@@ -195,6 +195,7 @@ import sqlite3
 import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
+import cgi_histogram
 
 BLOCK_XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 BLOCK_X_TOP_COLOR = "red"
@@ -217,7 +218,7 @@ def totals_table(totals: cc.DaysSummary):
     print("")
     print(
         f"""
-        <table>
+        <table class='general_table'>
           <tr><th colspan=2>Summary</th></tr>
         {html_tr_start}Total bikes parked (visits){html_tr_mid}
           {totals.total_total_bikes:,}{html_tr_end}
@@ -253,32 +254,178 @@ def totals_table(totals: cc.DaysSummary):
     )
 
 
+def _freq_nav_buttons(pages_back) -> str:
+    """Make nav buttons for the season-frequency report.
+
+    Buttons will be "Mon", "Tue", "Wed", etc, "All days", "Weekdays",
+    """
+    buttons = f"{cc.back_button(pages_back)}&nbsp;&nbsp;&nbsp;"
+
+    buttons += f"""
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                pages_back=pages_back + 1,
+                text_note=""
+            )
+            }';">All days</button>
+            &nbsp;&nbsp;&nbsp;
+                    """
+    buttons += f"""
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                qdow="1,2,3,4,5",
+                pages_back=pages_back + 1,
+                text_note="weekdays"
+            )
+            }';">Weekdays</button>
+        """
+    buttons += f"""
+        <button type="button"
+        onclick="window.location.href='{
+            cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                qdow="6,7",
+                pages_back=pages_back + 1,
+                text_note="weekends"
+            )
+            }';">Weekdends</button>
+            &nbsp;&nbsp;&nbsp;
+        """
+
+    for d in range(1, 8):
+        link = cc.selfref(
+            what=cc.WHAT_SUMMARY_FREQUENCIES,
+            qdow=d,
+            pages_back=pages_back + 1,
+            text_note=ut.dow_str(d, 10) + "s",
+        )
+        label = ut.dow_str(d, 3)
+        buttons += f"""
+            <button type="button"
+            onclick="window.location.href='{link}';">{label}</button>
+            """
+
+    buttons += "<br><br>"
+
+    return buttons
+
+
+def season_frequencies_report(
+    ttdb: sqlite3.Connection,
+    dow_parameter: str = "",
+    title_bit: str = "",
+    pages_back: int = 0,
+):
+    title_bit = title_bit if title_bit else "all days of the week"
+    table_vars = (
+        (
+            "duration",
+            "Length of stays at valet",
+            "Frequency distribution of lengths of stays at valet",
+            "teal",
+        ),
+        (
+            "time_in",
+            "When bikes arrived",
+            "Frequency distribution of arrival times",
+            "crimson",
+        ),
+        (
+            "time_out",
+            "When bikes departed",
+            "Frequency distribution of departure times",
+            "royalblue",
+        ),
+    )
+    back_button = f"{cc.back_button(pages_back)}<p></p>"
+
+    h1 = "Distribution of stays"
+    h1 = f"{h1} for {title_bit}" if title_bit else h1
+    print(f"<h1>{h1}</h1>")
+    print(_freq_nav_buttons(pages_back))
+
+    for parameters in table_vars:
+        column, title, subtitle, color = parameters
+        title = f"{title} ({title_bit})" if title_bit else title
+        title = f"<h2>{title}</h2>"
+        print(
+            cgi_histogram.times_hist_table(
+                ttdb,
+                query_column=column,
+                days_of_week=dow_parameter,
+                color=color,
+                title=title,
+                subtitle=subtitle,
+            )
+        )
+        print("<br><br>")
+    print(back_button)
+
+
+def mini_freq_tables(ttdb: sqlite3.Connection):
+    table_vars = (
+        ("duration", "Stay length", "teal"),
+        ("time_in", "Time in", "crimson"),
+        ("time_out", "Time out", "royalblue"),
+    )
+    for parameters in table_vars:
+        column, title, color = parameters
+        title = f"<a href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'>{title}</a>"
+        print(
+            cgi_histogram.times_hist_table(
+                ttdb,
+                query_column=column,
+                mini=True,
+                color=color,
+                title=title,
+            )
+        )
+        print("<br>")
+
+
 def season_summary(ttdb: sqlite3.Connection):
     """Print super-brief summary report."""
     all_days = cc.get_days_data(ttdb)
     days_totals = cc.get_season_summary_data(ttdb, all_days)
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
-    blocks_link = cc.selfref(what=cc.WHAT_BLOCKS,pages_back=1)
-    tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST,pages_back=1)
-    today_link = cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today")
+    blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
+    tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
+    today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
 
-    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br>")
+    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br><br>")
+    print("<div style='display:inline-block'>")
+    print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
     totals_table(days_totals)
+    print("</div>")
+    print("<div style='display:inline-block; vertical-align: top;'>")
+    ##mini_freq_tables(ttdb)
+    print("</div>")
+    print("</div>")
+    print("<br>")
+
     print(
         f"""
         <br>
-        <button onclick="window.location.href='{detail_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Details</b></button>
-        <button onclick="window.location.href='{blocks_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Activity Details</b></button>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Today Detail</b></button>
+        <br><br>
+        <button onclick="window.location.href='{detail_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Season Details</b></button>
+        <button onclick="window.location.href='{blocks_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Activity Details</b></button>
+        <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Activity Graphs</b></button>
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Tags</b></button>
+          <b>Tags Inventory</b></button>
         <br><br>
           """
     )
@@ -375,7 +522,7 @@ def season_detail(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DATE,
         qdir=other_direction,
-        pages_back=pages_back + 1
+        pages_back=pages_back + 1,
     )
     sort_day_link = cc.selfref(
         cc.WHAT_DETAIL,
@@ -415,7 +562,7 @@ def season_detail(
     )
     mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
 
-    print("<table>")
+    print("<table class='general_table'>")
     print(f"<tr><th colspan=13><br>{sort_msg}<br>&nbsp;</th></tr>")
     print("<style>td {text-align: right;}</style>")
     print(

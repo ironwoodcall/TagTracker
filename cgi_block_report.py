@@ -214,7 +214,7 @@ def print_the_html(
     print("</p></p>")
 
     # Main table. Column headings
-    print("<table>")
+    print("<table class=general_table>")
     print(
         "<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>"
     )
@@ -308,6 +308,7 @@ def blocks_report(
     for ISO int dow (1=Monday-->7=Sunday)
 
     """
+    cc.test_dow_parameter(iso_dow,list_ok=False)
     title_bit, where = process_iso_dow(iso_dow)
 
     dayrows = fetch_day_data(ttdb, where)

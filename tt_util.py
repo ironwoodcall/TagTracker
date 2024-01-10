@@ -27,6 +27,9 @@ import sys
 import datetime
 import re
 import collections
+import random
+import string
+
 
 # This is for type hints instead of (eg) int|str
 from typing import Union
@@ -529,6 +532,7 @@ def line_splitter(
 
     return lines
 
+
 def calculate_visit_frequencies(
     durations_list: list, category_width: int = 30
 ) -> collections.Counter:
@@ -562,14 +566,61 @@ def calculate_visit_modes(
     Returns a list of sorted VTimes().tidy of all the centre times of
     the modes and the number of times it/they occurred.
     """
-    freq_list = calculate_visit_frequencies(durations_list,category_width)
+    freq_list = calculate_visit_frequencies(durations_list, category_width)
     mosts = freq_list.most_common()
     occurences = mosts[0][1]
-    modes_numeric = sorted(
-        [element for element, count in mosts if count == occurences]
-    )
+    modes_numeric = sorted([element for element, count in mosts if count == occurences])
     modes_list = [f"{VTime(x+category_width/2).tidy}" for x in modes_numeric]
     # modes_list = []
     # modes_list = [x.tidy for x in modes_list]
 
     return modes_list, occurences
+
+
+def time_distribution(
+    times_list: list[str],
+    start_time: str = None,
+    end_time: str = None,
+    category_width: int = 30,
+) -> dict[str, int]:
+    """Make frequency distribution for list of HH:MM strings."""
+    # make a list of categorized times_list
+    categorized = [
+        str(VTime((VTime(t).num // category_width) * category_width)) for t in times_list
+    ]
+    categorized = [t for t in categorized if t]  # remove any nulls
+    freq = dict(collections.Counter(categorized))
+    start_time = VTime(start_time) if start_time else VTime(min(freq))
+    end_time = VTime(end_time) if end_time else VTime(max(freq))
+    # make a target list of categories (maybe different from the natural list)
+    categories = {
+        VTime(t): 0 for t in range(start_time.num, end_time.num + 1, category_width)
+    }
+    have_overs = have_unders = False
+    for cat_start, cat_count in freq.items():
+        if cat_start in categories:
+            categories[cat_start] = cat_count
+        elif cat_start < start_time:
+            categories[start_time] += cat_count
+            have_unders = True
+        elif cat_start > end_time:
+            categories[end_time] += cat_count
+            have_overs = True
+    # if there were items outside our target range, decorate the category names
+    # i.e., "12:00" becomes "12:00+"; "01:00" becomes "01:00-"
+    categories = {str(VTime(key).tidy): value for key, value in categories.items()}
+    if have_unders:
+        categories[f"{VTime(start_time).tidy}-"] = categories.pop(
+            VTime(start_time).tidy
+        )
+    if have_overs:
+        categories[f"{VTime(end_time).tidy}+"] = categories.pop(VTime(end_time).tidy)
+    ##categories = {str(key):value for key,value in categories.items()}
+    categories = {str(key): categories[key] for key in sorted(categories.keys())}
+
+    return categories
+
+
+def random_string(length):
+    """Create a random alphaetic string of a given length."""
+    return "".join(random.choice(string.ascii_letters) for _ in range(length))

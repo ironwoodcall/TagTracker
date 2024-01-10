@@ -38,10 +38,9 @@ from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 import cgi_common as cc
-import datacolors as dc
 import cgi_block_report
 import cgi_leftovers_report
-from cgi_day_detail import one_day_tags_report
+from cgi_day_detail import one_day_tags_report, day_frequencies_report
 import cgi_season_report
 import cgi_tags_report
 
@@ -70,7 +69,7 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> Non
     if not rows:
         print(f"No record that {this_tag.upper()} ever used<br />")
     else:
-        print("<table>")
+        print("<table class=general_table>")
         print("<style>td {text-align: right;}</style>")
         print("<tr><th>Date</th><th>BikeIn</th><th>BikeOut</th></tr>")
         for row in rows:
@@ -229,14 +228,15 @@ what = what if what else cc.WHAT_SUMMARY
 maybedate = query_params.get("date", [""])[0]
 maybetime = query_params.get("time", [""])[0]
 tag = query_params.get("tag", [""])[0]
+text = query_params.get("text", [""])[0]
 dow_parameter = query_params.get("dow", [""])[0]
-if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
-    cc.error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
-if not dow_parameter:
-    # If no day of week, set it to today.
-    dow_parameter = str(
-        datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime("%u")
-    )
+# if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
+#    cc.error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
+# if not dow_parameter:
+#     # If no day of week, set it to today. FIXME: why? Disablling this.
+#     dow_parameter = str(
+#         datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime("%u")
+#     )
 sort_by = query_params.get("sort", [""])[0]
 sort_direction = query_params.get("dir", [""])[0]
 pages_back: str = query_params.get("back", "1")[0]
@@ -271,16 +271,18 @@ elif what == cc.WHAT_DETAIL:
     )
 elif what == cc.WHAT_SUMMARY:
     cgi_season_report.season_summary(database)
-# elif what == cc.WHAT_OVERVIEW:
-#    overview_report(database)
-# elif what == cc.WHAT_OVERVIEW_DOW:
-#    overview_report(database, dow_parameter)
+elif what == cc.WHAT_SUMMARY_FREQUENCIES:
+    cgi_season_report.season_frequencies_report(
+        database, dow_parameter=dow_parameter, title_bit=text,pages_back=pages_back
+    )
 elif what == cc.WHAT_TAGS_LOST:
     cgi_tags_report.tags_report(database)
 elif what == cc.WHAT_MISMATCH:
     cgi_leftovers_report.leftovers_report(database)
 elif what == cc.WHAT_ONE_DAY:
     one_day_tags_report(database, whatday=qdate, sort_by=sort_by, pages_back=pages_back)
+elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
+    day_frequencies_report(database, whatday=qdate)
 elif what == cc.WHAT_DATAFILE:
     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:

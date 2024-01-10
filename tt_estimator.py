@@ -42,7 +42,7 @@ import sys
 import math
 import statistics
 
-#from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_conf as cfg
 import tt_util as ut
 from tt_time import VTime
@@ -181,9 +181,7 @@ class SimpleModel:
         else:
             mm_str = f"{mean_median[0]} [median] or {mean_median[1]} [mean]"
 
-        lines.append(
-            f"    Expect {mm_str} more {ut.plural(self.median,'bike')}."
-        )
+        lines.append(f"    Expect {mm_str} more {ut.plural(self.median,'bike')}.")
 
         one_line = (
             f"Based on {self.num_points} similar previous "
@@ -221,14 +219,11 @@ class LRModel:
 
     def calculate_nrmse(self):
         sum_squared_errors = sum(
-            (y - (self.slope * x + self.intercept)) ** 2
-            for x, y in self.xy_data
+            (y - (self.slope * x + self.intercept)) ** 2 for x, y in self.xy_data
         )
         rmse = math.sqrt(sum_squared_errors / self.num_points)
 
-        range_y = max(y for _, y in self.xy_data) - min(
-            y for _, y in self.xy_data
-        )
+        range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
         if range_y == 0:
             self.nmrse = "DIV/0"
         else:
@@ -238,9 +233,7 @@ class LRModel:
         sum_absolute_errors = sum(
             abs(y - (self.slope * x + self.intercept)) for x, y in self.xy_data
         )
-        range_y = max(y for _, y in self.xy_data) - min(
-            y for _, y in self.xy_data
-        )
+        range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
         divisor = self.num_points * range_y
         if divisor == 0:
             self.nmae = "DIV/0"
@@ -293,9 +286,7 @@ class LRModel:
             self.correlation_coefficient = sum_diff_prod / (
                 math.sqrt(sum_x_diff_squared) * math.sqrt(sum_y_diff_squared)
             )
-            self.r_squared = (
-                self.correlation_coefficient * self.correlation_coefficient
-            )
+            self.r_squared = self.correlation_coefficient * self.correlation_coefficient
         except ZeroDivisionError:
             self.correlation_coefficient = "DIV/0"
             self.r_squared = "DIV/0"
@@ -340,9 +331,7 @@ class LRModel:
         if nmae_str == "?" and nrmse_str == "?":
             lines.append("    Model quality can not be calculated.")
         else:
-            lines.append(
-                f"    NMAE {nmae_str}; NRMSE {nrmse_str} [lower is better]."
-            )
+            lines.append(f"    NMAE {nmae_str}; NRMSE {nrmse_str} [lower is better].")
 
         return lines
 
@@ -401,12 +390,7 @@ class Estimator:
         self.database = db.db_connect(DBFILE)
 
         # Now process the inputs from passed-in values.
-        if (
-            not bikes_so_far
-            and not as_of_when
-            and not dow_in
-            and not closing_time
-        ):
+        if not bikes_so_far and not as_of_when and not dow_in and not closing_time:
             bikes_so_far = self._bikes_right_now()
 
         bikes_so_far = str(bikes_so_far).strip()
@@ -517,9 +501,7 @@ class Estimator:
         """Get raw data from the database into self.befores, self.afters."""
         # Collect data from database
         sql = self._sql_str()
-        data_rows = db.db_fetch(
-            self.database, sql, ["date", "before", "after"]
-        )
+        data_rows = db.db_fetch(self.database, sql, ["date", "before", "after"])
         if not data_rows:
             self.error = "no data returned from database."
             self.state = ERROR
@@ -552,14 +534,36 @@ class Estimator:
         self.lr_model.guess(self.bikes_so_far)
 
         # min and max of the guesses so far
-        self.min = min(self.simple_model.min,self.lr_model.further_bikes)
-        self.max = max(self.simple_model.max,self.lr_model.further_bikes)
+        self.min = min(
+            (
+                v
+                for v in [
+                    self.simple_model.mean,
+                    self.simple_model.median,
+                    self.lr_model.further_bikes,
+                ]
+                if v is not None
+            ),
+            default=None,
+        )
+        self.max = max(
+            (
+                v
+                for v in [
+                    self.simple_model.mean,
+                    self.simple_model.median,
+                    self.lr_model.further_bikes,
+                ]
+                if v is not None
+            ),
+            default=None,
+        )
 
         if rf.POSSIBLE:
             self.rf_model.create_model([], self.befores, self.afters)
             self.rf_model.guess(self.bikes_so_far)
-            self.min = min(self.min,self.rf_model.further_bikes)
-            self.max = max(self.max,self.rf_model.further_bikes)
+            self.min = min(self.min, self.rf_model.further_bikes)
+            self.max = max(self.max, self.rf_model.further_bikes)
 
     def result_msg(self) -> list[str]:
         """Return list of strings as long message."""
@@ -584,9 +588,7 @@ class Estimator:
             f"closing at {self.closing_time}:"
         )
         lines = (
-            lines
-            + [""]
-            + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
+            lines + [""] + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
         )
 
         predictions = []
@@ -621,9 +623,7 @@ class Estimator:
         if self.as_of_when < "12:30":
             one_line = f"{one_line}  Estimates early in the day may be of low quality."
         lines = (
-            lines
-            + [""]
-            + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
+            lines + [""] + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
         )
 
         return lines

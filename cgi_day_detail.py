@@ -23,7 +23,6 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import sqlite3
-import sys
 from statistics import mean, median
 
 ##from tt_globals import MaybeTag
@@ -35,6 +34,7 @@ import tt_util as ut
 import cgi_common as cc
 import datacolors as dc
 import tt_estimator
+import cgi_histogram
 
 
 HIGHLIGHT_NONE = 0
@@ -178,15 +178,120 @@ def one_day_tags_report(
     day_data.max_stay = VTime(max(durations)).tidy
     day_data.mean_stay = VTime(mean(durations)).tidy
     day_data.median_stay = VTime(median(durations)).tidy
-    day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(durations,30)
 
+    day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(
+        durations, 30
+    )
+
+    ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
+    ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
+    print("<div style='display:inline-block'>")
+    print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
     summary_table(day_data, highlights, is_today, suspicious)
-
     legend_table(daylight, duration_colors)
+    print("</div>")
+    print("<div style='display:inline-block; vertical-align: top;'>")
+    ##print("</div><div>")
+    mini_freq_tables(ttdb, thisday)
+    print("</div>")
+    print("</div>")
+    print("<br>")
+    ##print("</div></div>")
 
-    visits_table(thisday,is_today, rows,highlights,daylight,duration_colors,sort_by, pages_back,)
+    visits_table(
+        thisday,
+        is_today,
+        rows,
+        highlights,
+        daylight,
+        duration_colors,
+        sort_by,
+        pages_back,
+    )
 
-def visits_table(thisday,is_today, rows,highlights,daylight,duration_colors,sort_by, pages_back,):
+
+def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
+    today = ut.date_str(whatday)
+    if not today:
+        print(f"Not a valid date: {whatday}")
+        return
+
+    table_vars = (
+        (
+            "duration",
+            "Length of stays at valet",
+            "Frequency distribution of lengths of stays at valet",
+            "teal",
+        ),
+        (
+            "time_in",
+            "When bikes arrived",
+            "Frequency distribution of arrival times",
+            "crimson",
+        ),
+        (
+            "time_out",
+            "When bikes departed",
+            "Frequency distribution of departure times",
+            "royalblue",
+        ),
+    )
+    back_button = f"{cc.back_button(1)}<p></p>"
+
+    print(f"<h1>Distribution of stays on {today}</h1>")
+    print(back_button)
+
+    for parameters in table_vars:
+        column, title, subtitle, color = parameters
+        title = f"<h2>{title}</h2>"
+        print(
+            cgi_histogram.times_hist_table(
+                ttdb,
+                query_column=column,
+                start_date=today,
+                end_date=today,
+                color=color,
+                title=title,
+                subtitle=subtitle,
+            )
+        )
+        print("<br><br>")
+    print(back_button)
+
+
+def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
+    table_vars = (
+        ("duration", "Stay length", "teal"),
+        ("time_in", "Time in", "crimson"),
+        ("time_out", "Time out", "royalblue"),
+    )
+    for parameters in table_vars:
+        column, title, color = parameters
+        title = f"<a href='{cc.selfref(cc.WHAT_ONE_DAY_FREQUENCIES,qdate=today)}'>{title}</a>"
+        print(
+            cgi_histogram.times_hist_table(
+                ttdb,
+                query_column=column,
+                start_date=today,
+                end_date=today,
+                mini=True,
+                color=color,
+                title=title,
+            )
+        )
+        print("<br>")
+
+
+def visits_table(
+    thisday,
+    is_today,
+    rows,
+    highlights,
+    daylight,
+    duration_colors,
+    sort_by,
+    pages_back,
+):
     # Sort the rows list according to the sort parameter
     sort_by = sort_by if sort_by else cc.SORT_TIME_IN
     if sort_by == cc.SORT_TAG:
@@ -249,9 +354,7 @@ def visits_table(thisday,is_today, rows,highlights,daylight,duration_colors,sort
     bar_scaling_factor = BAR_COL_WIDTH / (max_visit)
     bar_offset = round(earliest_event * bar_scaling_factor)
 
-
-
-    html = "<table style=text-align:center>"
+    html = "<table style=text-align:right class=general_table>"
     html += (
         "<tr><th colspan=5 style='text-align:center'>"
         f"Bikes on {thisday}<br>{sort_msg}</th></tr>"
@@ -267,7 +370,7 @@ def visits_table(thisday,is_today, rows,highlights,daylight,duration_colors,sort
     )
     print(html)
 
-    for i, v in enumerate(rows):
+    for v in rows:
         time_in = VTime(v.time_in)
         time_out = VTime(v.time_out)
         duration = VTime(v.duration)
@@ -337,28 +440,36 @@ def summary_table(
         if est.state != tt_estimator.ERROR and est.closing_time > VTime("now"):
             est_min = est.bikes_so_far + est.min
             est_max = est.bikes_so_far + est.max
-            the_estimate = str(est_min) if est_min == est_max else f"{est_min}-{est_max}"
+            the_estimate = (
+                str(est_min) if est_min == est_max else f"{est_min}-{est_max}"
+            )
 
-    print("<table><style>table td {text-align:right}</style>")
+    print(
+        "<table class=general_table><style>.general_table td {text-align:right}</style>"
+    )
     print(
         f"""
         <tr><td colspan=3>Valet hours:
             {day_data.valet_open.tidy} - {day_data.valet_close.tidy}</td></tr>
         <tr><td colspan=2>Total bikes parked (visits):</td>
             <td>{day_data.total_bikes}</td></tr>
-            """)
+            """
+    )
     if is_today and the_estimate is not None:
-        print(f"""
+        print(
+            f"""
         <tr><td colspan=2>&nbsp;&nbsp;Predicted total bikes today:</td>
             <td>{the_estimate}</td></tr>
-        """)
+        """
+        )
     print(
         f"""
         <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td>
             <td>{day_data.max_bikes}</td></tr>
         <tr><td colspan=2>Bikes left at valet (from TagTracker):</td>
             <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers_calculated>0)*HIGHLIGHT_WARN)}'>{day_data.leftovers_calculated}</td></tr>
-            """)
+            """
+    )
 
     if not is_today:
         print(
@@ -382,7 +493,7 @@ def summary_table(
             <tr><td colspan=2>Precipitation:</td>
                 <td>{fmt_none(day_data.precip)}</td></tr>
     """
-    )
+        )
     if not is_today and suspicious:
         print(
             f"""
@@ -405,7 +516,7 @@ def summary_table(
 
 
 def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):
-    print("<table>")
+    print("<table class=general_table>")
     print("<tr><td>Colours for time of day:</td>")
     print(f"<td style={daylight.css_bg_fg(daylight.min)}>Early</td>")
     print(f"<td style={daylight.css_bg_fg((daylight.min+daylight.max)/2)}>Mid-day</td>")

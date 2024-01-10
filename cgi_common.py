@@ -44,12 +44,14 @@ WHAT_OVERVIEW_DOW = "OvD"
 WHAT_BLOCKS_DOW = "BlkD"
 WHAT_MISMATCH = "MM"
 WHAT_ONE_DAY = "1D"
+WHAT_ONE_DAY_FREQUENCIES = "1Q"
 WHAT_DATA_ENTRY = "DE"
 WHAT_DATAFILE = "DF"
 WHAT_TAGS_LOST = "TL"
 WHAT_TAG_HISTORY = "TH"
 WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
+WHAT_SUMMARY_FREQUENCIES = "SQ"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"
@@ -69,6 +71,15 @@ SORT_PRECIPITATAION = "precipitation"
 ORDER_FORWARD = "forward"
 ORDER_REVERSE = "reverse"
 
+def test_dow_parameter(dow_parameter:str,list_ok:bool=False):
+    """Check if dow_parameter is ok."""
+    if list_ok:
+        testme = dow_parameter.split(",")
+    else:
+        testme = dow_parameter
+    for day in testme:
+        if day not in [str(i) for i in range(1,8)]:
+            error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
 
 def titleize(title: str = "") -> str:
     """Puts SITE_NAME in front of title and makes it pretty."""
@@ -203,6 +214,7 @@ def selfref(
     qdow: str = "",
     qsort: str = "",
     qdir: str = "",
+    text_note:str = "",
     pages_back=None,
 ) -> str:
     """Return a self-reference with the given parameters."""
@@ -223,6 +235,8 @@ def selfref(
         parms.append(f"sort={qsort}")
     if qdir:
         parms.append(f"dir={qdir}")
+    if text_note:
+        parms.append(f"text={text_note}")
     if pages_back is not None:
         parms.append(f"back={pages_back}")
     parms_str = f"?{'&'.join(parms)}" if parms else ""
@@ -237,32 +251,32 @@ def style() -> str:
                 font-family: sans-serif;
             }
 
-            table {
+            .general_table {
                 border-collapse: collapse;
                 border: 2px solid rgb(200, 200, 200);
                 letter-spacing: 1px;
                 font-size: 0.8rem;
             }
 
-            td, th {
+            .general_table td, .general_table th {
                 border: 1px solid rgb(190, 190, 190);
                 padding: 4px 6px;
                 text-align: center; /* Center-align all td and th by default */
             }
 
-            th {
+            .general_table th {
                 background: rgb(235, 235, 235);
             }
 
-            td:first-child {
+            .general_table td:first-child {
                 text-align: left; /* Left-align the first column in each row */
             }
 
-            tr:nth-child(even) td {
+            .general_table tr:nth-child(even) td {
                 background: rgb(250, 250, 250);
             }
 
-            tr:nth-child(odd) td {
+            .general_table tr:nth-child(odd) td {
                 background: rgb(245, 245, 245);
             }
 
