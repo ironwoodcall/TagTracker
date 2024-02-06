@@ -79,11 +79,12 @@ To enter and change valet data
   Edit check in/out times      :   edit / e
   Delete a check in/out        :   delete / del  / d
   Set valet open/close hours   :   valet / v
-  Add/read operator notes      :   note / n
+  View/add operator notes      :   note / n
+  View/set bike registrations  :   registrations / reg / r
 
 Information and reports
   Show info about one tag      :   query / q / ?
-  Show recent activity         :   recent / r
+  Show recent activity         :   recent / rec
   Show audit info              :   audit / a
   Show day-end stats report    :   stat  / s
   Show valet busy-ness report  :   busy / b
