@@ -30,14 +30,17 @@ Copyright (C) 2023 Julias Hocking
 
 """
 import os
+import re
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+import tt_globals as g
+
+# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 from tt_trackerday import TrackerDay
 import tt_conf as cfg
-import tt_notes as notes
+# import tt_notes as notes
 
 # Header strings to use in datafile and tags- config file
 # These are used when writing & also for string-matching when reading.
@@ -51,6 +54,7 @@ HEADER_REGULAR = "Regular-bike tags:"
 HEADER_RETIRED = "Retired tags:"
 HEADER_COLOURS = "Colour codes:"
 HEADER_NOTES = "Notes:"
+HEADER_REGISTRATIONS = "Registrations:"
 
 
 def datafile_name(folder: str, whatdate: str = "today") -> str:
@@ -124,30 +128,55 @@ def read_datafile(
                 continue
             # Look for section headers to figure out what section we will process
             if re.match(rf"^ *{HEADER_BIKES_IN}", line):
-                section = BIKE_IN
+                section = g.BIKE_IN
                 continue
             elif re.match(rf"^ *{HEADER_BIKES_OUT}", line):
-                section = BIKE_OUT
+                section = g.BIKE_OUT
                 continue
             # Look for headers for oversize & regular bikes, ignore them.
             elif re.match(rf"^ *{HEADER_REGULAR}", line):
-                section = REGULAR
+                section = g.REGULAR
                 continue
             elif re.match(rf"^ *{HEADER_OVERSIZE}", line):
-                section = OVERSIZE
+                section = g.OVERSIZE
                 continue
             elif re.match(rf"^ *{HEADER_RETIRED}", line):
-                section = RETIRED
+                section = g.RETIRED
                 continue
             elif re.match(rf"^ *{HEADER_COLOURS}", line):
-                section = COLOURS
+                section = g.COLOURS
                 continue
             elif re.match(rf"^ *{HEADER_NOTES}", line):
-                section = NOTES
+                section = g.NOTES
+                continue
+            elif re.match(rf"^ *{HEADER_REGISTRATIONS}", line):
+                # Read the number of registrations
+                section = g.NOT_A_LIST
+                r = re.match(rf"{HEADER_REGISTRATIONS} *(.+)", line)
+                try:
+                    data.registrations = int(r.group(1))
+                except ValueError:
+                    errors = data_read_error(
+                        "Unable to read registrations value",
+                        err_msgs,
+                        errs=errors,
+                        fname=filename,
+                        fline=line_num,
+                    )
+                    continue
+                if data.registrations < 0:
+                    errors = data_read_error(
+                        "Registrations value < 0",
+                        err_msgs,
+                        errs=errors,
+                        fname=filename,
+                        fline=line_num,
+                    )
+                    continue
                 continue
             elif re.match(rf"^ *{HEADER_VALET_DATE}", line):
                 # Read the datafile's date
-                section = IGNORE
+                section = g.NOT_A_LIST
                 r = re.match(rf"{HEADER_VALET_DATE} *(.+)", line)
                 maybedate = ut.date_str(r.group(1))
                 if not maybedate:
@@ -161,11 +190,9 @@ def read_datafile(
                     continue
                 data.date = maybedate
                 continue
-            elif re.match(
-                rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES})", line
-            ):
+            elif re.match(rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES})", line):
                 # This is an open or a close time (probably)
-                section = IGNORE
+                section = g.NOT_A_LIST
                 r = re.match(
                     rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES}) *(.+)",
                     line,
@@ -196,16 +223,16 @@ def read_datafile(
                 )
                 continue
 
-            if section == IGNORE:
-                # Things to ignore
+            if section == g.NOT_A_LIST:
+                # IUgnore anything htat is not a list section
                 continue
 
-            if section == NOTES:
+            if section == g.NOTES:
                 # Read operator notes
                 data.notes.append(line)
                 continue
 
-            if section == COLOURS:
+            if section == g.COLOURS:
                 # Read the colour dictionary
                 bits = ut.splitline(line)
                 if len(bits) < 2:
@@ -229,7 +256,7 @@ def read_datafile(
                 data.colour_letters[bits[0]] = " ".join(bits[1:])
                 continue
 
-            if section in [REGULAR, OVERSIZE, RETIRED]:
+            if section in [g.REGULAR, g.OVERSIZE, g.RETIRED]:
                 # Break each line into 0 or more tags
                 bits = ut.splitline(line)
                 taglist = [TagID(x) for x in bits]
@@ -245,20 +272,18 @@ def read_datafile(
                     )
                     continue
                 # Looks like we have some tags
-                if section == REGULAR:
+                if section == g.REGULAR:
                     data.regular |= set(taglist)
-                elif section == OVERSIZE:
+                elif section == g.OVERSIZE:
                     data.oversize |= set(taglist)
-                elif section == RETIRED:
+                elif section == g.RETIRED:
                     data.retired |= set(taglist)
                 else:
-                    ut.squawk(
-                        f"Bad section value in read_datafile(), '{section}"
-                    )
+                    ut.squawk(f"Bad section value in read_datafile(), '{section}")
                     return
                 continue
 
-            if section not in [BIKE_IN, BIKE_OUT]:
+            if section not in [g.BIKE_IN, g.BIKE_OUT]:
                 ut.squawk(f"Bad section value in read_datafile(), '{section}")
                 return
 
@@ -275,7 +300,7 @@ def read_datafile(
                 )
                 continue
             this_tag = TagID(cells[0])
-            if not (this_tag):
+            if not this_tag:
                 errors = data_read_error(
                     "String does not appear to be a tag",
                     err_msgs,
@@ -294,7 +319,7 @@ def read_datafile(
                 )
                 continue
             this_time = VTime(cells[1])
-            if not (this_time):
+            if not this_time:
                 errors = data_read_error(
                     "Poorly formed time value",
                     err_msgs,
@@ -304,7 +329,7 @@ def read_datafile(
                 )
                 continue
             # Maybe add to data.bikes_in or data.bikes_out structures.
-            if section == BIKE_IN:
+            if section == g.BIKE_IN:
                 # Maybe add to check_in structure
                 if this_tag in data.bikes_in:
                     errors = data_read_error(
@@ -315,10 +340,7 @@ def read_datafile(
                         fline=line_num,
                     )
                     continue
-                if (
-                    this_tag in data.bikes_out
-                    and data.bikes_out[this_tag] < this_time
-                ):
+                if this_tag in data.bikes_out and data.bikes_out[this_tag] < this_time:
                     errors = data_read_error(
                         f"Tag {this_tag} check out before check-in",
                         err_msgs,
@@ -328,7 +350,7 @@ def read_datafile(
                     )
                     continue
                 data.bikes_in[this_tag] = this_time
-            elif section == BIKE_OUT:
+            elif section == g.BIKE_OUT:
                 if this_tag in data.bikes_out:
                     errors = data_read_error(
                         f"Duplicate {this_tag} check-out",
@@ -347,10 +369,7 @@ def read_datafile(
                         fline=line_num,
                     )
                     continue
-                if (
-                    this_tag in data.bikes_in
-                    and data.bikes_in[this_tag] > this_time
-                ):
+                if this_tag in data.bikes_in and data.bikes_in[this_tag] > this_time:
                     errors = data_read_error(
                         f"Tag {this_tag} check out before check-in",
                         err_msgs,
@@ -374,22 +393,24 @@ def read_datafile(
     return data
 
 
-def write_datafile(
-    filename: str, data: TrackerDay, header_lines: list = None
-) -> bool:
+def write_datafile(filename: str, data: TrackerDay) -> bool:
     """Write current data to today's data file.
 
     Return True if succeeded, False if failed.
     """
     lines = []
-    if header_lines:
-        lines = header_lines
+    lines.append(
+        "# TagTracker datafile (data file) created on "
+        f"{ut.date_str('today')} {VTime('now')}"
+    )
+    lines.append(f"# TagTracker version {ut.get_version()}")
+    # For convenience, show # of leftovers & latest event
+    if data.bikes_in:
+        latest_event = max(list(data.bikes_in.values())+list(data.bikes_out.values()))
+        leftovers = len(data.bikes_in) - len(data.bikes_out)
+        lines.append(f"# {leftovers} bikes left as of {latest_event}")
     else:
-        lines.append(
-            "# TagTracker datafile (data file) created on "
-            f"{ut.date_str('today')} {VTime('now')}"
-        )
-        lines.append(f"# TagTracker version {ut.get_version()}")
+        lines.append("# No bikes")
     # Valet data, opening & closing hours
     if data.date:
         lines.append(f"{HEADER_VALET_DATE} {data.date}")
@@ -397,6 +418,8 @@ def write_datafile(
         lines.append(f"{HEADER_VALET_OPENS} {data.opening_time}")
     if data.closing_time:
         lines.append(f"{HEADER_VALET_CLOSES} {data.closing_time}")
+    if data.registrations:
+        lines.append(f"{HEADER_REGISTRATIONS} {data.registrations}")
 
     lines.append(HEADER_BIKES_IN)
     for tag, atime in data.bikes_in.items():  # for each bike checked in
@@ -424,9 +447,7 @@ def write_datafile(
     lines.append("# Normal end of file")
     # Write the data to the file.
     try:
-        with open(
-            filename, "w", encoding="utf-8"
-        ) as f:  # write stored lines to file
+        with open(filename, "w", encoding="utf-8") as f:  # write stored lines to file
             for line in lines:
                 f.write(line)
                 f.write("\n")
@@ -458,9 +479,7 @@ def new_tag_config_file(filename: str):
         "# E.g. r red \n",
         "Colour codes:\n\n",
     ]
-    if not os.path.exists(
-        filename
-    ):  # make new tags config file only if needed
+    if not os.path.exists(filename):  # make new tags config file only if needed
         try:
             with open(filename, "w", encoding="utf-8") as f:
                 f.writelines(template)
