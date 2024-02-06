@@ -89,7 +89,7 @@ class Registrations:
     def display_error_message(cls,error:str=""):
         if error:
             pr.iprint(error,style=cfg.ERROR_STYLE )
-        else:""
+        else:
             pr.iprint("Error: Invalid registration command.",style=cfg.ERROR_STYLE )
         pr.iprint(cls.usage_str,style=cfg.ERROR_STYLE)
 
