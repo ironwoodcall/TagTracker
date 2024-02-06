@@ -73,9 +73,10 @@ class Registrations:
     @classmethod
     def display_current_count(cls):
         pr.iprint(
-            f"There {ut.plural(cls.num_registrations,'is','are')} now "
+            f"There {ut.plural(cls.num_registrations,'is','are')} "
             f"{cls.num_registrations} {ut.plural(cls.num_registrations, 'registration')}"
         )
+
     @classmethod
     def display_error_message(cls):
         pr.iprint("Error: Invalid registration command.",style=cfg.ERROR_STYLE )

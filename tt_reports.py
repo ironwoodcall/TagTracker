@@ -36,6 +36,7 @@ from tt_event import Event
 import tt_block
 import tt_printer as pr
 import tt_conf as cfg
+import tt_registrations as reg
 
 # try:
 #    import tt_local_config  # pylint:disable=unused-import
@@ -53,6 +54,10 @@ MODE_ROUND_TO_NEAREST = 30  # mins
 # List ow many ranked busiest times of day in report?
 BUSIEST_RANKS = 4
 
+def registrations_report():
+    """Display current count of registrations."""
+    pr.iprint()
+    reg.Registrations.display_current_count()
 
 def recent(day: TrackerDay, args: list[str]) -> None:
     """Display a look back at recent activity.
@@ -856,6 +861,9 @@ def day_end_report(day: TrackerDay, args: list, include_notes: bool = True) -> N
     visits = Stay.calc_stays(day, as_of_when)
     visit_lengths_by_category_report(visits)
     visit_statistics_report(visits)
+
+    # Number of bike registrations
+    registrations_report()
 
     if include_notes:
         notes_bit(day)
