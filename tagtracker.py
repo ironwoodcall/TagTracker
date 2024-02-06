@@ -52,6 +52,7 @@ import tt_tag_inv as inv
 import tt_notes as notes
 from tt_cmdparse import CmdBits
 import tt_call_estimator
+import tt_registrations as reg
 
 # Local connfiguration
 # try:
@@ -1020,6 +1021,8 @@ def main():
             dump_data()
         elif cmd_bits.command == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
+        elif cmd_bits.command == cfg.CMD_REGISTRATION:
+            reg.Registrations.process_registration(cmd_bits.tail)
         elif cmd_bits.command == cfg.CMD_NOTES:
             if cmd_bits.args:
                 notes.Notes.add(cmd_bits.tail)
