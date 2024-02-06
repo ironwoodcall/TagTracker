@@ -38,6 +38,10 @@ class Registrations:
         """Do nothing; class initialization is done through import."""
 
     @classmethod
+    def set_num_registrations(cls,num_registrations:int):
+        cls.num_registrations = num_registrations
+
+    @classmethod
     def process_registration(cls, user_input: str):
         user_input = user_input.strip()  # Remove leading and trailing whitespace
 
