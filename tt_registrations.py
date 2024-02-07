@@ -25,8 +25,8 @@ import tt_util as ut
 import tt_conf as cfg
 import tt_printer as pr
 
-class Registrations:
 
+class Registrations:
     # Initialize it only if it does not yet exist.
     try:
         # pylint: disable-next=used-before-assignment
@@ -38,7 +38,7 @@ class Registrations:
         """Do nothing; class initialization is done through import."""
 
     @classmethod
-    def set_num_registrations(cls,num_registrations:int):
+    def set_num_registrations(cls, num_registrations: int):
         cls.num_registrations = num_registrations
 
     @classmethod
@@ -47,7 +47,7 @@ class Registrations:
 
         if not user_input:
             cls.display_current_count()
-        elif user_input[0] in ('+', '-', '='):
+        elif user_input[0] in ("+", "-", "="):
             cls.update_registration_count(user_input)
         else:
             cls.display_error_message()
@@ -62,11 +62,11 @@ class Registrations:
             cls.display_error_message()
             return
 
-        if operator == '+':
+        if operator == "+":
             new_count = cls.num_registrations + num
-        elif operator == '-':
+        elif operator == "-":
             new_count = cls.num_registrations - num
-        elif operator == '=':
+        elif operator == "=":
             new_count = num
         else:
             cls.display_error_message("")
@@ -79,21 +79,25 @@ class Registrations:
         cls.display_current_count()
 
     @classmethod
-    def display_current_count(cls):
+    def display_current_count(
+        cls, style: str = None, num_indents: int = None
+    ):
         pr.iprint(
             f"There {ut.plural(cls.num_registrations,'is','are')} "
-            f"{cls.num_registrations} {ut.plural(cls.num_registrations, 'registration')}"
+            f"{cls.num_registrations} bike "
+            f"{ut.plural(cls.num_registrations, 'registration')}",
+            style=style,
+            num_indents=num_indents,
         )
 
     @classmethod
-    def display_error_message(cls,error:str=""):
+    def display_error_message(cls, error: str = ""):
         if error:
-            pr.iprint(error,style=cfg.ERROR_STYLE )
+            pr.iprint(error, style=cfg.ERROR_STYLE)
         else:
-            pr.iprint("Error: Invalid registration command.",style=cfg.ERROR_STYLE )
-        pr.iprint(cls.usage_str(),style=cfg.ERROR_STYLE)
+            pr.iprint("Error: Invalid registration command.", style=cfg.ERROR_STYLE)
+        pr.iprint(cls.usage_str(), style=cfg.ERROR_STYLE)
 
     @classmethod
     def usage_str(cls):
         return "Usage: REG +/-/= {number}. E.g. 'REG +1', 'REG = 5'"
-

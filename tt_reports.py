@@ -57,6 +57,7 @@ BUSIEST_RANKS = 4
 def registrations_report():
     """Display current count of registrations."""
     pr.iprint()
+    pr.iprint("Bike registrations",style=cfg.SUBTITLE_STYLE)
     reg.Registrations.display_current_count()
 
 def recent(day: TrackerDay, args: list[str]) -> None:
