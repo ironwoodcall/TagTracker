@@ -38,6 +38,7 @@ class TrackerDay:
         self.date = ""
         self.opening_time = ""
         self.closing_time = ""
+        self.registrations = 0  # FIXME: better 0 or None?
         self.bikes_in = {}
         self.bikes_out = {}
         self.regular = frozenset()
