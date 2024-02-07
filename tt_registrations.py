@@ -67,7 +67,7 @@ class Registrations:
         elif operator == '-':
             new_count = cls.num_registrations - num
         elif operator == '=':
-            new_count = cls.num_registrations
+            new_count = num
         else:
             cls.display_error_message("")
 
