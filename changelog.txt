@@ -1,5 +1,10 @@
 TagTracker by Julias Hocking
 
+1.3.0:
++ keeps count of bike registrations (client side only)
+~ I forget what else by now. Who reads this?
+~ Do we need it any more now that we're using git?
+
 1.1.2:
 + histograms on freq distribution of stay-lengths
 
