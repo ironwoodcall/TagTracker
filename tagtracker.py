@@ -738,15 +738,12 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
     """Check a tag in or out.
 
     This processes a prompt that's just a tag ID.
-    If there is a cmd_tail, adds it as a note.
     """
 
-    def tag_note(tag: str, note: str) -> None:
-        """Add 'note' for tag and say so, for a check in/out.."""
-        if not note:
-            return
-        notes.Notes.add(f"({tag}) {note}")
-        pr.iprint(f"Added note '({tag}) {note}'")
+    # Has to be only the tag, no extra text
+    if cmd_tail:
+        pr.iprint("Error: Extra text following tag name", style=cfg.WARNING_STYLE)
+        return
 
     pr.print_tag_notes(tag)
 
@@ -766,7 +763,6 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                 sure = pr.tt_inp().lower() in ["y", "yes"]
                 if sure:
                     multi_edit([tag, "o", VTime("now")])
-                    tag_note(tag, cmd_tail)
                 else:
                     pr.iprint("Cancelled", style=cfg.WARNING_STYLE)
             else:  # checked in only
@@ -792,7 +788,6 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                     sure = True
                 if sure:
                     multi_edit([tag, "o", rightnow])
-                    tag_note(tag, cmd_tail)
                 else:
                     pr.iprint(
                         "Cancelled bike check out", style=cfg.WARNING_STYLE
@@ -800,7 +795,6 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
         else:  # if string is in neither dict
             check_ins[tag] = VTime("now")
             print_tag_inout(tag, BIKE_IN)
-            tag_note(tag, cmd_tail)
 
 
 def parse_command(user_input: str) -> list[str]:
