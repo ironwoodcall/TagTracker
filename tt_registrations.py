@@ -27,6 +27,11 @@ import tt_printer as pr
 
 
 class Registrations:
+    """Manage the count of bike registrations.
+
+    This uses only a class variable so there is only ever one instance.
+    """
+
     # Initialize it only if it does not yet exist.
     try:
         # pylint: disable-next=used-before-assignment
@@ -39,21 +44,24 @@ class Registrations:
 
     @classmethod
     def set_num_registrations(cls, num_registrations: int):
+        """Set the registration count to a new value."""
         cls.num_registrations = num_registrations
 
     @classmethod
     def process_registration(cls, user_input: str):
+        """Set registration value based on a user command."""
         user_input = user_input.strip()  # Remove leading and trailing whitespace
 
         if not user_input:
             cls.display_current_count()
         elif user_input[0] in ("+", "-", "="):
-            cls.update_registration_count(user_input)
+            cls.parse_registration_count(user_input)
         else:
             cls.display_error_message()
 
     @classmethod
-    def update_registration_count(cls, user_input: str):
+    def parse_registration_count(cls, user_input: str):
+        """Parse the command string and set registration count from it."""
         operator = user_input[0]
         number_str = user_input[1:].strip()  # Remove whitespace surrounding the number
         try:
@@ -79,19 +87,19 @@ class Registrations:
         cls.display_current_count()
 
     @classmethod
-    def display_current_count(
-        cls, style: str = None, num_indents: int = None
-    ):
+    def display_current_count(cls, style: str = None, num_indents: int = None):
+        """Display the current count of user registrations."""
         pr.iprint(
             f"There {ut.plural(cls.num_registrations,'is','are')} "
             f"{cls.num_registrations} bike "
-            f"{ut.plural(cls.num_registrations, 'registration')}",
+            f"{ut.plural(cls.num_registrations, 'registration')}.",
             style=style,
             num_indents=num_indents,
         )
 
     @classmethod
     def display_error_message(cls, error: str = ""):
+        """Show an error message."""
         if error:
             pr.iprint(error, style=cfg.ERROR_STYLE)
         else:
@@ -100,4 +108,5 @@ class Registrations:
 
     @classmethod
     def usage_str(cls):
+        """Return a string showing the REG command usage."""
         return "Usage: REG +/-/= {number}. E.g. 'REG +1', 'REG = 5'"
