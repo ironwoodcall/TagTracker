@@ -91,7 +91,7 @@ class Registrations:
             pr.iprint(error,style=cfg.ERROR_STYLE )
         else:
             pr.iprint("Error: Invalid registration command.",style=cfg.ERROR_STYLE )
-        pr.iprint(cls.usage_str,style=cfg.ERROR_STYLE)
+        pr.iprint(cls.usage_str(),style=cfg.ERROR_STYLE)
 
     @classmethod
     def usage_str(cls):
