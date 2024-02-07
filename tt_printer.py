@@ -177,7 +177,7 @@ def text_style(text: str, style=None) -> str:
     return f"{cfg.STYLE[style]}{text}{cfg.STYLE[cfg.RESET_STYLE]}"
 
 
-def iprint(text: str = "", num_indents: int = 1, style=None, end="\n") -> None:
+def iprint(text: str = "", num_indents: int = None, style=None, end="\n") -> None:
     """Print the text, indented num_indents times.
 
     Recognizes the 'end=' keyword for the print() statement.
@@ -185,6 +185,7 @@ def iprint(text: str = "", num_indents: int = 1, style=None, end="\n") -> None:
     Everything gets indented
     Only screen output gets styled; indents do *not* get styled to screen
     """
+    num_indents = 1 if num_indents is None else num_indents
     indent = _INDENT * num_indents
 
     # Going to screen?
