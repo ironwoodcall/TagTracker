@@ -58,7 +58,7 @@ def registrations_report():
     """Display current count of registrations."""
     pr.iprint()
     pr.iprint("Bike registrations",style=cfg.SUBTITLE_STYLE)
-    reg.Registrations.display_current_count()
+    reg.Registrations.display_current_count(num_indents=2)
 
 def recent(day: TrackerDay, args: list[str]) -> None:
     """Display a look back at recent activity.
