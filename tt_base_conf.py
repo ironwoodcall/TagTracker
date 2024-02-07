@@ -79,11 +79,12 @@ To enter and change valet data
   Edit check in/out times      :   edit / e
   Delete a check in/out        :   delete / del  / d
   Set valet open/close hours   :   valet / v
-  Add/read operator notes      :   note / n
+  View/add operator notes      :   note / n
+  View/set bike registrations  :   registrations / reg / r
 
 Information and reports
   Show info about one tag      :   query / q / ?
-  Show recent activity         :   recent / r
+  Show recent activity         :   recent / rec
   Show audit info              :   audit / a
   Show day-end stats report    :   stat  / s
   Show valet busy-ness report  :   busy / b
@@ -152,6 +153,7 @@ CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
 CMD_LINT = "lint"
 CMD_NOTES = "notes"
+CMD_REGISTRATION = "registration"
 CMD_DUMP = "dump"
 CMD_BUSY_CHART = "busy_chart"
 CMD_FULL_CHART = "full_chart"
@@ -170,7 +172,7 @@ COMMANDS[CMD_EDIT] = ["edit", "e", "ed"]
 COMMANDS[CMD_EXIT] = ["quit", "exit", "stop", "x", "bye"]
 COMMANDS[CMD_BLOCK] = ["log", "l", "form", "f"]
 COMMANDS[CMD_HELP] = ["help", "h"]
-COMMANDS[CMD_LOOKBACK] = ["recent", "r"]
+COMMANDS[CMD_LOOKBACK] = ["recent", "rec"]
 COMMANDS[CMD_QUERY] = ["query", "q", "?", "/"]
 COMMANDS[CMD_STATS] = ["s", "stat", "stats", "statistics"]
 COMMANDS[CMD_BUSY] = ["b", "busy", "busyness", "business"]
@@ -198,6 +200,7 @@ COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
 COMMANDS[CMD_COLOURS] = ["col", "color", "colors", "colour", "colours"]
 COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
 COMMANDS[CMD_NOTES] = ["note", "notes", "n"]
+COMMANDS[CMD_REGISTRATION] = ["registrations","register","reg","r"]
 COMMANDS[CMD_ESTIMATE] = ["est", "estimate", "guess"]
 # These are for commands that are not recognized so *maybe* are a tag
 CMD_UNKNOWN = "unknown" + chr(

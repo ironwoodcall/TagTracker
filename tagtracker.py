@@ -52,6 +52,7 @@ import tt_tag_inv as inv
 import tt_notes as notes
 from tt_cmdparse import CmdBits
 import tt_call_estimator
+import tt_registrations as reg
 
 # Local connfiguration
 # try:
@@ -149,6 +150,7 @@ def pack_day_data() -> td.TrackerDay:
     day.date = VALET_DATE
     day.opening_time = VALET_OPENS
     day.closing_time = VALET_CLOSES
+    day.registrations = reg.Registrations.num_registrations
     day.bikes_in = check_ins
     day.bikes_out = check_outs
     day.regular = NORMAL_TAGS
@@ -171,6 +173,7 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
     VALET_DATE = today_data.date
     VALET_OPENS = today_data.opening_time
     VALET_CLOSES = today_data.closing_time
+    reg.Registrations.set_num_registrations(today_data.registrations)
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
     NORMAL_TAGS = today_data.regular
@@ -1020,6 +1023,8 @@ def main():
             dump_data()
         elif cmd_bits.command == cfg.CMD_LINT:
             lint_report(strict_datetimes=True)
+        elif cmd_bits.command == cfg.CMD_REGISTRATION:
+            reg.Registrations.process_registration(cmd_bits.tail)
         elif cmd_bits.command == cfg.CMD_NOTES:
             if cmd_bits.args:
                 notes.Notes.add(cmd_bits.tail)
