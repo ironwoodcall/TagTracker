@@ -33,26 +33,26 @@ Copyright (C) 2024 Julias Hocking, Todd Glover
 """
 
 import argparse
-import calendar
 import glob
 import os
-import re
 import sqlite3
 import sys
 from dataclasses import dataclass, field
 import subprocess
 from datetime import datetime
+import hashlib
 
 import tt_datafile
 import tt_dbutil
 import tt_globals
 import tt_util as ut
+from tt_trackerday import TrackerDay
 
 from tt_event import Event
 from tt_time import VTime
 
 # Pre-declare this global for linting purposes.
-program_args = None
+args = None
 
 # Values for good & bad status
 STATUS_GOOD = "GOOD"
@@ -102,6 +102,26 @@ OVERSIZE = "O"
 
 
 @dataclass
+class DayStats:
+    # Summary stats & such for one day.
+    # This makes up most of a record for a DAY row,
+    date: str
+    regular_parked: int = 0
+    oversize_parked: int = 0
+    total_parked: int = 0
+    total_leftover: int = 0
+    max_regular_num: int = 0
+    max_regular_time: VTime = ""
+    max_oversize_num: int = 0
+    max_oversize_time: VTime = ""
+    max_total_num: int = 0
+    max_total_time: VTime = ""
+    time_open: VTime = ""
+    time_close: VTime = ""
+    weekday: int = None
+
+
+@dataclass
 class Statuses:
     """Keep track of status of individual files & overall program."""
 
@@ -112,10 +132,13 @@ class Statuses:
     files: dict = field(default_factory=dict)
 
     @classmethod
-    def set_bad(cls,error_msg:str = "Unspecified error"):
+    def set_bad(cls, error_msg: str = "Unspecified error", silent: bool = False):
         cls.status = STATUS_BAD
         cls.errors += 1
         cls.error_list += [error_msg]
+        if not silent:
+            print(error_msg, file=sys.stderr)
+
 
 @dataclass
 class FileInfo:
@@ -126,10 +149,13 @@ class FileInfo:
     errors: int = 0
     error_list: list = field(default_factory=list)
 
-    def set_bad(self,error_msg:str = "Unspecified error"):
+    def set_bad(self, error_msg: str = "Unspecified error", silent: bool = False):
         self.status = STATUS_BAD
         self.errors += 1
         self.error_list += [error_msg]
+        if not silent:
+            print(f"{error_msg} [{self.name}]", file=sys.stderr)
+
 
 def calc_duration(hhmm_in: str, hhmm_out: str) -> str:
     """Calculate a str duration from a str time in and out."""
@@ -141,17 +167,49 @@ def calc_duration(hhmm_in: str, hhmm_out: str) -> str:
     return hhmm_stay
 
 
+def is_linux() -> bool:
+    """Check if running in linux."""
+    system_platform = sys.platform
+    return system_platform.startswith("linux")
+
+
 def get_file_fingerprint(file_path):
     """Get a file's fingerprint."""
-    try:
-        result = subprocess.run(
-            ["md5sum", file_path], capture_output=True, text=True, check=True
-        )
-        md5sum_output = result.stdout.strip().split()[0]
-        return md5sum_output
-    except subprocess.CalledProcessError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return None
+
+    def get_file_md5_linux(file_path):
+        """Get an md5 digest by calling the system program."""
+        try:
+            result = subprocess.run(
+                ["md5sum", file_path], capture_output=True, text=True, check=True
+            )
+            md5sum_output = result.stdout.strip().split()[0]
+            return md5sum_output
+        except subprocess.CalledProcessError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return None
+
+    def get_file_md5_windows(file_path):
+        """Calculate the MD5 checksum for a given file by reading the file.
+
+        This one would be OS independent.
+        """
+        # Open the file in binary mode
+        with open(file_path, "rb") as file:
+            # Create an MD5 hash object
+            md5_hash = hashlib.md5()
+            # Read the file in chunks to avoid loading the entire file into memory
+            for chunk in iter(lambda: file.read(4096), b""):
+                # Update the hash object with the chunk
+                md5_hash.update(chunk)
+        # Get the hexadecimal digest of the hash
+        md5_checksum = md5_hash.hexdigest()
+        return md5_checksum
+
+    # On linux, prefer calling the system md5sum program
+    if is_linux():
+        return get_file_md5_linux(file_path)
+    else:
+        return get_file_md5_windows(file_path)
 
 
 def get_file_timestamp(file_path):
@@ -165,136 +223,85 @@ def get_file_timestamp(file_path):
         return None
 
 
-def data_to_db(filename: str, batch, conn) -> None:
-    """Record one datafile to the database.
+def get_bike_type(tag: str, day: TrackerDay) -> str:
+    if tag in day.regular:
+        return REGULAR
+    elif tag in day.oversize:
+        return OVERSIZE
+    else:
+        return ""
 
-    Read the datafile in question into a TrackerDay object with
-    df.read_datafile()
 
-    For the day, UPDATE or INSERT a row of day summary data into TABLE_DAYS
+def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
+    """Figure out the stats for a DAY row."""
 
-    Then calculate some things which might be based on it
-    for each bike, and record a row of visit data into TABLE_VISITS
-    """
-
-    def what_bike_type(tag: str) -> str:
-        """Return the type 'Normal' or 'Oversize' of a tag.
-        Based on each day's datafile"""
-        if tag in regular_tags:
-            return REGULAR
-        elif tag in oversize_tags:
-            return OVERSIZE
-        else:
-            print(
-                f"Error: couldn't parse bike type for {tag} in {filename}. "
-                "Exiting with error.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-    if not os.path.isfile(filename):
-        if program_args.verbose:
-            print(f"Error: couldn't find file: {filename}", file=sys.stderr)
-        Statuses.files[filename].set_bad("File not found")
-        return
-
-    if program_args.verbose:
-        print(f"\nLoading {filename}:")
-
-    data = tt_datafile.read_datafile(f"{filename}", err_msgs=[])
-    date = data.date
-    if not date:  # get from filename for old data formats (hopefully never)
-        print(
-            f"Error: unable to read valet date from file {filename}. "
-            "Skipping this file",
-            file=sys.stderr,
-        )
-        globals()["SKIP_COUNT"] += 1
-        return
-
-    if not data.bikes_in:  # if no visits to record, stop now
-        print(f"No visits in {filename}")
-        globals()["EMPTY_COUNT"] += 1
-        return
-
-    if data.regular and data.oversize:
-        regular_tags = data.regular
-        oversize_tags = data.oversize
-        if program_args.verbose:
-            print("Tags: datafile tag lists loaded")
-    else:  # if no context
-        print(
-            f"Error: unable to read tags context from file {filename}. "
-            "Skipping this file.",
-            file=sys.stderr,
-        )
-        globals()["SKIP_COUNT"] += 1
-        return
-
+    row = DayStats(day.date)
     # TABLE_DAYS handling
     # Simple counts
-    regular_parked = 0
-    oversize_parked = 0
-    for tag in data.bikes_in.keys():
-        bike_type = what_bike_type(tag)
+    row.regular_parked = 0
+    row.oversize_parked = 0
+    for tag in day.bikes_in.keys():
+        bike_type = get_bike_type(tag, day)
         if bike_type == REGULAR:
-            regular_parked += 1
+            row.regular_parked += 1
         elif bike_type == OVERSIZE:
-            oversize_parked += 1
-    total_parked = regular_parked + oversize_parked
-    total_leftover = len(data.bikes_in) - len(data.bikes_out)
-    if total_leftover < 0:
-        print(
-            f"Error: calculated negative value ({total_leftover})"
-            f" of leftover bikes for {date}. Skipping {filename}.",
-            file=sys.stderr,
-        )
-        globals()["SKIP_COUNT"] += 1
-        return
+            row.oversize_parked += 1
+        else:
+            msg = f"Can not tell tag type for tag {tag}"
+            Statuses.files[filename].set_bad(msg)
+    row.total_parked = row.regular_parked + row.oversize_parked
+    row.total_leftover = len(day.bikes_in) - len(day.bikes_out)
+    if row.total_leftover < 0:
+        msg = "Total leftovers is negative"
+        Statuses.files[filename].set_bad(msg)
+        return None
 
     # Highwater values
-    events = Event.calc_events(data)
-    max_regular_num = max([x.num_here_regular for x in events.values()])
-    max_oversize_num = max([x.num_here_oversize for x in events.values()])
-    max_total_num = max([x.num_here_total for x in events.values()])
-    max_regular_time = None
-    max_oversize_time = None
-    max_total_time = None
+    events = Event.calc_events(day)
+    row.max_regular_num = max([x.num_here_regular for x in events.values()])
+    row.max_oversize_num = max([x.num_here_oversize for x in events.values()])
+    row.max_total_num = max([x.num_here_total for x in events.values()])
+    row.max_regular_time = None
+    row.max_oversize_time = None
+    row.max_total_time = None
     # Find the first time at which these took place
     for atime in sorted(events.keys()):
-        if events[atime].num_here_regular >= max_regular_num and not max_regular_time:
-            max_regular_time = atime
         if (
-            events[atime].num_here_oversize >= max_oversize_num
-            and not max_oversize_time
+            events[atime].num_here_regular >= row.max_regular_num
+            and not row.max_regular_time
         ):
-            max_oversize_time = atime
-        if events[atime].num_here_total >= max_total_num and not max_total_time:
-            max_total_time = atime
+            row.max_regular_time = atime
+        if (
+            events[atime].num_here_oversize >= row.max_oversize_num
+            and not row.max_oversize_time
+        ):
+            row.max_oversize_time = atime
+        if events[atime].num_here_total >= row.max_total_num and not row.max_total_time:
+            row.max_total_time = atime
 
     # Open and close times
-    if data.opening_time and data.closing_time:
-        time_open = data.opening_time
-        time_close = data.closing_time
+    if day.opening_time and day.closing_time:
+        row.time_open = day.opening_time
+        row.time_close = day.closing_time
     else:  # guess with bike check-ins
-        time_open = data.earliest_event()
-        time_close = data.latest_event()
-    if not time_close:
-        print(
-            f"Error - datafile {filename} missing closing time. " "Skipping datafile.",
-            file=sys.stderr,
-        )
-        globals()["SKIP_COUNT"] += 1
-        return
+        row.time_open = day.earliest_event()
+        row.time_close = day.latest_event()
+    if not row.time_close:
+        msg = "Can not find or guess a closing time"
+        Statuses.files[filename].set_bad(msg)
+        return None
 
     # Find int day of week
-    date_bits = re.match(tt_globals.DATE_FULL_RE, date)
-    year = int(date_bits.group(1))
-    month = int(date_bits.group(2))
-    day = int(date_bits.group(3))
-    weekday = 1 + calendar.weekday(year, month, day)  # ISO 8601 says 1-7 M-S
+    row.weekday = ut.dow_int(row.date)
 
-    if not sql_exec(  # First try to make a new row...
+    return row
+
+
+def day_into_db(
+    filename: str, day_row: DayStats, batch: str, conn: sqlite3.Connection
+) -> bool:
+    # Try inserting, see if that works
+    sql_error = sql_exec_and_error(
         f"""INSERT INTO {TABLE_DAYS} (
                 {COL_DATE},
                 {COL_REGULAR},
@@ -311,81 +318,130 @@ def data_to_db(filename: str, batch, conn) -> None:
                 {COL_TIME_CLOSE},
                 {COL_DAY_OF_WEEK},
                 {COL_BATCH}
-                ) VALUES (
-                '{date}',
-                {regular_parked},
-                {oversize_parked},
-                {total_parked},
-                {total_leftover},
-                {max_regular_num},
-                '{max_regular_time}',
-                {max_oversize_num},
-                '{max_oversize_time}',
-                {max_total_num},
-                '{max_total_time}',
-                '{time_open}',
-                '{time_close}',
-                {weekday},
+            ) VALUES (
+                '{day_row.date}',
+                {day_row.regular_parked},
+                {day_row.oversize_parked},
+                {day_row.total_parked},
+                {day_row.total_leftover},
+                {day_row.max_regular_num},
+                '{day_row.max_regular_time}',
+                {day_row.max_oversize_num},
+                '{day_row.max_oversize_time}',
+                {day_row.max_total_num},
+                '{day_row.max_total_time}',
+                '{day_row.time_open}',
+                '{day_row.time_close}',
+                {day_row.weekday},
                 '{batch}'
-                );""",
+            );""",
         conn,
         quiet=True,
-    ) and not sql_exec(  # Then try to update...
-        f"""UPDATE {TABLE_DAYS} SET
-                    {COL_REGULAR} = {regular_parked},
-                    {COL_OVERSIZE} = {oversize_parked},
-                    {COL_TOTAL} = {total_parked},
-                    {COL_TOTAL_LEFTOVER} = {total_leftover},
-                    {COL_MAX_REGULAR} = {max_regular_num},
-                    {COL_MAX_REGULAR_TIME} = '{max_regular_time}',
-                    {COL_MAX_OVERSIZE} = {max_oversize_num},
-                    {COL_MAX_OVERSIZE_TIME} = '{max_oversize_time}',
-                    {COL_MAX_TOTAL} = {max_total_num},
-                    {COL_MAX_TOTAL_TIME} = '{max_total_time}',
-                    {COL_TIME_OPEN} = '{time_open}',
-                    {COL_TIME_CLOSE} = '{time_close}',
-                    {COL_DAY_OF_WEEK} = {weekday},
+    )
+    if sql_error:
+        # Insert didn't work, so try update.
+        sql_error = sql_exec_and_error(
+            f"""UPDATE {TABLE_DAYS} SET
+                    {COL_REGULAR} = {day_row.regular_parked},
+                    {COL_OVERSIZE} = {day_row.oversize_parked},
+                    {COL_TOTAL} = {day_row.total_parked},
+                    {COL_TOTAL_LEFTOVER} = {day_row.total_leftover},
+                    {COL_MAX_REGULAR} = {day_row.max_regular_num},
+                    {COL_MAX_REGULAR_TIME} = '{day_row.max_regular_time}',
+                    {COL_MAX_OVERSIZE} = {day_row.max_oversize_num},
+                    {COL_MAX_OVERSIZE_TIME} = '{day_row.max_oversize_time}',
+                    {COL_MAX_TOTAL} = {day_row.max_total_num},
+                    {COL_MAX_TOTAL_TIME} = '{day_row.max_total_time}',
+                    {COL_TIME_OPEN} = '{day_row.time_open}',
+                    {COL_TIME_CLOSE} = '{day_row.time_close}',
+                    {COL_DAY_OF_WEEK} = {day_row.weekday},
                     {COL_BATCH} = '{batch}'
-                    WHERE {COL_DATE} = '{date}'
+                    WHERE {COL_DATE} = '{day_row.date}'
                     ;""",
-        conn,
-    ):
-        print(
-            "Error: failed to INSERT or UPDATE " f"day summary for {filename}.",
-            file=sys.stderr,
+            conn,
         )
-        sys.exit(1)
 
-    # TABLE_VISITS handling
+    # Did it work? (No error means it worked.)
+    if sql_error:
+        Statuses.files[filename].set_bad(f"SQL error adding to DAY: {sql_error}")
+        return False
+    return True
 
-    visit_commit_count = total_parked
-    visit_fail_count = 0
-    sql_exec(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';", conn)
+
+def datafile_into_db(filename: str, batch, conn) -> None:
+    """Record one datafile to the database.
+
+    Read the datafile in question into a TrackerDay object with
+    df.read_datafile()
+
+    For the day, UPDATE or INSERT a row of day summary data into TABLE_DAYS
+
+    Then calculate some things which might be based on it
+    for each bike, and record a row of visit data into TABLE_VISITS
+    """
+
+    if not os.path.isfile(filename):
+        Statuses.files[filename].set_bad("File not found")
+        return
+
+    if args.verbose:
+        print(f"\nLoading {filename}:")
+
+    data = tt_datafile.read_datafile(f"{filename}", err_msgs=[])
+    date = data.date
+    if not date:
+        msg = "Unable to read date from file. Skipping file."
+        Statuses.files[filename].set_bad(msg)
+        return
+
+    # if not data.bikes_in:  # if no visits to record, stop now
+    #     print(f"No visits in {filename}")
+    #     globals()["EMPTY_COUNT"] += 1
+    #     return
+
+    # # Check there's enough info to determine bike type
+    # if data.regular and data.oversize:
+    #     regular_tags = data.regular
+    #     oversize_tags = data.oversize
+    #     if args.verbose:
+    #         print("Tags: datafile tag lists loaded")
+    # else:  # if no bike-type context
+    #     msg = "Can not read lists of regular & oversize tags"
+    #     Statuses.files[filename].set_bad(msg)
+    #     return
+
+    day_row = calc_day_stats(filename, data)
+    if not day_into_db(filename, day_row, batch, conn):
+        return
+
+    # Visits into the VISIT table
+
+    sql_error = sql_exec_and_error(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';", conn)
+    if sql_error:
+        Statuses.files[filename].set_bad(f"Error deleting VISIT rows: {sql_error}")
+        return
+
 
     for tag, time_in in data.bikes_in.items():
         time_in = VTime(time_in)
-        if time_in > time_close:  # both should be VTime
-            print(
-                f"Error: visit {tag} in {filename} has check-in ({time_in})"
-                f" after closing time ({time_close}). Visit not recorded.",
-                file=sys.stderr,
-            )
-            continue
+        # if time_in > day_row.time_close:  # both should be VTime
+        #     print(
+        #         f"Error: visit {tag} in {filename} has check-in ({time_in})"
+        #         f" after closing time ({day_row.time_close}). Visit not recorded.",
+        #         file=sys.stderr,
+        #     )
+        #     continue
 
-        if tag in data.bikes_out.keys():
+        # Insert VISIT rows one at a time
+        if tag in data.bikes_out:
             time_out = VTime(data.bikes_out[tag])
             dur_end = time_out
         else:  # no check-out recorded
-            dur_end = time_close
-            if program_args.verbose:
-                print(
-                    f"(normal leftover): {tag} stay time found using "
-                    f"closing time {time_close} from table '{TABLE_DAYS}'"
-                )
+            dur_end = day_row.time_close
             time_out = ""  # empty str for no time
         time_stay = calc_duration(time_in, dur_end)
-        biketype = what_bike_type(tag)
-        if not sql_exec(
+        biketype = get_bike_type(tag, data)
+        sql_error = sql_exec_and_error(
             f"""INSERT INTO {TABLE_VISITS} (
                     {COL_ID},
                     {COL_DATE},
@@ -405,44 +461,37 @@ def data_to_db(filename: str, batch, conn) -> None:
                     '{time_stay}',
                     '{batch}');""",
             conn,
-        ):
-            print(
-                f"Error: failed to INSERT a stay for {tag}",
-                file=sys.stderr,
-            )
-            visit_commit_count -= 1
-            visit_fail_count += 1
-    globals()["SUCCESS_COUNT"] += 1
+        )
+        if sql_error:
+            Statuses.files[filename].set_bad(f"Error inserting VISIT tag {tag}: {sql_error}")
+            return
 
     try:
         conn.commit()  # commit one datafile transaction
-        if not program_args.quiet:
-            print(
-                f" --> Committed records for {visit_commit_count} "
-                f"visits on {date} ({visit_fail_count} failed)"
-            )
     except sqlite3.Error as sqlite_err:
-        print(
-            f"SQLite COMMIT error {sqlite_err} for {filename}",
-            file=sys.stderr,
-        )
-        Statuses.files[filename].set_bad(f"SQLite COMMIT error {sqlite_err} for {filename}")
+        Statuses.files[filename].set_bad(f"SQLite COMMIT error {sqlite_err}")
         return
+    if args.verbose:
+        print(f" --> Committed records to database ({day_row.total_parked} visits)")
 
-# FIXME: make sql_exec return its error message; caller always decides from that
-def sql_exec(sql_statement: str, conn, quiet: bool = False) -> bool:
-    """Execute a SQL statement, ignoring any output.
+def sql_exec_and_error(sql_statement: str, conn, quiet: bool = False) -> str:
+    """Execute a SQL statement, returns error message (if any).
+
+    Presumably there is no error if the return is empty.
+    Counter-intuitively this means that this returns bool(False) if
+    this succeeded.
 
     Not suitable (of course) for SELECT statements.
-    Returns True on success or False on failure."""
+    """
     try:
         curs = conn.cursor()
         curs.execute(sql_statement)
-        return True
     except sqlite3.Error as sqlite_err:
         if not quiet:
             print(f"SQLite error:{sqlite_err}", file=sys.stderr)
-        return False
+        return sqlite_err if sqlite_err else "Unspecified SQLite error"
+    # Success
+    return ""
 
 
 def setup_parser(parser) -> None:
@@ -473,11 +522,11 @@ def setup_parser(parser) -> None:
     )
 
     # Custom logic to handle setting quiet and verbose based on log option
-    def process_args(program_args):
-        if program_args.log:
-            program_args.quiet = True
-            program_args.verbose = False
-        return program_args
+    def process_args(args):
+        if args.log:
+            args.quiet = True
+            args.verbose = False
+        return args
 
     parser.set_defaults(func=process_args)
 
@@ -513,30 +562,33 @@ def find_datafiles(arguments: argparse.Namespace) -> list:
             continue
         f_info.fingerprint = get_file_fingerprint(f)
         if not f_info.fingerprint:
-            f_info.set_bad("Can not read file md5sum")
+            f_info.set_bad("Can not read md5sum")
             continue
         f_info.timestamp = get_file_timestamp(f)
         if not f_info.timestamp:
-            f_info.set_bad("Can not read file timestamp")
+            f_info.set_bad("Can not read timestamp")
             continue
 
-    ok_datafiles = [f for f in Statuses.files.keys() if Statuses.files[f].status == STATUS_GOOD]
+    ok_datafiles = [
+        f for f in Statuses.files.keys() if Statuses.files[f].status == STATUS_GOOD
+    ]
 
     return ok_datafiles
+
 
 def summary_exit():
     """Status info printout and exit."""
     # print("File,MD5Sum,Status,File_Timestamp,Load_Timestamp")
     total_file_errors = 0
-    for name,info in Statuses.files.items():
+    for name, info in Statuses.files.items():
         info: FileInfo
         info.errors = info.errors if info.errors else len(info.error_list)
         total_file_errors += info.errors
-        if not program_args.quiet:
+        if not args.quiet:
             print(
                 f"{name}, {info.fingerprint}, {info.status}, {info.timestamp}, {Statuses.start_time}"
             )
-    if not program_args.quiet:
+    if not args.quiet:
         print(f"Total files: {len(Statuses.files)}")
         print(f"Total file errors: {total_file_errors}")
         print(f"Total program errors: {Statuses.errors}")
@@ -546,48 +598,43 @@ def summary_exit():
 
 
 if __name__ == "__main__":
-
     Statuses.files = {}
 
     parser = argparse.ArgumentParser()
     setup_parser(parser)
-    program_args = parser.parse_args()
+    args = parser.parse_args()
 
-    DB_FILEPATH = program_args.dbfile
-    datafiles = find_datafiles(program_args)
+    DB_FILEPATH = args.dbfile
+    datafiles = find_datafiles(args)
 
-    summary_exit()  # FIXME
-
-    if program_args.verbose:
+    if args.verbose:
         print(f"Connecting to database {DB_FILEPATH}...")
     conn = tt_dbutil.db_connect(DB_FILEPATH)
     if not conn:
         sys.exit(1)  # Error messages already taken care of in fn
 
-    if sql_exec("PRAGMA foreign_keys=ON;", conn):
-        if program_args.verbose:
-            print("Enabled foreign key constraints.")
-    else:
+    sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", conn)
+    if sql_error:
         print(
             "Error: couldn't enable SQLite use of foreign keys",
             file=sys.stderr,
         )
         sys.exit(1)
+    if args.verbose:
+        print("Enabled foreign key constraints.")
 
-    batch = Statuses.start_time
-    if program_args.verbose:
-        print(f"BatchID: {batch}")
+    batch = Statuses.start_time[:-3] # For some reason batch does not include seconds
+    if args.verbose:
+        print(f"BatchID is {batch}")
 
     for datafilename in datafiles:
-        data_to_db(datafilename, batch, conn)
+        datafile_into_db(datafilename, batch, conn)
 
     conn.close()
 
-    SUCCESS_COUNT = len([x for x in Statuses.files if x.status == STATUS_GOOD])
+    SUCCESS_COUNT = len([f for f in Statuses.files.values() if f.status == STATUS_GOOD])
     FAIL_COUNT = len(Statuses.files) - SUCCESS_COUNT
     summary_exit()
 
-    if not program_args.quiet:
-        print(
-            f"\n\nLoaded {SUCCESS_COUNT} datafiles; {FAIL_COUNT} did not load."
-        )
+    if not args.quiet:
+        print(f"\n\nLoaded {SUCCESS_COUNT} datafiles; {FAIL_COUNT} did not load.")
