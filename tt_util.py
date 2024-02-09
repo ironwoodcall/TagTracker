@@ -259,6 +259,9 @@ def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
     squawk(f"PROGRAM ERROR: called time_int({maybe_time=})")
     return None
 
+def iso_timestamp() -> str:
+    """Get ISO8601 timestamp of current local time."""
+    return datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
 def time_str(
     maybe_time: Union[int, str, float, None],
