@@ -37,6 +37,7 @@ import glob
 import os
 import sqlite3
 import sys
+import csv
 from dataclasses import dataclass, field
 import subprocess
 from datetime import datetime
@@ -44,7 +45,8 @@ import hashlib
 
 import tt_datafile
 import tt_dbutil
-import tt_globals
+
+# import tt_globals
 import tt_util as ut
 from tt_trackerday import TrackerDay
 
@@ -57,6 +59,7 @@ args = None
 # Values for good & bad status
 STATUS_GOOD = "GOOD"
 STATUS_BAD = "BAD"
+STATUS_SKIP = "SKIP"  # File done GOOD previously
 
 # Names for tables and columns.s
 # Table of individual bike visits
@@ -119,6 +122,7 @@ class DayStats:
     time_open: VTime = ""
     time_close: VTime = ""
     weekday: int = None
+    registrations: int = 0
 
 
 @dataclass
@@ -157,7 +161,7 @@ class FileInfo:
             print(f"{error_msg} [{self.name}]", file=sys.stderr)
 
 
-def calc_duration(hhmm_in: str, hhmm_out: str) -> str:
+def calc_stay_length(hhmm_in: str, hhmm_out: str) -> str:
     """Calculate a str duration from a str time in and out."""
     t_in = VTime(hhmm_in).num
     t_out = VTime(hhmm_out).num
@@ -212,6 +216,22 @@ def get_file_fingerprint(file_path):
         return get_file_md5_windows(file_path)
 
 
+def get_good_mp5s_list(logfile: str) -> list[str]:
+    """Get a list of the MD5 of successful loads."""
+    if not os.path.exists(logfile):
+        raise FileNotFoundError(f"The logfile '{logfile}' does not exist.")
+    if not os.access(logfile, os.W_OK):
+        raise PermissionError(f"The logfile '{logfile}' is not writable.")
+
+    good_values = []
+    with open(logfile, "r", newline="", encoding="utf-8") as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            if len(row) >= 3 and row[2] == "GOOD":
+                good_values.append(row[1])
+    return good_values
+
+
 def get_file_timestamp(file_path):
     """Get a file's timestamp as an iso8601 string."""
     try:
@@ -236,8 +256,7 @@ def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
     """Figure out the stats for a DAY row."""
 
     row = DayStats(day.date)
-    # TABLE_DAYS handling
-    # Simple counts
+    row.registrations = day.registrations
     row.regular_parked = 0
     row.oversize_parked = 0
     for tag in day.bikes_in.keys():
@@ -297,12 +316,33 @@ def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
     return row
 
 
+def fetch_reg_from_db(conn: sqlite3.Connection, date: str) -> int:
+    """Get any existing registration info from the DB; return int or None."""
+    rows = tt_dbutil.db_fetch(
+        conn,
+        f"SELECT {COL_REGISTRATIONS} FROM {TABLE_DAYS} WHERE DATE = '{date}'",["registrations"]
+    )
+    if not rows:
+        return None
+    return rows[0].registrations
+
 def day_into_db(
     filename: str, day_row: DayStats, batch: str, conn: sqlite3.Connection
 ) -> bool:
-    # Try inserting, see if that works
+
+    # Figure out what value to use for registrations.
+    # This is yucky for legacy support reasons: before approx 2024-02
+    # the count of registrations came from a separate day-end from, not
+    # the datafile.  So this selects the existing value or the datafile
+    # value, whichever is greater.
+    reg = fetch_reg_from_db(conn,day_row.date)
+    if reg is None:
+        reg = day_row.registrations
+    reg = "NULL" if reg is None else reg
+
+    # Insert/replace this day's summary info
     sql_error = sql_exec_and_error(
-        f"""INSERT INTO {TABLE_DAYS} (
+        f"""INSERT OR REPLACE INTO {TABLE_DAYS} (
                 {COL_DATE},
                 {COL_REGULAR},
                 {COL_OVERSIZE},
@@ -317,6 +357,7 @@ def day_into_db(
                 {COL_TIME_OPEN},
                 {COL_TIME_CLOSE},
                 {COL_DAY_OF_WEEK},
+                {COL_REGISTRATIONS},
                 {COL_BATCH}
             ) VALUES (
                 '{day_row.date}',
@@ -333,38 +374,17 @@ def day_into_db(
                 '{day_row.time_open}',
                 '{day_row.time_close}',
                 {day_row.weekday},
+                {reg},
                 '{batch}'
             );""",
         conn,
         quiet=True,
     )
-    if sql_error:
-        # Insert didn't work, so try update.
-        sql_error = sql_exec_and_error(
-            f"""UPDATE {TABLE_DAYS} SET
-                    {COL_REGULAR} = {day_row.regular_parked},
-                    {COL_OVERSIZE} = {day_row.oversize_parked},
-                    {COL_TOTAL} = {day_row.total_parked},
-                    {COL_TOTAL_LEFTOVER} = {day_row.total_leftover},
-                    {COL_MAX_REGULAR} = {day_row.max_regular_num},
-                    {COL_MAX_REGULAR_TIME} = '{day_row.max_regular_time}',
-                    {COL_MAX_OVERSIZE} = {day_row.max_oversize_num},
-                    {COL_MAX_OVERSIZE_TIME} = '{day_row.max_oversize_time}',
-                    {COL_MAX_TOTAL} = {day_row.max_total_num},
-                    {COL_MAX_TOTAL_TIME} = '{day_row.max_total_time}',
-                    {COL_TIME_OPEN} = '{day_row.time_open}',
-                    {COL_TIME_CLOSE} = '{day_row.time_close}',
-                    {COL_DAY_OF_WEEK} = {day_row.weekday},
-                    {COL_BATCH} = '{batch}'
-                    WHERE {COL_DATE} = '{day_row.date}'
-                    ;""",
-            conn,
-        )
-
-    # Did it work? (No error means it worked.)
+    # Did it work? (No error message means success.)
     if sql_error:
         Statuses.files[filename].set_bad(f"SQL error adding to DAY: {sql_error}")
         return False
+
     return True
 
 
@@ -385,7 +405,7 @@ def datafile_into_db(filename: str, batch, conn) -> None:
         return
 
     if args.verbose:
-        print(f"\nLoading {filename}:")
+        print(f"Reading {filename}:")
 
     data = tt_datafile.read_datafile(f"{filename}", err_msgs=[])
     date = data.date
@@ -416,11 +436,12 @@ def datafile_into_db(filename: str, batch, conn) -> None:
 
     # Visits into the VISIT table
 
-    sql_error = sql_exec_and_error(f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';", conn)
+    sql_error = sql_exec_and_error(
+        f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';", conn
+    )
     if sql_error:
         Statuses.files[filename].set_bad(f"Error deleting VISIT rows: {sql_error}")
         return
-
 
     for tag, time_in in data.bikes_in.items():
         time_in = VTime(time_in)
@@ -439,7 +460,7 @@ def datafile_into_db(filename: str, batch, conn) -> None:
         else:  # no check-out recorded
             dur_end = day_row.time_close
             time_out = ""  # empty str for no time
-        time_stay = calc_duration(time_in, dur_end)
+        time_stay = calc_stay_length(time_in, dur_end)
         biketype = get_bike_type(tag, data)
         sql_error = sql_exec_and_error(
             f"""INSERT INTO {TABLE_VISITS} (
@@ -463,7 +484,9 @@ def datafile_into_db(filename: str, batch, conn) -> None:
             conn,
         )
         if sql_error:
-            Statuses.files[filename].set_bad(f"Error inserting VISIT tag {tag}: {sql_error}")
+            Statuses.files[filename].set_bad(
+                f"Error inserting VISIT tag {tag}: {sql_error}"
+            )
             return
 
     try:
@@ -472,7 +495,8 @@ def datafile_into_db(filename: str, batch, conn) -> None:
         Statuses.files[filename].set_bad(f"SQLite COMMIT error {sqlite_err}")
         return
     if args.verbose:
-        print(f" --> Committed records to database ({day_row.total_parked} visits)")
+        print(f"    Committed {day_row.total_parked} visit records for {date}")
+
 
 def sql_exec_and_error(sql_statement: str, conn, quiet: bool = False) -> str:
     """Execute a SQL statement, returns error message (if any).
@@ -494,8 +518,11 @@ def sql_exec_and_error(sql_statement: str, conn, quiet: bool = False) -> str:
     return ""
 
 
-def setup_parser(parser) -> None:
-    """Add arguments to the ArgumentParser."""
+def get_args() -> argparse.Namespace:
+    """Get program arguments."""
+
+    parser = argparse.ArgumentParser()
+
     parser.add_argument(
         "-q",
         "--quiet",
@@ -521,17 +548,11 @@ def setup_parser(parser) -> None:
         "dbfile", type=str, help="path of destination SQLite3 database file"
     )
 
-    # Custom logic to handle setting quiet and verbose based on log option
-    def process_args(args):
-        if args.log:
-            args.quiet = True
-            args.verbose = False
-        return args
-
-    parser.set_defaults(func=process_args)
+    prog_args = parser.parse_args()
+    return prog_args
 
 
-def find_datafiles(arguments: argparse.Namespace) -> list:
+def find_datafiles(fileglob: str) -> list:
     """Set a list of files from the supplied dataglob.
 
     Needs at least 1 of:
@@ -541,12 +562,11 @@ def find_datafiles(arguments: argparse.Namespace) -> list:
     If provided both, returns the set union of all datafiles found.
     """
     maybe_datafiles = []
-    for this_glob in arguments.dataglob:
+    for this_glob in fileglob:
         # print(f"{this_glob=}")
 
-        globbed_files = glob.glob(this_glob)  # glob glob glob
-        # print(f"{globbed_files=}")
-        if len(globbed_files) < 1:  # if still empty after globbing
+        globbed_files = glob.glob(this_glob)
+        if len(globbed_files) < 1:
             print(
                 f"Error: no files found matching glob '{this_glob}'",
                 file=sys.stderr,
@@ -570,46 +590,79 @@ def find_datafiles(arguments: argparse.Namespace) -> list:
             continue
 
     ok_datafiles = [
-        f for f in Statuses.files.keys() if Statuses.files[f].status == STATUS_GOOD
+        f for f in Statuses.files if Statuses.files[f].status == STATUS_GOOD
     ]
 
     return ok_datafiles
 
 
-def summary_exit():
-    """Status info printout and exit."""
-    # print("File,MD5Sum,Status,File_Timestamp,Load_Timestamp")
+def get_logfile_name(database_file: str) -> str:
+    """Make a logfile name from a database name."""
+    base_name, extension = os.path.splitext(database_file)
+
+    if extension == "":
+        logfile = base_name + ".log"
+    elif extension == ".log":
+        raise ValueError("Database file cannot have '.log' extension.")
+    else:
+        logfile = base_name + ".log"
+
+    return logfile
+
+
+def save_log_info(logfile: str):
+    """Status info for logging."""
+    with open(logfile, "a", encoding="utf-8") as file:
+        for name, info in Statuses.files.items():
+            if info.status == STATUS_SKIP:
+                continue
+            print(
+                f"{name},{info.fingerprint},{info.status},{info.timestamp},{Statuses.start_time}",
+                file=file,
+            )
+
+
+def print_summary():
+    """A chatty summary of what took place."""
     total_file_errors = 0
-    for name, info in Statuses.files.items():
+    for info in Statuses.files.values():
         info: FileInfo
         info.errors = info.errors if info.errors else len(info.error_list)
         total_file_errors += info.errors
-        if not args.quiet:
-            print(
-                f"{name}, {info.fingerprint}, {info.status}, {info.timestamp}, {Statuses.start_time}"
-            )
-    if not args.quiet:
-        print(f"Total files: {len(Statuses.files)}")
-        print(f"Total file errors: {total_file_errors}")
-        print(f"Total program errors: {Statuses.errors}")
-    if Statuses.errors:
-        sys.exit(1)
-    sys.exit(0)
+
+    print(f"Total files: {len(Statuses.files)}")
+    print(f"Total file errors: {total_file_errors}")
+    print(f"Total program errors: {Statuses.errors}")
 
 
-if __name__ == "__main__":
+def main():
+    """Main routine."""
+
     Statuses.files = {}
 
-    parser = argparse.ArgumentParser()
-    setup_parser(parser)
-    args = parser.parse_args()
+    global args
+    args = get_args()
 
-    DB_FILEPATH = args.dbfile
-    datafiles = find_datafiles(args)
+    database_file = args.dbfile
+    datafiles = find_datafiles(args.dataglob)
+    if not args.quiet:
+        print(f"Given {len(datafiles)} files to load.")
+
+    # If logging, get a list of known 'good' MD5s
+    logfile = get_logfile_name(database_file)
+    good_md5s = get_good_mp5s_list(logfile)
+    num_skipped = 0
+    for finfo in Statuses.files.values():
+        finfo: FileInfo
+        if finfo.fingerprint in good_md5s:
+            finfo.status = STATUS_SKIP
+            num_skipped += 1
+    if num_skipped and not args.quiet:
+        print(f"Skipping {num_skipped} datafiles previously loaded ok")
 
     if args.verbose:
-        print(f"Connecting to database {DB_FILEPATH}...")
-    conn = tt_dbutil.db_connect(DB_FILEPATH)
+        print(f"Connecting to database {database_file}")
+    conn = tt_dbutil.db_connect(database_file)
     if not conn:
         sys.exit(1)  # Error messages already taken care of in fn
 
@@ -623,18 +676,25 @@ if __name__ == "__main__":
     if args.verbose:
         print("Enabled foreign key constraints.")
 
-    batch = Statuses.start_time[:-3] # For some reason batch does not include seconds
+    batch = Statuses.start_time[:-3]  # For some reason batch does not include seconds
     if args.verbose:
         print(f"BatchID is {batch}")
 
     for datafilename in datafiles:
-        datafile_into_db(datafilename, batch, conn)
+        if Statuses.files[datafilename].status != STATUS_SKIP:
+            datafile_into_db(datafilename, batch, conn)
 
     conn.close()
 
-    SUCCESS_COUNT = len([f for f in Statuses.files.values() if f.status == STATUS_GOOD])
-    FAIL_COUNT = len(Statuses.files) - SUCCESS_COUNT
-    summary_exit()
-
+    if args.log:
+        save_log_info(logfile)
     if not args.quiet:
-        print(f"\n\nLoaded {SUCCESS_COUNT} datafiles; {FAIL_COUNT} did not load.")
+        print_summary()
+
+    if Statuses.errors:
+        sys.exit(1)
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
