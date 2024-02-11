@@ -8,54 +8,6 @@ Options:
     --quiet: no output except error output (to stderr)
     --verbose: extra-chatty output
 
-- BEGIN and COMMIT and ROLLBACK
-- use with conn: around blocks where want clean-up/exit
-- remember to close conn on premature exit
-
-
-
-Placebo text (normal)
----------------------
-Load requested for (x) files.
-Ignoring (y) previously loaded files.
-OR
-Forcing reload of (y) previously loaded files.
-
-Files attempted to load:
-Files ignored as previously loaded:
-Files successfully loaded:
-Files not loaded:
-
-
-Placebo text (verbose)
-----------------------
-Load requested for (x) files
-Reading file metadata for files
-Connecting to database (db)
-Fetching previously-loaded info
-Ignoring (y) previously loaded files.
-OR
-Forcing reload of (y) previously loaded files.
-Loading file (a), file timestamp {timstamp}
-    Reading file, bike-check date {date}
-    File has / does not have bike registration info
-    Calculating statistics
-    Inserting day-total db record
-    Inserting (z) visit records
-    Updating {data_loads} table
-    Committing transaction
-Database closed.
-
-Files attempted to load:
-Files ignored as previously loaded:
-Files successfully loaded:
-Files not loaded:
-
-
-Placebo text (quiet)
---------------------
-(nothing)
-
 
 
 This should run on the tagtracker server.
@@ -102,6 +54,7 @@ from dataclasses import dataclass, field
 import subprocess
 from datetime import datetime
 import hashlib
+from collections import defaultdict
 
 import tt_datafile
 import tt_dbutil
@@ -209,6 +162,16 @@ class Statuses:
         cls.error_list += [error_msg]
         if not silent:
             print(error_msg, file=sys.stderr)
+
+    @classmethod
+    def num_files(cls, status: str = "") -> int:
+        """Return count of files in a given status.
+
+        status is STATUS_GOOD, STATUS_BAD, STATUS_SKIP, or "".
+        If "", returns the total number of files."""
+        if status:
+            return len([f for f in cls.files.values() if f.status == status])
+        return len(cls.files)
 
 
 @dataclass
@@ -465,7 +428,6 @@ def day_summary_into_db(
                 '{batch}'
             );""",
         dbconx,
-        quiet=True,
     )
     # Did it work? (No error message means success.)
     if sql_error:
@@ -561,23 +523,22 @@ def fileload_results_into_db(
     return True
 
 
-def datafile_into_db(filename: str, batch, dbconx) -> None:
-    """Record one datafile to the database.
+def datafile_into_db(filename: str, batch, dbconx) -> str:
+    """Record one datafile to the database, returns date.
 
-    Read the datafile in question into a TrackerDay object with
-    df.read_datafile()
+    Reads the datafile, looking for errors.
+    Calculates summary stats, loads DAY and VISIT tables.
+    Saves the file info & fingerprint to LOAD_INFO table.
 
-    For the day, UPDATE or INSERT a row of day summary data into TABLE_DAYS
-
-    Then calculate some things which might be based on it
-    for each bike, and record a row of visit data into TABLE_VISITS
+    Returns the date of the file's data if successful (else "")
+    Status is also Statuses.files[filename], which is a FileInfo object.
     """
 
     file_info: FileInfo = Statuses.files[filename]
 
     if not os.path.isfile(filename):
         file_info.set_bad("File not found")
-        return
+        return ""
 
     if args.verbose:
         print(f"Reading {filename}:")
@@ -586,12 +547,14 @@ def datafile_into_db(filename: str, batch, dbconx) -> None:
     if not day.date:
         msg = "Unable to read date from file. Skipping file."
         file_info.set_bad(msg)
-        return
+        return ""
     if args.verbose:
-        print(f"   Date {day.date}   Open {day.opening_time}-{day.closing_time}"
-              f"   {len(day.bikes_in)} bikes   "
-              f"{len(day.bikes_in)-len(day.bikes_out)} leftover   "
-              f"{day.registrations} registrations")
+        print(
+            f"   Date {day.date}   Open {day.opening_time}-{day.closing_time}"
+            f"   {len(day.bikes_in)} bikes   "
+            f"{len(day.bikes_in)-len(day.bikes_out)} leftover   "
+            f"{day.registrations} registrations"
+        )
 
     day_summary = calc_day_stats(filename, day)
 
@@ -600,24 +563,24 @@ def datafile_into_db(filename: str, batch, dbconx) -> None:
     # Day summary
     if not day_summary_into_db(filename, day_summary, batch, dbconx):
         dbconx.rollback()
-        return
+        return ""
 
     # Visits info
     if not day_visits_into_db(file_info, day, day_summary, batch, dbconx):
         dbconx.rollback()
-        return
+        return ""
 
     # Successful load (pending commit), put it in the loads log
     if not fileload_results_into_db(file_info, day_summary, batch, dbconx):
         dbconx.rollback()
-        return
+        return ""
 
     dbconx.commit()  # commit one datafile transaction
 
     if args.verbose:
-        print(
-            f"   Committed {day_summary.date}"
-        )
+        print(f"   Committed {day_summary.date}")
+
+    return day_summary.date
 
 
 def sql_begin_transaction(dbconx: sqlite3.Connection):
@@ -625,7 +588,7 @@ def sql_begin_transaction(dbconx: sqlite3.Connection):
     curs.execute("BEGIN;")
 
 
-def sql_exec_and_error(sql_statement: str, dbconx, quiet: bool = False) -> str:
+def sql_exec_and_error(sql_statement: str, dbconx) -> str:
     """Execute a SQL statement, returns error message (if any).
 
     Presumably there is no error if the return is empty.
@@ -650,31 +613,24 @@ def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "-q",
-        "--quiet",
-        action="store_true",
-        help="suppresses all non-error output",
+        "-q", "--quiet", action="store_true", help="suppresses all non-error output"
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="provides most detailed output",
+        "-v", "--verbose", action="store_true", help="provides most detailed output"
     )
     parser.add_argument(
         "-f", "--force", action="store_true", help="load even if previously loaded"
     )
     parser.add_argument(
-        "dataglob",
-        type=str,
-        nargs="+",
-        help="glob(s) to select target datafiles",
+        "dataglob", type=str, nargs="+", help="Fileglob(s) of datafiles to load"
     )
-    parser.add_argument(
-        "dbfile", type=str, help="path of destination SQLite3 database file"
-    )
+    parser.add_argument("dbfile", type=str, help="SQLite3 database file")
 
     prog_args = parser.parse_args()
+
+    if prog_args.verbose and prog_args.quiet:
+        prog_args.quiet = False
+        print("Arg --verbose set; ignoring arg --quiet")
     return prog_args
 
 
@@ -698,8 +654,17 @@ def find_datafiles(fileglob: str) -> list:
                 file=sys.stderr,
             )
             sys.exit(1)
-        maybe_datafiles = sorted(list(set().union(maybe_datafiles, globbed_files)))
+        return list(set().union(maybe_datafiles, globbed_files))
 
+def convert_paths_to_absolute(files:list) -> list:
+    """Convert a list of relative paths to absolute paths."""
+    abs_paths = []
+    for f in files:
+        abs_paths.append(os.path.abspath(f))
+    return sorted(list(set(abs_paths)))
+
+def get_files_metadata(maybe_datafiles: list):
+    """Gets metadata for the files, loads it into Statuses class."""
     for f in maybe_datafiles:
         f_info = FileInfo(f)
         Statuses.files[f] = f_info
@@ -722,7 +687,7 @@ def find_datafiles(fileglob: str) -> list:
     return ok_datafiles
 
 
-def print_summary():
+def print_summary(loaded_dates:dict[str:int]):
     """A chatty summary of what took place."""
     total_file_errors = 0
     for info in Statuses.files.values():
@@ -730,9 +695,23 @@ def print_summary():
         info.errors = info.errors if info.errors else len(info.error_list)
         total_file_errors += info.errors
 
-    print(f"Total files: {len(Statuses.files)}")
-    print(f"Total file errors: {total_file_errors}")
-    print(f"Total program errors: {Statuses.errors}")
+    print()
+    print(f"Files requested: {Statuses.num_files()}")
+    print(f"Files skipped: {Statuses.num_files(STATUS_SKIP)}")
+    print(f"Files in error: {Statuses.num_files(STATUS_BAD)} (~{total_file_errors} individual errors)")
+    if args.verbose:
+        for f,finfo in sorted(Statuses.files.items()):
+            finfo:FileInfo
+            if finfo.status == STATUS_BAD:
+                print(f"    {f}: {finfo.errors} errors")
+    print(f"Files loaded ok: {Statuses.num_files(STATUS_GOOD)}")
+    num_dup_dates = sum([x-1 for x in loaded_dates.values()])
+    if num_dup_dates:
+        print(f"Dates for which more that one datafile loaded: {num_dup_dates}")
+        if args.verbose:
+            for date,count in sorted(loaded_dates.items()):
+                print(f"    {date}: {count} files")
+
 
 
 def main():
@@ -742,6 +721,16 @@ def main():
 
     global args
     args = get_args()
+    file_list = find_datafiles(args.dataglob)
+    if not args.quiet:
+        print(f"Load requested for {len(file_list)} files.")
+    if args.verbose:
+        print("Calculating absolute paths for files.")
+    file_list = convert_paths_to_absolute( file_list )
+
+    if args.verbose:
+        print("Getting metadata for files.")
+    get_files_metadata(file_list)
 
     database_file = args.dbfile
     if args.verbose:
@@ -752,27 +741,34 @@ def main():
         dbconx.close()
         sys.exit(1)
 
-    datafiles = find_datafiles(args.dataglob)
-    if not args.quiet:
-        print(f"Looking at {len(datafiles)} files to load.")
-
     # Get a list of fingerprints of previous good loads.
+    if args.verbose:
+        print("Fetching fingerprints of previous datafile loads.")
     good_fingerprints = get_load_fingerprints(dbconx)
-    num_skipped = 0
     for finfo in Statuses.files.values():
         finfo: FileInfo
         if not args.force and finfo.fingerprint in good_fingerprints:
             finfo.status = STATUS_SKIP
-            num_skipped += 1
-    if num_skipped and not args.quiet:
-        print(f"Skipping {num_skipped} datafiles previously loaded ok")
+    if not args.quiet:
+        num_skipped = Statuses.num_files(STATUS_SKIP)
+        # ut.squawk(f"{num_skipped=},{args.force=},{args.quiet=}")
+        if num_skipped:
+            if args.force:
+                print(f"Forcing reload of {num_skipped} previously loaded files.")
+            else:
+                print(f"Ignoring {num_skipped} previously loaded files.")
+        num_bad = Statuses.num_files(STATUS_BAD)
+        if num_bad:
+            print(f"Ignoring {num_bad} files already known to be bad'")
+        if num_skipped or num_bad:
+            print(f"Loading {Statuses.num_files(STATUS_GOOD)} remaining files")
 
     if args.verbose:
-        print("Setting foreign keys on")
+        print("Assuring foreign key constraints are enabled.")
     sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", dbconx)
     if sql_error:
         print(
-            "Error: couldn't enable SQLite use of foreign keys",
+            "Error: couldn't enable SQLite foreign key constraints",
             file=sys.stderr,
         )
         dbconx.close()
@@ -783,14 +779,28 @@ def main():
     if args.verbose:
         print(f"BatchID is {batch}")
 
-    for datafilename in datafiles:
-        if Statuses.files[datafilename].status != STATUS_SKIP:
-            datafile_into_db(datafilename, batch, dbconx)
+    # # Load the datafiles.
+    # dates_loaded = {}
+    # for one_file in sorted(Statuses.files.keys()):
+    #     if Statuses.files[one_file].status == STATUS_GOOD:
+    #         this_date = datafile_into_db(one_file, batch, dbconx)
+    #         if this_date in dates_loaded:
+    #             dates_loaded[this_date] += 1
+    #         else:
+    #             dates_loaded[this_date] = 1
 
+    # Load the datafiles.
+    dates_loaded_ok = defaultdict(int)
+    for file_name in sorted([f.name for f in Statuses.files.values() if f.status == STATUS_GOOD]):
+        this_date = datafile_into_db(file_name, batch, dbconx)
+        dates_loaded_ok[this_date] += 1
+
+    if args.verbose:
+        print("Closing database connection.")
     dbconx.close()
 
     if not args.quiet:
-        print_summary()
+        print_summary(dates_loaded_ok)
 
     if Statuses.errors:
         sys.exit(1)
