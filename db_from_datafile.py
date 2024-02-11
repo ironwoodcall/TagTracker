@@ -8,10 +8,7 @@ Options:
     --quiet: no output except error output (to stderr)
     --verbose: extra-chatty output
 
-
-
 This should run on the tagtracker server.
-
 Supersedes "tracker2db.py"
 
 This is a script to update a persistent SQLite database in a configurable
@@ -184,11 +181,19 @@ class FileInfo:
     error_list: list = field(default_factory=list)
 
     def set_bad(self, error_msg: str = "Unspecified error", silent: bool = False):
+        def print_first_line(msg: str):
+            print(f"{msg} [{self.name}]", file=sys.stderr)
+
         self.status = STATUS_BAD
         self.errors += 1
         self.error_list += [error_msg]
         if not silent:
-            print(f"{error_msg} [{self.name}]", file=sys.stderr)
+            if isinstance(error_msg, list):
+                print_first_line(error_msg[0] if error_msg else "")
+                for line in error_msg[1:]:
+                    print(line, file=sys.stderr)
+            else:
+                print_first_line(error_msg)
 
 
 def create_logtable(dbconx: sqlite3.Connection):
@@ -206,7 +211,7 @@ def create_logtable(dbconx: sqlite3.Connection):
         dbconx,
     )
     if error_msg:
-        Statuses.set_bad(f"SQL error creating datafile_loads: {error_msg}")
+        Statuses.set_bad(f"    SQL error creating datafile_loads: {error_msg}")
         dbconx.close()
         sys.exit(1)
 
@@ -239,7 +244,7 @@ def get_file_fingerprint(file_path):
             md5sum_output = result.stdout.strip().split()[0]
             return md5sum_output
         except subprocess.CalledProcessError as e:
-            print(f"Error: {e}", file=sys.stderr)
+            print(f"    Error: {e}", file=sys.stderr)
             return None
 
     def get_file_md5_windows(file_path):
@@ -283,7 +288,7 @@ def get_file_timestamp(file_path):
         modified_time = datetime.fromtimestamp(timestamp)
         return modified_time.strftime("%Y-%m-%dT%H:%M:%S")
     except FileNotFoundError:
-        print("File not found {e}.", file=sys.stderr)
+        print("    File not found {e}.", file=sys.stderr)
         return None
 
 
@@ -310,12 +315,12 @@ def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
         elif bike_type == OVERSIZE:
             row.oversize_parked += 1
         else:
-            msg = f"Can not tell tag type for tag {tag}"
+            msg = f"   Can not tell tag type for tag {tag}"
             Statuses.files[filename].set_bad(msg)
     row.total_parked = row.regular_parked + row.oversize_parked
     row.total_leftover = len(day.bikes_in) - len(day.bikes_out)
     if row.total_leftover < 0:
-        msg = "Total leftovers is negative"
+        msg = "    Total leftovers is negative"
         Statuses.files[filename].set_bad(msg)
         return None
 
@@ -363,7 +368,7 @@ def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
 def fetch_reg_from_db(dbconx: sqlite3.Connection, date: str) -> int:
     """Get any existing registration info from the DB; return int or None."""
     if args.verbose:
-        print("   Fetching any existing bike registration info from DB")
+        print("   Fetching any existing bike registration info from DB.")
     rows = tt_dbutil.db_fetch(
         dbconx,
         f"SELECT {COL_REGISTRATIONS} FROM {TABLE_DAYS} WHERE DATE = '{date}'",
@@ -374,7 +379,7 @@ def fetch_reg_from_db(dbconx: sqlite3.Connection, date: str) -> int:
     return rows[0].registrations
 
 
-def calc_reg_value(day_summary:DayStats,dbconx:sqlite3.Connection) -> int:
+def calc_reg_value(day_summary: DayStats, dbconx: sqlite3.Connection) -> int:
     """Calculate what bike registrations count to use."""
     # Figure out what value to use for registrations.
     # This is yucky for legacy support reasons: before approx 2024-02
@@ -392,7 +397,7 @@ def calc_reg_value(day_summary:DayStats,dbconx:sqlite3.Connection) -> int:
     df_reg = day_summary.registrations
     winner = "nowhere"
     if db_reg is None and df_reg is None:
-        result = 'NULL'
+        result = "NULL"
     elif db_reg is None:
         result = df_reg
         winner = "datafile"
@@ -411,13 +416,14 @@ def calc_reg_value(day_summary:DayStats,dbconx:sqlite3.Connection) -> int:
 
     return result
 
+
 def day_summary_into_db(
     filename: str, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
 ) -> bool:
     """Load into the DAY table.  Return T or F to indicate success."""
 
     # Figure out what bike registrations count value to use.  (!!!!yuck)
-    reg = calc_reg_value(day_summary,dbconx)
+    reg = calc_reg_value(day_summary, dbconx)
 
     # Insert/replace this day's summary info
     if args.verbose:
@@ -574,17 +580,22 @@ def datafile_into_db(filename: str, batch, dbconx) -> str:
     if args.verbose:
         print(f"Reading {filename}:")
 
-    day = tt_datafile.read_datafile(f"{filename}", err_msgs=[])
+    read_errors = []
+    day = tt_datafile.read_datafile(f"{filename}", err_msgs=read_errors)
     if not day.date:
         msg = "Unable to read date from file. Skipping file."
         file_info.set_bad(msg)
         return ""
+    if read_errors:
+        msg = ["Errors reading datafile"] + read_errors
+        file_info.set_bad(msg)
+        return ""
     if args.verbose:
         print(
-            f"   Date {day.date}   Open {day.opening_time}-{day.closing_time}"
-            f"   {len(day.bikes_in)} bikes   "
-            f"{len(day.bikes_in)-len(day.bikes_out)} leftover   "
-            f"{day.registrations} registrations"
+            f"   Date:{day.date}  Open:{day.opening_time}-{day.closing_time}"
+            f"  Bikes:{len(day.bikes_in)} "
+            f"Leftover:{len(day.bikes_in)-len(day.bikes_out)}  "
+            f"Registrations:{day.registrations}"
         )
 
     day_summary = calc_day_stats(filename, day)
@@ -609,7 +620,7 @@ def datafile_into_db(filename: str, batch, dbconx) -> str:
     dbconx.commit()  # commit one datafile transaction
 
     if args.verbose:
-        print(f"   Committed {day_summary.date}")
+        print(f"   Committed {day_summary.date}.")
 
     return day_summary.date
 
@@ -661,13 +672,12 @@ def get_args() -> argparse.Namespace:
 
     if prog_args.verbose and prog_args.quiet:
         prog_args.quiet = False
-        print("Arg --verbose set; ignoring arg --quiet")
+        print("Arg --verbose set; ignoring arg --quiet.")
     return prog_args
 
 
 def find_datafiles(fileglob: list) -> list:
-    """Return a list of files from a dataglob."
-    """
+    """Return a list of files from a dataglob." """
 
     maybe_datafiles = []
     for this_glob in fileglob:
@@ -717,25 +727,21 @@ def get_files_metadata(maybe_datafiles: list):
 
 def print_summary(loaded_dates: dict[str:int]):
     """A chatty summary of what took place."""
-    total_file_errors = 0
     for info in Statuses.files.values():
         info: FileInfo
         info.errors = info.errors if info.errors else len(info.error_list)
-        total_file_errors += info.errors
 
     print()
-    print(f"Files requested: {Statuses.num_files()}")
-    print(f"Files skipped: {Statuses.num_files(STATUS_SKIP)}")
-    print(
-        f"Files bad, not loaded: {Statuses.num_files(STATUS_BAD)} (containing {total_file_errors} errors)"
-    )
+    print(f"Files requested:{Statuses.num_files():4d}")
+    print(f"Files loaded ok:{Statuses.num_files(STATUS_GOOD):4d}")
+    print(f"Files ignored:  {Statuses.num_files(STATUS_SKIP):4d}")
+    print(f"Files rejected: {Statuses.num_files(STATUS_BAD):4d}")
     if args.verbose:
         for f, finfo in sorted(Statuses.files.items()):
             finfo: FileInfo
             if finfo.status == STATUS_BAD:
                 print(f"    {f}: {finfo.errors} errors")
-    print(f"Files loaded ok: {Statuses.num_files(STATUS_GOOD)}")
-    num_dup_dates = sum([x - 1 for d,x in loaded_dates.items() if d])
+    num_dup_dates = sum([x - 1 for d, x in loaded_dates.items() if d])
     if num_dup_dates:
         print(f"Dates for which more that one datafile loaded: {num_dup_dates}")
         if args.verbose:
@@ -764,7 +770,7 @@ def main():
 
     database_file = args.dbfile
     if args.verbose:
-        print(f"Connecting to database {database_file}")
+        print(f"Connecting to database {database_file}.")
     dbconx = tt_dbutil.db_connect(database_file)
     if not dbconx:
         print(f"Error: unable to connect to db {database_file}", file=sys.stderr)
@@ -789,9 +795,9 @@ def main():
                 print(f"Ignoring {num_skipped} previously loaded files.")
         num_bad = Statuses.num_files(STATUS_BAD)
         if num_bad:
-            print(f"Ignoring {num_bad} files already known to be bad'")
+            print(f"Ignoring {num_bad} files already known to be bad.")
         if num_skipped or num_bad:
-            print(f"Loading {Statuses.num_files(STATUS_GOOD)} remaining files")
+            print(f"Attempting to load {Statuses.num_files(STATUS_GOOD)} remaining files.")
 
     num_good = Statuses.num_files(STATUS_GOOD)
 
@@ -801,16 +807,17 @@ def main():
         sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", dbconx)
         if sql_error:
             print(
-                "Error: couldn't enable SQLite foreign key constraints",
-                file=sys.stderr,
+                "Error: couldn't enable SQLite foreign key constraints", file=sys.stderr
             )
             dbconx.close()
             sys.exit(1)
         dbconx.commit()
 
-        batch = Statuses.start_time[:-3]  # For some reason batch does not include seconds
+        batch = Statuses.start_time[
+            :-3
+        ]  # For some reason batch does not include seconds
         if args.verbose:
-            print(f"BatchID is {batch}")
+            print(f"Batch ID is {batch}.")
 
     # Load the datafiles.
     dates_loaded_ok = defaultdict(int)
