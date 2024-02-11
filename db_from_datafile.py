@@ -1,6 +1,63 @@
 #!/usr/bin/env python3
 """Load datafile records into TagTracker database.
 
+Options:
+    --force: reload given datafiles even if already loaded (default behaviour
+            is to successfully load any given file only once, as identified
+             by its file fingerprint (md5hash))
+    --quiet: no output except error output (to stderr)
+    --verbose: extra-chatty output
+
+- BEGIN and COMMIT and ROLLBACK
+- use with conn: around blocks where want clean-up/exit
+- remember to close conn on premature exit
+
+
+
+Placebo text (normal)
+---------------------
+Load requested for (x) files.
+Ignoring (y) previously loaded files.
+OR
+Forcing reload of (y) previously loaded files.
+
+Files attempted to load:
+Files ignored as previously loaded:
+Files successfully loaded:
+Files not loaded:
+
+
+Placebo text (verbose)
+----------------------
+Load requested for (x) files
+Reading file metadata for files
+Connecting to database (db)
+Fetching previously-loaded info
+Ignoring (y) previously loaded files.
+OR
+Forcing reload of (y) previously loaded files.
+Loading file (a), file timestamp {timstamp}
+    Reading file, bike-check date {date}
+    File has / does not have bike registration info
+    Calculating statistics
+    Inserting day-total db record
+    Inserting (z) visit records
+    Updating {data_loads} table
+    Committing transaction
+Database closed.
+
+Files attempted to load:
+Files ignored as previously loaded:
+Files successfully loaded:
+Files not loaded:
+
+
+Placebo text (quiet)
+--------------------
+(nothing)
+
+
+
 This should run on the tagtracker server.
 
 Supersedes "tracker2db.py"
@@ -11,6 +68,10 @@ data files.  It uses some modules that it shares in common with the TT client.
 
 Before running this, the database will need to be created.
 See "create_database.sql".
+
+By default this avoids repeating a previously successful datafile load
+by keeping a datafile_loads table in the database.  The --force option
+will force reloading.
 
 Copyright (C) 2024 Julias Hocking, Todd Glover
 
@@ -37,7 +98,6 @@ import glob
 import os
 import sqlite3
 import sys
-import csv
 from dataclasses import dataclass, field
 import subprocess
 from datetime import datetime
@@ -62,6 +122,13 @@ STATUS_BAD = "BAD"
 STATUS_SKIP = "SKIP"  # File done GOOD previously
 
 # Names for tables and columns.s
+# Table for logging datafile loads
+TABLE_LOADS = "datafile_loads"
+COL_FINGERPRINT = "fingerprint"
+COL_DATAFILE = "filename"
+COL_TIMESTAMP = "timestamp"
+# (Also uses COL_DATE and COL_BATCH)
+
 # Table of individual bike visits
 TABLE_VISITS = "visit"
 COL_ID = "id"  # text date.tag PK
@@ -161,6 +228,26 @@ class FileInfo:
             print(f"{error_msg} [{self.name}]", file=sys.stderr)
 
 
+def create_logtable(dbconx: sqlite3.Connection):
+    if args.verbose:
+        print(f"Creating {TABLE_LOADS} table if it doesn't exist.")
+    error_msg = sql_exec_and_error(
+        f"""CREATE TABLE IF NOT EXISTS
+        {TABLE_LOADS} (
+            {COL_DATE}  TEXT PRIMARY KEY NOT NULL,
+            {COL_DATAFILE} TEXT NOT NULL,
+            {COL_TIMESTAMP} TEXT NOT NULL,
+            {COL_FINGERPRINT} TEXT NOT NULL,
+            {COL_BATCH} TEXT NOT NULL
+        );""",
+        dbconx,
+    )
+    if error_msg:
+        Statuses.set_bad(f"SQL error creating datafile_loads: {error_msg}")
+        dbconx.close()
+        sys.exit(1)
+
+
 def calc_stay_length(hhmm_in: str, hhmm_out: str) -> str:
     """Calculate a str duration from a str time in and out."""
     t_in = VTime(hhmm_in).num
@@ -216,20 +303,14 @@ def get_file_fingerprint(file_path):
         return get_file_md5_windows(file_path)
 
 
-def get_good_mp5s_list(logfile: str) -> list[str]:
-    """Get a list of the MD5 of successful loads."""
-    if not os.path.exists(logfile):
-        raise FileNotFoundError(f"The logfile '{logfile}' does not exist.")
-    if not os.access(logfile, os.W_OK):
-        raise PermissionError(f"The logfile '{logfile}' is not writable.")
-
-    good_values = []
-    with open(logfile, "r", newline="", encoding="utf-8") as csvfile:
-        reader = csv.reader(csvfile)
-        for row in reader:
-            if len(row) >= 3 and row[2] == "GOOD":
-                good_values.append(row[1])
-    return good_values
+def get_load_fingerprints(dbconx: sqlite3.Connection) -> list[str]:
+    """Get a list of the fingerprints of files last loaded ok."""
+    create_logtable(dbconx)
+    rows = tt_dbutil.db_fetch(
+        dbconx, f"SELECT {COL_FINGERPRINT} FROM {TABLE_LOADS}", ["fingerprint"]
+    )
+    fingerprints = [r.fingerprint for r in rows]
+    return fingerprints
 
 
 def get_file_timestamp(file_path):
@@ -316,31 +397,37 @@ def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
     return row
 
 
-def fetch_reg_from_db(conn: sqlite3.Connection, date: str) -> int:
+def fetch_reg_from_db(dbconx: sqlite3.Connection, date: str) -> int:
     """Get any existing registration info from the DB; return int or None."""
+    if args.verbose:
+        print("   Fetching any existing bike registration info from DB")
     rows = tt_dbutil.db_fetch(
-        conn,
-        f"SELECT {COL_REGISTRATIONS} FROM {TABLE_DAYS} WHERE DATE = '{date}'",["registrations"]
+        dbconx,
+        f"SELECT {COL_REGISTRATIONS} FROM {TABLE_DAYS} WHERE DATE = '{date}'",
+        ["registrations"],
     )
     if not rows:
         return None
     return rows[0].registrations
 
-def day_into_db(
-    filename: str, day_row: DayStats, batch: str, conn: sqlite3.Connection
-) -> bool:
 
+def day_summary_into_db(
+    filename: str, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
+) -> bool:
+    """Load into the DAY table.  Return T or F to indicate success."""
     # Figure out what value to use for registrations.
     # This is yucky for legacy support reasons: before approx 2024-02
     # the count of registrations came from a separate day-end from, not
     # the datafile.  So this selects the existing value or the datafile
     # value, whichever is greater.
-    reg = fetch_reg_from_db(conn,day_row.date)
+    reg = fetch_reg_from_db(dbconx, day_summary.date)
     if reg is None:
-        reg = day_row.registrations
+        reg = day_summary.registrations
     reg = "NULL" if reg is None else reg
 
     # Insert/replace this day's summary info
+    if args.verbose:
+        print("   Adding day summary to database.")
     sql_error = sql_exec_and_error(
         f"""INSERT OR REPLACE INTO {TABLE_DAYS} (
                 {COL_DATE},
@@ -360,108 +447,66 @@ def day_into_db(
                 {COL_REGISTRATIONS},
                 {COL_BATCH}
             ) VALUES (
-                '{day_row.date}',
-                {day_row.regular_parked},
-                {day_row.oversize_parked},
-                {day_row.total_parked},
-                {day_row.total_leftover},
-                {day_row.max_regular_num},
-                '{day_row.max_regular_time}',
-                {day_row.max_oversize_num},
-                '{day_row.max_oversize_time}',
-                {day_row.max_total_num},
-                '{day_row.max_total_time}',
-                '{day_row.time_open}',
-                '{day_row.time_close}',
-                {day_row.weekday},
+                '{day_summary.date}',
+                {day_summary.regular_parked},
+                {day_summary.oversize_parked},
+                {day_summary.total_parked},
+                {day_summary.total_leftover},
+                {day_summary.max_regular_num},
+                '{day_summary.max_regular_time}',
+                {day_summary.max_oversize_num},
+                '{day_summary.max_oversize_time}',
+                {day_summary.max_total_num},
+                '{day_summary.max_total_time}',
+                '{day_summary.time_open}',
+                '{day_summary.time_close}',
+                {day_summary.weekday},
                 {reg},
                 '{batch}'
             );""",
-        conn,
+        dbconx,
         quiet=True,
     )
     # Did it work? (No error message means success.)
     if sql_error:
-        Statuses.files[filename].set_bad(f"SQL error adding to DAY: {sql_error}")
+        Statuses.files[filename].set_bad(
+            f"SQL error adding to {TABLE_DAYS}: {sql_error}"
+        )
         return False
 
     return True
 
 
-def datafile_into_db(filename: str, batch, conn) -> None:
-    """Record one datafile to the database.
-
-    Read the datafile in question into a TrackerDay object with
-    df.read_datafile()
-
-    For the day, UPDATE or INSERT a row of day summary data into TABLE_DAYS
-
-    Then calculate some things which might be based on it
-    for each bike, and record a row of visit data into TABLE_VISITS
-    """
-
-    if not os.path.isfile(filename):
-        Statuses.files[filename].set_bad("File not found")
-        return
-
+def day_visits_into_db(
+    file_info: FileInfo,
+    day: TrackerDay,
+    day_summary: DayStats,
+    batch: str,
+    dbconx: sqlite3.Connection,
+) -> bool:
     if args.verbose:
-        print(f"Reading {filename}:")
-
-    data = tt_datafile.read_datafile(f"{filename}", err_msgs=[])
-    date = data.date
-    if not date:
-        msg = "Unable to read date from file. Skipping file."
-        Statuses.files[filename].set_bad(msg)
-        return
-
-    # if not data.bikes_in:  # if no visits to record, stop now
-    #     print(f"No visits in {filename}")
-    #     globals()["EMPTY_COUNT"] += 1
-    #     return
-
-    # # Check there's enough info to determine bike type
-    # if data.regular and data.oversize:
-    #     regular_tags = data.regular
-    #     oversize_tags = data.oversize
-    #     if args.verbose:
-    #         print("Tags: datafile tag lists loaded")
-    # else:  # if no bike-type context
-    #     msg = "Can not read lists of regular & oversize tags"
-    #     Statuses.files[filename].set_bad(msg)
-    #     return
-
-    day_row = calc_day_stats(filename, data)
-    if not day_into_db(filename, day_row, batch, conn):
-        return
-
-    # Visits into the VISIT table
-
+        print("   Deleting any existing visits info for this day from database.")
     sql_error = sql_exec_and_error(
-        f"DELETE FROM {TABLE_VISITS} WHERE date = '{date}';", conn
+        f"DELETE FROM {TABLE_VISITS} WHERE date = '{day_summary.date}'", dbconx
     )
     if sql_error:
-        Statuses.files[filename].set_bad(f"Error deleting VISIT rows: {sql_error}")
-        return
+        file_info.set_bad(f"Error deleting VISIT rows: {sql_error}")
+        return False
 
-    for tag, time_in in data.bikes_in.items():
+    if args.verbose:
+        print(f"   Adding {len(day.bikes_in)} visits to database.")
+    for tag, time_in in day.bikes_in.items():
         time_in = VTime(time_in)
-        # if time_in > day_row.time_close:  # both should be VTime
-        #     print(
-        #         f"Error: visit {tag} in {filename} has check-in ({time_in})"
-        #         f" after closing time ({day_row.time_close}). Visit not recorded.",
-        #         file=sys.stderr,
-        #     )
-        #     continue
 
         # Insert VISIT rows one at a time
-        if tag in data.bikes_out:
-            time_out = VTime(data.bikes_out[tag])
+        if tag in day.bikes_out:
+            time_out = VTime(day.bikes_out[tag])
             dur_end = time_out
         else:  # no check-out recorded
-            dur_end = day_row.time_close
+            dur_end = day_summary.time_close
             time_out = ""  # empty str for no time
         time_stay = calc_stay_length(time_in, dur_end)
-        biketype = get_bike_type(tag, data)
+        biketype = get_bike_type(tag, day)
         sql_error = sql_exec_and_error(
             f"""INSERT INTO {TABLE_VISITS} (
                     {COL_ID},
@@ -473,32 +518,114 @@ def datafile_into_db(filename: str, batch, conn) -> None:
                     {COL_DURATION},
                     {COL_BATCH}
                     ) VALUES (
-                    '{date}.{tag}',
-                    '{date}',
+                    '{day_summary.date}.{tag}',
+                    '{day_summary.date}',
                     '{tag}',
                     '{biketype}',
                     '{time_in}',
                     '{time_out}',
                     '{time_stay}',
                     '{batch}');""",
-            conn,
+            dbconx,
         )
         if sql_error:
-            Statuses.files[filename].set_bad(
-                f"Error inserting VISIT tag {tag}: {sql_error}"
-            )
-            return
+            file_info.set_bad(f"Error inserting {TABLE_VISITS} tag {tag}: {sql_error}")
+            return False
+    return True
 
-    try:
-        conn.commit()  # commit one datafile transaction
-    except sqlite3.Error as sqlite_err:
-        Statuses.files[filename].set_bad(f"SQLite COMMIT error {sqlite_err}")
+
+def fileload_results_into_db(
+    file_info: FileInfo, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
+) -> bool:
+    """Update table that tracks load successes."""
+    if args.verbose:
+        print(f"   Updating fileload info for {day_summary.date} into database.")
+    sql = f"""
+        INSERT OR REPLACE INTO {TABLE_LOADS} (
+            {COL_DATE},
+            {COL_DATAFILE},
+            {COL_TIMESTAMP},
+            {COL_FINGERPRINT},
+            {COL_BATCH}
+        ) VALUES (
+            '{day_summary.date}',
+            '{file_info.name}',
+            '{file_info.timestamp}',
+            '{file_info.fingerprint}',
+            '{batch}'
+        ) """
+    sql_error = sql_exec_and_error(sql, dbconx)
+    if sql_error:
+        file_info.set_bad(f"Error updating {TABLE_LOADS} table: {sql_error}")
+        return False
+    return True
+
+
+def datafile_into_db(filename: str, batch, dbconx) -> None:
+    """Record one datafile to the database.
+
+    Read the datafile in question into a TrackerDay object with
+    df.read_datafile()
+
+    For the day, UPDATE or INSERT a row of day summary data into TABLE_DAYS
+
+    Then calculate some things which might be based on it
+    for each bike, and record a row of visit data into TABLE_VISITS
+    """
+
+    file_info: FileInfo = Statuses.files[filename]
+
+    if not os.path.isfile(filename):
+        file_info.set_bad("File not found")
+        return
+
+    if args.verbose:
+        print(f"Reading {filename}:")
+
+    day = tt_datafile.read_datafile(f"{filename}", err_msgs=[])
+    if not day.date:
+        msg = "Unable to read date from file. Skipping file."
+        file_info.set_bad(msg)
         return
     if args.verbose:
-        print(f"    Committed {day_row.total_parked} visit records for {date}")
+        print(f"   Date {day.date}   Open {day.opening_time}-{day.closing_time}"
+              f"   {len(day.bikes_in)} bikes   "
+              f"{len(day.bikes_in)-len(day.bikes_out)} leftover   "
+              f"{day.registrations} registrations")
+
+    day_summary = calc_day_stats(filename, day)
+
+    sql_begin_transaction(dbconx)
+
+    # Day summary
+    if not day_summary_into_db(filename, day_summary, batch, dbconx):
+        dbconx.rollback()
+        return
+
+    # Visits info
+    if not day_visits_into_db(file_info, day, day_summary, batch, dbconx):
+        dbconx.rollback()
+        return
+
+    # Successful load (pending commit), put it in the loads log
+    if not fileload_results_into_db(file_info, day_summary, batch, dbconx):
+        dbconx.rollback()
+        return
+
+    dbconx.commit()  # commit one datafile transaction
+
+    if args.verbose:
+        print(
+            f"   Committed {day_summary.date}"
+        )
 
 
-def sql_exec_and_error(sql_statement: str, conn, quiet: bool = False) -> str:
+def sql_begin_transaction(dbconx: sqlite3.Connection):
+    curs = dbconx.cursor()
+    curs.execute("BEGIN;")
+
+
+def sql_exec_and_error(sql_statement: str, dbconx, quiet: bool = False) -> str:
     """Execute a SQL statement, returns error message (if any).
 
     Presumably there is no error if the return is empty.
@@ -508,11 +635,10 @@ def sql_exec_and_error(sql_statement: str, conn, quiet: bool = False) -> str:
     Not suitable (of course) for SELECT statements.
     """
     try:
-        curs = conn.cursor()
+        curs = dbconx.cursor()
         curs.execute(sql_statement)
     except sqlite3.Error as sqlite_err:
-        if not quiet:
-            print(f"SQLite error:{sqlite_err}", file=sys.stderr)
+        print(f"SQLite error:{sqlite_err}", file=sys.stderr)
         return sqlite_err if sqlite_err else "Unspecified SQLite error"
     # Success
     return ""
@@ -536,7 +662,7 @@ def get_args() -> argparse.Namespace:
         help="provides most detailed output",
     )
     parser.add_argument(
-        "-l", "--log", action="store_true", help="output in logging format"
+        "-f", "--force", action="store_true", help="load even if previously loaded"
     )
     parser.add_argument(
         "dataglob",
@@ -596,32 +722,6 @@ def find_datafiles(fileglob: str) -> list:
     return ok_datafiles
 
 
-def get_logfile_name(database_file: str) -> str:
-    """Make a logfile name from a database name."""
-    base_name, extension = os.path.splitext(database_file)
-
-    if extension == "":
-        logfile = base_name + ".log"
-    elif extension == ".log":
-        raise ValueError("Database file cannot have '.log' extension.")
-    else:
-        logfile = base_name + ".log"
-
-    return logfile
-
-
-def save_log_info(logfile: str):
-    """Status info for logging."""
-    with open(logfile, "a", encoding="utf-8") as file:
-        for name, info in Statuses.files.items():
-            if info.status == STATUS_SKIP:
-                continue
-            print(
-                f"{name},{info.fingerprint},{info.status},{info.timestamp},{Statuses.start_time}",
-                file=file,
-            )
-
-
 def print_summary():
     """A chatty summary of what took place."""
     total_file_errors = 0
@@ -644,37 +744,40 @@ def main():
     args = get_args()
 
     database_file = args.dbfile
+    if args.verbose:
+        print(f"Connecting to database {database_file}")
+    dbconx = tt_dbutil.db_connect(database_file)
+    if not dbconx:
+        print(f"Error: unable to connect to db {database_file}", file=sys.stderr)
+        dbconx.close()
+        sys.exit(1)
+
     datafiles = find_datafiles(args.dataglob)
     if not args.quiet:
-        print(f"Given {len(datafiles)} files to load.")
+        print(f"Looking at {len(datafiles)} files to load.")
 
-    # If logging, get a list of known 'good' MD5s
-    logfile = get_logfile_name(database_file)
-    good_md5s = get_good_mp5s_list(logfile)
+    # Get a list of fingerprints of previous good loads.
+    good_fingerprints = get_load_fingerprints(dbconx)
     num_skipped = 0
     for finfo in Statuses.files.values():
         finfo: FileInfo
-        if finfo.fingerprint in good_md5s:
+        if not args.force and finfo.fingerprint in good_fingerprints:
             finfo.status = STATUS_SKIP
             num_skipped += 1
     if num_skipped and not args.quiet:
         print(f"Skipping {num_skipped} datafiles previously loaded ok")
 
     if args.verbose:
-        print(f"Connecting to database {database_file}")
-    conn = tt_dbutil.db_connect(database_file)
-    if not conn:
-        sys.exit(1)  # Error messages already taken care of in fn
-
-    sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", conn)
+        print("Setting foreign keys on")
+    sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", dbconx)
     if sql_error:
         print(
             "Error: couldn't enable SQLite use of foreign keys",
             file=sys.stderr,
         )
+        dbconx.close()
         sys.exit(1)
-    if args.verbose:
-        print("Enabled foreign key constraints.")
+    dbconx.commit()
 
     batch = Statuses.start_time[:-3]  # For some reason batch does not include seconds
     if args.verbose:
@@ -682,12 +785,10 @@ def main():
 
     for datafilename in datafiles:
         if Statuses.files[datafilename].status != STATUS_SKIP:
-            datafile_into_db(datafilename, batch, conn)
+            datafile_into_db(datafilename, batch, dbconx)
 
-    conn.close()
+    dbconx.close()
 
-    if args.log:
-        save_log_info(logfile)
     if not args.quiet:
         print_summary()
 
