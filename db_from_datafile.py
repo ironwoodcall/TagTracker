@@ -193,7 +193,7 @@ class FileInfo:
 
 def create_logtable(dbconx: sqlite3.Connection):
     if args.verbose:
-        print(f"Creating {TABLE_LOADS} table if it doesn't exist.")
+        print(f"Assuring table {TABLE_LOADS} exists.")
     error_msg = sql_exec_and_error(
         f"""CREATE TABLE IF NOT EXISTS
         {TABLE_LOADS} (
@@ -374,19 +374,50 @@ def fetch_reg_from_db(dbconx: sqlite3.Connection, date: str) -> int:
     return rows[0].registrations
 
 
-def day_summary_into_db(
-    filename: str, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
-) -> bool:
-    """Load into the DAY table.  Return T or F to indicate success."""
+def calc_reg_value(day_summary:DayStats,dbconx:sqlite3.Connection) -> int:
+    """Calculate what bike registrations count to use."""
     # Figure out what value to use for registrations.
     # This is yucky for legacy support reasons: before approx 2024-02
     # the count of registrations came from a separate day-end from, not
     # the datafile.  So this selects the existing value or the datafile
     # value, whichever is greater.
-    reg = fetch_reg_from_db(dbconx, day_summary.date)
-    if reg is None:
-        reg = day_summary.registrations
-    reg = "NULL" if reg is None else reg
+
+    # db_reg    df_reg      result
+    # None      None        None
+    # None      not None    df_reg
+    # not None  None        db_reg
+    # not None  not None    max(df_reg, db_reg)
+
+    db_reg = fetch_reg_from_db(dbconx, day_summary.date)
+    df_reg = day_summary.registrations
+    winner = "nowhere"
+    if db_reg is None and df_reg is None:
+        result = 'NULL'
+    elif db_reg is None:
+        result = df_reg
+        winner = "datafile"
+    elif df_reg is None:
+        result = db_reg
+        winner = "database"
+    elif df_reg > db_reg:
+        result = df_reg
+        winner = "datafile"
+    else:
+        result = db_reg
+        winner = "database"
+
+    if args.verbose:
+        print(f"   Using registration value {result} from {winner}.")
+
+    return result
+
+def day_summary_into_db(
+    filename: str, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
+) -> bool:
+    """Load into the DAY table.  Return T or F to indicate success."""
+
+    # Figure out what bike registrations count value to use.  (!!!!yuck)
+    reg = calc_reg_value(day_summary,dbconx)
 
     # Insert/replace this day's summary info
     if args.verbose:
@@ -634,19 +665,13 @@ def get_args() -> argparse.Namespace:
     return prog_args
 
 
-def find_datafiles(fileglob: str) -> list:
-    """Set a list of files from the supplied dataglob.
-
-    Needs at least 1 of:
-    - specific file to target
-    - glob to search with in specified directory
-
-    If provided both, returns the set union of all datafiles found.
+def find_datafiles(fileglob: list) -> list:
+    """Return a list of files from a dataglob."
     """
+
     maybe_datafiles = []
     for this_glob in fileglob:
         # print(f"{this_glob=}")
-
         globbed_files = glob.glob(this_glob)
         if len(globbed_files) < 1:
             print(
@@ -654,14 +679,17 @@ def find_datafiles(fileglob: str) -> list:
                 file=sys.stderr,
             )
             sys.exit(1)
-        return list(set().union(maybe_datafiles, globbed_files))
+        maybe_datafiles += globbed_files
+    return list(set().union(maybe_datafiles, globbed_files))
 
-def convert_paths_to_absolute(files:list) -> list:
+
+def convert_paths_to_absolute(files: list) -> list:
     """Convert a list of relative paths to absolute paths."""
     abs_paths = []
     for f in files:
         abs_paths.append(os.path.abspath(f))
     return sorted(list(set(abs_paths)))
+
 
 def get_files_metadata(maybe_datafiles: list):
     """Gets metadata for the files, loads it into Statuses class."""
@@ -687,7 +715,7 @@ def get_files_metadata(maybe_datafiles: list):
     return ok_datafiles
 
 
-def print_summary(loaded_dates:dict[str:int]):
+def print_summary(loaded_dates: dict[str:int]):
     """A chatty summary of what took place."""
     total_file_errors = 0
     for info in Statuses.files.values():
@@ -698,20 +726,22 @@ def print_summary(loaded_dates:dict[str:int]):
     print()
     print(f"Files requested: {Statuses.num_files()}")
     print(f"Files skipped: {Statuses.num_files(STATUS_SKIP)}")
-    print(f"Files in error: {Statuses.num_files(STATUS_BAD)} (~{total_file_errors} individual errors)")
+    print(
+        f"Files bad, not loaded: {Statuses.num_files(STATUS_BAD)} (containing {total_file_errors} errors)"
+    )
     if args.verbose:
-        for f,finfo in sorted(Statuses.files.items()):
-            finfo:FileInfo
+        for f, finfo in sorted(Statuses.files.items()):
+            finfo: FileInfo
             if finfo.status == STATUS_BAD:
                 print(f"    {f}: {finfo.errors} errors")
     print(f"Files loaded ok: {Statuses.num_files(STATUS_GOOD)}")
-    num_dup_dates = sum([x-1 for x in loaded_dates.values()])
+    num_dup_dates = sum([x - 1 for d,x in loaded_dates.items() if d])
     if num_dup_dates:
         print(f"Dates for which more that one datafile loaded: {num_dup_dates}")
         if args.verbose:
-            for date,count in sorted(loaded_dates.items()):
-                print(f"    {date}: {count} files")
-
+            for date, count in sorted(loaded_dates.items()):
+                if date and count > 1:
+                    print(f"    {date}: {count} files")
 
 
 def main():
@@ -726,7 +756,7 @@ def main():
         print(f"Load requested for {len(file_list)} files.")
     if args.verbose:
         print("Calculating absolute paths for files.")
-    file_list = convert_paths_to_absolute( file_list )
+    file_list = convert_paths_to_absolute(file_list)
 
     if args.verbose:
         print("Getting metadata for files.")
@@ -763,35 +793,30 @@ def main():
         if num_skipped or num_bad:
             print(f"Loading {Statuses.num_files(STATUS_GOOD)} remaining files")
 
-    if args.verbose:
-        print("Assuring foreign key constraints are enabled.")
-    sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", dbconx)
-    if sql_error:
-        print(
-            "Error: couldn't enable SQLite foreign key constraints",
-            file=sys.stderr,
-        )
-        dbconx.close()
-        sys.exit(1)
-    dbconx.commit()
+    num_good = Statuses.num_files(STATUS_GOOD)
 
-    batch = Statuses.start_time[:-3]  # For some reason batch does not include seconds
-    if args.verbose:
-        print(f"BatchID is {batch}")
+    if num_good:
+        if args.verbose:
+            print("Assuring foreign key constraints are enabled.")
+        sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", dbconx)
+        if sql_error:
+            print(
+                "Error: couldn't enable SQLite foreign key constraints",
+                file=sys.stderr,
+            )
+            dbconx.close()
+            sys.exit(1)
+        dbconx.commit()
 
-    # # Load the datafiles.
-    # dates_loaded = {}
-    # for one_file in sorted(Statuses.files.keys()):
-    #     if Statuses.files[one_file].status == STATUS_GOOD:
-    #         this_date = datafile_into_db(one_file, batch, dbconx)
-    #         if this_date in dates_loaded:
-    #             dates_loaded[this_date] += 1
-    #         else:
-    #             dates_loaded[this_date] = 1
+        batch = Statuses.start_time[:-3]  # For some reason batch does not include seconds
+        if args.verbose:
+            print(f"BatchID is {batch}")
 
     # Load the datafiles.
     dates_loaded_ok = defaultdict(int)
-    for file_name in sorted([f.name for f in Statuses.files.values() if f.status == STATUS_GOOD]):
+    for file_name in sorted(
+        [f.name for f in Statuses.files.values() if f.status == STATUS_GOOD]
+    ):
         this_date = datafile_into_db(file_name, batch, dbconx)
         dates_loaded_ok[this_date] += 1
 
