@@ -695,7 +695,7 @@ def get_args() -> argparse.Namespace:
         prog_args.quiet = False
         print("Arg --verbose set; ignoring arg --quiet.")
 
-    if prog_args.tail_only and prog_args.newer_only:
+    if prog_args.tail_only and prog_args.newest_only:
         print("Error: Can not use --newer-only and --tail-only together",file=sys.stderr)
         sys.exit(1)
 
