@@ -481,9 +481,9 @@ def day_summary_into_db(
                 '{day_summary.time_close}',
                 {day_summary.weekday},
                 {reg},
-                (SELECT {COL_PRECIP_MM} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}',
-                (SELECT {COL_TEMP} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}',
-                (SELECT {COL_SUNSET} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}',
+                (SELECT {COL_PRECIP_MM} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
+                (SELECT {COL_TEMP} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
+                (SELECT {COL_SUNSET} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
                 '{batch}'
             );""",
         dbconx,
