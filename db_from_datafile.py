@@ -807,7 +807,7 @@ def skip_non_newest_dups():
 
     # Find all the fileinfos associated with each basename
     bases = {}
-    for fi in Statuses.files.items():
+    for fi in Statuses.files.values():
         fi: FileInfo
         base = fi.basename
         if base not in bases:
@@ -838,15 +838,15 @@ def print_summary(loaded_dates: dict[str:int]):
     print(f"{Statuses.num_files():4d} files requested")
     print(f"{Statuses.num_files(STATUS_GOOD):4d} files loaded OK")
     print(
-        f"{Statuses.num_files(STATUS_SKIP_LATER):4d} files ignored, file with same name later in file list"
+        f"{Statuses.num_files(STATUS_SKIP_LATER):4d} files ignored, a file with same name is later in file list"
     )
     print(
-        f"{Statuses.num_files(STATUS_SKIP_NEWER):4d} files ignored, newer file with same name"
+        f"{Statuses.num_files(STATUS_SKIP_NEWER):4d} files ignored, a file with same name is newer"
     )
     print(
         f"{Statuses.num_files(STATUS_SKIP_GOOD):4d} files ignored, previously loaded ok"
     )
-    print(f"Files rejected: {Statuses.num_files(STATUS_BAD):4d}")
+    print(f"{Statuses.num_files(STATUS_BAD):4d} files not loaded because of errors")
     if args.verbose:
         for f, finfo in sorted(Statuses.files.items()):
             finfo: FileInfo
