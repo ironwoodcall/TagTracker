@@ -433,6 +433,14 @@ def day_summary_into_db(
     # Figure out what bike registrations count value to use.  (!!!!yuck)
     reg = calc_reg_value(day_summary, dbconx)
 
+    # This requires some fancy footwork in order to
+    #   1) use the value for registration that is the greater of
+    #       the existing value and the value from the datafile
+    #   2) preserve any existing environmental values (rain, temp, sunset)
+    # since the INSERT OR REPLACE really does do a REPLACE, meaning
+    # that (unlike an update), any columns not specifcally names are
+    # set to their default values
+
     # Insert/replace this day's summary info
     if args.verbose:
         print("   Adding day summary to database.")
@@ -453,6 +461,9 @@ def day_summary_into_db(
                 {COL_TIME_CLOSE},
                 {COL_DAY_OF_WEEK},
                 {COL_REGISTRATIONS},
+                {COL_PRECIP_MM},
+                {COL_TEMP},
+                {COL_SUNSET},
                 {COL_BATCH}
             ) VALUES (
                 '{day_summary.date}',
@@ -470,6 +481,9 @@ def day_summary_into_db(
                 '{day_summary.time_close}',
                 {day_summary.weekday},
                 {reg},
+                (SELECT {COL_PRECIP_MM} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}',
+                (SELECT {COL_TEMP} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}',
+                (SELECT {COL_SUNSET} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}',
                 '{batch}'
             );""",
         dbconx,
