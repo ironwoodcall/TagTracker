@@ -67,12 +67,11 @@ from tt_time import VTime
 args = None
 
 # Values for good & bad status
-STATUS_GOOD = "GOOD"    # File has not (yet) been rejected or had errors
-STATUS_BAD = "BAD"      # File has errors
+STATUS_GOOD = "GOOD"  # File has not (yet) been rejected or had errors
+STATUS_BAD = "BAD"  # File has errors
 STATUS_SKIP_GOOD = "SKIP_PRIOR"  # Skip file because was loaded ok previously
 STATUS_SKIP_LATER = "SKIP_TAIL"  # Skip file because another same-named is later
-STATUS_SKIP_NEWER = "SKIP_NEWER" # Skip file because another same-named is newer
-
+STATUS_SKIP_NEWER = "SKIP_NEWER"  # Skip file because another same-named is newer
 
 
 # Names for tables and columns.s
@@ -187,6 +186,7 @@ class FileInfo:
 
     def set_bad(self, error_msg: str = "Unspecified error", silent: bool = False):
         """Set a file's info to a fail state, emit error."""
+
         def print_first_line(msg: str):
             """Format for printing top line of error list."""
             print(f"{msg} [{self.name}]", file=sys.stderr)
@@ -682,7 +682,7 @@ def get_args() -> argparse.Namespace:
         "--tail-only",
         action="store_true",
         help="if files have same basename, only consider "
-        "the one that is closer to the tail of of the file list"
+        "the one that is closer to the tail of of the file list",
     )
     parser.add_argument(
         "dataglob", type=str, nargs="+", help="Fileglob(s) of datafiles to load"
@@ -696,7 +696,9 @@ def get_args() -> argparse.Namespace:
         print("Arg --verbose set; ignoring arg --quiet.")
 
     if prog_args.tail_only and prog_args.newest_only:
-        print("Error: Can not use --newer-only and --tail-only together",file=sys.stderr)
+        print(
+            "Error: Can not use --newest-only and --tail-only together", file=sys.stderr
+        )
         sys.exit(1)
 
     return prog_args
@@ -724,7 +726,7 @@ def find_datafiles(fileglob: list) -> list:
     return maybe_datafiles
 
 
-def dedup_filepaths(filepaths:list[str]) -> list[str]:
+def dedup_filepaths(filepaths: list[str]) -> list[str]:
     """Deduplicate a list of filepaths, removing dups and preserving order."""
     dedupped = []
     dups = []
@@ -739,6 +741,7 @@ def dedup_filepaths(filepaths:list[str]) -> list[str]:
         else:
             dedupped.append(f)
     return dedupped
+
 
 def convert_paths_to_absolute(files: list) -> list:
     """Convert a list of relative paths to absolute paths."""
@@ -772,30 +775,40 @@ def get_files_metadata(maybe_datafiles: list):
 
     return ok_datafiles
 
+
 def skip_non_tail_dups(filepath_list):
     """Sets FileInfo for some files based on their location in the list.
 
     file_list is an ordered list of filepaths.
     """
     base_list = [os.path.basename(f) for f in filepath_list]
-    for i, base in enumerate(base_list[:-1]):  # Iterate over all elements except the last one
-        if base in base_list[i+1:]:  # Check if the item appears again in the subsequent portion of the list
+    for i, base in enumerate(
+        base_list[:-1]
+    ):  # Iterate over all elements except the last one
+        if (
+            base in base_list[i + 1 :]
+        ):  # Check if the item appears again in the subsequent portion of the list
             skip_path = filepath_list[i]
             # Set this file's status to skip
             Statuses.files[skip_path].status = STATUS_SKIP_LATER
-            if args.verbose:
-                print(f"Skipping file {skip_path}; another {base} is later in arg list")
+    if args.verbose:
+        print(
+            f"{Statuses.num_files(STATUS_SKIP_LATER)} same-named files ignored "
+            "because another is later in arg list."
+        )
+
 
 def skip_non_newest_dups():
     """Skips duplicate files that are not the newest."""
-    def get_fileinfo_timestamp(fi:FileInfo) -> str:
+
+    def get_fileinfo_timestamp(fi: FileInfo) -> str:
         """FileInfo timestamp. (as a function so can use as key to max())."""
         return fi.timestamp
 
     # Find all the fileinfos associated with each basename
     bases = {}
     for fi in Statuses.files.items():
-        fi:FileInfo
+        fi: FileInfo
         base = fi.basename
         if base not in bases:
             bases[base] = [fi]
@@ -804,13 +817,16 @@ def skip_non_newest_dups():
     for fi_list in bases.items():
         if len(fi_list) > 1:
             # Find newest file, skip the rest
-            newest_stamp = max( fi_list, key=get_fileinfo_timestamp)
+            newest_stamp = max(fi_list, key=get_fileinfo_timestamp)
             for dup_fi in fi_list:
-                dup_fi:FileInfo
+                dup_fi: FileInfo
                 if dup_fi.timestamp != newest_stamp:
                     dup_fi.status = STATUS_SKIP_NEWER
-                    if args.verbose:
-                        print(f"Skipping file {dup_fi.name}; another {base} is newer")
+    if args.verbose:
+        print(
+            f"{Statuses.num_files(STATUS_SKIP_NEWER)} same-named files ignored because another is newer."
+        )
+
 
 def print_summary(loaded_dates: dict[str:int]):
     """A chatty summary of what took place."""
@@ -819,9 +835,17 @@ def print_summary(loaded_dates: dict[str:int]):
         info.errors = info.errors if info.errors else len(info.error_list)
 
     print()
-    print(f"Files requested:{Statuses.num_files():4d}")
-    print(f"Files loaded ok:{Statuses.num_files(STATUS_GOOD):4d}")
-    print(f"Files ignored:  {Statuses.num_files(STATUS_SKIP_GOOD):4d}")
+    print(f"{Statuses.num_files():4d} files requested")
+    print(f"{Statuses.num_files(STATUS_GOOD):4d} files loaded OK")
+    print(
+        f"{Statuses.num_files(STATUS_SKIP_LATER):4d} files ignored, file with same name later in file list"
+    )
+    print(
+        f"{Statuses.num_files(STATUS_SKIP_NEWER):4d} files ignored, newer file with same name"
+    )
+    print(
+        f"{Statuses.num_files(STATUS_SKIP_GOOD):4d} files ignored, previously loaded ok"
+    )
     print(f"Files rejected: {Statuses.num_files(STATUS_BAD):4d}")
     if args.verbose:
         for f, finfo in sorted(Statuses.files.items()):
@@ -861,21 +885,25 @@ def main():
         dbconx.close()
         sys.exit(1)
 
-    # Get a list of fingerprints of previous good loads.
-    if args.verbose:
-        print("Fetching fingerprints of previous datafile loads.")
-    good_fingerprints = get_load_fingerprints(dbconx)
-
     if args.tail_only:
         skip_non_tail_dups(ordered_file_list)
 
     if args.newest_only:
         skip_non_newest_dups()
 
-    # Decide which files to ignore
+    # Get a list of fingerprints of previous good loads.
+    if args.verbose:
+        print("Fetching fingerprints of previous datafile loads.")
+    good_fingerprints = get_load_fingerprints(dbconx)
+
+    # Decide which files to ignore becuase previously loaded ok
     for finfo in Statuses.files.values():
         finfo: FileInfo
-        if not args.force and finfo.fingerprint in good_fingerprints:
+        if (
+            not args.force
+            and finfo.status == STATUS_GOOD
+            and finfo.fingerprint in good_fingerprints
+        ):
             finfo.status = STATUS_SKIP_GOOD
     if not args.quiet:
         num_skipped = Statuses.num_files(STATUS_SKIP_GOOD)
