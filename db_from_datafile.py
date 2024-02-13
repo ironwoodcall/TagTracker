@@ -814,7 +814,7 @@ def skip_non_newest_dups():
             bases[base] = [fi]
         else:
             bases[base].append(fi)
-    for fi_list in bases.items():
+    for fi_list in bases.values():
         if len(fi_list) > 1:
             # Find newest file, skip the rest
             newest_stamp = max(fi_list, key=get_fileinfo_timestamp)
