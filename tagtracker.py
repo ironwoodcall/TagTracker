@@ -906,8 +906,8 @@ def bikes_on_hand_reminder() -> None:
     if VALET_CLOSES.num - VTime("now").num < 60:  # last hour
         bikes_on_hand = len(check_ins) - len(check_outs)
         pr.iprint(
-            f"There should be {bikes_on_hand} {ut.plural(bikes_on_hand,'bike')}"
-            " currently in the bike parking.",
+            f"There should currently be {bikes_on_hand} {ut.plural(bikes_on_hand,'bike')}"
+            " here.",
             style=cfg.HIGHLIGHT_STYLE,
         )
 
