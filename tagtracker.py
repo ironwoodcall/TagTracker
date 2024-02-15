@@ -136,10 +136,7 @@ def deduce_valet_date(current_guess: str, filename: str) -> str:
         return current_guess
     r = DATE_PART_RE.search(filename)
     if r:
-        return (
-            f"{int(r.group(2)):04d}-{int(r.group(3)):02d}-"
-            f"{int(r.group(4)):02d}"
-        )
+        return f"{int(r.group(2)):04d}-{int(r.group(3)):02d}-" f"{int(r.group(4)):02d}"
     return ut.date_str("today")
 
 
@@ -188,9 +185,7 @@ def initialize_today() -> bool:
     """Read today's info from datafile & maybe tags-config file."""
     # Does the file even exist? (If not we will just create it later)
     new_datafile = False
-    pathlib.Path(cfg.DATA_FOLDER).mkdir(
-        exist_ok=True
-    )  # make data folder if missing
+    pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
     if not os.path.exists(DATA_FILEPATH):
         new_datafile = True
         pr.iprint(
@@ -218,9 +213,7 @@ def initialize_today() -> bool:
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
     # then fetch the tag reference lists from tags config
-    if not (today.regular or today.oversize) or today.date == ut.date_str(
-        "today"
-    ):
+    if not (today.regular or today.oversize) or today.date == ut.date_str("today"):
         tagconfig = get_taglists_from_config()
         today.regular = tagconfig.regular
         today.oversize = tagconfig.oversize
@@ -272,9 +265,7 @@ def delete_entry(
         )
         return pr.tt_inp().strip().lower()
 
-    def nogood(
-        msg: str = "", syntax: bool = True, severe: bool = True
-    ) -> None:
+    def nogood(msg: str = "", syntax: bool = True, severe: bool = True) -> None:
         """Print the nogood msg + syntax msg."""
         style = cfg.WARNING_STYLE if severe else cfg.HIGHLIGHT_STYLE
         if msg:
@@ -307,18 +298,14 @@ def delete_entry(
         nogood(f"'{maybe_target}' is not a tag in use", syntax=False)
         return
     if target not in check_ins:
-        nogood(
-            f"Tag {target} not checked in or out, nothing to do.", syntax=False
-        )
+        nogood(f"Tag {target} not checked in or out, nothing to do.", syntax=False)
         return
     # Special case: "!" after what without a space
     if maybe_what and maybe_what[-1] == "!" and not maybe_confirm:
         maybe_what = maybe_what[:-1]
         maybe_confirm = "!"
     # Find out what kind of checkin/out we are to delete
-    what = arg_prompt(
-        maybe_what, "Delete check-IN, check-OUT or BOTH (i/o/b)?"
-    )
+    what = arg_prompt(maybe_what, "Delete check-IN, check-OUT or BOTH (i/o/b)?")
     if not what:
         cancel()
         return
@@ -352,9 +339,7 @@ def delete_entry(
     pr.iprint("Deleted.", style=cfg.ANSWER_STYLE)
 
 
-def query_one_tag(
-    maybe_tag: str, day: td.TrackerDay, multi_line: bool = False
-) -> None:
+def query_one_tag(maybe_tag: str, day: td.TrackerDay, multi_line: bool = False) -> None:
     """Print a summary of one tag's status.
 
     If multi_line is true, then this *may* print the status on multiple lines;
@@ -408,9 +393,7 @@ def query_one_tag(
                 f"{tag.time_in.tidy}  " f"{tag.tag} checked in",
                 style=cfg.ANSWER_STYLE,
             )
-            pr.iprint(
-                f"       {tag.tag} not checked out", style=cfg.ANSWER_STYLE
-            )
+            pr.iprint(f"       {tag.tag} not checked out", style=cfg.ANSWER_STYLE)
         else:
             if dur >= 60:
                 dur_str = f"(in valet for {VTime(dur).short})"
@@ -485,9 +468,7 @@ def set_valet_hours(args: list[str]) -> None:
     if VALET_OPENS:
         pr.iprint(f"Opening time is: {VALET_OPENS}", style=cfg.HIGHLIGHT_STYLE)
     if VALET_CLOSES:
-        pr.iprint(
-            f"Closing time is: {VALET_CLOSES}", style=cfg.HIGHLIGHT_STYLE
-        )
+        pr.iprint(f"Closing time is: {VALET_CLOSES}", style=cfg.HIGHLIGHT_STYLE)
 
     maybe_open = prompt_for_time(
         open_arg,
@@ -519,9 +500,7 @@ def set_valet_hours(args: list[str]) -> None:
         )
         return
     VALET_CLOSES = maybe_close
-    pr.iprint(
-        f"Closing time now set to {VALET_CLOSES}", style=cfg.ANSWER_STYLE
-    )
+    pr.iprint(f"Closing time now set to {VALET_CLOSES}", style=cfg.ANSWER_STYLE)
 
 
 def multi_edit(args: list[str]):
@@ -601,9 +580,7 @@ def multi_edit(args: list[str]):
             # All done here
             return
 
-    def edit_processor(
-        maybe_tag: TagID, inout: str, target_time: VTime
-    ) -> bool:
+    def edit_processor(maybe_tag: TagID, inout: str, target_time: VTime) -> bool:
         """Execute one edit command with all its args known.
 
         On entry:
@@ -638,11 +615,7 @@ def multi_edit(args: list[str]):
         if tag not in ALL_TAGS:
             error(f"Tag '{tag}' not available for use")
             return False
-        if (
-            inout == BIKE_IN
-            and tag in check_outs
-            and check_outs[tag] < target_time
-        ):
+        if inout == BIKE_IN and tag in check_outs and check_outs[tag] < target_time:
             error(f"Tag '{tag}' has check-out time earlier than {target_time}")
             return False
         if inout == BIKE_OUT:
@@ -650,9 +623,7 @@ def multi_edit(args: list[str]):
                 error(f"Tag '{tag}' not checked in")
                 return False
             if check_ins[tag] > target_time:
-                error(
-                    f"Tag '{tag}' has checked in later than {target_time.short}"
-                )
+                error(f"Tag '{tag}' has checked in later than {target_time.short}")
                 return False
         # Have checked for errors, can now commit the change
         if inout == BIKE_IN:
@@ -704,9 +675,7 @@ def multi_edit(args: list[str]):
         argstring += " " + response
         cmd = TokenSet(argstring)
     if cmd.atime_value == BADVALUE:
-        error(
-            f"Bad time '{cmd.atime_str}', " f"must be HHMM or 'now'. {syntax}"
-        )
+        error(f"Bad time '{cmd.atime_str}', " f"must be HHMM or 'now'. {syntax}")
         return
     # That should be the whole command, with nothing left over.
     if cmd.remainder:
@@ -789,9 +758,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                 if sure:
                     multi_edit([tag, "o", rightnow])
                 else:
-                    pr.iprint(
-                        "Cancelled bike check out", style=cfg.WARNING_STYLE
-                    )
+                    pr.iprint("Cancelled bike check out", style=cfg.WARNING_STYLE)
         else:  # if string is in neither dict
             check_ins[tag] = VTime("now")
             print_tag_inout(tag, BIKE_IN)
@@ -887,9 +854,7 @@ def dump_data():
             continue
         value = vars(cfg)[var]
         if isinstance(value, (str, dict, list, set, float, int)):
-            pr.iprint(
-                f"{var} {type(value)}:  ", style=cfg.ANSWER_STYLE, end=""
-            )
+            pr.iprint(f"{var} {type(value)}:  ", style=cfg.ANSWER_STYLE, end="")
             pr.iprint(value)
     pr.iprint()
     pr.iprint("    main module   ", num_indents=0, style=cfg.ERROR_STYLE)
@@ -898,9 +863,7 @@ def dump_data():
             continue
         value = globals()[var]
         if isinstance(value, (str, dict, list, frozenset, set, float, int)):
-            pr.iprint(
-                f"{var} {type(value)}:  ", style=cfg.ANSWER_STYLE, end=""
-            )
+            pr.iprint(f"{var} {type(value)}:  ", style=cfg.ANSWER_STYLE, end="")
             pr.iprint(value)
     if check_ins:
         pr.iprint()
@@ -926,9 +889,7 @@ def estimate(args: list[str]) -> None:
     pr.iprint()
     pr.iprint("Estimating...")
     time.sleep(3)
-    message_lines = tt_call_estimator.get_estimate_via_url(
-        pack_day_data(), *args[:4]
-    )
+    message_lines = tt_call_estimator.get_estimate_via_url(pack_day_data(), *args[:4])
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
     pr.iprint()
@@ -940,6 +901,17 @@ def estimate(args: list[str]) -> None:
     pr.iprint()
 
 
+def bikes_on_hand_reminder() -> None:
+    """Remind how many bikes should be present, if close to closing time."""
+    if VALET_CLOSES.num - VTime("now").num < 60:  # last hour
+        bikes_on_hand = len(check_ins) - len(check_outs)
+        pr.iprint(
+            f"There should be {bikes_on_hand} {ut.plural(bikes_on_hand,'bike')}"
+            " currently in the bike parking.",
+            style=cfg.HIGHLIGHT_STYLE,
+        )
+
+
 def main():
     """Run main program loop and dispatcher."""
     done = False
@@ -947,12 +919,14 @@ def main():
     publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     while not done:
         pr.iprint()
-        pr.print_tag_notes("", reset=True)  # Allow tag notes for new command
+        # Nag about bikes expected to be present if close to closing time
+        bikes_on_hand_reminder()
+        # Allow tag notes for this next command
+        pr.print_tag_notes("", reset=True)
+        # Prompt
         if cfg.INCLUDE_TIME_IN_PROMPT:
             pr.iprint(f"{VTime('now').short}", end="")
-        pr.iprint(
-            f"Bike tag or command {cfg.CURSOR}", style=cfg.PROMPT_STYLE, end=""
-        )
+        pr.iprint(f"Bike tag or command {cfg.CURSOR}", style=cfg.PROMPT_STYLE, end="")
         user_str = pr.tt_inp()
         # Break command into tokens, parse as command
         cmd_bits = CmdBits(user_str, RETIRED_TAGS, ALL_TAGS)
@@ -986,10 +960,7 @@ def main():
             show_help()
         elif cmd_bits.command == cfg.CMD_LOOKBACK:
             rep.recent(pack_day_data(), cmd_bits.args)
-        elif (
-            cmd_bits.command == cfg.CMD_RETIRED
-            or cmd_bits.command == cfg.CMD_COLOURS
-        ):
+        elif cmd_bits.command == cfg.CMD_RETIRED or cmd_bits.command == cfg.CMD_COLOURS:
             pr.iprint(
                 "This command has been replaced by the 'tags' command.",
                 style=cfg.WARNING_STYLE,
@@ -1136,9 +1107,7 @@ def midnight_message():
     """Print a "you have to restart" message."""
     # Time has rolled over past midnight so need a new datafile.
     print("\n\n\n")
-    pr.iprint(
-        "Program has been running since yesterday.", style=cfg.WARNING_STYLE
-    )
+    pr.iprint("Program has been running since yesterday.", style=cfg.WARNING_STYLE)
     pr.iprint(
         "Please restart program to reset for today's data.",
         style=cfg.WARNING_STYLE,
@@ -1200,9 +1169,7 @@ if __name__ == "__main__":
             f"Creating new configuration file {cfg.TAG_CONFIG_FILE}",
             style=cfg.WARNING_STYLE,
         )
-        pr.iprint(
-            "Edit this file then re-rerun TagTracker.", style=cfg.WARNING_STYLE
-        )
+        pr.iprint("Edit this file then re-rerun TagTracker.", style=cfg.WARNING_STYLE)
         print("\n" * 3, "Exiting automatically in 15 seconds.")
         time.sleep(15)
         exit()
