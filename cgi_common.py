@@ -42,7 +42,6 @@ WHAT_OVERVIEW = "Ov"
 WHAT_BLOCKS = "Blk"
 WHAT_OVERVIEW_DOW = "OvD"
 WHAT_BLOCKS_DOW = "BlkD"
-WHAT_MISMATCH = "MM"
 WHAT_ONE_DAY = "1D"
 WHAT_ONE_DAY_FREQUENCIES = "1Q"
 WHAT_DATA_ENTRY = "DE"
@@ -370,7 +369,7 @@ class SingleDay:
     precip: float = 0
     dusk: VTime = ""
     leftovers: int = 0  # as reported
-    leftovers_calculated: int = 0
+    # leftovers_calculated: int = 0
     blocks: dict = field(default_factory=lambda: copy.deepcopy(_allblocks))
     min_stay = None
     max_stay = None
@@ -379,9 +378,9 @@ class SingleDay:
     modes_stay = []
     modes_occurences = 0
 
-    @property
-    def leftovers_reported(self) -> int:
-        return self.leftovers
+    # @property
+    # def leftovers_reported(self) -> int:
+    #     return self.leftovers
 
 
 @dataclass
@@ -450,10 +449,8 @@ def get_days_data(
             DAY.precip_mm AS precip,
             DAY.temp AS temperature,
             DAY.sunset AS dusk,
-            DAY.leftover AS leftovers,
-            COUNT(VISIT.date) AS leftovers_calculated
+            DAY.leftover AS leftovers
         FROM DAY
-        LEFT JOIN VISIT ON DAY.date = VISIT.date AND VISIT.TIME_OUT = ""
         {where}
         GROUP BY DAY.date, DAY.time_open, DAY.time_closed, DAY.parked_regular, DAY.parked_oversize,
             DAY.parked_total, DAY.max_total, DAY.time_max_total, DAY.registrations, DAY.precip_mm,
@@ -636,7 +633,7 @@ def fetch_daily_visit_data(ttdb: sqlite3.Connection, in_or_out: str) -> list[db.
 def incorporate_blocks_data(ttdb: sqlite3.Connection, days: list[SingleDay]):
     """Fetch visit data to complete the days list.
 
-    Calculates leftovers_calculated and the blocks info for the days.
+    Calculates the blocks info for the days.
     """
 
     # Will need to be able to index into the days table by date
