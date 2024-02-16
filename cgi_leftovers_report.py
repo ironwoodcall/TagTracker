@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """CGI helper script for TagTracker report on mismatches in leftover bike counts.
 
+*** THIS IS NO LONGER IN USE ***
+Since leftovers are now always as read from database.DAY, and that value is
+set at db load from datafiles, not overwritten by separately loaded
+information from a day-end report.
+
+
 Copyright (C) 2023 Julias Hocking
 
     Notwithstanding the licensing information below, this code may not

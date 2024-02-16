@@ -219,8 +219,8 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
     table_vars = (
         (
             "duration",
-            "Length of stays at valet",
-            "Frequency distribution of lengths of stays at valet",
+            "Length of stays",
+            "Frequency distribution of lengths of stays",
             "teal",
         ),
         (
@@ -418,7 +418,7 @@ def visits_table(
     html += (
         "<tr><td colspan=5 style='text-align:center'><i>"
         "Where no check-out time exists, duration is "
-        "estimated assuming bike is at valet until "
+        "estimated assuming bike is checked in until "
         "the end of the day</i></td></tr>"
     )
     html += "</table></body></html>"
@@ -449,7 +449,7 @@ def summary_table(
     )
     print(
         f"""
-        <tr><td colspan=3>Valet hours:
+        <tr><td colspan=3>Hours of operation:
             {day_data.valet_open.tidy} - {day_data.valet_close.tidy}</td></tr>
         <tr><td colspan=2>Total bikes parked (visits):</td>
             <td>{day_data.total_bikes}</td></tr>
@@ -466,16 +466,16 @@ def summary_table(
         f"""
         <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td>
             <td>{day_data.max_bikes}</td></tr>
-        <tr><td colspan=2>Bikes left at valet (from TagTracker):</td>
-            <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers_calculated>0)*HIGHLIGHT_WARN)}'>{day_data.leftovers_calculated}</td></tr>
+        <tr><td colspan=2>Bikes remaining:</td>
+            <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers>0)*HIGHLIGHT_WARN)}'>{day_data.leftovers}</td></tr>
+        <tr><td colspan=2>Bikes registered:</td>
+            <td>{day_data.registrations}</td></tr>
             """
     )
 
     if not is_today:
         print(
             f"""
-            <tr><td colspan=2>Bikes left at valet (from day-end form):</td>
-            <td>{day_data.leftovers_reported}</td></tr>
             <tr><td colspan=2>Shortest visit:</td>
                 <td>{day_data.min_stay}</td></tr>
             <tr><td colspan=2>Longest visit:</td>
