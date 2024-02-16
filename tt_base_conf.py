@@ -28,6 +28,7 @@ Copyright (C) 2023 Julias Hocking
 from typing import Tuple
 from tt_colours import Style, Fore, Back
 
+# FIXME: as 1st step toward separating client & server, cluster things in this file
 
 # Arbitrary string to describe this location
 SITE_NAME = ""
@@ -38,6 +39,15 @@ USE_COLOUR = True
 CURSOR = ">>> "
 INCLUDE_TIME_IN_PROMPT = True
 TAGS_UPPERCASE = False
+
+# THings related to playing sounds (client only)
+SOUND_PLAYER = "mpg321"   # If not full filepath then this needs to be on PATH
+# Sound file locations are relative to the python files dir
+SOUND_BIKE_IN = ""
+SOUND_BIKE_OUT = ""
+SOUND_ALERT = ""
+# This flag can set the (initial) state of whether sounds are enabled
+SOUND_ENABLED = True
 
 # This file defines what tags are available, for current-day sessions.
 TAG_CONFIG_FILE = "tags.cfg"

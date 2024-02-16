@@ -39,6 +39,28 @@ from tt_time import VTime
 from tt_tag import TagID
 
 
+def find_on_path(filename):
+    """Check if filename exists, including anywhere in system PATH.
+
+    Returns the absolute filepath if it exists, otherwise "".
+    """
+    # Check if the filename contains '/' indicating it's a relative or absolute path
+    if '/' in filename:
+        if os.path.exists(filename):
+            return os.path.abspath(filename)
+        else:
+            return None  # File doesn't exist
+    else:
+        # Iterate through each directory in the system path
+        for directory in os.environ["PATH"].split(os.pathsep):
+            # What would the absolute filepath be if it were present?
+            abs_path = os.path.join(directory, filename)
+            if os.path.exists(abs_path):
+                return abs_path
+        # Return None if the file is not found on the system path
+        return None
+
+
 def top_level_script() -> str:
     """Return filename of highest-level calling script.
 
