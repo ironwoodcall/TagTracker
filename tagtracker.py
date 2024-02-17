@@ -53,6 +53,7 @@ import tt_notes as notes
 from tt_cmdparse import CmdBits
 import tt_call_estimator
 import tt_registrations as reg
+from tt_sounds import NoiseMaker
 
 # Local connfiguration
 # try:
@@ -74,32 +75,32 @@ check_ins = {}
 check_outs = {}
 
 
-def valet_logo():
-    """Print a cute bike valet logo using unicode."""
-    UL = chr(0x256D)
-    VR = chr(0x2502)
-    HR = chr(0x2500)
-    UR = chr(0x256E)
-    LL = chr(0x2570)
-    LR = chr(0x256F)
-    BL = " "
-    LOCK00 = chr(0x1F512)
-    BIKE00 = chr(0x1F6B2)
-    SCOOTR = chr(0x1F6F4)
+# def valet_logo():
+#     """Print a cute bike valet logo using unicode."""
+#     UL = chr(0x256D)
+#     VR = chr(0x2502)
+#     HR = chr(0x2500)
+#     UR = chr(0x256E)
+#     LL = chr(0x2570)
+#     LR = chr(0x256F)
+#     BL = " "
+#     LOCK00 = chr(0x1F512)
+#     BIKE00 = chr(0x1F6B2)
+#     SCOOTR = chr(0x1F6F4)
 
-    ln1 = f"{BL}{UL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{UR}"
-    ln2 = f"{BL}{VR}{BL}{BIKE00}{BIKE00}{SCOOTR}{BIKE00}{BL}{VR}"
-    ln3 = f"{LOCK00}{BL}{BIKE00}{BIKE00}{BIKE00}{SCOOTR}{BL}{VR}"
-    ln4 = f"{BL}{LL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{LR}"
+#     ln1 = f"{BL}{UL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{UR}"
+#     ln2 = f"{BL}{VR}{BL}{BIKE00}{BIKE00}{SCOOTR}{BIKE00}{BL}{VR}"
+#     ln3 = f"{LOCK00}{BL}{BIKE00}{BIKE00}{BIKE00}{SCOOTR}{BL}{VR}"
+#     ln4 = f"{BL}{LL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{LR}"
 
-    WHATSTYLE = cfg.ANSWER_STYLE
+#     WHATSTYLE = cfg.ANSWER_STYLE
 
-    pr.iprint()
-    pr.iprint(f"            {ln1}             ", style=WHATSTYLE)
-    pr.iprint(f"   FREE     {ln2}     BIKE    ", style=WHATSTYLE)
-    pr.iprint(f"   SAFE     {ln3}     VALET   ", style=WHATSTYLE)
-    pr.iprint(f"            {ln4}             ", style=WHATSTYLE)
-    pr.iprint()
+#     pr.iprint()
+#     pr.iprint(f"            {ln1}             ", style=WHATSTYLE)
+#     pr.iprint(f"   FREE     {ln2}     BIKE    ", style=WHATSTYLE)
+#     pr.iprint(f"   SAFE     {ln3}     VALET   ", style=WHATSTYLE)
+#     pr.iprint(f"            {ln4}             ", style=WHATSTYLE)
+#     pr.iprint()
 
 
 def fix_2400_events() -> list[TagID]:
@@ -580,7 +581,7 @@ def multi_edit(args: list[str]):
             # All done here
             return
 
-    def edit_processor(maybe_tag: TagID, inout: str, target_time: VTime) -> bool:
+    def edit_processor(maybe_tag: TagID, inout: str, target_time: VTime) -> str:
         """Execute one edit command with all its args known.
 
         On entry:
@@ -588,8 +589,8 @@ def multi_edit(args: list[str]):
             inout: is BIKE_IN or BIKE_OUT
             target_time: is a valid Time
         On exit, either:
-            tag has been changed, msg delivered, returns True; or
-            no change, error msg delivered, returns False
+            tag has been changed, msg delivered; returns BIKE_IN or BIKE_OUT; or
+            no change, error msg delivered, returns ""
         """
 
         def success(tag: TagID, inout_str: str, newtime: VTime) -> None:
@@ -608,23 +609,23 @@ def multi_edit(args: list[str]):
         tag = TagID(maybe_tag)
         if not tag.valid:
             error(f"String '{tag.original}' is not a valid tag ID")
-            return False
+            return ""
         if tag in RETIRED_TAGS:
             error(f"Tag '{tag}' is marked as retired")
-            return False
+            return ""
         if tag not in ALL_TAGS:
             error(f"Tag '{tag}' not available for use")
-            return False
+            return ""
         if inout == BIKE_IN and tag in check_outs and check_outs[tag] < target_time:
             error(f"Tag '{tag}' has check-out time earlier than {target_time}")
-            return False
+            return ""
         if inout == BIKE_OUT:
             if tag not in check_ins:
                 error(f"Tag '{tag}' not checked in")
-                return False
+                return ""
             if check_ins[tag] > target_time:
                 error(f"Tag '{tag}' has checked in later than {target_time.short}")
-                return False
+                return ""
         # Have checked for errors, can now commit the change
         if inout == BIKE_IN:
             check_ins[tag] = target_time
@@ -634,8 +635,8 @@ def multi_edit(args: list[str]):
             success(tag, "out", target_time)
         else:
             ut.squawk(f"Bad inout in call to edit_processor: '{inout}'")
-            return False
-        return True
+            return ""
+        return inout
 
     syntax = "Syntax: edit [tag(s)] [in|out] [time|'now']"
     # Turn all the args into a string, discarding the 'edit' at the front
@@ -682,9 +683,11 @@ def multi_edit(args: list[str]):
         error("Bad input at end " f"'{' '.join(cmd.remainder)}'. {syntax}")
         return
     # Now we have a list of maybe-ish Tags, a usable INOUT and a usable Time
+    inouts = []
     for tag in cmd.tags:
-        edit_processor(tag, cmd.inout_value, cmd.atime_value)
-
+        inouts.append(edit_processor(tag, cmd.inout_value, cmd.atime_value))
+    # Play the sounds for this
+    NoiseMaker.play(*inouts)
 
 def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
     """Pretty-print a tag-in or tag-out message."""
@@ -722,6 +725,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
         if tag in check_ins:
             if tag in check_outs:  # if tag has checked in & out
                 query_tag([tag], multi_line=False)
+                NoiseMaker.play(ALERT)
                 pr.iprint(
                     f"Overwrite {check_outs[tag]} check-out with "
                     f"current time ({VTime('now').short})? "
@@ -746,6 +750,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                     )
                     return
                 if time_diff_mins < cfg.CHECK_OUT_CONFIRM_TIME:
+                    NoiseMaker.play(ALERT)
                     query_tag([tag], multi_line=False)
                     pr.iprint(
                         "Do you want to check it out? " f"(y/N) {cfg.CURSOR}",
@@ -762,6 +767,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
         else:  # if string is in neither dict
             check_ins[tag] = VTime("now")
             print_tag_inout(tag, BIKE_IN)
+            NoiseMaker.play(BIKE_IN)
 
 
 def parse_command(user_input: str) -> list[str]:
@@ -1012,6 +1018,7 @@ def main():
         elif not TagID(cmd_bits.command):
             # This is not a tag
             if cmd_bits.command == cfg.CMD_UNKNOWN or len(cmd_bits.args) > 0:
+                NoiseMaker.play(ALERT)
                 msg = "Unrecognized command, enter 'h' for help"
             elif cmd_bits.command == cfg.CMD_TAG_RETIRED:
                 msg = f"Tag '{TagID(user_str)}' is retired"
@@ -1180,6 +1187,9 @@ if __name__ == "__main__":
 
     lint_report(strict_datetimes=False)
 
+    # Check that sounds can work (if enabled).
+    NoiseMaker.init_check()
+
     # Get/set valet date & time
     if not VALET_OPENS or not VALET_CLOSES:
         (opens, closes) = cfg.valet_hours(VALET_DATE)
@@ -1195,7 +1205,6 @@ if __name__ == "__main__":
     if VALET_OPENS or VALET_CLOSES:
         save()
 
-    valet_logo()
     main()
 
     pr.set_echo(False)
