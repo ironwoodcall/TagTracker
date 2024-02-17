@@ -687,15 +687,6 @@ def multi_edit(args: list[str]):
     for tag in cmd.tags:
         inouts.append(edit_processor(tag, cmd.inout_value, cmd.atime_value))
     # Play the sounds for this
-    inouts = [
-        cfg.SOUND_BIKE_IN
-        if item == BIKE_IN
-        else cfg.SOUND_BIKE_OUT
-        if item == BIKE_OUT
-        else item
-        for item in inouts
-        if item != ""
-    ]
     NoiseMaker.play(*inouts)
 
 def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
@@ -734,6 +725,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
         if tag in check_ins:
             if tag in check_outs:  # if tag has checked in & out
                 query_tag([tag], multi_line=False)
+                NoiseMaker.play(ALERT)
                 pr.iprint(
                     f"Overwrite {check_outs[tag]} check-out with "
                     f"current time ({VTime('now').short})? "
@@ -758,6 +750,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                     )
                     return
                 if time_diff_mins < cfg.CHECK_OUT_CONFIRM_TIME:
+                    NoiseMaker.play(ALERT)
                     query_tag([tag], multi_line=False)
                     pr.iprint(
                         "Do you want to check it out? " f"(y/N) {cfg.CURSOR}",
@@ -774,6 +767,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
         else:  # if string is in neither dict
             check_ins[tag] = VTime("now")
             print_tag_inout(tag, BIKE_IN)
+            NoiseMaker.play(BIKE_IN)
 
 
 def parse_command(user_input: str) -> list[str]:
@@ -1024,6 +1018,7 @@ def main():
         elif not TagID(cmd_bits.command):
             # This is not a tag
             if cmd_bits.command == cfg.CMD_UNKNOWN or len(cmd_bits.args) > 0:
+                NoiseMaker.play(ALERT)
                 msg = "Unrecognized command, enter 'h' for help"
             elif cmd_bits.command == cfg.CMD_TAG_RETIRED:
                 msg = f"Tag '{TagID(user_str)}' is retired"

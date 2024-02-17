@@ -60,6 +60,7 @@ LOWERCASE = chr(0x2192) + "lowercase"
 UNKNOWN = chr(0x2192) + "unknown"
 ON = chr(0x2192) + "on"
 OFF = chr(0x2192) + "off"
+ALERT = chr(0x2192) + "alert"
 
 # Here's how I really want to do it, but then pylint won't know they're defined
 # for keyword in [

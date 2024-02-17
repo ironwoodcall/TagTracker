@@ -74,19 +74,29 @@ class NoiseMaker:
         return True
 
     @classmethod
-    def play(cls, *sounds):
-        """Play the sounds (which are sound filenames)."""
+    def play(cls, *sound_codes):
+        """Play the sounds (which are constants from globals).
+
+        The sound_codes must be BIKE_IN, BIKE_OUT, or ALERT.
+        """
         if not cls.init_check():
             return
-        for sound in list(set(sounds)):
+        soundfiles = []
+        for code in sound_codes:
+            if code == g.BIKE_IN:
+                soundfiles.append(cfg.SOUND_BIKE_IN)
+            elif code == g.BIKE_OUT:
+                soundfiles.append(cfg.SOUND_BIKE_OUT)
+            elif code == g.ALERT:
+                soundfiles.append(cfg.SOUND_ALERT)
+            else:
+                ut.squawk(f"sound type {code} not recognized")
+        for sound in soundfiles:
             if not os.path.exists(sound):
-                pr.iprint(
-                    f"Sound file {sound} not found",
-                    style=cfg.ERROR_STYLE,
-                )
+                ut.squawk(f"sound file {sound} not found")
 
-        # Rather brutally try to play the sound, ignoring any or all errors
-        command = [cls.player] + sounds
+        # Try to play the sound, ignoring any or all errors
+        command = [cls.player] + soundfiles
         subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
