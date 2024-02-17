@@ -13,12 +13,13 @@ this_prog=$0
 prog_name="${0##*/}"
 
 pgrep -f 'python3 tagtracker.py' > /dev/null
-if [[ $? -ne 0 ]] ; then
+if [[ $? -eq 0 ]] ; then
   echo TagTracker is already running!
   echo
   echo 'Look for another TagTracker running (e.g. in taskbar at bottom of screen).'
   echo 'If all else fails, restart the computer.'
   echo
+  exit 1
 fi
 
 echo "Starting TagTracker..."
