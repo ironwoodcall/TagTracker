@@ -43,9 +43,9 @@ TAGS_UPPERCASE = False
 # THings related to playing sounds (client only)
 SOUND_PLAYER = "mpg321"   # If not full filepath then this needs to be on PATH
 # Sound file locations are relative to the python files dir
-SOUND_BIKE_IN = ""
-SOUND_BIKE_OUT = ""
-SOUND_ALERT = ""
+SOUND_BIKE_IN = "bike-in.mp3"
+SOUND_BIKE_OUT = "bike-out.mp3"
+SOUND_ALERT = "alert.mp3"
 # This flag can set the (initial) state of whether sounds are enabled
 SOUND_ENABLED = True
 
