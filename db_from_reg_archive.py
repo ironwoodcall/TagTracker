@@ -50,7 +50,10 @@ def load_csv_into_temp_table(archive_csv: str, tagtracker_db: str) -> None:
     cursor = connection.cursor()
 
     # Create or replace the day_end_form_archive table in the main database
-    cursor.execute("DROP TABLE day_end_form_archive")
+    try:
+        cursor.execute("DROP TABLE day_end_form_archive")
+    except sqlite3.OperationalError:
+        pass
     cursor.execute(
         """CREATE TABLE IF NOT EXISTS day_end_form_archive (
                         date TEXT PRIMARY KEY,
