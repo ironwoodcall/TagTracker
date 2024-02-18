@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Update existing records in TagTraker database.
 
-Reads info from day-end-form (csv) or from other
-sources (e.g. weather info from NRCan? tbd)
+Reads weather info weather info in csv file into db
 
 Copyright (C) 2023 Julias Hocking
 
@@ -27,7 +26,7 @@ Copyright (C) 2023 Julias Hocking
 
 import argparse
 import csv
-import datetime
+# import datetime
 import sys
 import sqlite3
 
@@ -90,93 +89,93 @@ def oneval(
     return myval
 
 
-def read_day_end_vals(
-    day_end_csv: str,
-) -> dict[str, NewVals]:
-    """Get data from day end form google sheet csv file.
+# def read_day_end_vals(
+#     day_end_csv: str,
+# ) -> dict[str, NewVals]:
+#     """Get data from day end form google sheet csv file.
 
-    Sample lines:
-        "Timestamp","Email Address","What Day?","Staff Name (who is filling this out)","Day","Opening Time","Closing Time","Bike Parking Time Average (Mean)","Regular Bikes Parked","Oversized Bikes Parked","Total Bikes Parked (Manual Count)","What cool, interesting, or weird things did you park today?","Project 529 Registrations Today","Weather description","Precipitation (https://www.victoriaweather.ca/datatime.php?field=raintotal&interval=1440&year=2022&month=7&day=20)","Temperature (#)","Day End Checklist: make sure to complete all tasks","How many abandoned bikes were there left? (#)","Notes, feedback, suggestions, comments?","Bike Parking Time (Median)","Bike Parking Time (Mode)","AM Bikes (#)","PM Bikes (#)","Stays under 1.5 Hours (#)","Stays between 1.5 and 5 hours (#)","Stays over 5 hours (#)","Maximum Time Parked","Minimum Time Parked","Total Tags Tracked (AM+PM bikes)","Precipitation (https://www.victoriaweather.ca/datatime.php?field=raintotal&interval=1440&year=2022&month=7&day=20)"
-        "3/27/2023 17:52:42","","3/27/2023","todd","Monday","7:30:00 AM","6:00:00 PM","5:00:00","51","41","92","","4","clear light wind","0","11","Sandwich boards collected, Inventory completed, Abandoned bikes photographed and locked (if any), Abandoned bikes photos sent to coordinator (if any)","0","","4:00:00","3:00:00","56","30","0","67","23","10:30:00","0:30:00","86","","","","","","","",""
-    Items of potential interest (0-based counting)
-        0: m/d/yyyy hh:mm:ss timestamp
-        2: m/dd/yyyy datestamp indicating date for the data <-- prone to error
-        12: 529 registrations
-        13: weather description
-        14: precip (from https://www.victoriaweather.ca/datatime.php?field=raintotal&interval=1440&year=2022&month=7&day=20)
-        15: temp (manually entered)
-        17: abandoned bikes
+#     Sample lines:
+#         "Timestamp","Email Address","What Day?","Staff Name (who is filling this out)","Day","Opening Time","Closing Time","Bike Parking Time Average (Mean)","Regular Bikes Parked","Oversized Bikes Parked","Total Bikes Parked (Manual Count)","What cool, interesting, or weird things did you park today?","Project 529 Registrations Today","Weather description","Precipitation (https://www.victoriaweather.ca/datatime.php?field=raintotal&interval=1440&year=2022&month=7&day=20)","Temperature (#)","Day End Checklist: make sure to complete all tasks","How many abandoned bikes were there left? (#)","Notes, feedback, suggestions, comments?","Bike Parking Time (Median)","Bike Parking Time (Mode)","AM Bikes (#)","PM Bikes (#)","Stays under 1.5 Hours (#)","Stays between 1.5 and 5 hours (#)","Stays over 5 hours (#)","Maximum Time Parked","Minimum Time Parked","Total Tags Tracked (AM+PM bikes)","Precipitation (https://www.victoriaweather.ca/datatime.php?field=raintotal&interval=1440&year=2022&month=7&day=20)"
+#         "3/27/2023 17:52:42","","3/27/2023","todd","Monday","7:30:00 AM","6:00:00 PM","5:00:00","51","41","92","","4","clear light wind","0","11","Sandwich boards collected, Inventory completed, Abandoned bikes photographed and locked (if any), Abandoned bikes photos sent to coordinator (if any)","0","","4:00:00","3:00:00","56","30","0","67","23","10:30:00","0:30:00","86","","","","","","","",""
+#     Items of potential interest (0-based counting)
+#         0: m/d/yyyy hh:mm:ss timestamp
+#         2: m/dd/yyyy datestamp indicating date for the data <-- prone to error
+#         12: 529 registrations
+#         13: weather description
+#         14: precip (from https://www.victoriaweather.ca/datatime.php?field=raintotal&interval=1440&year=2022&month=7&day=20)
+#         15: temp (manually entered)
+#         17: abandoned bikes
 
-    """
+#     """
 
-    def mdy2ymd(maybedate: str) -> str:
-        """Convert "m/d/y h:m:s" string to ISO YYYY-MM-DD string (or "")."""
-        datepart = (maybedate.split() + [""])[0]
-        try:
-            newdate = datetime.datetime.strptime(datepart, "%m/%d/%Y")
-        except ValueError:
-            return ""
-        return newdate.strftime("%Y-%m-%d")
+#     def mdy2ymd(maybedate: str) -> str:
+#         """Convert "m/d/y h:m:s" string to ISO YYYY-MM-DD string (or "")."""
+#         datepart = (maybedate.split() + [""])[0]
+#         try:
+#             newdate = datetime.datetime.strptime(datepart, "%m/%d/%Y")
+#         except ValueError:
+#             return ""
+#         return newdate.strftime("%Y-%m-%d")
 
-    results = {}
-    with open(day_end_csv, "r", newline="", encoding="utf-8") as csvfile:
-        dereader = csv.reader(csvfile)
-        for row in dereader:
-            thisdate = mdy2ymd(row[0])
-            if not thisdate:
-                continue
-            results[thisdate] = NewVals(
-                registrations=oneval(row, 12, want_int=True),
-                abandoned=oneval(row, 17, want_int=True),
-                # precip=oneval(row, 14, want_num=True),
-                # temp=oneval(row, 15, want_num=True),
-            )
-    return results
+#     results = {}
+#     with open(day_end_csv, "r", newline="", encoding="utf-8") as csvfile:
+#         dereader = csv.reader(csvfile)
+#         for row in dereader:
+#             thisdate = mdy2ymd(row[0])
+#             if not thisdate:
+#                 continue
+#             results[thisdate] = NewVals(
+#                 registrations=oneval(row, 12, want_int=True),
+#                 abandoned=oneval(row, 17, want_int=True),
+#                 # precip=oneval(row, 14, want_num=True),
+#                 # temp=oneval(row, 15, want_num=True),
+#             )
+#     return results
 
 
-def get_day_end_changes(
-    ttdb: sqlite3.Connection,
-    day_end_file: str,
-    force: bool,
-    onedate: str,
-) -> list[str]:
-    """Get SQL statements of changes from day end form source."""
+# def get_day_end_changes(
+#     ttdb: sqlite3.Connection,
+#     day_end_file: str,
+#     force: bool,
+#     onedate: str,
+# ) -> list[str]:
+#     """Get SQL statements of changes from day end form source."""
 
-    where = f" where date = '{onedate}' " if onedate else ""
-    db_data = db.db_fetch(
-        ttdb,
-        "select "
-        "   date, registrations, leftover, precip_mm, temp "
-        "from day "
-        f"{where}"
-        "order by date",
-    )
-    if not db_data:
-        return []
+#     where = f" where date = '{onedate}' " if onedate else ""
+#     db_data = db.db_fetch(
+#         ttdb,
+#         "select "
+#         "   date, registrations, leftover, precip_mm, temp "
+#         "from day "
+#         f"{where}"
+#         "order by date",
+#     )
+#     if not db_data:
+#         return []
 
-    new = read_day_end_vals(day_end_file)
-    sqls = []
-    for existing in db_data:
-        if onedate and onedate != existing.date:
-            continue
+#     new = read_day_end_vals(day_end_file)
+#     sqls = []
+#     for existing in db_data:
+#         if onedate and onedate != existing.date:
+#             continue
 
-        if (
-            (force or existing.registrations is None)
-            and existing.date in new
-            and new[existing.date].registrations is not None
-        ):
-            sqls.append(
-                f"update day set registrations = {new[existing.date].registrations} where date = '{existing.date}';"
-            )
-        if (
-            (force or existing.leftover is None)
-            and existing.date in new
-            and new[existing.date].abandoned is not None
-        ):
-            sqls.append(
-                f"update day set leftover = {new[existing.date].abandoned} where date = '{existing.date}';"
-            )
-    return sqls
+#         if (
+#             (force or existing.registrations is None)
+#             and existing.date in new
+#             and new[existing.date].registrations is not None
+#         ):
+#             sqls.append(
+#                 f"update day set registrations = {new[existing.date].registrations} where date = '{existing.date}';"
+#             )
+#         if (
+#             (force or existing.leftover is None)
+#             and existing.date in new
+#             and new[existing.date].abandoned is not None
+#         ):
+#             sqls.append(
+#                 f"update day set leftover = {new[existing.date].abandoned} where date = '{existing.date}';"
+#             )
+#     return sqls
 
 
 def read_wx_data(source_csv: str) -> dict[str, NewVals]:
@@ -371,8 +370,8 @@ class ProgArgs:
         target_rows: EMPTY, ALL or ONEDATE
         onedate: a valid date string or "" (only if ONEDATE)
         weather_csv: filename of WEATHER csv file (if any, else "")
-        day_end_csv: filename of DAY END csv file (if any, else "")
     """
+    # REMOVED:   day_end_csv: filename of DAY END csv file (if any, else "")
 
     def __init__(self):
         """Get all the program arguments."""
@@ -397,14 +396,14 @@ class ProgArgs:
         #    self.target_rows = EMPTY
         self.weather_csv = progargs.weather if progargs.weather else ""
         self.sun_csv = progargs.sun if progargs.sun else ""
-        self.day_end_csv = progargs.day_end if progargs.day_end else ""
+        # self.day_end_csv = progargs.day_end if progargs.day_end else ""
         # if not self.target_rows:
         #    print(
         #        "Unknown args supporting which rows to update",
         #        file=sys.stderr,
         #    )
         #    sys.exit(1)
-        if not self.weather_csv and not self.day_end_csv and not self.sun_csv:
+        if not self.weather_csv and not self.sun_csv:
             print(
                 "Must specify at least one of --weather --sun --day-end",
                 file=sys.stderr,
@@ -413,7 +412,7 @@ class ProgArgs:
 
     def dump(self):
         """Print the contents of the object."""
-        print(f"{self.weather_csv=}; {self.day_end_csv=}")
+        print(f"{self.weather_csv=}; ")
         print(f"{self.force=}; {self.onedate=}")
         print(f"{self.database_file=}")
 
@@ -498,21 +497,21 @@ if args.sun_csv:
         db.db_update(database, sql, commit=False)
     db.db_commit(database)
 
-day_end_changes = []
-if args.day_end_csv:
-    if args.verbose:
-        print("\nDAY END\n")
-    day_end_changes: list[str] = get_day_end_changes(
-        database,
-        args.day_end_csv,
-        args.force,
-        args.onedate,
-    )
-    for sql in day_end_changes:
-        if args.verbose:
-            print(sql)
-        db.db_update(database, sql, commit=False)
-    db.db_commit(database)
+# day_end_changes = []
+# if args.day_end_csv:
+#     if args.verbose:
+#         print("\nDAY END\n")
+#     day_end_changes: list[str] = get_day_end_changes(
+#         database,
+#         args.day_end_csv,
+#         args.force,
+#         args.onedate,
+#     )
+#     for sql in day_end_changes:
+#         if args.verbose:
+#             print(sql)
+#         db.db_update(database, sql, commit=False)
+#     db.db_commit(database)
 
 print(f"Updated database '{args.database_file}':")
 if args.weather_csv:
@@ -521,7 +520,7 @@ if args.weather_csv:
     )
 if args.sun_csv:
     print(f"   {len(sun_changes):3d} sun updates from '{args.sun_csv}'")
-if args.day_end_csv:
-    print(
-        f"   {len(day_end_changes):3d} day_end updates from '{args.day_end_csv}'"
-    )
+# if args.day_end_csv:
+#     print(
+#         f"   {len(day_end_changes):3d} day_end updates from '{args.day_end_csv}'"
+#     )
