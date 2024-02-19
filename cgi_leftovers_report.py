@@ -45,7 +45,7 @@ def leftovers_report(ttdb: sqlite3.Connection):
     colors.add_config(max_diff,'tomato')
 
     print("<h1>TagTracker vs Day-End Form</h1>")
-    print(f"{cc.back_button(1)}<br>")
+    print(f"{cc.main_and_back_buttons(1)}<br>")
     print("<h2>Discrepencies between calculated and reported leftovers</h2>")
     print( """Discrepencies between the number of leftovers calculated from TagTracker data
           vs leftovers reported in the day end form are possibly the greatest

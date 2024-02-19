@@ -88,10 +88,20 @@ def titleize(title: str = "") -> str:
     return f"{SITE_NAME} {title}"
 
 
+def main_page_button() -> str:
+    """Make a button to take a person to the main page."""
+    target = selfref()
+    button = f"<button onclick=window.location.href='{target}';>Main</button>"
+    return button
+
 def back_button(pages_back: int) -> str:
     """Make the 'back' button."""
     return f"<button onclick='goBack({pages_back})'>Back</button>"
 
+
+def main_and_back_buttons(pages_back:int) -> str:
+    """Combine the main_page_button() and back_button()."""
+    return f"{main_page_button()}&nbsp;&nbsp;&nbsp;&nbsp;{back_button(pages_back)}"
 
 class URLParameters:
     """All the things that get read from the URL query string.

@@ -61,7 +61,7 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> Non
         "order by date desc;",
     )
     print(f"<h1>History of tag {this_tag.upper()}</h1>")
-    print(f"{cc.back_button(1)}<br>")
+    print(f"{cc.main_and_back_buttons(1)}<br>")
 
     print(f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>")
     print()
@@ -91,7 +91,7 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
         cc.bad_date(date)
 
     print(f"<h1>Reconstructed datafile for {ut.date_str(thisday)}</h1>")
-    print(f"{cc.back_button(1)}<br>")
+    print(f"{cc.main_and_back_buttons(1)}<br>")
 
     print("<pre>")
 
@@ -137,7 +137,7 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     query_time = "now" if thisday == ut.date_str("today") else "24:00"
     query_time = VTime(query_time)
     print(f"<h1>Data Entry reports for {ut.date_str(thisday,long_date=True)}</h1>")
-    print(f"{cc.back_button(1)}<br>")
+    print(f"{cc.main_and_back_buttons(1)}<br>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
     rep.day_end_report(day, [qtime])
@@ -172,7 +172,7 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
         cc.bad_date(thisday)
     day = db.db2day(ttdb, thisday)
     print(f"<h1>Day-end report for {ut.date_str(thisday,long_date=True)}</h1>")
-    print(f"{cc.back_button(1)}<br>")
+    print(f"{cc.main_and_back_buttons(1)}<br>")
 
     print(f"Hours: {day.opening_time} - {day.closing_time}</p>")
     print("<pre>")

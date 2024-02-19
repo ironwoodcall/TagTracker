@@ -84,7 +84,7 @@ def tags_report(ttdb: sqlite3.Connection):
     max_tag = max(prefixes.values())
 
     print("<h1>Index of all tags</h1>")
-    print(f"{cc.back_button(1)}<br><br>")
+    print(f"{cc.main_and_back_buttons(1)}<br><br>")
 
     print(f"""
           <table class='general_table'><style>table td {{text-align:left;}}</style><tr><th colspan=2>Legend</th></tr>
