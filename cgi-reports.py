@@ -119,14 +119,17 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
         print(f"  {col},{name}")
 
 
-def audit_report(ttdb: sqlite3.Connection, thisday: str, whattime: VTime):
+def audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     """Print audit report."""
+    thisday = ut.date_str(date)
     if not thisday:
         cc.bad_date(thisday)
-    print(f"<h1>Audit report for {ut.date_str(thisday,long_date=True)}</h1>")
+    print("<h1>Audit report</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
     rep.audit_report(day, [VTime(whattime)], include_notes=False)
+    print(f"\n  Registrations today: {day.registrations}")
+    print()
 
 
 def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
@@ -284,6 +287,8 @@ elif what == cc.WHAT_DATAFILE:
     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_enry_reports(database, qdate)
+elif what == cc.WHAT_AUDIT:
+    audit_report(database, 'today', VTime("now"))
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)
