@@ -90,7 +90,7 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
     earliest_date = date_range.earliest
     latest_date = date_range.latest
 
-    buttons = f"{cc.back_button(pages_back)}&nbsp;&nbsp;&nbsp;&nbsp;"
+    buttons = f"{cc.main_and_back_buttons(pages_back)}&nbsp;&nbsp;&nbsp;&nbsp;"
     buttons += prev_next_button("Previous day", -1)
     buttons += prev_next_button("Next day", 1)
     buttons += today_button("Today")
@@ -236,10 +236,10 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
             "royalblue",
         ),
     )
-    back_button = f"{cc.back_button(1)}<p></p>"
+    back_button = f"{cc.main_and_back_buttons(1)}<p></p>"
 
     print(f"<h1>Distribution of stays on {today}</h1>")
-    print(back_button)
+    print(f"{back_button}")
 
     for parameters in table_vars:
         column, title, subtitle, color = parameters

@@ -91,7 +91,7 @@ def _freq_nav_buttons(pages_back) -> str:
 
     Buttons will be "Mon", "Tue", "Wed", etc, "All days", "Weekdays",
     """
-    buttons = f"{cc.back_button(pages_back)}&nbsp;&nbsp;&nbsp;"
+    buttons = f"{cc.main_and_back_buttons(pages_back)}&nbsp;&nbsp;&nbsp;"
 
     buttons += f"""
         <button type="button"
@@ -173,7 +173,7 @@ def season_frequencies_report(
             "royalblue",
         ),
     )
-    back_button = f"{cc.back_button(pages_back)}<p></p>"
+    back_button = f"{cc.main_and_back_buttons(pages_back)}<p></p>"
 
     h1 = "Distribution of stays"
     h1 = f"{h1} for {title_bit}" if title_bit else h1
@@ -344,7 +344,7 @@ def season_detail(
     max_precip_colour.add_config(days_totals.max_precip, "azure")
 
     print(f"<h1>{cc.titleize(': Detail')}</h1>")
-    print(f"{cc.back_button(pages_back)}<br>")
+    print(f"{cc.main_and_back_buttons(pages_back)}<br>")
 
     ##totals_table(days_totals)
     # FIXME - call the legend tables here (??)
