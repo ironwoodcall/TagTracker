@@ -21,3 +21,4 @@ settings.json
 .vscode
 .mypy_cache
 zotto.py
+tmp_*.*
