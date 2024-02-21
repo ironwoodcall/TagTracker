@@ -909,7 +909,7 @@ def estimate(args: list[str]) -> None:
 
 def bikes_on_hand_reminder() -> None:
     """Remind how many bikes should be present, if close to closing time."""
-    if VALET_CLOSES.num - VTime("now").num < 60:  # last hour
+    if VTime(VALET_CLOSES).num - VTime("now").num < 60:  # last hour
         bikes_on_hand = len(check_ins) - len(check_outs)
         pr.iprint(
             f"There should currently be {bikes_on_hand} {ut.plural(bikes_on_hand,'bike')}"
