@@ -36,8 +36,8 @@ class TrackerDay:
     def __init__(self) -> None:
         """Initialize blank."""
         self.date = ""
-        self.opening_time = ""
-        self.closing_time = ""
+        self.opening_time = VTime("")
+        self.closing_time = VTime("")
         self.registrations = 0  # FIXME: better 0 or None?
         self.bikes_in = {}
         self.bikes_out = {}
