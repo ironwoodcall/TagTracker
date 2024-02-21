@@ -169,8 +169,8 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
     global COLOUR_LETTERS
     # pylint: enable=global-statement
     VALET_DATE = today_data.date
-    VALET_OPENS = today_data.opening_time
-    VALET_CLOSES = today_data.closing_time
+    VALET_OPENS = VTime(today_data.opening_time)
+    VALET_CLOSES = VTime(today_data.closing_time)
     reg.Registrations.set_num_registrations(today_data.registrations)
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
@@ -909,7 +909,7 @@ def estimate(args: list[str]) -> None:
 
 def bikes_on_hand_reminder() -> None:
     """Remind how many bikes should be present, if close to closing time."""
-    if VALET_CLOSES.num - VTime("now").num < 60:  # last hour
+    if VTime(VALET_CLOSES).num - VTime("now").num < 60:  # last hour
         bikes_on_hand = len(check_ins) - len(check_outs)
         pr.iprint(
             f"There should currently be {bikes_on_hand} {ut.plural(bikes_on_hand,'bike')}"
