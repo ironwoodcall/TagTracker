@@ -169,8 +169,8 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
     global COLOUR_LETTERS
     # pylint: enable=global-statement
     VALET_DATE = today_data.date
-    VALET_OPENS = today_data.opening_time
-    VALET_CLOSES = today_data.closing_time
+    VALET_OPENS = VTime(today_data.opening_time)
+    VALET_CLOSES = VTime(today_data.closing_time)
     reg.Registrations.set_num_registrations(today_data.registrations)
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
