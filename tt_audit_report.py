@@ -151,7 +151,7 @@ def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -
     NO_ITEM_STR = "  "  # what to show when there's no tag
     RETIRED_TAG_STR = " ●"
     pr.iprint()
-    # Bikes returned out -- tags matrix.
+    # Bikes still; onsite
     pr.iprint(
         f"Bikes still onsite at {as_of_when.short}"
         f" ({RETIRED_TAG_STR} --> retired tag)",
@@ -160,7 +160,7 @@ def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix:3>} "
-        for i in range(0, max(numbers) + 1):  # FIXME: can numbers ever be []?
+        for i in range(0, ut.greatest_tagnum(prefix,day.regular,day.oversize)+1):
             if i in numbers:
                 s = f"{i:02d}"
             elif TagID(f"{prefix}{i}") in day.retired:
@@ -178,7 +178,7 @@ def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -
     for prefix in sorted(prefixes_returned_out.keys()):
         numbers = prefixes_returned_out[prefix]
         line = f"{prefix:3>} "
-        for i in range(0, max(numbers) + 1):
+        for i in range(0, ut.greatest_tagnum(prefix,day.regular,day.oversize)+1):
             if i in numbers:
                 s = f"{i:02d}"
             elif TagID(f"{prefix}{i}") in day.retired:
