@@ -174,17 +174,7 @@ def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -
     pr.iprint()
 
     # Bikes returned out -- tags matrix.
-    bikes_out_title = "Bikes returned out ("
-    sum_out = 0
-    for colour_code in sorted(returns_by_colour.keys()):
-        num = returns_by_colour[colour_code]
-        sum_out += num
-        bikes_out_title = (
-            f"{bikes_out_title}{num} "
-            f"{day.colour_letters[colour_code.lower()].title()}, "
-        )
-    bikes_out_title = f"{bikes_out_title}{sum_out} Total)"
-    pr.iprint(bikes_out_title, style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Bikes returned", style=cfg.SUBTITLE_STYLE)
     for prefix in sorted(prefixes_returned_out.keys()):
         numbers = prefixes_returned_out[prefix]
         line = f"{prefix:3>} "
