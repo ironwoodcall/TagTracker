@@ -145,6 +145,27 @@ def db_latest(ttdb: sqlite3.Connection) -> str:
     return f"Latest DB: load={latest_load}; event={latest_event}"
 
 
+def db_tags_contexts( ttdb: sqlite3.Connection, whatdate: str, day:TrackerDay):
+    """Fetch tags contexts from database into 'day' object."""
+
+    def string_to_frozenset(string) -> frozenset:
+        """Return a comma-separated str of items as a frozenset of them."""
+        items = string.split(',')  # Split the string into a list of items
+        return frozenset(items)   # Convert the list to a frozenset and return it
+
+    rows = db_fetch(ttdb,
+        f"SELECT regular,oversize,retired FROM taglist where date = '{whatdate}'"
+    )
+    # I expect one row back.
+    if not rows:
+        return
+    # print(f"{rows[0].retired=}")
+    day.regular = string_to_frozenset(rows[0].regular)
+    day.oversize = string_to_frozenset(rows[0].oversize)
+    day.retired = string_to_frozenset(rows[0].retired)
+
+    # print(f"<pre>{day.regular=}</br>{day.oversize=}<br>{day.retired=}<br></pre>")
+
 def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     """Create one day's TrackerDay from the database."""
     # Do we have info about the day?  Need its open/close times
@@ -183,8 +204,11 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
         elif tag_type == "O":
             oversize.add(tag)
     # Set the tag lists
-    day.regular = frozenset(regular)
-    day.oversize = frozenset(oversize)
+    db_tags_contexts(ttdb,whatdate,day)
+    if not day.regular:
+        day.regular = frozenset(regular)
+    if not day.oversize:
+        day.oversize = frozenset(oversize)
     # Fake up a colour dictionary
     day.make_fake_colour_dict()
     return day
