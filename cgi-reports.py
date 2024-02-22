@@ -33,6 +33,7 @@ from tt_globals import MaybeTag
 import tt_dbutil as db
 import tt_conf as cfg
 import tt_reports as rep
+import tt_audit_report as aud
 import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
@@ -119,7 +120,7 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
         print(f"  {col},{name}")
 
 
-def audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
+def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     """Print audit report."""
     thisday = ut.date_str(date)
     if not thisday:
@@ -127,7 +128,7 @@ def audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     print("<h1>Audit report</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
-    rep.audit_report(day, [VTime(whattime)], include_notes=False)
+    aud.audit_report(day, [VTime(whattime)], include_notes=False)
     print(f"\n  Registrations today: {day.registrations}")
     print()
 
@@ -147,7 +148,7 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     print()
     rep.busyness_report(day, [qtime])
     print()
-    rep.audit_report(day, [query_time], include_notes=False)
+    aud.audit_report(day, [query_time], include_notes=False)
     print()
     rep.full_chart(day, query_time)
     print()
@@ -288,7 +289,7 @@ elif what == cc.WHAT_DATAFILE:
 elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_enry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
-    audit_report(database, 'today', VTime("now"))
+    web_audit_report(database, 'today', VTime("now"))
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)

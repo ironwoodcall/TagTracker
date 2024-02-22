@@ -54,6 +54,7 @@ from tt_cmdparse import CmdBits
 import tt_call_estimator
 import tt_registrations as reg
 from tt_sounds import NoiseMaker
+import tt_audit_report as aud
 
 # Local connfiguration
 # try:
@@ -953,7 +954,7 @@ def main():
             multi_edit(cmd_bits.args)
             data_dirty = True
         elif cmd_bits.command == cfg.CMD_AUDIT:
-            rep.audit_report(pack_day_data(), cmd_bits.args)
+            aud.audit_report(pack_day_data(), cmd_bits.args)
             publishment.publish_audit(pack_day_data(), cmd_bits.args)
         elif cmd_bits.command == cfg.CMD_DELETE:
             delete_entry(*cmd_bits.args)

@@ -45,7 +45,7 @@ def find_on_path(filename):
     Returns the absolute filepath if it exists, otherwise "".
     """
     # Check if the filename contains '/' indicating it's a relative or absolute path
-    if '/' in filename:
+    if "/" in filename:
         if os.path.exists(filename):
             return os.path.abspath(filename)
         else:
@@ -281,9 +281,11 @@ def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
     squawk(f"PROGRAM ERROR: called time_int({maybe_time=})")
     return None
 
+
 def iso_timestamp() -> str:
     """Get ISO8601 timestamp of current local time."""
-    return datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
 
 def time_str(
     maybe_time: Union[int, str, float, None],
@@ -611,7 +613,8 @@ def time_distribution(
     """Make frequency distribution for list of HH:MM strings."""
     # make a list of categorized times_list
     categorized = [
-        str(VTime((VTime(t).num // category_width) * category_width)) for t in times_list
+        str(VTime((VTime(t).num // category_width) * category_width))
+        for t in times_list
     ]
     categorized = [t for t in categorized if t]  # remove any nulls
     freq = dict(collections.Counter(categorized))
@@ -649,3 +652,19 @@ def time_distribution(
 def random_string(length):
     """Create a random alphaetic string of a given length."""
     return "".join(random.choice(string.ascii_letters) for _ in range(length))
+
+
+def greatest_tagnum(
+    prefix: str, regular_tags: list[TagID], oversize_tags: list[TagID]
+) -> int:
+    """Returns the number of the greatest-numbered tag *available* in a prefix."""
+    if not regular_tags and not oversize_tags:
+        return None
+    # print(f"{prefix=},{len(regular_tags)=},{len(oversize_tags)=}")
+    all_tags = list(regular_tags)+list(oversize_tags)
+    this_group = [t for t in all_tags if t.startswith(prefix)]
+    # print(f"{this_group=}")
+    if this_group:
+        return max([TagID(t).number for t in this_group])
+    else:
+        return None
