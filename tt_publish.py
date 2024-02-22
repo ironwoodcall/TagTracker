@@ -32,6 +32,7 @@ from tt_trackerday import TrackerDay
 import tt_datafile as df
 import tt_printer as pr
 import tt_reports as rep
+import tt_audit_report as aud
 
 import tt_conf as cfg
 
@@ -83,7 +84,7 @@ class Publisher:
         fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
         if not pr.set_output(fullfn):
             return
-        rep.audit_report(day, args)
+        aud.audit_report(day, args)
         pr.set_output()
 
     def publish_datafile(self, day: TrackerDay, destination: str) -> bool:
