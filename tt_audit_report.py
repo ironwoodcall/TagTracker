@@ -48,7 +48,7 @@ def notes_bit(day: TrackerDay) -> None:
 
 
 def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
-    """Print summary table of # of bikes in, out and still at valet."""
+    """Print summary table of # of bikes in, out and still onsite."""
     # Count the totals
     visits = Stay.calc_stays(day, as_of_when=as_of_when)
     bikes_on_hand = [v.tag for v in visits.values() if v.still_here]
@@ -83,7 +83,7 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
         f"    {sum_out:4d}"
     )
     pr.iprint(
-        f"Bikes in valet:       {(regular_in-regular_out):4d}"
+        f"Bikes onsite:         {(regular_in-regular_out):4d}"
         f"    {(oversize_in-oversize_out):4d}    {sum_on_hand:4d}"
     )
     if sum_on_hand != num_bikes_on_hand:
@@ -153,7 +153,7 @@ def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -
     pr.iprint()
     # Bikes returned out -- tags matrix.
     pr.iprint(
-        f"Bikes still in valet at {as_of_when.short}"
+        f"Bikes still onsite at {as_of_when.short}"
         f" ({RETIRED_TAG_STR} --> retired tag)",
         style=cfg.SUBTITLE_STYLE,
     )
