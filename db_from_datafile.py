@@ -119,6 +119,12 @@ COL_REGISTRATIONS = "registrations"  # num of 529 registrations recorded
 # COL_NOTES name reused
 # COL_BATCH name reused
 
+# Table of tags contexts
+TABLE_TAGS_CONTEXT = "taglist"
+COL_REGULAR_CONTEXT = "regular"
+COL_OVERSIZE_CONTEXT = "oversize"
+COL_RETIRED_CONTEXT = "retired"
+
 # Bike-type codes. Must match check constraint in code table TYPES.CODE
 REGULAR = "R"
 OVERSIZE = "O"
@@ -334,9 +340,9 @@ def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
 
     # Highwater values
     events = Event.calc_events(day)
-    row.max_regular_num = max([x.num_here_regular for x in events.values()])
-    row.max_oversize_num = max([x.num_here_oversize for x in events.values()])
-    row.max_total_num = max([x.num_here_total for x in events.values()])
+    row.max_regular_num = max([x.num_here_regular for x in events.values()],default=0)
+    row.max_oversize_num = max([x.num_here_oversize for x in events.values()],default=0)
+    row.max_total_num = max([x.num_here_total for x in events.values()],default=0)
     row.max_regular_time = None
     row.max_oversize_time = None
     row.max_total_time = None
@@ -497,6 +503,45 @@ def day_summary_into_db(
 
     return True
 
+def day_tags_context_into_db(
+    file_info: FileInfo,
+    day: TrackerDay,
+    day_summary: DayStats,
+    batch: str,
+    dbconx: sqlite3.Connection,
+) -> bool:
+    """Load tags context into database."""
+
+    if args.verbose:
+        print("   Adding lists of retired, regular and oversize tags to database.")
+
+    regular_tags = ",".join(sorted(list(day.regular)))
+    oversize_tags = ",".join(sorted(list(day.oversize)))
+    retired_tags = ",".join(sorted(list(day.retired)))
+
+    sql_error = sql_exec_and_error(
+        f"""INSERT OR REPLACE INTO {TABLE_TAGS_CONTEXT} (
+                {COL_DATE},
+                {COL_REGULAR_CONTEXT},
+                {COL_OVERSIZE_CONTEXT},
+                {COL_RETIRED_CONTEXT}
+            ) VALUES (
+                '{day_summary.date}',
+                '{regular_tags}',
+                '{oversize_tags}',
+                '{retired_tags}'
+            );""",
+        dbconx,
+    )
+    # Did it work? (No error message means success.)
+    if sql_error:
+        file_info.set_bad(
+            f"SQL error adding to {TABLE_TAGS_CONTEXT}: {sql_error}"
+        )
+        return False
+
+    return True
+
 
 def day_visits_into_db(
     file_info: FileInfo,
@@ -505,6 +550,7 @@ def day_visits_into_db(
     batch: str,
     dbconx: sqlite3.Connection,
 ) -> bool:
+    """Load this day's visits into the database."""
     if args.verbose:
         print("   Deleting any existing visits info for this day from database.")
     sql_error = sql_exec_and_error(
@@ -633,6 +679,12 @@ def datafile_into_db(filename: str, batch, dbconx) -> str:
     if not day_visits_into_db(file_info, day, day_summary, batch, dbconx):
         dbconx.rollback()
         return ""
+
+    # Tags context (regular/oversize/retired tags)
+    if not day_tags_context_into_db(file_info, day, day_summary, batch, dbconx):
+        dbconx.rollback()
+        return ""
+
 
     # Successful load (pending commit), put it in the loads log
     if not fileload_results_into_db(file_info, day_summary, batch, dbconx):
