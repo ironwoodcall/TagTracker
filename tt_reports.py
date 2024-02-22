@@ -245,7 +245,7 @@ def csv_dump(day: TrackerDay, args) -> None:
         blocks_heres[atime] = prev_here + blocks_ins[atime] - blocks_outs[atime]
         prev_here = blocks_heres[atime]
     pr.iprint()
-    print("Time period,Incoming,Outgoing,At Valet")
+    print("Time period,Incoming,Outgoing,Onsite")
     for atime in sorted(blocks_ins.keys()):
         print(f"{atime},{blocks_ins[atime]},{blocks_outs[atime]},{blocks_heres[atime]}")
     pr.iprint()
@@ -409,7 +409,7 @@ def visit_statistics_report(visits: dict) -> None:
 def highwater_report(events: dict) -> None:
     """Make a highwater table as at as_of_when."""
 
-    # High-water mark for bikes in valet at any one time
+    # High-water mark for bikes onsite at any one time
     def one_line(header: str, events: dict, atime: VTime, highlight_field: int) -> None:
         """Print one line for highwater_report."""
         values = [
@@ -427,7 +427,7 @@ def highwater_report(events: dict) -> None:
 
     # Table header
     pr.iprint()
-    pr.iprint("Most bikes at valet at any one time", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Most bikes onsite at any one time", style=cfg.SUBTITLE_STYLE)
     if not events:
         pr.iprint("-no bikes-")
         return
@@ -468,7 +468,7 @@ def full_chart(day: TrackerDay, as_of_when: str = "") -> None:
     pr.iprint(f"Activity chart {day.date}", style=cfg.TITLE_STYLE)
     pr.iprint()
     pr.iprint(
-        "          Activity    --Bikes at valet-    Max",
+        "          Activity    --Bikes onsite---    Max",
         style=cfg.SUBTITLE_STYLE,
     )
     pr.iprint(
@@ -528,7 +528,7 @@ def busy_graph(day: TrackerDay, as_of_when: str = "") -> None:
 
 
 def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
-    """Make a quick & dirty graph of how full the valet is."""
+    """Make a quick & dirty graph of how full the site is."""
     regular_marker = "r"
     oversize_marker = "O"
 
@@ -547,7 +547,7 @@ def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
     # Print graph
     pr.iprint()
     pr.iprint(
-        f"Max bikes at valet within a time block for {day.date}",
+        f"Max bikes onsite within a time block for {day.date}",
         style=cfg.TITLE_STYLE,
     )
     pr.iprint(
