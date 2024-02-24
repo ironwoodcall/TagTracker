@@ -43,7 +43,7 @@ import cgi_block_report
 from cgi_day_detail import one_day_tags_report, day_frequencies_report
 import cgi_season_report
 import cgi_tags_report
-
+import cgi_period_summaries
 
 def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
     """Report a tag's history."""
@@ -290,6 +290,8 @@ elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_enry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
     web_audit_report(database, 'today', VTime("now"))
+elif what in [cc.WHAT_PERIOD,cc.WHAT_PERIOD_WEEK,cc.WHAT_PERIOD_MONTH,cc.WHAT_PERIOD_QUARTER,cc.WHAT_PERIOD_YEAR]:
+    cgi_period_summaries.period_summary(database,what)
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)

@@ -52,6 +52,12 @@ WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
 WHAT_SUMMARY_FREQUENCIES = "SQ"
 WHAT_AUDIT = "Au"
+WHAT_PERIOD = "PS"
+WHAT_PERIOD_FOREVER = "pF"
+WHAT_PERIOD_YEAR = "pY"
+WHAT_PERIOD_QUARTER = "pQ"
+WHAT_PERIOD_MONTH = "pM"
+WHAT_PERIOD_WEEK = "pW"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"
