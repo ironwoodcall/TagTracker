@@ -69,7 +69,7 @@ Copyright (C) 2023, 2024 Julias Hocking; written by tevpg
 
 import sqlite3
 from datetime import datetime, timedelta
-from dataclasses import dataclass
+# from dataclasses import dataclass
 
 import cgitb
 cgitb.enable()
@@ -325,18 +325,18 @@ def _period_summary_table_top(period_type):
         "<th>Days</th>"
         "<th>Hours</th>"
         "<th>All<br>bikes</th>"
-        "<th>Rglr<br>bikes</th>"
+        "<th>Reglr<br>bikes</th>"
         "<th>Ovrsz<br>bikes</th>"
         "<th>529<br>reg</th>"
         "<th>All<br>bikes</th>"
-        "<th>Rglr<br>bikes</th>"
+        "<th>Reglr<br>bikes</th>"
         "<th>Ovrsz<br>bikes</th>"
-        "<th>Fullest</th>"
+        "<th>Most<br>full</th>"
         "<th>529<br>reg</th>"
         "<th>All<br>bikes</th>"
-        "<th>Rglr<br>bikes</th>"
+        "<th>Reglr<br>bikes</th>"
         "<th>Ovrsz<br>bikes</th>"
-        "<th>Fullest</th>"
+        "<th>Most<br>full</th>"
         "<th>529<br>reg</th>"
         "</th>"
     )
