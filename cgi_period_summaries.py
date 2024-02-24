@@ -1,50 +1,6 @@
 #!/usr/bin/env python3
 """TagTracker report that rolls up data by periods (week/month/etc).
 
-Week/Month/Quarter/Year summaries:
-
-A ROW is made up of:
-
-  overview
-  totals detail
-  averages detail
-  maximums detail
-
-overview is:
-  label
-  days open
-  hours open
-
-detail block is:
-  total bikes parked
-  regular bikes
-  oversize bikes
-  max fullness (* not for Totals detail)
-  529s
-
-  in maximums block, each detail is a hyprelink to detail for corresponding day
-
-So, the columns are:
-
-01        "" (span 3)             label
-02                                days
-03                                hours
-04        total (span 4)          total bikes
-05                                regular bikes
-06                                oversize bikes
-07                                529s
-08        day average (span 5)    total bikes
-09                                regular bikes
-10                                oversize bikes
-11                                fullest
-12                                529s
-13        day maximum (span 5)    total bikes
-14                                regular bikes
-15                                oversize bikes
-16                                fullest
-17                                529s
-
-
 Copyright (C) 2023, 2024 Julias Hocking; written by tevpg
 
     Notwithstanding the licensing information below, this code may not
@@ -69,23 +25,22 @@ Copyright (C) 2023, 2024 Julias Hocking; written by tevpg
 
 import sqlite3
 from datetime import datetime, timedelta
-# from dataclasses import dataclass
-
-import cgitb
-cgitb.enable()
+import os
 
 # import tt_util as ut
 import tt_dbutil as db
 import cgi_common as cc
-# import datacolors as dc
-# import cgi_histogram
 
+if "TAGTRACKER_DEV" in os.environ:
+    import cgitb
+    cgitb.enable()
 
 PERIOD_NAMES = {
-    cc.WHAT_PERIOD_WEEK: "Week",
-    cc.WHAT_PERIOD_MONTH: "Month",
-    cc.WHAT_PERIOD_QUARTER: "Quarter",
-    cc.WHAT_PERIOD_YEAR: "Year",
+    cc.WHAT_PERIOD_WEEK: "Weeks",
+    cc.WHAT_PERIOD_MONTH: "Months",
+    cc.WHAT_PERIOD_QUARTER: "Quarters",
+    cc.WHAT_PERIOD_YEAR: "Years",
+    cc.WHAT_PERIOD_FOREVER: "All Data"
 }
 
 
@@ -172,6 +127,7 @@ def period_summary(
     print("<br><br><br>")
 
     all_periods = [
+        cc.WHAT_PERIOD_FOREVER,
         cc.WHAT_PERIOD_YEAR,
         cc.WHAT_PERIOD_QUARTER,
         cc.WHAT_PERIOD_MONTH,
@@ -273,7 +229,11 @@ def _period_params(onedate, period_type) -> tuple[str, str, str]:
     date = datetime.strptime(onedate, "%Y-%m-%d")
 
     # Determine start and end dates of the period based on period type
-    if period_type == cc.WHAT_PERIOD_YEAR:
+    if period_type == cc.WHAT_PERIOD_FOREVER:
+        start_date = "0000-00-00" # Sorts less than any date string
+        end_date = "9999-99-99"  # Sorts greater than any date string
+        label = "All data"
+    elif period_type == cc.WHAT_PERIOD_YEAR:
         start_date = date.replace(month=1, day=1).strftime("%Y-%m-%d")
         end_date = date.replace(month=12, day=31).strftime("%Y-%m-%d")
         label = f"Y {start_date[:4]}"
@@ -306,7 +266,7 @@ def _period_summary_table_top(period_type):
     """Print the table def and header row for one period-summaries table."""
     print("<table class='general_table'>")
     print(
-        f"<tr><th colspan=17>Summary by {PERIOD_NAMES[period_type]}</th></tr>"
+        f"<tr><th colspan=17>Summary of {PERIOD_NAMES[period_type]}</th></tr>"
     )
     print("<style>td {text-align: right;}</style>")
 
