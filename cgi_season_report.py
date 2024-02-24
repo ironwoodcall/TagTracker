@@ -227,6 +227,7 @@ def season_summary(ttdb: sqlite3.Connection):
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
+    summaries_link = cc.selfref(what=cc.WHAT_PERIOD)
 
     print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br><br>")
     print("<div style='display:inline-block'>")
@@ -244,20 +245,27 @@ def season_summary(ttdb: sqlite3.Connection):
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Today Detail</b></button>
-        <br><br>
+          <b>Today<br>Detail</b></button>
+        &nbsp;&nbsp;
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Season Details</b></button>
+          <b>Day Over<br>Day Details</b></button>
+        &nbsp;&nbsp;
+        <button onclick="window.location.href='{summaries_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Summaries<br>by Period</b></button>
+        <br><br>
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Activity Details</b></button>
+          <b>Activity<br>Details</b></button>
+        &nbsp;&nbsp;
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
-          <b>Activity Graphs</b></button>
+          <b>Activity<br>Graphs</b></button>
+        &nbsp;&nbsp;
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Tags Inventory</b></button>
+          <b>Tags<br>Inventory</b></button>
         <br><br>
           """
     )
