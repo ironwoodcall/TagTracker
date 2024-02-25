@@ -55,6 +55,7 @@ import tt_call_estimator
 import tt_registrations as reg
 from tt_sounds import NoiseMaker
 import tt_audit_report as aud
+from tt_internet_monitor import InternetMonitorController
 
 # Local connfiguration
 # try:
@@ -74,34 +75,6 @@ ALL_TAGS = []
 COLOUR_LETTERS = {}
 check_ins = {}
 check_outs = {}
-
-
-# def valet_logo():
-#     """Print a cute bike valet logo using unicode."""
-#     UL = chr(0x256D)
-#     VR = chr(0x2502)
-#     HR = chr(0x2500)
-#     UR = chr(0x256E)
-#     LL = chr(0x2570)
-#     LR = chr(0x256F)
-#     BL = " "
-#     LOCK00 = chr(0x1F512)
-#     BIKE00 = chr(0x1F6B2)
-#     SCOOTR = chr(0x1F6F4)
-
-#     ln1 = f"{BL}{UL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{UR}"
-#     ln2 = f"{BL}{VR}{BL}{BIKE00}{BIKE00}{SCOOTR}{BIKE00}{BL}{VR}"
-#     ln3 = f"{LOCK00}{BL}{BIKE00}{BIKE00}{BIKE00}{SCOOTR}{BL}{VR}"
-#     ln4 = f"{BL}{LL}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{HR}{LR}"
-
-#     WHATSTYLE = cfg.ANSWER_STYLE
-
-#     pr.iprint()
-#     pr.iprint(f"            {ln1}             ", style=WHATSTYLE)
-#     pr.iprint(f"   FREE     {ln2}     BIKE    ", style=WHATSTYLE)
-#     pr.iprint(f"   SAFE     {ln3}     VALET   ", style=WHATSTYLE)
-#     pr.iprint(f"            {ln4}             ", style=WHATSTYLE)
-#     pr.iprint()
 
 
 def fix_2400_events() -> list[TagID]:
@@ -895,7 +868,7 @@ def estimate(args: list[str]) -> None:
 
     pr.iprint()
     pr.iprint("Estimating...")
-    time.sleep(3)
+    time.sleep(1)
     message_lines = tt_call_estimator.get_estimate_via_url(pack_day_data(), *args[:4])
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
@@ -1196,7 +1169,6 @@ if __name__ == "__main__":
         (opens, closes) = cfg.valet_hours(VALET_DATE)
         VALET_OPENS = VALET_OPENS if VALET_OPENS else opens
         VALET_CLOSES = VALET_CLOSES if VALET_CLOSES else closes
-
     pr.iprint()
     pr.iprint(
         "Please check today's opening/closing times.",
@@ -1206,6 +1178,10 @@ if __name__ == "__main__":
     if VALET_OPENS or VALET_CLOSES:
         save()
 
+    # Start internet monitoring (if enabled in config)
+    InternetMonitorController.start_monitor()
+
+    # Start tracking tags
     main()
 
     pr.set_echo(False)

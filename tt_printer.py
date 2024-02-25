@@ -23,6 +23,7 @@ Copyright (C) 2023 Julias Hocking
 """
 
 import os
+import sys
 import io
 
 # The readline module magically solves arrow keys creating ANSI esc codes
@@ -36,37 +37,18 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 import tt_util as ut
 import tt_conf as cfg
 import tt_notes as notes
+from tt_time import VTime
 
-##from tt_colours import *
-# pylint:disable=unused-import
-# from tt_colours import (HAVE_COLOURS, STYLE,
-#            PROMPT_STYLE, SUBPROMPT_STYLE, ANSWER_STYLE, TITLE_STYLE,
-#            SUBTITLE_STYLE, RESET_STYLE, NORMAL_STYLE, HIGHLIGHT_STYLE,
-#            WARNING_STYLE, ERROR_STYLE,Fore,Back,Style)
-# pylint:enable=unused-import
-# try:
-#    import tt_local_config  # pylint:disable=unused-import
-# except ImportError:
-#    pass
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
 _INDENT = "  "
-
-# If use colour, try to import colorama library
-# USE_COLOUR = True
-# if USE_COLOUR and not HAVE_COLOURS:
-#    USE_COLOUR = False
-#    print("WARNING: No colours available, text will be in black & white.")
-
 
 # echo will save all input & (screen) output to an echo datafile
 # To start echoing, call set_echo(True)
 # To stop it, call set_echo(False)
 
 _echo_state = False
-_echo_filename = os.path.join(
-    cfg.ECHO_FOLDER, f"echo-{ut.date_str('today')}.txt"
-)
+_echo_filename = os.path.join(cfg.ECHO_FOLDER, f"echo-{ut.date_str('today')}.txt")
 _echo_file = None  # This is the file object
 
 
@@ -203,6 +185,63 @@ def iprint(text: str = "", num_indents: int = None, style=None, end="\n") -> Non
     # Also echo?
     if _echo_state and not _destination:
         echo(f"{indent}{text}{end}")
+
+
+def text_alert(message: str = "", style=None) -> None:
+    """Print an alert message at the top of the screen.
+
+    The message will overwrite the entire top line of the screen
+    in the given style, with some *'s or something around it.
+
+    Will only print if destination is screen (not file).
+    """
+
+    # ANSI escape code constants for formatting
+    SAVE_CURSOR = "\033[s"
+    RESTORE_CURSOR = "\033[u"
+    MOVE_CURSOR = "\033[{};{}H"
+    MESSAGE_BRACKETING = "***"
+
+    def _save_cursor_position():
+        sys.stdout.write(SAVE_CURSOR)
+        sys.stdout.flush()
+
+    def _restore_cursor_position():
+        sys.stdout.write(RESTORE_CURSOR)
+        sys.stdout.flush()
+
+    def _print_message_at_location(row, col, message):
+        move_cursor_code = MOVE_CURSOR.format(row, col)
+        sys.stdout.write(f"{move_cursor_code}{message}")
+        sys.stdout.flush()
+
+    def _get_terminal_size():
+        rows, columns = os.popen("stty size", "r").read().split()
+        return int(rows), int(columns)
+
+    def _centred_string(text, str_len) -> str:
+        """Return a str of len str_len with 'text' in its middle."""
+        padding = " " * ((str_len - len(text)) // 2)
+        centred_string = padding + text + padding + " "  # NB: extra space
+        return centred_string[:str_len]  # Make sure is correct length
+
+    # I suspect this is unneccessary, but benign.
+    if _destination:
+        return
+
+    # Build the message centred with bracket decorations & color.
+    _, screen_width = _get_terminal_size()
+    padded_message = _centred_string(
+        f"{MESSAGE_BRACKETING} {VTime('now').short} {message} {MESSAGE_BRACKETING}",
+        screen_width,
+    )
+    if style:
+        padded_message = text_style(padded_message, style=style)
+
+    # Print the padded message centered on the screen
+    _save_cursor_position()
+    _print_message_at_location(1, 1, padded_message)
+    _restore_cursor_position()
 
 
 # This dict holds static control data for the print_tag_notes function.

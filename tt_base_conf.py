@@ -49,6 +49,10 @@ SOUND_ALERT = "alert.mp3"
 # This flag can set the (initial) state of whether sounds are enabled
 SOUND_ENABLED = True
 
+# This tells TT how often to check for an active internet connection (minutes).
+# If set to 0 (or anything else that evalues False), no monitoring is done.
+INTERNET_MONITORING_FREQUENCY = 10
+
 # This file defines what tags are available, for current-day sessions.
 TAG_CONFIG_FILE = "tags.cfg"
 # Files and folder locations
@@ -123,6 +127,8 @@ RESET_STYLE = "reset_style"
 HIGHLIGHT_STYLE = "highlight_style"
 WARNING_STYLE = "warn_style"
 ERROR_STYLE = "error_style"
+ALERT_STYLE = "alert_style"
+STRONG_ALERT_STYLE = "strong_alert_style"
 
 # Colour combinations. Override these in local config as desired.
 STYLE[PROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
@@ -135,6 +141,8 @@ STYLE[NORMAL_STYLE] = f"{Style.RESET_ALL}"
 STYLE[HIGHLIGHT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
 STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
 STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
+STYLE[ALERT_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}"
+STYLE[STRONG_ALERT_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
 
 # These are the symbols & styles used in the tag inventory matrix.
 # Each is a tuple of (symbol,style).
