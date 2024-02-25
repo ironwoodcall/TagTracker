@@ -77,15 +77,17 @@ SORT_PRECIPITATAION = "precipitation"
 ORDER_FORWARD = "forward"
 ORDER_REVERSE = "reverse"
 
-def test_dow_parameter(dow_parameter:str,list_ok:bool=False):
+
+def test_dow_parameter(dow_parameter: str, list_ok: bool = False):
     """Check if dow_parameter is ok."""
     if list_ok:
         testme = dow_parameter.split(",")
     else:
         testme = dow_parameter
     for day in testme:
-        if day not in [str(i) for i in range(1,8)]:
+        if day not in [str(i) for i in range(1, 8)]:
             error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
+
 
 def titleize(title: str = "") -> str:
     """Puts SITE_NAME in front of title and makes it pretty."""
@@ -95,20 +97,40 @@ def titleize(title: str = "") -> str:
     return f"{SITE_NAME} {title}"
 
 
+def called_by_self() -> bool:
+    """Return True if this script was called by itself."""
+    referer = os.environ.get("HTTP_REFERER")
+    if not referer:
+        return False
+    base_url = referer.split("?", 1)[0]
+
+    request_scheme = os.environ.get("REQUEST_SCHEME")
+    http_host = os.environ.get("HTTP_HOST")
+    script_name = os.environ.get("SCRIPT_NAME")
+    expected_url = f"{request_scheme}://{http_host}{script_name}"
+
+    return expected_url == base_url
+
+
 def main_page_button() -> str:
     """Make a button to take a person to the main page."""
     target = selfref()
     button = f"<button onclick=window.location.href='{target}';>Main</button>"
     return button
 
+
 def back_button(pages_back: int) -> str:
     """Make the 'back' button."""
     return f"<button onclick='goBack({pages_back})'>Back</button>"
 
 
-def main_and_back_buttons(pages_back:int) -> str:
-    """Combine the main_page_button() and back_button()."""
-    return f"{main_page_button()}&nbsp;&nbsp;&nbsp;&nbsp;{back_button(pages_back)}"
+def main_and_back_buttons(pages_back: int) -> str:
+    """Make a button that is either the main_page_button() and back_button()."""
+    if called_by_self() and pages_back:
+        return back_button(pages_back)
+    else:
+        return main_page_button()
+
 
 class URLParameters:
     """All the things that get read from the URL query string.
@@ -230,7 +252,7 @@ def selfref(
     qdow: str = "",
     qsort: str = "",
     qdir: str = "",
-    text_note:str = "",
+    text_note: str = "",
     pages_back=None,
 ) -> str:
     """Return a self-reference with the given parameters."""
@@ -527,7 +549,7 @@ def copy_properties(
 
 
 def get_visit_stats(
-    ttdb: sqlite3.Connection
+    ttdb: sqlite3.Connection,
 ) -> tuple[float, VTime, VTime, list[str], int]:
     """Calculate stats for stay length.
 
