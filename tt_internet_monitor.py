@@ -217,7 +217,7 @@ class InternetMonitor:
             if not cls._check_internet():
                 NoiseMaker.play(g.ALERT)
                 pr.text_alert(
-                    "Open a web browser to check internet connection.",
+                    "Please open a web browser to check internet connection.",
                     style=cfg.STRONG_ALERT_STYLE,
                 )
             # else:
