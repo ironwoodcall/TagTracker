@@ -49,6 +49,10 @@ SOUND_ALERT = "alert.mp3"
 # This flag can set the (initial) state of whether sounds are enabled
 SOUND_ENABLED = True
 
+# This tells TT how often to check for an active internet connection (minutes).
+# If set to 0 (or anything else that evalues False), no monitoring is done.
+INTERNET_MONITORING_FREQUENCY = 15
+
 # This file defines what tags are available, for current-day sessions.
 TAG_CONFIG_FILE = "tags.cfg"
 # Files and folder locations
