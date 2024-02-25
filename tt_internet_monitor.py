@@ -74,7 +74,11 @@ class InternetMonitorController:
 
         # Execute itself as a subprocess
         cls.process = subprocess.Popen([sys.executable, script_name], cwd=script_dir)
-        print(f"Starting monitor '{script_name}' PID {cls.process.pid}")
+        pr.iprint(
+            "Starting internet monitor to check connection "
+            f"every {cfg.INTERNET_MONITORING_FREQUENCY} minutes.",
+            style=cfg.WARNING_STYLE,
+        )
         # print(f"{sys.executable=}, {script_dir=}, {script_name=}")
 
         cls.register_cleanup()
@@ -194,12 +198,12 @@ class InternetMonitor:
         # Only run if internet monitoring is enabled in config.
         if not cfg.INTERNET_MONITORING_FREQUENCY:
             return
-        pr.iprint()
-        pr.iprint(
-            "Internet monitor started, checking connection every "
-            f"{cfg.INTERNET_MONITORING_FREQUENCY} minutes",
-            style=cfg.WARNING_STYLE,
-        )
+        # pr.iprint()
+        # pr.iprint(
+        #     "Internet monitor started, checking connection every "
+        #     f"{cfg.INTERNET_MONITORING_FREQUENCY} minutes",
+        #     style=cfg.WARNING_STYLE,
+        # )
         # Kill any other instances already running
         zombies = cls._kill_other_instances()
         if zombies:
@@ -214,12 +218,12 @@ class InternetMonitor:
             time.sleep(cfg.INTERNET_MONITORING_FREQUENCY * 60)
 
             if not cls._check_internet():
+                pr.iprint()
                 pr.iprint(
-                    "Check the Internet connection (using a browser).",
-                    style=cfg.WARNING_STYLE,
+                    "Use a web browser to check the Internet connection.",
+                    style=cfg.ERROR_STYLE,
                 )
-            else:
-                pr.iprint("Internet connection checked ok.")
+                pr.iprint()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,8 @@
-TagTracker by Julias Hocking
+sTagTracker by Julias Hocking
+
+1.3.3:
++ internet connection monitoring alerts
++ multi-period summaries pages
 
 1.3.2:
 - remove google form dependency (server)
