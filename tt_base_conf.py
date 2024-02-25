@@ -51,7 +51,7 @@ SOUND_ENABLED = True
 
 # This tells TT how often to check for an active internet connection (minutes).
 # If set to 0 (or anything else that evalues False), no monitoring is done.
-INTERNET_MONITORING_FREQUENCY = 15
+INTERNET_MONITORING_FREQUENCY = 10
 
 # This file defines what tags are available, for current-day sessions.
 TAG_CONFIG_FILE = "tags.cfg"

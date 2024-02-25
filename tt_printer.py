@@ -37,6 +37,7 @@ from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-impor
 import tt_util as ut
 import tt_conf as cfg
 import tt_notes as notes
+from tt_time import VTime
 
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
@@ -47,9 +48,7 @@ _INDENT = "  "
 # To stop it, call set_echo(False)
 
 _echo_state = False
-_echo_filename = os.path.join(
-    cfg.ECHO_FOLDER, f"echo-{ut.date_str('today')}.txt"
-)
+_echo_filename = os.path.join(cfg.ECHO_FOLDER, f"echo-{ut.date_str('today')}.txt")
 _echo_file = None  # This is the file object
 
 
@@ -233,10 +232,11 @@ def text_alert(message: str = "", style=None) -> None:
     # Build the message centred with bracket decorations & color.
     _, screen_width = _get_terminal_size()
     padded_message = _centred_string(
-        f"{MESSAGE_BRACKETING} {message} {MESSAGE_BRACKETING}", screen_width
+        f"{MESSAGE_BRACKETING} {VTime('now').short} {message} {MESSAGE_BRACKETING}",
+        screen_width,
     )
     if style:
-        padded_message = text_style(padded_message,style=style)
+        padded_message = text_style(padded_message, style=style)
 
     # Print the padded message centered on the screen
     _save_cursor_position()
