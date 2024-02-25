@@ -38,8 +38,10 @@ import sys
 import signal
 import urllib.request
 
-import tt_printer as pr
 import tt_conf as cfg
+import tt_printer as pr
+from tt_sounds import NoiseMaker
+import tt_globals as g
 
 
 class InternetMonitorController:
@@ -199,12 +201,6 @@ class InternetMonitor:
         # Only run if internet monitoring is enabled in config.
         if not cfg.INTERNET_MONITORING_FREQUENCY:
             return
-        # pr.iprint()
-        # pr.iprint(
-        #     "Internet monitor started, checking connection every "
-        #     f"{cfg.INTERNET_MONITORING_FREQUENCY} minutes",
-        #     style=cfg.WARNING_STYLE,
-        # )
         # Kill any other instances already running
         zombies = cls._kill_other_instances()
         if zombies:
@@ -219,9 +215,13 @@ class InternetMonitor:
             time.sleep(cfg.INTERNET_MONITORING_FREQUENCY * 60)
 
             if not cls._check_internet():
-                pr.text_alert("Open a web browser to check internet connection.",style=cfg.ALERT_STYLE)
-            else:
-                pr.text_alert("Internet connection ok.")
+                NoiseMaker.play(g.ALERT)
+                pr.text_alert(
+                    "Open a web browser to check internet connection.",
+                    style=cfg.ALERT_STYLE,
+                )
+            # else:
+            #     pr.text_alert("Internet connection ok.")
 
 
 if __name__ == "__main__":

@@ -141,8 +141,8 @@ STYLE[NORMAL_STYLE] = f"{Style.RESET_ALL}"
 STYLE[HIGHLIGHT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
 STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
 STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
+STYLE[ALERT_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}"
 STYLE[STRONG_ALERT_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
-STYLE[ALERT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
 
 # These are the symbols & styles used in the tag inventory matrix.
 # Each is a tuple of (symbol,style).
