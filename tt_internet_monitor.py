@@ -71,10 +71,10 @@ class InternetMonitorController:
         script_name = os.path.basename(__file__)
 
         # Execute itself as a subprocess
-        print(f"Starting monitor '{script_name}' started with PID {cls.process.pid}")
-        print(f"{sys.executable=}, {script_dir=}, {script_name=}")
-
         cls.process = subprocess.Popen([sys.executable, script_name], cwd=script_dir)
+        print(f"Starting monitor '{script_name}' PID {cls.process.pid}")
+        # print(f"{sys.executable=}, {script_dir=}, {script_name=}")
+
         cls.register_cleanup()
 
     @classmethod
