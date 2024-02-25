@@ -868,7 +868,7 @@ def estimate(args: list[str]) -> None:
 
     pr.iprint()
     pr.iprint("Estimating...")
-    time.sleep(3)
+    time.sleep(1)
     message_lines = tt_call_estimator.get_estimate_via_url(pack_day_data(), *args[:4])
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
