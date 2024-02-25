@@ -49,15 +49,17 @@ class InternetMonitorController:
     enabled = False
 
     @staticmethod
-    def ok_to_start() ->bool:
+    def ok_to_start() -> bool:
         """Checks if ok to start internet monitor.
 
         If not could be wrong O/S, disabled in config, or ....?
         """
         if not cfg.INTERNET_MONITORING_FREQUENCY:
             return False
-        if not sys.platform.startswith('linux'):
-            pr.iprint("Not Linux, can not start internet monitor.",style=cfg.WARNING_STYLE)
+        if not sys.platform.startswith("linux"):
+            pr.iprint(
+                "Not Linux, can not start internet monitor.", style=cfg.WARNING_STYLE
+            )
             return False
         return True
 
@@ -145,7 +147,9 @@ class InternetMonitor:
 
             # Extract PIDs from the output, excluding the current process's PID
             pids = [
-                int(pid) for pid in ps_output.splitlines() if int(pid) != current_pid
+                int(pid)
+                for pid in ps_output.splitlines()
+                if pid and pid.isdigit() and int(pid) != current_pid
             ]
             return pids
         except subprocess.CalledProcessError:
