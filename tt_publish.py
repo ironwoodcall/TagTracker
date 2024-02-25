@@ -45,6 +45,7 @@ class Publisher:
         # If there's no reports folder set, just disable publishing
         if not destination:
             self.able_to_publish = False
+            pr.iprint("No reports folder configured, not publishing static reports.")
             return
         self.last_publish = "00:00"
         self.able_to_publish = True
