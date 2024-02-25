@@ -218,7 +218,7 @@ class InternetMonitor:
                 NoiseMaker.play(g.ALERT)
                 pr.text_alert(
                     "Open a web browser to check internet connection.",
-                    style=cfg.ALERT_STYLE,
+                    style=cfg.STRONG_ALERT_STYLE,
                 )
             # else:
             #     pr.text_alert("Internet connection ok.")
