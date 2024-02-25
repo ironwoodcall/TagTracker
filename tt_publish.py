@@ -41,6 +41,11 @@ class Publisher:
     """Keep track of publishing activity."""
 
     def __init__(self, destination: str, frequency: int) -> None:
+        """Set up the Publisher object."""
+        # If there's no reports folder set, just disable publishing
+        if not destination:
+            self.able_to_publish = False
+            return
         self.last_publish = "00:00"
         self.able_to_publish = True
         self.frequency = frequency
