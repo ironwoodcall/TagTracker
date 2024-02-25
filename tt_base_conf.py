@@ -127,6 +127,8 @@ RESET_STYLE = "reset_style"
 HIGHLIGHT_STYLE = "highlight_style"
 WARNING_STYLE = "warn_style"
 ERROR_STYLE = "error_style"
+ALERT_STYLE = "alert_style"
+STRONG_ALERT_STYLE = "strong_alert_style"
 
 # Colour combinations. Override these in local config as desired.
 STYLE[PROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
@@ -139,6 +141,8 @@ STYLE[NORMAL_STYLE] = f"{Style.RESET_ALL}"
 STYLE[HIGHLIGHT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
 STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
 STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
+STYLE[STRONG_ALERT_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
+STYLE[ALERT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
 
 # These are the symbols & styles used in the tag inventory matrix.
 # Each is a tuple of (symbol,style).

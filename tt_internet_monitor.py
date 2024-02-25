@@ -219,12 +219,9 @@ class InternetMonitor:
             time.sleep(cfg.INTERNET_MONITORING_FREQUENCY * 60)
 
             if not cls._check_internet():
-                pr.iprint()
-                pr.iprint(
-                    "Use a web browser to check the Internet connection.",
-                    style=cfg.ERROR_STYLE,
-                )
-                pr.iprint()
+                pr.text_alert("Open a web browser to check internet connection.",style=cfg.ALERT_STYLE)
+            else:
+                pr.text_alert("Internet connection ok.")
 
 
 if __name__ == "__main__":
