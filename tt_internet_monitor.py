@@ -194,6 +194,7 @@ class InternetMonitor:
         # Only run if internet monitoring is enabled in config.
         if not cfg.INTERNET_MONITORING_FREQUENCY:
             return
+        pr.iprint()
         pr.iprint(
             "Internet monitor started, checking connection every "
             f"{cfg.INTERNET_MONITORING_FREQUENCY} minutes",
