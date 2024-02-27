@@ -149,9 +149,9 @@ def db_tags_contexts( ttdb: sqlite3.Connection, whatdate: str, day:TrackerDay):
     """Fetch tags contexts from database into 'day' object."""
 
     def string_to_frozenset(string) -> frozenset:
-        """Return a comma-separated str of items as a frozenset of them."""
-        items = string.split(',')  # Split the string into a list of items
-        return frozenset(items)   # Convert the list to a frozenset and return it
+        """Return a comma-separated str of TagID items as a frozenset of them."""
+        tags = string.split(',')  # Split the string into a list of items
+        return frozenset([TagID(t) for t in tags])   # Convert the list to a frozenset and return it
 
     rows = db_fetch(ttdb,
         f"SELECT regular,oversize,retired FROM taglist where date = '{whatdate}'"
