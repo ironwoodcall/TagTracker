@@ -153,11 +153,12 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     print()
     rep.full_chart(day, query_time)
     print()
+    tt_tag_inv.tags_config_report(day, [query_time])
+    print()
     rep.busy_graph(day, query_time)
     print()
     rep.fullness_graph(day, query_time)
     print()
-    tt_tag_inv.tags_config_report(day, [query_time])
 
 
 def one_day_chart(ttdb: sqlite3.Connection, date: str):
@@ -217,6 +218,9 @@ TagID.uc(cfg.TAGS_UPPERCASE)
 
 DBFILE = cfg.DB_FILENAME
 database = db.db_connect(DBFILE)
+
+# Set text colours off (
+cfg.USE_COLOUR = False
 
 # Parse query parameters from the URL if present
 query_string = ut.untaint(os.environ.get("QUERY_STRING", ""))
