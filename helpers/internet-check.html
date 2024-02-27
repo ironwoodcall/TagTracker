@@ -1,0 +1,105 @@
+<!--
+
+Monitor internet connection and connection to TagTracker server.
+
+When TagTracker client is running on a laptop that has unreliable
+internet, it is useful to have a way for the operator to check
+the internet connection.  This rather messy page shows status of internet
+connection and TT server connection by retrieving remote resources.
+
+To use, put on the laptop, and change TRACKERSERVERRESOURCE to
+a url of a resource (eg image file) on the TagTracker server.
+
+In order to avoid an operator being misinformed by seeing this page
+when stale, it constantly re-checks.
+
+tevpg 2024
+
+
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Internet Connection Check</title>
+<style>
+    .not-active {
+        font-weight: bold;
+        color: red;
+    }
+</style>
+
+<script>
+    function checkInternetConnection() {
+        // Get current time for timestamp
+        var currentTime = new Date();
+        var timestamp = currentTime.getHours() + ':' + padNumber(currentTime.getMinutes());
+
+        // Check internet connection
+        checkResource('Internet connection',
+            'https://upload.wikimedia.org/wikipedia/commons/0/08/Check-mark.png',
+            'internet-status', timestamp);
+
+        // Check server connection
+        checkResource('TagTracker server connection',
+            'TRACKERSERVERRESOURCE',
+            'server-status', timestamp);
+    }
+
+    function checkResource(checkName, url, elementId, timestamp) {
+        var imgUrl = url + '?t=' + timestamp; // Append timestamp as query parameter
+
+        var img = new Image();
+        img.onload = function() {
+            document.getElementById(elementId).innerHTML =
+                checkName
+                + ' was <b>ACTIVE</b> when checked at '
+                + timestamp + '<br><br>';
+        };
+        img.onerror = function() {
+            document.getElementById(elementId).innerHTML =
+                '<span class="not-active">'
+                + checkName
+                + ' was NOT ACTIVE when checked at ' + timestamp
+                + '</span><br><br>';
+        };
+        img.src = imgUrl;
+    }
+
+    function padNumber(number) {
+        // Pad single-digit numbers with a leading zero
+        return (number < 10 ? '0' : '') + number;
+    }
+
+    // Initial check
+    checkInternetConnection();
+
+    // Run the check every minute
+    setInterval(checkInternetConnection, 5 * 60 * 1000); // milliseconds
+
+</script>
+</head>
+<body>
+    <h1>TagTracker Connection Check</h1>
+    <hr>
+    <h2>Current status</h2>
+    <div id="internet-status"></div>\
+    <div id="server-status"></div>
+
+    <hr>
+    <h2>Description</h2>
+    <p>This webpage runs locally on this laptop and checks connection status every few minutes.</p>
+    <ul>
+    <li>If the Internet connection is inactive, disconnect/reconnect WiFi
+        and navigate to a remote webpage (e.g. <a href=https://www.google.com>
+        https://www.google.com</a>.)</li>
+    <li>If Internet is active but TagTracker server connection is inactive,
+        contact shift supervisor.</li>
+    <li>In either case, <em>continue to use TagTracker as usual to check bikes
+        in and out</em>.</li>
+    </ul>
+    <hr>
+</body>
+
+</html>
