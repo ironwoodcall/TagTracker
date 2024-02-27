@@ -38,6 +38,7 @@ import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
+import tt_tag_inv
 import cgi_common as cc
 import cgi_block_report
 from cgi_day_detail import one_day_tags_report, day_frequencies_report
@@ -128,7 +129,7 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     print("<h1>Audit report</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
-    aud.audit_report(day, [VTime(whattime)], include_notes=False)
+    aud.audit_report(day, [VTime(whattime)], include_notes=False,include_returns=True)
     print(f"\n  Registrations today: {day.registrations}")
     print()
 
@@ -148,13 +149,15 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     print()
     rep.busyness_report(day, [qtime])
     print()
-    aud.audit_report(day, [query_time], include_notes=False)
+    aud.audit_report(day, [query_time], include_notes=False,include_returns=True)
     print()
     rep.full_chart(day, query_time)
     print()
     rep.busy_graph(day, query_time)
     print()
     rep.fullness_graph(day, query_time)
+    print()
+    tt_tag_inv.tags_config_report(day, [query_time])
 
 
 def one_day_chart(ttdb: sqlite3.Connection, date: str):

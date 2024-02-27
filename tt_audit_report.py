@@ -90,13 +90,21 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
         ut.squawk(f"inout_summary() {num_bikes_on_hand=} != {sum_on_hand=}")
 
 
-def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -> None:
+def audit_report(
+    day: TrackerDay,
+    args: list[str],
+    include_notes: bool = True,
+    include_returns: bool = False,
+) -> None:
     """Create & display audit report as at a particular time.
 
     On entry: as_of_when_args is a list that can optionally
     have a first element that's a time at which to make this for.
 
     If include_notes is True, includes any notes from the day.
+
+    If include_returns is True, shows a matrix of bikes for which
+    tags were returned, else won't.
 
     This is smart about any checkouts that are later than as_of_when.
     If as_of_when is missing, then counts as of current time.
@@ -160,7 +168,7 @@ def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix:3>} "
-        for i in range(0, ut.greatest_tagnum(prefix,day.regular,day.oversize)+1):
+        for i in range(0, ut.greatest_tagnum(prefix, day.regular, day.oversize) + 1):
             if i in numbers:
                 s = f"{i:02d}"
             elif TagID(f"{prefix}{i}") in day.retired:
@@ -171,24 +179,25 @@ def audit_report(day: TrackerDay, args: list[str], include_notes: bool = True) -
         pr.iprint(line)
     if not prefixes_on_hand:
         pr.iprint("-no bikes-")
-    pr.iprint()
 
     # Bikes returned out -- tags matrix.
-    pr.iprint("Bikes returned", style=cfg.SUBTITLE_STYLE)
-    for prefix in sorted(prefixes_returned_out.keys()):
-        numbers = prefixes_returned_out[prefix]
-        line = f"{prefix:3>} "
-        for i in range(0, ut.greatest_tagnum(prefix,day.regular,day.oversize)+1):
-            if i in numbers:
-                s = f"{i:02d}"
-            elif TagID(f"{prefix}{i}") in day.retired:
-                s = RETIRED_TAG_STR
-            else:
-                s = NO_ITEM_STR
-            line = f"{line} {s}"
-        pr.iprint(line)
-    if not prefixes_returned_out:
-        pr.iprint("-no bikes-")
+    if include_returns:
+        pr.iprint()
+        pr.iprint("Bikes returned", style=cfg.SUBTITLE_STYLE)
+        for prefix in sorted(prefixes_returned_out.keys()):
+            numbers = prefixes_returned_out[prefix]
+            line = f"{prefix:3>} "
+            for i in range(0, ut.greatest_tagnum(prefix, day.regular, day.oversize) + 1):
+                if i in numbers:
+                    s = f"{i:02d}"
+                elif TagID(f"{prefix}{i}") in day.retired:
+                    s = RETIRED_TAG_STR
+                else:
+                    s = NO_ITEM_STR
+                line = f"{line} {s}"
+            pr.iprint(line)
+        if not prefixes_returned_out:
+            pr.iprint("-no bikes-")
 
     if include_notes:
         notes_bit(day)
