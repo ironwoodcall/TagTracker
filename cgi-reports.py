@@ -153,7 +153,7 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     print()
     rep.full_chart(day, query_time)
     print()
-    tt_tag_inv.tags_config_report(day, [query_time])
+    tt_tag_inv.tags_config_report(day, [query_time],True)
     print()
     rep.busy_graph(day, query_time)
     print()

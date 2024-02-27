@@ -45,8 +45,13 @@ def index_line(max_tag_num):
         pr.iprint(f" {i:02d}", style=cfg.HIGHLIGHT_STYLE, end="")
 
 
-def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
+def tag_inventory_matrix(
+    day: TrackerDay, as_of_when: str = "now", include_empty_groups: bool = True
+) -> None:
     """Print a matrix of status of all known tags.
+
+    If include_empty_groups is False, this will suppress any prefix groups
+    for which there are no bikes In or Out.
 
     This reads these variables from config, each is a symbol/style tuple:
         TAG_INV_UNKNOWN
@@ -77,42 +82,69 @@ def tag_inventory_matrix(day: TrackerDay, as_of_when: str = "now") -> None:
     index_line(max_tag_num)
     pr.iprint()
     for prefix in sorted(prefixes):
-        pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
+        used_prefix = False
+        prefix_row = pr.text_style(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE)
+        # pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
         for i in range(0, max_tag_num + 1):
             this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not this_tag or not this_tag.state:
-                pr.iprint(
+                # pr.iprint(
+                #     " " + cfg.TAG_INV_UNKNOWN[0],
+                #     style=cfg.TAG_INV_UNKNOWN[1],
+                #     end="",
+                # )
+                prefix_row += "  " + pr.text_style(
                     " " + cfg.TAG_INV_UNKNOWN[0],
                     style=cfg.TAG_INV_UNKNOWN[1],
-                    end="",
                 )
             elif this_tag.state == USABLE:
-                pr.iprint(
-                    " " + cfg.TAG_INV_AVAILABLE[0],
+                # pr.iprint(
+                #     " " + cfg.TAG_INV_AVAILABLE[0],
+                #     style=cfg.TAG_INV_AVAILABLE[1],
+                #     end="",
+                # )
+                prefix_row += "  " + pr.text_style(" " +
+                    cfg.TAG_INV_AVAILABLE[0],
                     style=cfg.TAG_INV_AVAILABLE[1],
-                    end="",
+
                 )
             elif this_tag.state == BIKE_IN:
-                pr.iprint(
-                    " " + cfg.TAG_INV_BIKE_IN[0],
+                used_prefix = True
+                # pr.iprint(
+                #     " " + cfg.TAG_INV_BIKE_IN[0],
+                #     style=cfg.TAG_INV_BIKE_IN[1],
+                #     end="",
+                # )
+                prefix_row += "  " + pr.text_style(" " +
+                    cfg.TAG_INV_BIKE_IN[0],
                     style=cfg.TAG_INV_BIKE_IN[1],
-                    end="",
                 )
             elif this_tag.state == BIKE_OUT:
-                pr.iprint(
-                    " " + cfg.TAG_INV_BIKE_OUT[0],
+                used_prefix = True
+                # pr.iprint(
+                #     " " + cfg.TAG_INV_BIKE_OUT[0],
+                #     style=cfg.TAG_INV_BIKE_OUT[1],
+                #     end="",
+                # )
+                prefix_row += "  " + pr.text_style(" " +
+                    cfg.TAG_INV_BIKE_OUT[0],
                     style=cfg.TAG_INV_BIKE_OUT[1],
-                    end="",
                 )
             elif this_tag.state == RETIRED:
-                pr.iprint(
-                    " " + cfg.TAG_INV_RETIRED[0],
+                # pr.iprint(
+                #     " " + cfg.TAG_INV_RETIRED[0],
+                #     style=cfg.TAG_INV_RETIRED[1],
+                #     end="",
+                # )
+                prefix_row += "  " + pr.text_style(" " +
+                    cfg.TAG_INV_RETIRED[0],
                     style=cfg.TAG_INV_RETIRED[1],
-                    end="",
                 )
             else:
-                pr.iprint(" ?", style=cfg.ERROR_STYLE, end="")
-        pr.iprint()
+                # pr.iprint(" ?", style=cfg.ERROR_STYLE, end="")
+                prefix_row += "  " + pr.text_style( "?", style=cfg.ERROR_STYLE)
+        if used_prefix or include_empty_groups:
+            pr.iprint(prefix_row)
     index_line(max_tag_num)
     pr.iprint()
 
@@ -133,9 +165,7 @@ def colours_report(day: TrackerDay) -> None:
         zip(list(day.colour_letters.keys()), [UNKNOWN for _ in range(0, 100)])
     )
     # Dictionary of how many tags are of each colour.
-    tag_count = dict(
-        zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)])
-    )
+    tag_count = dict(zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)]))
     # Count and categorize the tags (all available for use)
     for tag in day.all_tags():
         code = tag.colour.lower()
@@ -170,27 +200,19 @@ def retired_report(day: TrackerDay) -> None:
         pr.iprint("--no retired tags--")
         return
     pr.iprint(
-        " ".join(
-            [
-                x.cased
-                for sub in ut.taglists_by_prefix(day.retired)
-                for x in sub
-            ]
-        )
+        " ".join([x.cased for sub in ut.taglists_by_prefix(day.retired) for x in sub])
     )
 
 
-def tags_config_report(day: TrackerDay, args: list) -> None:
+def tags_config_report(day: TrackerDay, args: list,include_empty_groups: bool = True) -> None:
     """Report the current tags configuration."""
     as_of_when = (args + ["now"])[0]
     as_of_when = VTime(as_of_when)
     if not as_of_when:
-        pr.iprint(
-            f"Unrecognized time {as_of_when.original}", style=cfg.WARNING_STYLE
-        )
+        pr.iprint(f"Unrecognized time {as_of_when.original}", style=cfg.WARNING_STYLE)
         return
     pr.iprint()
     pr.iprint("Current tags configuration", style=cfg.TITLE_STYLE)
     colours_report(day)
     retired_report(day)
-    tag_inventory_matrix(day, as_of_when)
+    tag_inventory_matrix(day, as_of_when,include_empty_groups=include_empty_groups)
