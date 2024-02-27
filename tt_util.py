@@ -662,7 +662,7 @@ def greatest_tagnum(
         return None
     # print(f"{prefix=},{len(regular_tags)=},{len(oversize_tags)=}")
     all_tags = list(regular_tags)+list(oversize_tags)
-    this_group = [t for t in all_tags if t.startswith(prefix)]
+    this_group = [t for t in all_tags if t.prefix == prefix]
     # print(f"{this_group=}")
     if this_group:
         return max([TagID(t).number for t in this_group])
