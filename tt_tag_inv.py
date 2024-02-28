@@ -103,10 +103,9 @@ def tag_inventory_matrix(
                 #     style=cfg.TAG_INV_AVAILABLE[1],
                 #     end="",
                 # )
-                prefix_row += "  " + pr.text_style(" " +
-                    cfg.TAG_INV_AVAILABLE[0],
+                prefix_row += "  " + pr.text_style(
+                    " " + cfg.TAG_INV_AVAILABLE[0],
                     style=cfg.TAG_INV_AVAILABLE[1],
-
                 )
             elif this_tag.state == BIKE_IN:
                 used_prefix = True
@@ -115,8 +114,8 @@ def tag_inventory_matrix(
                 #     style=cfg.TAG_INV_BIKE_IN[1],
                 #     end="",
                 # )
-                prefix_row += "  " + pr.text_style(" " +
-                    cfg.TAG_INV_BIKE_IN[0],
+                prefix_row += "  " + pr.text_style(
+                    " " + cfg.TAG_INV_BIKE_IN[0],
                     style=cfg.TAG_INV_BIKE_IN[1],
                 )
             elif this_tag.state == BIKE_OUT:
@@ -126,8 +125,8 @@ def tag_inventory_matrix(
                 #     style=cfg.TAG_INV_BIKE_OUT[1],
                 #     end="",
                 # )
-                prefix_row += "  " + pr.text_style(" " +
-                    cfg.TAG_INV_BIKE_OUT[0],
+                prefix_row += "  " + pr.text_style(
+                    " " + cfg.TAG_INV_BIKE_OUT[0],
                     style=cfg.TAG_INV_BIKE_OUT[1],
                 )
             elif this_tag.state == RETIRED:
@@ -136,13 +135,13 @@ def tag_inventory_matrix(
                 #     style=cfg.TAG_INV_RETIRED[1],
                 #     end="",
                 # )
-                prefix_row += "  " + pr.text_style(" " +
-                    cfg.TAG_INV_RETIRED[0],
+                prefix_row += "  " + pr.text_style(
+                    " " + cfg.TAG_INV_RETIRED[0],
                     style=cfg.TAG_INV_RETIRED[1],
                 )
             else:
                 # pr.iprint(" ?", style=cfg.ERROR_STYLE, end="")
-                prefix_row += "  " + pr.text_style( "?", style=cfg.ERROR_STYLE)
+                prefix_row += "  " + pr.text_style("?", style=cfg.ERROR_STYLE)
         if used_prefix or include_empty_groups:
             pr.iprint(prefix_row)
     index_line(max_tag_num)
@@ -199,12 +198,15 @@ def retired_report(day: TrackerDay) -> None:
     if not day.retired:
         pr.iprint("--no retired tags--")
         return
-    pr.iprint(
-        " ".join([x.cased for sub in ut.taglists_by_prefix(day.retired) for x in sub])
+    retireds_str = " ".join(
+        [x.cased for sub in ut.taglists_by_prefix(day.retired) for x in sub]
     )
+    ut.line_splitter(retireds_str, print_handler=pr.iprint)
 
 
-def tags_config_report(day: TrackerDay, args: list,include_empty_groups: bool = True) -> None:
+def tags_config_report(
+    day: TrackerDay, args: list, include_empty_groups: bool = True
+) -> None:
     """Report the current tags configuration."""
     as_of_when = (args + ["now"])[0]
     as_of_when = VTime(as_of_when)
@@ -215,4 +217,4 @@ def tags_config_report(day: TrackerDay, args: list,include_empty_groups: bool = 
     pr.iprint("Current tags configuration", style=cfg.TITLE_STYLE)
     colours_report(day)
     retired_report(day)
-    tag_inventory_matrix(day, as_of_when,include_empty_groups=include_empty_groups)
+    tag_inventory_matrix(day, as_of_when, include_empty_groups=include_empty_groups)
