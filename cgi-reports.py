@@ -39,6 +39,7 @@ from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 import tt_tag_inv
+import tt_printer as pr
 import cgi_common as cc
 import cgi_block_report
 from cgi_day_detail import one_day_tags_report, day_frequencies_report
@@ -114,8 +115,11 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
         formatted_tag = f"{this_tag.lower()},   "[:6]
         print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_REGULAR}")
+    ut.line_wrapper(" ".join(sorted(day.regular)),print_handler=pr.iprint)
     print(f"{df.HEADER_OVERSIZE}")
+    ut.line_wrapper(" ".join(sorted(day.oversize)),print_handler=pr.iprint)
     print(f"{df.HEADER_RETIRED}")
+    ut.line_wrapper(" ".join(sorted(day.retired)),print_handler=pr.iprint)
     print(f"{df.HEADER_COLOURS}")
     for col, name in day.colour_letters.items():
         print(f"  {col},{name}")
