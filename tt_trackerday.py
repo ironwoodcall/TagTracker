@@ -77,7 +77,7 @@ class TrackerDay:
     def make_fake_colour_dict(self) -> None:
         """Fake up a colour dictionary in day from existing tags."""
         letters = set()
-        for tag in self.bikes_in:
+        for tag in list(self.bikes_in.keys())+list(self.oversize|self.regular):
             letters.add(tag.colour.lower())
         colour_dict = {}
         for c in letters:
