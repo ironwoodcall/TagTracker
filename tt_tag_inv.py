@@ -201,7 +201,7 @@ def retired_report(day: TrackerDay) -> None:
     retireds_str = " ".join(
         [x.cased for sub in ut.taglists_by_prefix(day.retired) for x in sub]
     )
-    ut.line_splitter(retireds_str, print_handler=pr.iprint)
+    ut.line_wrapper(retireds_str, print_handler=pr.iprint)
 
 
 def tags_config_report(

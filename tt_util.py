@@ -520,7 +520,7 @@ def plural(count: int, singluar_form: str, plural_form: str = "") -> str:
     return plural_form
 
 
-def line_splitter(
+def line_wrapper(
     input_string, width: int = 80, print_handler=None, print_handler_args=None
 ) -> list[str]:
     """Split and maybe print input_string to a given width.

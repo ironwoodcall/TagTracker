@@ -194,7 +194,7 @@ class SimpleModel:
             )
         one_line = f"{one_line}."
         lines = lines + [
-            f"    {s}" for s in ut.line_splitter(one_line, width=PRINT_WIDTH)
+            f"    {s}" for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)
         ]
 
         return lines
@@ -588,7 +588,7 @@ class Estimator:
             f"closing at {self.closing_time}:"
         )
         lines = (
-            lines + [""] + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
+            lines + [""] + [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
         )
 
         predictions = []
@@ -623,7 +623,7 @@ class Estimator:
         if self.as_of_when < "12:30":
             one_line = f"{one_line}  Estimates early in the day may be of low quality."
         lines = (
-            lines + [""] + [s for s in ut.line_splitter(one_line, width=PRINT_WIDTH)]
+            lines + [""] + [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
         )
 
         return lines
