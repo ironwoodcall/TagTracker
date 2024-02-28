@@ -170,7 +170,7 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     """Create one day's TrackerDay from the database."""
     # Do we have info about the day?  Need its open/close times
     curs = ttdb.cursor()
-    rows = curs.execute("select time_open,time_closed,registrations from day where date = 'whatdate'").fetchall()
+    rows = curs.execute(f"select time_open,time_closed,registrations from day where day.date = '{whatdate}'").fetchall()
     if not rows:
         return None
     day = TrackerDay()
