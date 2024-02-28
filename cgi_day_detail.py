@@ -48,19 +48,42 @@ BAR_COL_WIDTH = 80
 def _nav_buttons(ttdb, thisday, pages_back) -> str:
     """Make nav buttons for the one-day report."""
 
-    def adjacent_date(current_date:str, direction:int):
+    def find_prev_next_date(current_date, direction):
         """Return member after (or before) current_date in sorted all_dates."""
-        index = all_dates.index(current_date)
-        if direction == -1 and index > 0:
-            return all_dates[index - 1]  # Return the previous date if it exists
-        if direction == 1 and index < len(all_dates) - 1:
-            return all_dates[index + 1]  # Return the next date if it exists
-        return None
+        # Check if the list of dates is empty
+        if not all_dates:
+            return None  # Return None if the list is empty
 
+        # Check if the current date is within the range of dates
+        if current_date < all_dates[0]:
+            return all_dates[0] if direction == 1 else None
+        elif current_date > all_dates[-1]:
+            return all_dates[-1] if direction == -1 else None
+
+        # Binary search for the closest date
+        low, high = 0, len(all_dates) - 1
+        while low <= high:
+            mid = (low + high) // 2
+            if all_dates[mid] == current_date:
+                return (
+                    all_dates[mid + direction]
+                    if mid + direction >= 0 and mid + direction < len(all_dates)
+                    else None
+                )
+            elif all_dates[mid] < current_date:
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        # If the current date is not found, return the closest date based on direction
+        if direction == 1:
+            return all_dates[low] if low < len(all_dates) else None
+        else:
+            return all_dates[high] if high >= 0 else None
 
     def prev_next_button(label, offset) -> str:
-        # target = ut.date_offset(thisday, offset)
-        target = adjacent_date(thisday,offset)
+        # target = adjacent_date(thisday,offset)
+        target = find_prev_next_date(thisday, offset)
         if target is None:
             return f"""
                 <button type="button" disabled
@@ -95,7 +118,7 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
             onclick="window.location.href='{link}';">{label}</button>
             """
 
-    dbrows = db.db_fetch(ttdb,"SELECT DATE FROM DAY ORDER BY DATE")
+    dbrows = db.db_fetch(ttdb, "SELECT DATE FROM DAY ORDER BY DATE")
     all_dates = sorted([r.date for r in dbrows])
 
     buttons = f"{cc.main_and_back_buttons(pages_back)}&nbsp;&nbsp;&nbsp;&nbsp;"
