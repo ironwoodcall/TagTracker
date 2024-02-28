@@ -50,7 +50,14 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
 
     def adjacent_date(current_date:str, direction:int):
         """Return member after (or before) current_date in sorted all_dates."""
-        index = all_dates.index(current_date)
+        try:
+            index = all_dates.index(current_date)
+        except ValueError:
+            if direction == 1 and current_date < all_dates[0]:
+                return all_dates[0]
+            if direction == -1 and current_date > all_dates[-1]:
+                return all_dates[-1]
+            return None
         if direction == -1 and index > 0:
             return all_dates[index - 1]  # Return the previous date if it exists
         if direction == 1 and index < len(all_dates) - 1:
