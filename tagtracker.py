@@ -927,7 +927,7 @@ def main():
             multi_edit(cmd_bits.args)
             data_dirty = True
         elif cmd_bits.command == cfg.CMD_AUDIT:
-            aud.audit_report(pack_day_data(), cmd_bits.args)
+            aud.audit_report(pack_day_data(), cmd_bits.args,include_returns=False)
             publishment.publish_audit(pack_day_data(), cmd_bits.args)
         elif cmd_bits.command == cfg.CMD_DELETE:
             delete_entry(*cmd_bits.args)

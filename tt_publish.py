@@ -91,7 +91,7 @@ class Publisher:
         fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
         if not pr.set_output(fullfn):
             return
-        aud.audit_report(day, args)
+        aud.audit_report(day, args,include_returns=True)
         pr.set_output()
 
     def publish_datafile(self, day: TrackerDay, destination: str) -> bool:

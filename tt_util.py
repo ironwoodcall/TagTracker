@@ -520,7 +520,7 @@ def plural(count: int, singluar_form: str, plural_form: str = "") -> str:
     return plural_form
 
 
-def line_splitter(
+def line_wrapper(
     input_string, width: int = 80, print_handler=None, print_handler_args=None
 ) -> list[str]:
     """Split and maybe print input_string to a given width.
@@ -662,7 +662,7 @@ def greatest_tagnum(
         return None
     # print(f"{prefix=},{len(regular_tags)=},{len(oversize_tags)=}")
     all_tags = list(regular_tags)+list(oversize_tags)
-    this_group = [t for t in all_tags if t.startswith(prefix)]
+    this_group = [t for t in all_tags if t.prefix == prefix]
     # print(f"{this_group=}")
     if this_group:
         return max([TagID(t).number for t in this_group])

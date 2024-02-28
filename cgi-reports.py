@@ -28,7 +28,7 @@ import os
 import urllib.parse
 import datetime
 
-from tt_globals import MaybeTag
+import tt_globals as g
 
 import tt_dbutil as db
 import tt_conf as cfg
@@ -38,6 +38,8 @@ import tt_datafile as df
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
+import tt_tag_inv
+import tt_printer as pr
 import cgi_common as cc
 import cgi_block_report
 from cgi_day_detail import one_day_tags_report, day_frequencies_report
@@ -45,7 +47,7 @@ import cgi_season_report
 import cgi_tags_report
 import cgi_period_summaries
 
-def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: MaybeTag) -> None:
+def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: g.MaybeTag) -> None:
     """Report a tag's history."""
 
     this_tag = TagID(maybe_tag)
@@ -113,8 +115,11 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
         formatted_tag = f"{this_tag.lower()},   "[:6]
         print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_REGULAR}")
+    ut.line_wrapper(" ".join(sorted(day.regular)),print_handler=pr.iprint)
     print(f"{df.HEADER_OVERSIZE}")
+    ut.line_wrapper(" ".join(sorted(day.oversize)),print_handler=pr.iprint)
     print(f"{df.HEADER_RETIRED}")
+    ut.line_wrapper(" ".join(sorted(day.retired)),print_handler=pr.iprint)
     print(f"{df.HEADER_COLOURS}")
     for col, name in day.colour_letters.items():
         print(f"  {col},{name}")
@@ -122,15 +127,22 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
 
 def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     """Print audit report."""
+    whattime = VTime(whattime)
     thisday = ut.date_str(date)
     if not thisday:
         cc.bad_date(thisday)
     print("<h1>Audit report</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
-    aud.audit_report(day, [VTime(whattime)], include_notes=False)
-    print(f"\n  Registrations today: {day.registrations}")
-    print()
+    aud.audit_report(day, [whattime], include_notes=False,include_returns=True)
+    print(f"\n  Registrations today: {day.registrations}\n")
+    print("</pre>")
+    print( "<h2>Tag Inventory Matrix</h2>")
+    print("<pre>")
+    tt_tag_inv.tags_config_report(day,[whattime],include_empty_groups=True)
+    print( "\n</pre>")
+    print( "<h2>See also:</h2>")
+    print(f"""<ul><a href='{cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today",qtime="now")}'>Today details</a>""")
 
 
 def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
@@ -148,13 +160,16 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     print()
     rep.busyness_report(day, [qtime])
     print()
-    aud.audit_report(day, [query_time], include_notes=False)
+    aud.audit_report(day, [query_time], include_notes=False,include_returns=True)
     print()
     rep.full_chart(day, query_time)
+    print()
+    tt_tag_inv.tags_config_report(day, [query_time],True)
     print()
     rep.busy_graph(day, query_time)
     print()
     rep.fullness_graph(day, query_time)
+    print()
 
 
 def one_day_chart(ttdb: sqlite3.Connection, date: str):
@@ -214,6 +229,9 @@ TagID.uc(cfg.TAGS_UPPERCASE)
 
 DBFILE = cfg.DB_FILENAME
 database = db.db_connect(DBFILE)
+
+# Set text colours off (
+cfg.USE_COLOUR = False
 
 # Parse query parameters from the URL if present
 query_string = ut.untaint(os.environ.get("QUERY_STRING", ""))
