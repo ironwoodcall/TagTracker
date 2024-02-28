@@ -142,7 +142,7 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     tt_tag_inv.tags_config_report(day,[whattime],include_empty_groups=True)
     print( "\n</pre>")
     print( "<h2>See also:</h2>")
-    print(f"""<ul><a href='{cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today",qtime="now")}'>Today details</a>""")
+    print(f"""<ul><a href='{cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today",qtime="now",qsort="tag")}'>Today details</a>""")
 
 
 def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
