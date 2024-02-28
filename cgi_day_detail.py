@@ -48,9 +48,20 @@ BAR_COL_WIDTH = 80
 def _nav_buttons(ttdb, thisday, pages_back) -> str:
     """Make nav buttons for the one-day report."""
 
+    def adjacent_date(current_date:str, direction:int):
+        """Return member after (or before) current_date in sorted all_dates."""
+        index = all_dates.index(current_date)
+        if direction == -1 and index > 0:
+            return all_dates[index - 1]  # Return the previous date if it exists
+        if direction == 1 and index < len(all_dates) - 1:
+            return all_dates[index + 1]  # Return the next date if it exists
+        return None
+
+
     def prev_next_button(label, offset) -> str:
-        target = ut.date_offset(thisday, offset)
-        if target < earliest_date or target > latest_date:
+        # target = ut.date_offset(thisday, offset)
+        target = adjacent_date(thisday,offset)
+        if target is None:
             return f"""
                 <button type="button" disabled
                     style="opacity: 0.5; cursor: not-allowed;">
@@ -58,7 +69,7 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
                 """
         link = cc.selfref(
             what=cc.WHAT_ONE_DAY,
-            qdate=ut.date_offset(thisday, offset),
+            qdate=target,
             pages_back=pages_back + 1,
         )
         return f"""
@@ -84,11 +95,8 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
             onclick="window.location.href='{link}';">{label}</button>
             """
 
-    date_range = db.db_fetch(
-        ttdb, "select min(date) earliest,max(date) latest from day"
-    )[0]
-    earliest_date = date_range.earliest
-    latest_date = date_range.latest
+    dbrows = db.db_fetch(ttdb,"SELECT DATE FROM DAY ORDER BY DATE")
+    all_dates = sorted([r.date for r in dbrows])
 
     buttons = f"{cc.main_and_back_buttons(pages_back)}&nbsp;&nbsp;&nbsp;&nbsp;"
     buttons += prev_next_button("Previous day", -1)
