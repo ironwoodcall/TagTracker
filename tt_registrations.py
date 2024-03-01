@@ -74,7 +74,7 @@ class Registrations:
 
         if operator == "+":
             new_count = cls.num_registrations + num
-            NoiseMaker.play(g.BIKE_IN)
+            NoiseMaker.play(g.CHEER)
         elif operator == "-":
             new_count = cls.num_registrations - num
         elif operator == "=":
