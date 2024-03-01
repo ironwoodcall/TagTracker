@@ -25,7 +25,7 @@ import tt_util as ut
 import tt_conf as cfg
 import tt_printer as pr
 from tt_sounds import NoiseMaker
-import tt_globals
+import tt_globals as g
 
 
 class Registrations:
