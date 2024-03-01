@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """TagTracker report that rolls up data by periods (week/month/etc).
 
-Copyright (C) 2023, 2024 Julias Hocking; written by tevpg
+Copyright (C) 2023-2024 Julias Hocking and Todd Glover
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting

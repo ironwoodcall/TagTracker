@@ -20,7 +20,7 @@ though it could be run harmlessly on a current database.  It should
 be run *after* rows are created by loading from datafiles.
 
 
-Copyright (C) 2023,2024 Julias Hocking. Written by tevpg.
+Copyright (C) 2023-2024 Julias Hocking and Todd Glover
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting
