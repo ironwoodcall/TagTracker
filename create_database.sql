@@ -4,7 +4,7 @@ SQL script for creating tag tracking database tables.
 
 This is intended to be .read on the desired .db file using SQLite 3.
 
-Copyright (C) 2023 Julias Hocking
+Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting

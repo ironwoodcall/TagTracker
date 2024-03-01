@@ -10,7 +10,7 @@ InternetMonitor.disable()
 print(f"Internet Monitoring enabled? {InternetMonitor.enabled})
 print(f"Internet Monitoring process {InternetMonitor.process})
 
-Copyright (C) 2024 tevpg
+Copyright (C) 2023-2024 Julias Hocking and Todd Glover
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting

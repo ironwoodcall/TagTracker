@@ -2,7 +2,7 @@
 
 MIT License
 
-Copyright (c) 2023, github.com/tevpg
+Copyright (C) 2023-2024 Julias Hocking and Todd Glover
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
