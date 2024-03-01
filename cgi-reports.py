@@ -221,6 +221,21 @@ def html_head(
     ##print(cc.style())
     print("<body>")
 
+def webpage_footer(ttdb:sqlite3.Connection):
+    """Prints the footer for each webpage"""
+
+    print("<pre>")
+
+    if cfg.DATA_OWNER:
+        data_note = cfg.DATA_OWNER if isinstance(cfg.DATA_OWNER,list) else [cfg.DATA_OWNER]
+        for line in data_note:
+            print(line)
+        print()
+
+    print(db.db_latest(ttdb))
+
+    print(f"TagTracker version {ut.get_version()}")
+
 
 # =================================================================
 print("Content-type: text/html\n\n\n")
@@ -313,6 +328,5 @@ elif what in [cc.WHAT_PERIOD,cc.WHAT_PERIOD_WEEK,cc.WHAT_PERIOD_MONTH,cc.WHAT_PE
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)
-print("<pre>")
-print(db.db_latest(database))
-print(f"TagTracker version {ut.get_version()}")
+
+webpage_footer(database)
