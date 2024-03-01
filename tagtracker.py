@@ -1117,6 +1117,15 @@ def get_taglists_from_config() -> td.TrackerDay:
         error_exit()
     return day
 
+def data_owner_notice():
+    """Print a data ownership notice."""
+    if cfg.DATA_OWNER:
+        pr.iprint()
+        data_note = cfg.DATA_OWNER if isinstance(cfg.DATA_OWNER,list) else [cfg.DATA_OWNER]
+        for line in data_note:
+            pr.iprint(line)
+
+
 
 # ---------------------------------------------
 # STARTUP
@@ -1163,6 +1172,10 @@ if __name__ == "__main__":
 
     # Check that sounds can work (if enabled).
     NoiseMaker.init_check()
+
+    # Display data owner notice
+    data_owner_notice()
+
 
     # Get/set valet date & time
     if not VALET_OPENS or not VALET_CLOSES:

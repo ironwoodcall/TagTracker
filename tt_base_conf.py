@@ -40,6 +40,12 @@ CURSOR = ">>> "
 INCLUDE_TIME_IN_PROMPT = True
 TAGS_UPPERCASE = False
 
+# data owner -- If set, the program will display this data owner notice on
+# web pages and when tagtracker starts.
+# This can be a string, or if a list of strings, displays as
+# multiple lines.
+DATA_OWNER = ""
+
 # THings related to playing sounds (client only)
 SOUND_PLAYER = "mpg321"   # If not full filepath then this needs to be on PATH
 # Sound file locations are relative to the python files dir
