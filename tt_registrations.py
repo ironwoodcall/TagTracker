@@ -25,7 +25,7 @@ import tt_util as ut
 import tt_conf as cfg
 import tt_printer as pr
 from tt_sounds import NoiseMaker
-from tt_globals import CHEER
+import tt_globals
 
 
 class Registrations:
@@ -74,7 +74,7 @@ class Registrations:
 
         if operator == "+":
             new_count = cls.num_registrations + num
-            NoiseMaker.play(CHEER)
+            NoiseMaker.play(g.BIKE_IN)
         elif operator == "-":
             new_count = cls.num_registrations - num
         elif operator == "=":

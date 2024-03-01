@@ -132,16 +132,7 @@ class NoiseMaker:
             return
         soundfiles = []
         for code in sound_codes:
-            if code == g.BIKE_IN:
-                soundfiles.append(cls.bike_in)
-            elif code == g.BIKE_OUT:
-                soundfiles.append(cls.bike_out)
-            elif code == g.ALERT:
-                soundfiles.append(cls.alert)
-            elif code == g.CHEER:
-                soundfiles.append(cls.cheer)
-            else:
-                ut.squawk(f"sound type {code} not recognized")
+            soundfiles.append(code)
         for sound in soundfiles:
             if not sound:   # skip any non-files
                 continue
