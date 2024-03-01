@@ -132,7 +132,7 @@ class NoiseMaker:
             return
         soundfiles = []
         for code in sound_codes:
-            soundfiles.append(code)
+            soundfiles.append(cls.get_sound_filepath(code))
         for sound in soundfiles:
             if not sound:   # skip any non-files
                 continue
