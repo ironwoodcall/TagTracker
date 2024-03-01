@@ -24,6 +24,8 @@ Copyright (C) 2024 Julias Hocking
 import tt_util as ut
 import tt_conf as cfg
 import tt_printer as pr
+from tt_sounds import NoiseMaker
+import tt_globals as g
 
 
 class Registrations:
@@ -72,6 +74,7 @@ class Registrations:
 
         if operator == "+":
             new_count = cls.num_registrations + num
+            NoiseMaker.play(g.CHEER)
         elif operator == "-":
             new_count = cls.num_registrations - num
         elif operator == "=":
