@@ -82,68 +82,98 @@ def tag_inventory_matrix(
     index_line(max_tag_num)
     pr.iprint()
     for prefix in sorted(prefixes):
-        used_prefix = False
-        prefix_row = pr.text_style(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE)
-        # pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
-        for i in range(0, max_tag_num + 1):
+        # Make a list of the tag states for this row.
+        # tag_states is a list of tuples (same as cfg.TAG_INV_*)
+        tag_states = []
+        for i in range(0,max_tag_num+1):
             this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not this_tag or not this_tag.state:
-                # pr.iprint(
-                #     " " + cfg.TAG_INV_UNKNOWN[0],
-                #     style=cfg.TAG_INV_UNKNOWN[1],
-                #     end="",
-                # )
-                prefix_row += "  " + pr.text_style(
-                    " " + cfg.TAG_INV_UNKNOWN[0],
-                    style=cfg.TAG_INV_UNKNOWN[1],
-                )
+                tag_states.append(cfg.TAG_INV_UNKNOWN)
             elif this_tag.state == USABLE:
-                # pr.iprint(
-                #     " " + cfg.TAG_INV_AVAILABLE[0],
-                #     style=cfg.TAG_INV_AVAILABLE[1],
-                #     end="",
-                # )
-                prefix_row += "  " + pr.text_style(
-                    " " + cfg.TAG_INV_AVAILABLE[0],
-                    style=cfg.TAG_INV_AVAILABLE[1],
-                )
+                tag_states.append(cfg.TAG_INV_AVAILABLE)
             elif this_tag.state == BIKE_IN:
-                used_prefix = True
-                # pr.iprint(
-                #     " " + cfg.TAG_INV_BIKE_IN[0],
-                #     style=cfg.TAG_INV_BIKE_IN[1],
-                #     end="",
-                # )
-                prefix_row += "  " + pr.text_style(
-                    " " + cfg.TAG_INV_BIKE_IN[0],
-                    style=cfg.TAG_INV_BIKE_IN[1],
-                )
+                tag_states.append(cfg.TAG_INV_BIKE_IN)
             elif this_tag.state == BIKE_OUT:
-                used_prefix = True
-                # pr.iprint(
-                #     " " + cfg.TAG_INV_BIKE_OUT[0],
-                #     style=cfg.TAG_INV_BIKE_OUT[1],
-                #     end="",
-                # )
-                prefix_row += "  " + pr.text_style(
-                    " " + cfg.TAG_INV_BIKE_OUT[0],
-                    style=cfg.TAG_INV_BIKE_OUT[1],
-                )
+                tag_states.append(cfg.TAG_INV_BIKE_OUT)
             elif this_tag.state == RETIRED:
-                # pr.iprint(
-                #     " " + cfg.TAG_INV_RETIRED[0],
-                #     style=cfg.TAG_INV_RETIRED[1],
-                #     end="",
-                # )
-                prefix_row += "  " + pr.text_style(
-                    " " + cfg.TAG_INV_RETIRED[0],
-                    style=cfg.TAG_INV_RETIRED[1],
-                )
+                tag_states.append(cfg.TAG_INV_RETIRED)
             else:
-                # pr.iprint(" ?", style=cfg.ERROR_STYLE, end="")
-                prefix_row += "  " + pr.text_style("?", style=cfg.ERROR_STYLE)
-        if used_prefix or include_empty_groups:
-            pr.iprint(prefix_row)
+                tag_states.append(cfg.TAG_INV_ERROR)
+
+        # Are there any used tags in this row?
+        this_prefix_used = any(x[0] in [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]] for x in tag_states)
+        # ut.squawk(f"{prefix=},{ [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]]=}")
+        # ut.squawk(f"{this_prefix_used=},{[x[0] for x in tag_states]=}")
+        if this_prefix_used:
+            pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE,end="")
+            for tup in tag_states:
+                pr.iprint(" "+tup[0],style=tup[1],end="")
+            pr.iprint()
+
+
+        # # See if there's any used tags in this row.
+        # used_prefix = False
+        # prefix_row = pr.text_style(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE)
+        # # pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
+        # for i in range(0, max_tag_num + 1):
+        #     this_tag = Stay(f"{prefix}{i}", day, as_of_when)
+        #     if not this_tag or not this_tag.state:
+        #         # pr.iprint(
+        #         #     " " + cfg.TAG_INV_UNKNOWN[0],
+        #         #     style=cfg.TAG_INV_UNKNOWN[1],
+        #         #     end="",
+        #         # )
+        #         prefix_row += "  " + pr.text_style(
+        #             " " + cfg.TAG_INV_UNKNOWN[0],
+        #             style=cfg.TAG_INV_UNKNOWN[1],
+        #         )
+        #     elif this_tag.state == USABLE:
+        #         # pr.iprint(
+        #         #     " " + cfg.TAG_INV_AVAILABLE[0],
+        #         #     style=cfg.TAG_INV_AVAILABLE[1],
+        #         #     end="",
+        #         # )
+        #         prefix_row += "  " + pr.text_style(
+        #             " " + cfg.TAG_INV_AVAILABLE[0],
+        #             style=cfg.TAG_INV_AVAILABLE[1],
+        #         )
+        #     elif this_tag.state == BIKE_IN:
+        #         used_prefix = True
+        #         # pr.iprint(
+        #         #     " " + cfg.TAG_INV_BIKE_IN[0],
+        #         #     style=cfg.TAG_INV_BIKE_IN[1],
+        #         #     end="",
+        #         # )
+        #         prefix_row += "  " + pr.text_style(
+        #             " " + cfg.TAG_INV_BIKE_IN[0],
+        #             style=cfg.TAG_INV_BIKE_IN[1],
+        #         )
+        #     elif this_tag.state == BIKE_OUT:
+        #         used_prefix = True
+        #         # pr.iprint(
+        #         #     " " + cfg.TAG_INV_BIKE_OUT[0],
+        #         #     style=cfg.TAG_INV_BIKE_OUT[1],
+        #         #     end="",
+        #         # )
+        #         prefix_row += "  " + pr.text_style(
+        #             " " + cfg.TAG_INV_BIKE_OUT[0],
+        #             style=cfg.TAG_INV_BIKE_OUT[1],
+        #         )
+        #     elif this_tag.state == RETIRED:
+        #         # pr.iprint(
+        #         #     " " + cfg.TAG_INV_RETIRED[0],
+        #         #     style=cfg.TAG_INV_RETIRED[1],
+        #         #     end="",
+        #         # )
+        #         prefix_row += "  " + pr.text_style(
+        #             " " + cfg.TAG_INV_RETIRED[0],
+        #             style=cfg.TAG_INV_RETIRED[1],
+        #         )
+        #     else:
+        #         # pr.iprint(" ?", style=cfg.ERROR_STYLE, end="")
+        #         prefix_row += "  " + pr.text_style("?", style=cfg.ERROR_STYLE)
+        # if used_prefix or include_empty_groups:
+        #     pr.iprint(prefix_row)
     index_line(max_tag_num)
     pr.iprint()
 
