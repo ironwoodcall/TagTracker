@@ -269,3 +269,7 @@ def print_tag_notes(tag: str, reset: bool = False):
         _print_tag_notes_control[_print_tag_notes_key_printed] = True
 
     _print_tag_notes_control[_print_tag_notes_key_prev] = tag
+
+def clear_screen():
+    """Clear the screen, set cursor to UL corner."""
+    print('\033[2J\033[H',end="")

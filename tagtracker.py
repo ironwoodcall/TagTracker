@@ -56,6 +56,7 @@ import tt_registrations as reg
 from tt_sounds import NoiseMaker
 import tt_audit_report as aud
 from tt_internet_monitor import InternetMonitorController
+import tt_main_bits
 
 # Local connfiguration
 # try:
@@ -63,11 +64,11 @@ from tt_internet_monitor import InternetMonitorController
 # except ImportError:
 #    pass
 
-# Initialize valet open/close globals
+# Initialize open/close globals
 # (These are all represented in TrackerDay attributes or methods)
-VALET_OPENS = ""
-VALET_CLOSES = ""
-VALET_DATE = ""
+OPENING_TIME = ""
+CLOSING_TIME = ""
+PARKING_DATE = ""
 NORMAL_TAGS = []
 OVERSIZE_TAGS = []
 RETIRED_TAGS = []
@@ -76,6 +77,8 @@ COLOUR_LETTERS = {}
 check_ins = {}
 check_outs = {}
 
+# The assignment below is unneccessary but stops pylint from whining.
+publishment = None
 
 def fix_2400_events() -> list[TagID]:
     """Change any 24:00 events to 23:59, warn, return Tags changed."""
@@ -97,7 +100,7 @@ def fix_2400_events() -> list[TagID]:
     return changed
 
 
-def deduce_valet_date(current_guess: str, filename: str) -> str:
+def deduce_PARKING_DATE(current_guess: str, filename: str) -> str:
     """Guess what date the current data is for.
 
     Logic:
@@ -119,9 +122,9 @@ def pack_day_data() -> td.TrackerDay:
     """Create a TrackerDay object loaded with today's data."""
     # Pack info into TrackerDay object
     day = td.TrackerDay()
-    day.date = VALET_DATE
-    day.opening_time = VALET_OPENS
-    day.closing_time = VALET_CLOSES
+    day.date = PARKING_DATE
+    day.opening_time = OPENING_TIME
+    day.closing_time = CLOSING_TIME
     day.registrations = reg.Registrations.num_registrations
     day.bikes_in = check_ins
     day.bikes_out = check_outs
@@ -136,15 +139,15 @@ def pack_day_data() -> td.TrackerDay:
 def unpack_day_data(today_data: td.TrackerDay) -> None:
     """Set globals from a TrackerDay data object."""
     # pylint: disable=global-statement
-    global VALET_DATE, VALET_OPENS, VALET_CLOSES
+    global PARKING_DATE, OPENING_TIME, CLOSING_TIME
     global check_ins, check_outs
     global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
     global ALL_TAGS
     global COLOUR_LETTERS
     # pylint: enable=global-statement
-    VALET_DATE = today_data.date
-    VALET_OPENS = VTime(today_data.opening_time)
-    VALET_CLOSES = VTime(today_data.closing_time)
+    PARKING_DATE = today_data.date
+    OPENING_TIME = VTime(today_data.opening_time)
+    CLOSING_TIME = VTime(today_data.closing_time)
     reg.Registrations.set_num_registrations(today_data.registrations)
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
@@ -159,20 +162,17 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
 def initialize_today() -> bool:
     """Read today's info from datafile & maybe tags-config file."""
     # Does the file even exist? (If not we will just create it later)
-    new_datafile = False
     pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
     if not os.path.exists(DATA_FILEPATH):
-        new_datafile = True
         pr.iprint(
-            "Creating new datafile" f" {DATA_FILEPATH}.",
+            f"Creating datafile '{DATA_FILEPATH}'.",
             style=cfg.SUBTITLE_STYLE,
         )
         today = td.TrackerDay()
     else:
         # Fetch data from file; errors go into error_msgs
         pr.iprint(
-            f"Reading data from {DATA_FILEPATH}...",
-            end="",
+            f"Using datafile '{DATA_FILEPATH}'.",
             style=cfg.SUBTITLE_STYLE,
         )
         error_msgs = []
@@ -184,7 +184,7 @@ def initialize_today() -> bool:
             return False
     # Figure out the date for this bunch of data
     if not today.date:
-        today.date = deduce_valet_date(today.date, DATA_FILEPATH)
+        today.date = deduce_PARKING_DATE(today.date, DATA_FILEPATH)
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
     # then fetch the tag reference lists from tags config
@@ -206,11 +206,9 @@ def initialize_today() -> bool:
             pr.iprint(msg, style=cfg.ERROR_STYLE)
         error_exit()
     # Done
-    if not new_datafile:
-        pr.iprint("done.", num_indents=0, style=cfg.SUBTITLE_STYLE)
-    if VALET_DATE != ut.date_str("today"):
+    if PARKING_DATE != ut.date_str("today"):
         pr.iprint(
-            f"Warning: Valet information is from {ut.date_str(VALET_DATE,long_date=True)}",
+            f"Warning: Data is from {ut.date_str(PARKING_DATE,long_date=True)}, not today",
             style=cfg.WARNING_STYLE,
         )
     return True
@@ -371,9 +369,9 @@ def query_one_tag(maybe_tag: str, day: td.TrackerDay, multi_line: bool = False) 
             pr.iprint(f"       {tag.tag} not checked out", style=cfg.ANSWER_STYLE)
         else:
             if dur >= 60:
-                dur_str = f"(in valet for {VTime(dur).short})"
+                dur_str = f"(onsite for {VTime(dur).short})"
             elif dur >= 0:
-                dur_str = f"(in valet for {dur} minutes)"
+                dur_str = f"(onsite for {dur} minutes)"
             else:
                 # a future time
                 dur_str = f"({VTime(abs(dur)).short} in the future)"
@@ -429,54 +427,10 @@ def prompt_for_time(inp=False, prompt: str = None) -> VTime:
     return VTime(inp)
 
 
-def set_valet_hours(args: list[str]) -> None:
-    """Set the valet opening & closing hours."""
-    global VALET_OPENS, VALET_CLOSES  # pylint: disable=global-statement
-    (open_arg, close_arg) = (args + ["", ""])[:2]
-    pr.iprint()
-    if VALET_DATE:
-        pr.iprint(
-            f"Bike Valet information for {ut.date_str(VALET_DATE,long_date=True)}",
-            style=cfg.HIGHLIGHT_STYLE,
-        )
-    # Valet opening time
-    if VALET_OPENS:
-        pr.iprint(f"Opening time is: {VALET_OPENS}", style=cfg.HIGHLIGHT_STYLE)
-    if VALET_CLOSES:
-        pr.iprint(f"Closing time is: {VALET_CLOSES}", style=cfg.HIGHLIGHT_STYLE)
-
-    maybe_open = prompt_for_time(
-        open_arg,
-        prompt="New valet opening time (24 hour clock HHMM or <Enter> to cancel)",
-    )
-    if not maybe_open:
-        pr.iprint(
-            "Input is not a time.  Opening time unchanged.",
-            style=cfg.WARNING_STYLE,
-        )
-        return
-    VALET_OPENS = maybe_open
-    pr.iprint(f"Opening time now set to {VALET_OPENS}", style=cfg.ANSWER_STYLE)
-    # Valet closing time
-    maybe_close = prompt_for_time(
-        close_arg,
-        prompt="New valet closing time (24 hour clock HHMM or <Enter> to cancel)",
-    )
-    if not maybe_close:
-        pr.iprint(
-            "Input is not a time.  Closing time unchanged.",
-            style=cfg.WARNING_STYLE,
-        )
-        return
-    if maybe_close <= VALET_OPENS:
-        pr.iprint(
-            "Closing time must be later than opening time. Time unchanged.",
-            style=cfg.ERROR_STYLE,
-        )
-        return
-    VALET_CLOSES = maybe_close
-    pr.iprint(f"Closing time now set to {VALET_CLOSES}", style=cfg.ANSWER_STYLE)
-
+def operating_hours_command() -> None:
+    """Respond to the 'hours' command."""
+    global OPENING_TIME, CLOSING_TIME  # pylint: disable=global-statement
+    OPENING_TIME,CLOSING_TIME = tt_main_bits.get_operating_hours(OPENING_TIME,CLOSING_TIME)
 
 def multi_edit(args: list[str]):
     """Perform Dialog to correct a tag's check in/out time.
@@ -883,7 +837,7 @@ def estimate(args: list[str]) -> None:
 
 def bikes_on_hand_reminder() -> None:
     """Remind how many bikes should be present, if close to closing time."""
-    if VTime(VALET_CLOSES).num - VTime("now").num < 60:  # last hour
+    if VTime(CLOSING_TIME).num - VTime("now").num < 60:  # last hour
         bikes_on_hand = len(check_ins) - len(check_outs)
         pr.iprint(
             f"There should currently be {bikes_on_hand} {ut.plural(bikes_on_hand,'bike')}"
@@ -896,7 +850,6 @@ def main():
     """Run main program loop and dispatcher."""
     done = False
     todays_date = ut.date_str("today")
-    publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     while not done:
         pr.iprint()
         # Nag about bikes expected to be present if close to closing time
@@ -981,7 +934,7 @@ def main():
         elif cmd_bits.command == cfg.CMD_PUBLISH:
             publishment.publish_reports(pack_day_data(), cmd_bits.args)
         elif cmd_bits.command == cfg.CMD_VALET_HOURS:
-            set_valet_hours(cmd_bits.args)
+            operating_hours_command()
             data_dirty = True
         elif (
             cmd_bits.command == cfg.CMD_UPPERCASE
@@ -997,7 +950,7 @@ def main():
             elif cmd_bits.command == cfg.CMD_TAG_RETIRED:
                 msg = f"Tag '{TagID(user_str)}' is retired"
             elif cmd_bits.command == cfg.CMD_TAG_UNUSABLE:
-                msg = f"Valet not configured to use tag '{TagID(user_str)}'"
+                msg = f"System not configured to use tag '{TagID(user_str)}'"
             else:
                 # Should never get to this point
                 msg = "Surprised by unrecognized command"
@@ -1078,8 +1031,8 @@ def lint_report(strict_datetimes: bool = True) -> None:
     if errs:
         for msg in errs:
             pr.iprint(msg, style=cfg.WARNING_STYLE)
-    else:
-        pr.iprint("No inconsistencies found", style=cfg.HIGHLIGHT_STYLE)
+    # else:
+    #     pr.iprint("No inconsistencies found", style=cfg.HIGHLIGHT_STYLE)
     # And while we're at it, fix up any times that are set to "24:00"
     fix_2400_events()
 
@@ -1117,15 +1070,6 @@ def get_taglists_from_config() -> td.TrackerDay:
         error_exit()
     return day
 
-def data_owner_notice():
-    """Print a data ownership notice."""
-    if cfg.DATA_OWNER:
-        pr.iprint()
-        data_note = cfg.DATA_OWNER if isinstance(cfg.DATA_OWNER,list) else [cfg.DATA_OWNER]
-        for line in data_note:
-            pr.iprint(line)
-
-
 
 # ---------------------------------------------
 # STARTUP
@@ -1143,15 +1087,21 @@ if __name__ == "__main__":
     if cfg.ECHO:
         pr.set_echo(True)
 
-    pr.iprint()
-    pr.iprint(
-        "TagTracker by Julias Hocking",
-        num_indents=0,
-        style=cfg.ANSWER_STYLE,
-    )
-    pr.iprint(f"Version {ut.get_version()}")
-    pr.iprint()
-    # If no tags file, create one and tell them to edit it.
+    pr.clear_screen()
+    tt_main_bits.splash()
+
+    # Check that data directory is writable
+    if not ut.writable_dir(cfg.DATA_FOLDER):
+        pr.iprint()
+        pr.iprint(f"Data folder '{cfg.DATA_FOLDER}' missing or not writeable.",style=cfg.ERROR_STYLE)
+        sys.exit(1)
+
+    # Set up publishing
+    publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
+    # Check that sounds can work (if enabled).
+    NoiseMaker.init_check()
+
+    # Check for tags config file
     if not os.path.exists(cfg.TAG_CONFIG_FILE):
         df.new_tag_config_file(cfg.TAG_CONFIG_FILE)
         pr.iprint("No tags configuration file found.", style=cfg.WARNING_STYLE)
@@ -1162,37 +1112,31 @@ if __name__ == "__main__":
         pr.iprint("Edit this file then re-rerun TagTracker.", style=cfg.WARNING_STYLE)
         print("\n" * 3, "Exiting automatically in 15 seconds.")
         time.sleep(15)
-        exit()
+        sys.exit()
 
     # Configure check in- and out-lists and operating hours from file
+    pr.iprint()
     if not initialize_today():  # only run main() if tags read successfully
         error_exit()
-
     lint_report(strict_datetimes=False)
-
-    # Check that sounds can work (if enabled).
-    NoiseMaker.init_check()
-
-    # Display data owner notice
-    data_owner_notice()
-
-
-    # Get/set valet date & time
-    if not VALET_OPENS or not VALET_CLOSES:
-        (opens, closes) = cfg.valet_hours(VALET_DATE)
-        VALET_OPENS = VALET_OPENS if VALET_OPENS else opens
-        VALET_CLOSES = VALET_CLOSES if VALET_CLOSES else closes
-    pr.iprint()
     pr.iprint(
-        "Please check today's opening/closing times.",
-        style=cfg.ERROR_STYLE,
+        f"(Editing information for {ut.date_str(PARKING_DATE,long_date=True)}).",
+        style=cfg.HIGHLIGHT_STYLE,
     )
-    set_valet_hours(["", ""])
-    if VALET_OPENS or VALET_CLOSES:
-        save()
-
     # Start internet monitoring (if enabled in config)
     InternetMonitorController.start_monitor()
+
+    # Display data owner notice
+    tt_main_bits.data_owner_notice()
+
+    # Get/set operating hours
+    if not OPENING_TIME or not CLOSING_TIME:
+        (opens, closes) = cfg.valet_hours(PARKING_DATE)
+        OPENING_TIME = OPENING_TIME if OPENING_TIME else opens
+        CLOSING_TIME = CLOSING_TIME if CLOSING_TIME else closes
+    OPENING_TIME, CLOSING_TIME = tt_main_bits.get_operating_hours(OPENING_TIME,CLOSING_TIME)
+    if OPENING_TIME or CLOSING_TIME:
+        save()
 
     # Start tracking tags
     main()
