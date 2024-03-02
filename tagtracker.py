@@ -1088,9 +1088,22 @@ if not CUSTOM_DAT:
 
 
 if __name__ == "__main__":
+
     # Possibly turn on echo
     if cfg.ECHO:
-        pr.set_echo(True)
+        if not cfg.ECHO_FOLDER:
+            pr.iprint()
+            pr.iprint("No echo folder set, settig echo off.",style=cfg.WARNING_STYLE)
+            pr.set_echo(False)
+        elif not ut.writable_dir(cfg.ECHO_FOLDER):
+            pr.iprint()
+            pr.iprint(
+                f"Echo folder '{cfg.ECHO_FOLDER}' missing or not writeable, setting echo off.",
+                style=cfg.WARNING_STYLE,
+            )
+            pr.set_echo(False)
+        else:
+            pr.set_echo(True)
 
     pr.clear_screen()
     tt_main_bits.splash()
