@@ -1089,26 +1089,26 @@ if not CUSTOM_DAT:
 
 if __name__ == "__main__":
 
-    # Possibly turn on echo
-    ut.squawk(f"{cfg.ECHO=},{cfg.ECHO_FOLDER=}")
+
+    # Possibly turn on echo. Print any error msgs later, though
+    echo_msg = ""
     if cfg.ECHO:
-        ut.squawk("ECHO is set")
         if not cfg.ECHO_FOLDER:
-            pr.iprint()
-            pr.iprint("No echo folder set, settig echo off.",style=cfg.WARNING_STYLE)
+            echo_msg = "No echo folder set, settig echo off."
             pr.set_echo(False)
         elif not ut.writable_dir(cfg.ECHO_FOLDER):
-            pr.iprint()
-            pr.iprint(
-                f"Echo folder '{cfg.ECHO_FOLDER}' missing or not writeable, setting echo off.",
-                style=cfg.WARNING_STYLE,
-            )
+            echo_msg = f"Echo folder '{cfg.ECHO_FOLDER}' missing or not writeable, setting echo off."
             pr.set_echo(False)
         else:
             pr.set_echo(True)
 
     pr.clear_screen()
     tt_main_bits.splash()
+
+    # echo error messages now
+    if echo_msg:
+        pr.iprint()
+        pr.iprint(echo_msg,style=cfg.WARNING_STYLE)
 
     # Check that data directory is writable
     if not ut.writable_dir(cfg.DATA_FOLDER):
