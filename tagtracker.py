@@ -80,6 +80,7 @@ check_outs = {}
 # The assignment below is unneccessary but stops pylint from whining.
 publishment = None
 
+
 def fix_2400_events() -> list[TagID]:
     """Change any 24:00 events to 23:59, warn, return Tags changed."""
     changed = []
@@ -430,7 +431,10 @@ def prompt_for_time(inp=False, prompt: str = None) -> VTime:
 def operating_hours_command() -> None:
     """Respond to the 'hours' command."""
     global OPENING_TIME, CLOSING_TIME  # pylint: disable=global-statement
-    OPENING_TIME,CLOSING_TIME = tt_main_bits.get_operating_hours(OPENING_TIME,CLOSING_TIME)
+    OPENING_TIME, CLOSING_TIME = tt_main_bits.get_operating_hours(
+        OPENING_TIME, CLOSING_TIME
+    )
+
 
 def multi_edit(args: list[str]):
     """Perform Dialog to correct a tag's check in/out time.
@@ -616,6 +620,7 @@ def multi_edit(args: list[str]):
         inouts.append(edit_processor(tag, cmd.inout_value, cmd.atime_value))
     # Play the sounds for this
     NoiseMaker.play(*inouts)
+
 
 def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
     """Pretty-print a tag-in or tag-out message."""
@@ -880,7 +885,7 @@ def main():
             multi_edit(cmd_bits.args)
             data_dirty = True
         elif cmd_bits.command == cfg.CMD_AUDIT:
-            aud.audit_report(pack_day_data(), cmd_bits.args,include_returns=False)
+            aud.audit_report(pack_day_data(), cmd_bits.args, include_returns=False)
             publishment.publish_audit(pack_day_data(), cmd_bits.args)
         elif cmd_bits.command == cfg.CMD_DELETE:
             delete_entry(*cmd_bits.args)
@@ -899,7 +904,7 @@ def main():
                 style=cfg.WARNING_STYLE,
             )
         elif cmd_bits.command == cfg.CMD_TAGS:
-            inv.tags_config_report(pack_day_data(), cmd_bits.args)
+            inv.tags_config_report(pack_day_data(), cmd_bits.args, False)
         elif cmd_bits.command == cfg.CMD_QUERY:
             query_tag(cmd_bits.args)
         elif cmd_bits.command == cfg.CMD_STATS:
@@ -1093,7 +1098,10 @@ if __name__ == "__main__":
     # Check that data directory is writable
     if not ut.writable_dir(cfg.DATA_FOLDER):
         pr.iprint()
-        pr.iprint(f"Data folder '{cfg.DATA_FOLDER}' missing or not writeable.",style=cfg.ERROR_STYLE)
+        pr.iprint(
+            f"Data folder '{cfg.DATA_FOLDER}' missing or not writeable.",
+            style=cfg.ERROR_STYLE,
+        )
         sys.exit(1)
 
     # Set up publishing
@@ -1134,7 +1142,9 @@ if __name__ == "__main__":
         (opens, closes) = cfg.valet_hours(PARKING_DATE)
         OPENING_TIME = OPENING_TIME if OPENING_TIME else opens
         CLOSING_TIME = CLOSING_TIME if CLOSING_TIME else closes
-    OPENING_TIME, CLOSING_TIME = tt_main_bits.get_operating_hours(OPENING_TIME,CLOSING_TIME)
+    OPENING_TIME, CLOSING_TIME = tt_main_bits.get_operating_hours(
+        VTime(OPENING_TIME), VTime(CLOSING_TIME)
+    )
     if OPENING_TIME or CLOSING_TIME:
         save()
 
