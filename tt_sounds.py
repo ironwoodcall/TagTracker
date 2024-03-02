@@ -59,21 +59,33 @@ class NoiseMaker:
             return True
 
         # Check that the player & sound files exist
-        if not all(
+        player_missing = True
+        sounds_missing = True
+        if ut.find_on_path(cls.player):
+            player_missing = False
+        if all(
             [
-                ut.find_on_path(cls.player),
                 os.path.exists(cls.bike_in),
                 os.path.exists(cls.bike_out),
                 os.path.exists(cls.alert),
                 os.path.exists(cls.cheer)
             ]
         ):
-            pr.iprint(
-                "Missing sound-player or sound file(s), sounds disabled",
-                style=cfg.ERROR_STYLE,
-            )
-            cls.enabled = False
-            return False
+            sounds_missing = False
+        if player_missing or sounds_missing:
+            pr.iprint()
+            if sounds_missing:
+                pr.iprint(
+                    "Some sound file(s) not found, some sounds may not play.",
+                    style=cfg.WARNING_STYLE,
+                )
+            if player_missing:
+                pr.iprint(
+                    "Missing sound-player, sounds are disabled.",
+                    style=cfg.WARNING_STYLE,
+                )
+                cls.enabled = False
+                return False
 
         cls._initialized = True
         return True

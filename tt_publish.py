@@ -43,8 +43,13 @@ class Publisher:
     def __init__(self, destination: str, frequency: int) -> None:
         """Set up the Publisher object."""
         # If there's no reports folder set, just disable publishing
+        if not frequency:
+            self.able_to_publish = False
+            return
+
         if not destination:
             self.able_to_publish = False
+            pr.iprint()
             pr.iprint("No reports folder configured, not publishing static reports.",
                       style=cfg.HIGHLIGHT_STYLE)
             return
@@ -52,12 +57,12 @@ class Publisher:
         self.able_to_publish = True
         self.frequency = frequency
         self.destination = destination
-        if not os.path.exists(destination):
+        if not ut.writable_dir(destination):
             self.able_to_publish = False
             pr.iprint()
             pr.iprint(
-                f"Publication folder '{cfg.REPORTS_FOLDER}' not found, "
-                "will not try to Publish",
+                f"Publication folder '{cfg.REPORTS_FOLDER}' missing or not writable, "
+                "publication disabled.",
                 style=cfg.ERROR_STYLE,
             )
 
@@ -120,7 +125,7 @@ class Publisher:
         fullfn = os.path.join(cfg.REPORTS_FOLDER, "city.txt")
         if not pr.set_output(fullfn):
             return
-        pr.iprint(f"Overall valet report for {day.date}")
+        pr.iprint(f"Overall bike parking report for {day.date}")
         pr.iprint(f"Generated {ut.date_str('today')} {ut.get_time()}")
 
         rep.day_end_report(day, [as_of_when])

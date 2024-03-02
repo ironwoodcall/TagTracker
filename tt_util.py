@@ -458,20 +458,20 @@ def get_version() -> str:
     If it looks like a git repo, will also try to include a ref from that.
     """
     version_str = ""
-    changelog = "changelog.txt"
-    if os.path.exists(changelog):
-        # Read startup header from changelog.
-        with open(changelog, "r", encoding="utf-8") as f:
-            for line in f:
-                r = re.match(r"^ *([0-9]+\.[0-9\.]+\.[0-9]+): *$", line)
-                if r:
-                    version_str = r.group(1)
-                    break
+    # changelog = "changelog.txt"
+    # if os.path.exists(changelog):
+    #     # Read startup header from changelog.
+    #     with open(changelog, "r", encoding="utf-8") as f:
+    #         for line in f:
+    #             r = re.match(r"^ *([0-9]+\.[0-9\.]+\.[0-9]+): *$", line)
+    #             if r:
+    #                 version_str = r.group(1)
+    #                 break
 
     # Git ref
     git_head = os.path.join(".git", "HEAD")
     if not os.path.exists(git_head):
-        return version_str
+        return "?"
     # .git/HEAD points to the file that contains the version
     with open(git_head, "r", encoding="utf-8") as f:
         ref_path = ""
@@ -493,10 +493,10 @@ def get_version() -> str:
     # get just the feature portion of the git ref_path
     r = re.match(r"^refs/heads/(.*)", ref_path)
     if r:
-        git_str = f"{git_str} {r.group(1)}"
+        git_str = f"{git_str} '{r.group(1)}'"
     # Full version string now
-    version_str = f"{version_str} ({git_str})"
-    return version_str
+    # version_str = f"{version_str} ({git_str})"
+    return git_str
 
 
 def OLD_plural(count: int) -> str:
@@ -668,3 +668,13 @@ def greatest_tagnum(
         return max([TagID(t).number for t in this_group])
     else:
         return None
+
+def writable_dir(filepath:str) -> bool:
+    """Test if filepath is a folder and writeable."""
+    if os.path.isdir(filepath):
+        if os.access(filepath, os.W_OK):
+            return True
+        else:
+            return False
+    else:
+        return False

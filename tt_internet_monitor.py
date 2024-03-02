@@ -76,7 +76,6 @@ class InternetMonitorController:
 
         # Execute itself as a subprocess
         cls.process = subprocess.Popen([sys.executable, script_name], cwd=script_dir)
-        pr.iprint()
         pr.iprint(
             "Checking internet connection "
             f"every {cfg.INTERNET_MONITORING_FREQUENCY} minutes.",

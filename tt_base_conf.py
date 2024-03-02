@@ -94,12 +94,11 @@ BLOCK_DURATION = 30
 HELP_MESSAGE = """
 TagTracker Commands
 
-To enter and change valet data
-  Check bike in or out         :   <tag> <optional note>
-                                   (eg “wa3” or "wa3  owner forgot tag")
+To enter and change tracking data
+  Check bike in or out         :   <tag> (eg “wa3”)
   Edit check in/out times      :   edit / e
   Delete a check in/out        :   delete / del  / d
-  Set valet open/close hours   :   valet / v
+  Change operating hours       :   hours
   View/add operator notes      :   note / n
   View/set bike registrations  :   registrations / reg / r
 
@@ -108,7 +107,7 @@ Information and reports
   Show recent activity         :   recent / rec
   Show audit info              :   audit / a
   Show day-end stats report    :   stat  / s
-  Show valet busy-ness report  :   busy / b
+  Show site busy-ness report   :   busy / b
   Show data as on paper form   :   form / f
   Show tag configurations      :   tags / t
   Show chart of all activity   :   chart / c
@@ -172,7 +171,7 @@ CMD_LOOKBACK = "lookback"
 CMD_QUERY = "query"
 CMD_STATS = "stats"
 CMD_BUSY = "busy"
-CMD_VALET_HOURS = "valet_hours"
+CMD_VALET_HOURS = "operating_hours"
 CMD_CSV = "csv"
 CMD_UPPERCASE = "uppercase"
 CMD_LOWERCASE = "lowercase"
@@ -201,7 +200,7 @@ COMMANDS[CMD_LOOKBACK] = ["recent", "rec"]
 COMMANDS[CMD_QUERY] = ["query", "q", "?", "/"]
 COMMANDS[CMD_STATS] = ["s", "stat", "stats", "statistics"]
 COMMANDS[CMD_BUSY] = ["b", "busy", "busyness", "business"]
-COMMANDS[CMD_VALET_HOURS] = ["v", "valet"]
+COMMANDS[CMD_VALET_HOURS] = ["hour", "hours", "v"]
 COMMANDS[CMD_CSV] = ["csv"]
 COMMANDS[CMD_UPPERCASE] = ["uc", "uppercase", "upper"]
 COMMANDS[CMD_LOWERCASE] = ["lc", "lowercase", "lower"]
@@ -238,9 +237,9 @@ CMD_TAG_UNUSABLE = "tag_unusable" + chr(12345)
 
 
 def valet_hours(the_date: str) -> Tuple[str, str]:
-    """Stub to provide valet open/closing hours.
+    """Stub to provide open/closing hours.
 
-    This is called to get daily default valet hours.
+    This is called to get daily default operating hours.
     Specific info can be provided in local config (tt_conf.py);
     this simply returns empty strings.
     """
