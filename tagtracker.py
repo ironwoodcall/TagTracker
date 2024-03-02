@@ -1090,7 +1090,9 @@ if not CUSTOM_DAT:
 if __name__ == "__main__":
 
     # Possibly turn on echo
+    ut.squawk(f"{cfg.ECHO=},{cfg.ECHO_FOLDER=}")
     if cfg.ECHO:
+        ut.squawk("ECHO is set")
         if not cfg.ECHO_FOLDER:
             pr.iprint()
             pr.iprint("No echo folder set, settig echo off.",style=cfg.WARNING_STYLE)
