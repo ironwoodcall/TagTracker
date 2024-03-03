@@ -21,14 +21,16 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 
 Symbols for:
-- unknown (like, a missing member)  '  '
-- available                         '--'
-- bike in                           '<<'
-- bike out                          '>>'
-- retired                           ' ●'
+- unknown (like, a missing member)  '!?'
+- available                         ' -'
+- bike in                           'In'
+- bike out                          'Ou'
+- retired                           'Re'
+==> These are set in tt_base_conf.py (can be overridden in tt_conf.py)
 
 """
-from tt_globals import *
+
+import tt_globals as g
 import tt_printer as pr
 from tt_time import VTime
 from tt_tag import TagID
@@ -85,95 +87,34 @@ def tag_inventory_matrix(
         # Make a list of the tag states for this row.
         # tag_states is a list of tuples (same as cfg.TAG_INV_*)
         tag_states = []
-        for i in range(0,max_tag_num+1):
+        for i in range(0, max_tag_num + 1):
             this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not this_tag or not this_tag.state:
                 tag_states.append(cfg.TAG_INV_UNKNOWN)
-            elif this_tag.state == USABLE:
+            elif this_tag.state == g.USABLE:
                 tag_states.append(cfg.TAG_INV_AVAILABLE)
-            elif this_tag.state == BIKE_IN:
+            elif this_tag.state == g.BIKE_IN:
                 tag_states.append(cfg.TAG_INV_BIKE_IN)
-            elif this_tag.state == BIKE_OUT:
+            elif this_tag.state == g.BIKE_OUT:
                 tag_states.append(cfg.TAG_INV_BIKE_OUT)
-            elif this_tag.state == RETIRED:
+            elif this_tag.state == g.RETIRED:
                 tag_states.append(cfg.TAG_INV_RETIRED)
             else:
                 tag_states.append(cfg.TAG_INV_ERROR)
 
         # Are there any used tags in this row?
-        this_prefix_used = any(x[0] in [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]] for x in tag_states)
+        this_prefix_used = any(
+            x[0] in [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]]
+            for x in tag_states
+        )
         # ut.squawk(f"{prefix=},{ [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]]=}")
         # ut.squawk(f"{this_prefix_used=},{[x[0] for x in tag_states]=}")
         if this_prefix_used:
-            pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE,end="")
+            pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
             for tup in tag_states:
-                pr.iprint(" "+tup[0],style=tup[1],end="")
+                pr.iprint(" " + tup[0], style=tup[1], end="")
             pr.iprint()
 
-
-        # # See if there's any used tags in this row.
-        # used_prefix = False
-        # prefix_row = pr.text_style(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE)
-        # # pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
-        # for i in range(0, max_tag_num + 1):
-        #     this_tag = Stay(f"{prefix}{i}", day, as_of_when)
-        #     if not this_tag or not this_tag.state:
-        #         # pr.iprint(
-        #         #     " " + cfg.TAG_INV_UNKNOWN[0],
-        #         #     style=cfg.TAG_INV_UNKNOWN[1],
-        #         #     end="",
-        #         # )
-        #         prefix_row += "  " + pr.text_style(
-        #             " " + cfg.TAG_INV_UNKNOWN[0],
-        #             style=cfg.TAG_INV_UNKNOWN[1],
-        #         )
-        #     elif this_tag.state == USABLE:
-        #         # pr.iprint(
-        #         #     " " + cfg.TAG_INV_AVAILABLE[0],
-        #         #     style=cfg.TAG_INV_AVAILABLE[1],
-        #         #     end="",
-        #         # )
-        #         prefix_row += "  " + pr.text_style(
-        #             " " + cfg.TAG_INV_AVAILABLE[0],
-        #             style=cfg.TAG_INV_AVAILABLE[1],
-        #         )
-        #     elif this_tag.state == BIKE_IN:
-        #         used_prefix = True
-        #         # pr.iprint(
-        #         #     " " + cfg.TAG_INV_BIKE_IN[0],
-        #         #     style=cfg.TAG_INV_BIKE_IN[1],
-        #         #     end="",
-        #         # )
-        #         prefix_row += "  " + pr.text_style(
-        #             " " + cfg.TAG_INV_BIKE_IN[0],
-        #             style=cfg.TAG_INV_BIKE_IN[1],
-        #         )
-        #     elif this_tag.state == BIKE_OUT:
-        #         used_prefix = True
-        #         # pr.iprint(
-        #         #     " " + cfg.TAG_INV_BIKE_OUT[0],
-        #         #     style=cfg.TAG_INV_BIKE_OUT[1],
-        #         #     end="",
-        #         # )
-        #         prefix_row += "  " + pr.text_style(
-        #             " " + cfg.TAG_INV_BIKE_OUT[0],
-        #             style=cfg.TAG_INV_BIKE_OUT[1],
-        #         )
-        #     elif this_tag.state == RETIRED:
-        #         # pr.iprint(
-        #         #     " " + cfg.TAG_INV_RETIRED[0],
-        #         #     style=cfg.TAG_INV_RETIRED[1],
-        #         #     end="",
-        #         # )
-        #         prefix_row += "  " + pr.text_style(
-        #             " " + cfg.TAG_INV_RETIRED[0],
-        #             style=cfg.TAG_INV_RETIRED[1],
-        #         )
-        #     else:
-        #         # pr.iprint(" ?", style=cfg.ERROR_STYLE, end="")
-        #         prefix_row += "  " + pr.text_style("?", style=cfg.ERROR_STYLE)
-        # if used_prefix or include_empty_groups:
-        #     pr.iprint(prefix_row)
     index_line(max_tag_num)
     pr.iprint()
 
@@ -181,17 +122,17 @@ def tag_inventory_matrix(
 def colours_report(day: TrackerDay) -> None:
     """List colours in use."""
     type_names = {
-        UNKNOWN: "None",
-        REGULAR: "Regular",
-        OVERSIZE: "Oversize",
-        MIXED: "Mixed",
+        g.UNKNOWN: "None",
+        g.REGULAR: "Regular",
+        g.OVERSIZE: "Oversize",
+        g.MIXED: "Mixed",
     }
 
     # Make a dict of the colour letters that's all lowercase
     colours = {k.lower(): v for k, v in day.colour_letters.items()}
     # Dict of bike types for tags: UNKNOWN, OVERSIZE, REGULAR or MIXED
     tag_type = dict(
-        zip(list(day.colour_letters.keys()), [UNKNOWN for _ in range(0, 100)])
+        zip(list(day.colour_letters.keys()), [g.UNKNOWN for _ in range(0, 100)])
     )
     # Dictionary of how many tags are of each colour.
     tag_count = dict(zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)]))
@@ -202,11 +143,11 @@ def colours_report(day: TrackerDay) -> None:
             ut.squawk(f"bad colour for {tag}: '{code}' in colours_report()")
             continue
         # Tag type
-        btype = REGULAR if tag in day.regular else OVERSIZE
-        if tag_type[code] == UNKNOWN:
+        btype = g.REGULAR if tag in day.regular else g.OVERSIZE
+        if tag_type[code] == g.UNKNOWN:
             tag_type[code] = btype
         elif tag_type[code] != btype:
-            tag_type[code] = MIXED
+            tag_type[code] = g.MIXED
         # Tag count
         tag_count[code] += 1
 
