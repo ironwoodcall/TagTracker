@@ -1,4 +1,7 @@
-sTagTracker by Julias Hocking
+TagTracker by Julias Hocking
+
+1.3.4:
++ this changelog no longer used. See github for record of changes.
 
 1.3.3:
 + internet connection monitoring alerts
