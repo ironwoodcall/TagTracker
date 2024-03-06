@@ -28,21 +28,71 @@ import tt_conf as cfg
 from tt_time import VTime
 
 
+def show_help():
+    """Show help_message with colour style highlighting.
+
+    Prints first non-blank line as title;
+    lines that are flush-left as subtitles;
+    other lines in normal style.
+    """
+    title_done = False
+    for line in cfg.HELP_MESSAGE.split("\n"):
+        if not line:
+            pr.iprint()
+        elif not title_done:
+            title_done = True
+            pr.iprint(line, style=cfg.TITLE_STYLE)
+        elif line[0] != " ":
+            pr.iprint(line, style=cfg.SUBTITLE_STYLE)
+        else:
+            pr.iprint(line, style=cfg.NORMAL_STYLE)
+
+
+def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
+    """Print notes."""
+    notes_list = notes_obj.fetch()
+    pr.iprint()
+
+    if header:
+        if notes_list:
+            pr.iprint("Today's notes:", style=cfg.TITLE_STYLE)
+        else:
+            pr.iprint("There are no notes yet today.")
+            pr.iprint("(To create a note, enter NOTE [note text])")
+    for line in notes_list:
+        if styled:
+            pr.iprint(line, style=cfg.WARNING_STYLE)
+        else:
+            pr.iprint(line, style=cfg.NORMAL_STYLE)
+
+
 def splash():
     """Print the intro splash message."""
-    pr.iprint("#####################", style=cfg.ANSWER_STYLE)
-    pr.iprint("##                 ##", style=cfg.ANSWER_STYLE)
-    pr.iprint("##   TagTracker    ##", style=cfg.ANSWER_STYLE)
-    pr.iprint("##                 ##", style=cfg.ANSWER_STYLE)
-    pr.iprint("#####################", style=cfg.ANSWER_STYLE)
+
+    for line in [
+        r"   _______       _______             _               ",
+        r"  |__   __|     |__   __|           | |              ",
+        r"     | | __ _  __ _| |_ __ __ _  ___| | _____ _ __   ",
+        r"     | |/ _` |/ _` | | '__/ _` |/ __| |/ / _ \ '__|  ",
+        r"     | | (_| | (_| | | | | (_| | (__|   <  __/ |     ",
+        r"     |_|\__,_|\__, |_|_|  \__,_|\___|_|\_\___|_|     ",
+        r"               __/ |                                 ",
+        r"              |___/                                  ",
+    ]:
+        pr.iprint(
+            line,
+            style=cfg.ANSWER_STYLE,
+        )
+
+    # pr.iprint("#####################", style=cfg.ANSWER_STYLE)
+    # pr.iprint("##                 ##", style=cfg.ANSWER_STYLE)
+    # pr.iprint("##   TagTracker    ##", style=cfg.ANSWER_STYLE)
+    # pr.iprint("##                 ##", style=cfg.ANSWER_STYLE)
+    # pr.iprint("#####################", style=cfg.ANSWER_STYLE)
     pr.iprint()
-    pr.iprint("by Julias Hocking")
+    pr.iprint("TagTracker by Julias Hocking")
     pr.iprint(f"Version: {ut.get_version()}")
     pr.iprint("See github.com/ironwoodcall/tagtracker for version details.")
-
-
-def operating_hours_command(args: list[str]) -> None:
-    """Respond to the 'hours' command."""
 
 
 def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]:
@@ -76,7 +126,8 @@ def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]
     )
     if opening and closing:
         pr.iprint(
-            f"  Currently set at {opening.short} - {closing.short}.",num_indents=0,
+            f"  Currently set at {opening.short} - {closing.short}.",
+            num_indents=0,
             style=cfg.HIGHLIGHT_STYLE,
             end="",
         )
