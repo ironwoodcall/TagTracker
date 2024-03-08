@@ -55,11 +55,12 @@ MODE_ROUND_TO_NEAREST = 30  # mins
 BUSIEST_RANKS = 4
 
 
-def registrations_report():
+def registrations_report(reg_count:int):
     """Display current count of registrations."""
     pr.iprint()
     pr.iprint("Bike registrations", style=cfg.SUBTITLE_STYLE)
-    reg.Registrations.display_current_count(num_indents=2)
+    pr.iprint( f"There are {reg_count} bike {ut.plural(reg_count,'registration')}")
+    #reg.Registrations.display_current_count(num_indents=2)
 
 
 def recent(day: TrackerDay, args: list[str]) -> None:
@@ -706,7 +707,7 @@ def day_end_report(day: TrackerDay, args: list, include_notes: bool = True) -> N
     visit_statistics_report(visits)
 
     # Number of bike registrations
-    registrations_report()
+    registrations_report(day.registrations)
 
 
 def busyness_report(day: TrackerDay, args: list) -> None:
