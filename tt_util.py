@@ -39,6 +39,7 @@ from tt_time import VTime
 from tt_tag import TagID
 
 
+
 def find_on_path(filename):
     """Check if filename exists, including anywhere in system PATH.
 
@@ -101,14 +102,6 @@ def decomment(string: str) -> str:
     return string
 
 
-def get_date(long: bool = False) -> str:
-    """Return current date as string YYYY-MM-DD or a longer str if long=True."""
-    # FIXME: superseded by date_str()
-    return date_str("today", long_date=long)
-    # if long:
-    #    return datetime.datetime.today().strftime("%A %B %d (%Y-%m-%d)")
-    # return datetime.datetime.today().strftime("%Y-%m-%d")
-
 
 def date_str(
     maybe_date: str,
@@ -129,7 +122,6 @@ def date_str(
             "" or "/" as separators
 
     """
-    # FIXME: replace get_date() with a call to this
     if not maybe_date or not isinstance(maybe_date, str) or maybe_date.isspace():
         return ""
     thisday = None
@@ -336,72 +328,6 @@ def time_str(
     return VTime(f"{h:02d}:{m:02d}")
 
 
-def pretty_time(atime: Union[int, str, float], trim: bool = False) -> str:
-    """Replace lead 0 in HH:MM with blank (or remove, if 'trim' )."""
-    # FIXME: pretty_time() deprecated; use VTime().tidy or VTime().short
-    atime = time_str(atime)
-    if not atime:
-        return ""
-    replace_with = "" if trim else " "
-    if atime[0] == "0":
-        atime = f"{replace_with}{atime[1:]}"
-    return atime
-
-
-def parse_tag(maybe_tag: str, must_be_in=None, uppercase: bool = False) -> list[str]:
-    """Test maybe_tag as a tag, return it as tag and bits.
-
-    Tests maybe_tag by breaking it down into its constituent parts.
-    If looks like a valid tagname, returns a list of
-        [tag_id, colour, tag_letter, tag_number]
-    If tag is not valid, then the return list is empty []
-
-    If must_be_in is not an empty list (or None) then will check whether
-    this tag is in the list passed in, and if
-    not in the list, will return an empty list.
-
-    If uppercase, this will return the tag & its bits in uppercase;
-    otherwise in lowercase.
-
-    Canonical tag id is a concatenation of
-        tag_colour: 1+ lc letters representing the tag's colour,
-                as defined in COLOUR_LETTERS
-        tag_letter: 1 lc letter, the first character on the tag
-        tag_number: a sequence number, without lead zeroes.
-    """
-    # FIXME: parse_tag() is  deprecated, use TagID()
-    maybe_tag = maybe_tag.lower()
-    # Regular expression for parsing tags
-    PARSE_TAG_RE = re.compile(r"^ *([a-z]+)([a-z])0*([0-9]+) *$")
-    r = PARSE_TAG_RE.match(maybe_tag)
-    if not bool(r):
-        return []
-
-    tag_colour = r.group(1)
-    tag_letter = r.group(2)
-    tag_colour = tag_colour.upper() if uppercase else tag_colour
-    tag_letter = tag_letter.upper() if uppercase else tag_letter
-    tag_number = r.group(3)
-    tag_id = f"{tag_colour}{tag_letter}{tag_number}"
-
-    if must_be_in and tag_id not in must_be_in:
-        return []
-
-    return [tag_id, tag_colour, tag_letter, tag_number]
-
-
-def fix_tag(maybe_tag: str, must_be_in: list = None, uppercase: bool = False) -> str:
-    """Turn 'str' into a canonical tag name.
-
-    If must_be_in is exists & not an empty list then, will force
-    this to only allow tags that are in the list.
-
-    If uppercase then returns the tag in uppercase, default is lowercase.
-    """
-    # FIXME fix_tag fn is now deprecated, useTagID()
-    bits = parse_tag(maybe_tag, must_be_in=must_be_in, uppercase=uppercase)
-    return bits[0] if bits else ""
-
 
 def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
     """Get tags sorted into lists by their prefix.
@@ -458,15 +384,6 @@ def get_version() -> str:
     If it looks like a git repo, will also try to include a ref from that.
     """
     version_str = ""
-    # changelog = "changelog.txt"
-    # if os.path.exists(changelog):
-    #     # Read startup header from changelog.
-    #     with open(changelog, "r", encoding="utf-8") as f:
-    #         for line in f:
-    #             r = re.match(r"^ *([0-9]+\.[0-9\.]+\.[0-9]+): *$", line)
-    #             if r:
-    #                 version_str = r.group(1)
-    #                 break
 
     # Git ref
     git_head = os.path.join(".git", "HEAD")
