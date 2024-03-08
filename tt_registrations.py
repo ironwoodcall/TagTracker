@@ -90,12 +90,20 @@ class Registrations:
         cls.display_current_count()
 
     @classmethod
-    def display_current_count(cls, style: str = None, num_indents: int = None):
-        """Display the current count of user registrations."""
+    def display_current_count(
+        cls, reg_count: int = None, style: str = None, num_indents: int = None
+    ):
+        """Display the current count of user registrations.
+
+        If passed a specific count will use that, else will use
+        the registration count stored as the class variable.
+        """
+        if reg_count is None:
+            reg_count = cls.num_registrations
         pr.iprint(
-            f"There {ut.plural(cls.num_registrations,'is','are')} "
-            f"{cls.num_registrations} bike "
-            f"{ut.plural(cls.num_registrations, 'registration')}.",
+            f"There {ut.plural(reg_count,'is','are')} "
+            f"{reg_count} bike "
+            f"{ut.plural(reg_count, 'registration')}.",
             style=style,
             num_indents=num_indents,
         )
