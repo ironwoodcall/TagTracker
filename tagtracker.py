@@ -37,6 +37,12 @@ try:
 except ImportError:
     pass
 
+# Make sure running usable version of python.
+# Yes, this is before the imports.
+if sys.version_info < (3, 10):
+    print("TagTracker requires Python 3.10 or later.")
+    sys.exit(1)
+
 import tt_globals as g
 # from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_tag import TagID
