@@ -252,8 +252,8 @@ TagID.uc(cfg.TAGS_UPPERCASE)
 DBFILE = cfg.DB_FILENAME
 database = db.db_connect(DBFILE)
 
-# Set text colours off (
-cfg.USE_COLOUR = False
+# Set text colours off (for the text-based reports)
+pr.COLOUR_ACTIVE = False
 
 # Parse query parameters from the URL if present
 query_string = ut.untaint(os.environ.get("QUERY_STRING", ""))

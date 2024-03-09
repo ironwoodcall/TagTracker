@@ -1040,6 +1040,10 @@ if not CUSTOM_DAT:
 
 
 if __name__ == "__main__":
+
+    # Set colour module's colour flag based on config
+    pr.COLOUR_ACTIVE = cfg.USE_COLOUR
+
     # Possibly turn on echo. Print any error msgs later, though
     echo_msg = ""
     if cfg.ECHO:

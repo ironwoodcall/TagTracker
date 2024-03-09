@@ -42,6 +42,10 @@ from tt_time import VTime
 # Amount to indent normal output. iprint() indents in units of _INDENT
 _INDENT = "  "
 
+# This flag controls whether or not colour is active. It can be directly
+# read and set by other modules
+COLOUR_ACTIVE = False
+
 # echo will save all input & (screen) output to an echo datafile
 # To start echoing, call set_echo(True)
 # To stop it, call set_echo(False)
@@ -147,8 +151,8 @@ def text_style(text: str, style=None) -> str:
     # If redirecting to file, do not apply style
     if _destination:
         return text
-    # If no colour avilable, do not apply style
-    if not cfg.USE_COLOUR:
+    # If colour not active, do not apply colour styles
+    if not COLOUR_ACTIVE:
         return text
     if not style:
         style = cfg.NORMAL_STYLE
@@ -175,7 +179,7 @@ def iprint(text: str = "", num_indents: int = None, style=None, end="\n") -> Non
         _destination_file.write(f"{indent}{text}{end}")
     else:
         # Going to screen.  Style and indent.
-        if cfg.USE_COLOUR and style:
+        if COLOUR_ACTIVE and style:
             styled_text = text_style(text, style=style)
             print(f"{indent}{styled_text}", end=end)
         else:
