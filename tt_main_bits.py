@@ -27,6 +27,102 @@ import tt_util as ut
 import tt_conf as cfg
 from tt_time import VTime
 
+# Import pyfiglet if it's available.
+try:
+    import random
+    import pyfiglet
+
+    PYFIGLET = True
+except ImportError:
+    PYFIGLET = False
+
+
+def splash():
+    """Print a splash message including version & credits."""
+    if not splash_top_pyfiglet():
+        splash_top_default()
+    pr.iprint()
+    pr.iprint("TagTracker by Julias Hocking")
+    pr.iprint(f"Version: {ut.get_version()}")
+    pr.iprint("See github.com/ironwoodcall/tagtracker for version details.")
+
+
+def splash_top_pyfiglet():
+    """Print a randomly-selected pyfiglet message.
+
+    If nothing fits then returns False. If worked ok then True.
+    """
+
+    def render(
+        message, font, max_width: int = 80, hpadding: int = 0, vpadding: int = 0
+    ) -> list[str]:
+        """Render message in the font, return strings list or None.
+
+        On return, all the strings will be of the same length.
+        Empty strings will be removed from the top and bottom.
+        Strings will be padded front and back with 'hpadding' spaces,
+        and 'vpadding' blank lines above & below.
+        """
+
+        f = pyfiglet.Figlet(font=font)
+        f.width = 2000
+        lines = f.renderText(message).split("\n")
+        lines = [s.rstrip() for s in lines]
+        longest = max((len(s) for s in lines))
+        if longest > max_width or longest == len(message):
+            return None
+        # Remove empty strings from the end..
+        while lines and len(lines[-1]) == 0:
+            lines.pop()
+        # ..and the beginning of the list
+        while lines and len(lines[0]) == 0:
+            lines.pop(0)
+        # Now add any vertical padding blank lines
+        vpad = [""] * vpadding
+        lines = vpad + lines + vpad
+        # Pad them to the same length, including extra padding.
+        lines = [" " * hpadding + s.ljust(longest + hpadding) for s in lines]
+        # Add any vertical padding
+        # Return the result
+        return lines
+
+    if not PYFIGLET:
+        return False
+    available_fonts = pyfiglet.FigletFont.getFonts()
+    msg_lines = None
+    while available_fonts and not msg_lines:
+        font = random.choice(available_fonts)
+        available_fonts.remove(font)
+        msg_lines = render("TagTracker", font, hpadding=2, vpadding=1)
+
+
+    if not msg_lines:
+        return False
+
+    # Print the message
+    for line in msg_lines:
+        pr.iprint(line, style=cfg.ANSWER_STYLE)
+    return True
+
+
+def splash_top_default():
+    """Print the default intro splash message."""
+
+    for line in [
+        r"   _______       _______             _               ",
+        r"  |__   __|     |__   __|           | |              ",
+        r"     | | __ _  __ _| |_ __ __ _  ___| | _____ _ __   ",
+        r"     | |/ _` |/ _` | | '__/ _` |/ __| |/ / _ \ '__|  ",
+        r"     | | (_| | (_| | | | | (_| | (__|   <  __/ |     ",
+        r"     |_|\__,_|\__, |_|_|  \__,_|\___|_|\_\___|_|     ",
+        r"               __/ |                                 ",
+        r"              |___/                                  ",
+    ]:
+        pr.iprint(
+            line,
+            style=cfg.ANSWER_STYLE,
+        )
+
 
 def show_help():
     """Show help_message with colour style highlighting.
@@ -64,35 +160,6 @@ def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
             pr.iprint(line, style=cfg.WARNING_STYLE)
         else:
             pr.iprint(line, style=cfg.NORMAL_STYLE)
-
-
-def splash():
-    """Print the intro splash message."""
-
-    for line in [
-        r"   _______       _______             _               ",
-        r"  |__   __|     |__   __|           | |              ",
-        r"     | | __ _  __ _| |_ __ __ _  ___| | _____ _ __   ",
-        r"     | |/ _` |/ _` | | '__/ _` |/ __| |/ / _ \ '__|  ",
-        r"     | | (_| | (_| | | | | (_| | (__|   <  __/ |     ",
-        r"     |_|\__,_|\__, |_|_|  \__,_|\___|_|\_\___|_|     ",
-        r"               __/ |                                 ",
-        r"              |___/                                  ",
-    ]:
-        pr.iprint(
-            line,
-            style=cfg.ANSWER_STYLE,
-        )
-
-    # pr.iprint("#####################", style=cfg.ANSWER_STYLE)
-    # pr.iprint("##                 ##", style=cfg.ANSWER_STYLE)
-    # pr.iprint("##   TagTracker    ##", style=cfg.ANSWER_STYLE)
-    # pr.iprint("##                 ##", style=cfg.ANSWER_STYLE)
-    # pr.iprint("#####################", style=cfg.ANSWER_STYLE)
-    pr.iprint()
-    pr.iprint("TagTracker by Julias Hocking")
-    pr.iprint(f"Version: {ut.get_version()}")
-    pr.iprint("See github.com/ironwoodcall/tagtracker for version details.")
 
 
 def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]:
