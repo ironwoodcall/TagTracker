@@ -62,7 +62,7 @@ def get_echo() -> bool:
 
 def set_echo(state: bool) -> None:
     """Set the echo state to ON or OFF."""
-    global _echo_state, _echo_file
+    global _echo_state, _echo_file # pylint: disable=global-statement
     if state == _echo_state:
         return
     _echo_state = state
@@ -121,7 +121,7 @@ def set_output(filename: str = "") -> bool:
     Returns True/False if able to change to the new filename.
     (Always True if returning output to screen.)
     """
-    global _destination, _destination_file
+    global _destination, _destination_file # pylint:disable=global-statement
     if filename == _destination:
         return True
     if _destination:

@@ -43,6 +43,7 @@ if sys.version_info < (3, 10):
     print("TagTracker requires Python 3.10 or later.")
     sys.exit(1)
 
+# pylint: disable=wrong-import-position
 import tt_constants as k
 from tt_tag import TagID
 from tt_realtag import Stay
@@ -63,6 +64,8 @@ from tt_sounds import NoiseMaker
 import tt_audit_report as aud
 from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
+# pylint: enable=wrong-import-position
+
 
 # Local connfiguration
 # try:
@@ -221,7 +224,7 @@ def initialize_today() -> bool:
     return True
 
 
-def delete_entry(
+def delete_entry( # pylint:disable=keyword-arg-before-vararg
     maybe_target: str = "",
     maybe_what: str = "",
     maybe_confirm: str = "",
