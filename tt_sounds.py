@@ -26,7 +26,7 @@ import subprocess
 import random
 
 # import tt_globals
-import tt_globals as g
+import tt_constants as k
 import tt_util as ut
 import tt_conf as cfg
 import tt_printer as pr
@@ -120,13 +120,13 @@ class NoiseMaker:
     def get_sound_filepath(cls,code:str) -> str:
         """Fetch the soundfile for a given sound code."""
 
-        if code == g.BIKE_IN:
+        if code ==k.BIKE_IN:
             look_at = cls.bike_in
-        elif code == g.BIKE_OUT:
+        elif code ==k.BIKE_OUT:
             look_at = cls.bike_out
-        elif code == g.ALERT:
+        elif code ==k.ALERT:
             look_at = cls.alert
-        elif code == g.CHEER:
+        elif code ==k.CHEER:
             look_at = cls.cheer
         else:
             ut.squawk(f"sound type {code} not recognized")

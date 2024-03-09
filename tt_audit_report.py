@@ -22,9 +22,7 @@ Copyright (C) 2023-2024 Julias Hocking and Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-
-# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
-from tt_globals import REGULAR, OVERSIZE
+import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
@@ -59,11 +57,11 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
     oversize_in = 0
     oversize_out = 0
     for v in visits.values():
-        if v.type == REGULAR:
+        if v.type == k.REGULAR:
             regular_in += 1
             if not v.still_here:
                 regular_out += 1
-        elif v.type == OVERSIZE:
+        elif v.type == k.OVERSIZE:
             oversize_in += 1
             if not v.still_here:
                 oversize_out += 1
@@ -187,7 +185,9 @@ def audit_report(
         for prefix in sorted(prefixes_returned_out.keys()):
             numbers = prefixes_returned_out[prefix]
             line = f"{prefix:3>} "
-            for i in range(0, ut.greatest_tagnum(prefix, day.regular, day.oversize) + 1):
+            for i in range(
+                0, ut.greatest_tagnum(prefix, day.regular, day.oversize) + 1
+            ):
                 if i in numbers:
                     s = f"{i:02d}"
                 elif TagID(f"{prefix}{i}") in day.retired:

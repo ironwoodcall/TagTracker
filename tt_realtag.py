@@ -17,7 +17,8 @@ Copyright (c) 2023-2024 Julias Hocking & Todd Glover
     (OVERSIZE, REGULAR) and its config-based state (RETIRED, USABLE).
 
 """
-from tt_globals import *
+
+import tt_constants as k
 from tt_tag import TagID
 from tt_time import VTime
 from tt_trackerday import TrackerDay
@@ -39,7 +40,7 @@ class RealTag:
 
     """
 
-    def __init__(self, tag_string: MaybeTag = "", config: TrackerDay = None):
+    def __init__(self, tag_string: k.MaybeTag = "", config: TrackerDay = None):
         self.type = None
         self.state = None
         self.tag = TagID(tag_string)
@@ -50,13 +51,13 @@ class RealTag:
             config, TrackerDay
         ), f"bad config in call to RealTag({tag_string})"
         if self.tag in config.regular:
-            self.type = REGULAR
+            self.type = k.REGULAR
         elif self.tag in config.oversize:
-            self.type = OVERSIZE
+            self.type = k.OVERSIZE
         if self.tag in config.retired:
-            self.state = RETIRED
+            self.state = k.RETIRED
         elif self.tag in (config.oversize | config.regular):
-            self.state = USABLE
+            self.state = k.USABLE
 
 
 class Stay(RealTag):
@@ -76,9 +77,9 @@ class Stay(RealTag):
 
     def __init__(
         self,
-        tag_string: MaybeTag = "",
+        tag_string: k.MaybeTag = "",
         day: TrackerDay = None,
-        as_of_when: MaybeTime = "now",
+        as_of_when: k.MaybeTime = "now",
     ):
         """Create a Stay (ie a tag with activity)"""
         super().__init__(tag_string, day)
@@ -89,30 +90,22 @@ class Stay(RealTag):
         self.duration = 0
         if not self.tag or not day:
             return
-        if (
-            self.tag in day.bikes_out
-            and day.bikes_out[self.tag] <= self.as_of_when
-        ):
+        if self.tag in day.bikes_out and day.bikes_out[self.tag] <= self.as_of_when:
             # Bike came and went before as_of_when
-            self.state = BIKE_OUT
+            self.state = k.BIKE_OUT
             self.time_out = day.bikes_out[self.tag]
             self.time_in = day.bikes_in[self.tag]
-            self.duration = (
-                min(as_of_when.num, self.time_out.num) - self.time_in.num
-            )
-        elif (
-            self.tag in day.bikes_in
-            and day.bikes_in[self.tag] <= self.as_of_when
-        ):
+            self.duration = min(as_of_when.num, self.time_out.num) - self.time_in.num
+        elif self.tag in day.bikes_in and day.bikes_in[self.tag] <= self.as_of_when:
             # Bike came in before as_of_when
-            self.state = BIKE_IN
+            self.state = k.BIKE_IN
             self.time_in = day.bikes_in[self.tag]
             self.duration = as_of_when.num - self.time_in.num
 
     @property
     def still_here(self):
         """Get whether a tag bike is currently in the valet."""
-        return self.state == BIKE_IN
+        return self.state == k.BIKE_IN
 
     @staticmethod
     def dump_visits(visits: dict["Stay"]) -> None:
@@ -123,7 +116,7 @@ class Stay(RealTag):
 
     @staticmethod
     def calc_stays(
-        day: TrackerDay, as_of_when: MaybeTime = "now"
+        day: TrackerDay, as_of_when: k.MaybeTime = "now"
     ) -> dict[TagID, "Stay"]:
         """Create a dict of stays keyed by tag as of as_of_when.
 

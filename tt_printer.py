@@ -33,7 +33,6 @@ try:
 except ImportError:
     pass
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
 import tt_conf as cfg
 import tt_notes as notes
@@ -270,6 +269,7 @@ def print_tag_notes(tag: str, reset: bool = False):
 
     _print_tag_notes_control[_print_tag_notes_key_prev] = tag
 
+
 def clear_screen():
     """Clear the screen, set cursor to UL corner."""
-    print('\033[2J\033[H',end="")
+    print("\033[2J\033[H", end="")

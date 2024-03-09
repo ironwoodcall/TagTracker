@@ -23,10 +23,8 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import statistics
-from typing import Union
 
-# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
-from tt_globals import REGULAR, OVERSIZE, BIKE_IN, BIKE_OUT
+import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
@@ -138,7 +136,7 @@ def later_events_warning(day: TrackerDay, when: VTime) -> None:
     pr.iprint(msg, style=cfg.WARNING_STYLE)
 
 
-def simplified_taglist(tags: Union[list[TagID], str]) -> str:
+def simplified_taglist(tags: list[TagID] | str) -> str:
     """Make a simplified str of tag names from a list of tags.
 
     E.g. "wa0,2-7,9 wb1,9,10 be4"
@@ -773,8 +771,8 @@ def dataform_report(day: TrackerDay, args: list[str]) -> None:
             style=cfg.HIGHLIGHT_STYLE,
         )
         return
-    for which in [BIKE_IN, BIKE_OUT]:
-        if which == BIKE_IN:
+    for which in [k.BIKE_IN, k.BIKE_OUT]:
+        if which == k.BIKE_IN:
             titlebit = "checked IN"
             prefix = "<<<<"
             suffix = ""
@@ -787,7 +785,7 @@ def dataform_report(day: TrackerDay, args: list[str]) -> None:
         pr.iprint(title, style=cfg.SUBTITLE_STYLE)
         pr.iprint("-" * len(title), style=cfg.SUBTITLE_STYLE)
         for start, block in all_blocks.items():
-            inouts = block.ins_list if which == BIKE_IN else block.outs_list
+            inouts = block.ins_list if which == k.BIKE_IN else block.outs_list
             end = tt_block.block_end(start)
             tagslist = simplified_taglist(inouts)
             if TagID.uc():

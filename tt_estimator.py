@@ -42,7 +42,6 @@ import sys
 import math
 import statistics
 
-# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_conf as cfg
 import tt_util as ut
 from tt_time import VTime

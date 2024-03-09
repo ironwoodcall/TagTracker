@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Parse a user command into tokens.
 
-Reads info from day-end-form (csv) or from other
-sources (e.g. weather info from NRCan? tbd)
-
 Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
     Notwithstanding the licensing information below, this code may not
@@ -24,7 +21,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_tag import TagID
 import tt_util as ut
 import tt_conf as cfg

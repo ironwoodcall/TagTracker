@@ -30,7 +30,7 @@ Symbols for:
 
 """
 
-import tt_globals as g
+import tt_constants as k
 import tt_printer as pr
 from tt_time import VTime
 from tt_tag import TagID
@@ -91,13 +91,13 @@ def tag_inventory_matrix(
             this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not this_tag or not this_tag.state:
                 tag_states.append(cfg.TAG_INV_UNKNOWN)
-            elif this_tag.state == g.USABLE:
+            elif this_tag.state == k.USABLE:
                 tag_states.append(cfg.TAG_INV_AVAILABLE)
-            elif this_tag.state == g.BIKE_IN:
+            elif this_tag.state == k.BIKE_IN:
                 tag_states.append(cfg.TAG_INV_BIKE_IN)
-            elif this_tag.state == g.BIKE_OUT:
+            elif this_tag.state == k.BIKE_OUT:
                 tag_states.append(cfg.TAG_INV_BIKE_OUT)
-            elif this_tag.state == g.RETIRED:
+            elif this_tag.state == k.RETIRED:
                 tag_states.append(cfg.TAG_INV_RETIRED)
             else:
                 tag_states.append(cfg.TAG_INV_ERROR)
@@ -122,17 +122,17 @@ def tag_inventory_matrix(
 def colours_report(day: TrackerDay) -> None:
     """List colours in use."""
     type_names = {
-        g.UNKNOWN: "None",
-        g.REGULAR: "Regular",
-        g.OVERSIZE: "Oversize",
-        g.MIXED: "Mixed",
+        k.UNKNOWN: "None",
+        k.REGULAR: "Regular",
+        k.OVERSIZE: "Oversize",
+        k.MIXED: "Mixed",
     }
 
     # Make a dict of the colour letters that's all lowercase
     colours = {k.lower(): v for k, v in day.colour_letters.items()}
     # Dict of bike types for tags: UNKNOWN, OVERSIZE, REGULAR or MIXED
     tag_type = dict(
-        zip(list(day.colour_letters.keys()), [g.UNKNOWN for _ in range(0, 100)])
+        zip(list(day.colour_letters.keys()), [k.UNKNOWN for _ in range(0, 100)])
     )
     # Dictionary of how many tags are of each colour.
     tag_count = dict(zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)]))
@@ -143,11 +143,11 @@ def colours_report(day: TrackerDay) -> None:
             ut.squawk(f"bad colour for {tag}: '{code}' in colours_report()")
             continue
         # Tag type
-        btype = g.REGULAR if tag in day.regular else g.OVERSIZE
-        if tag_type[code] == g.UNKNOWN:
+        btype = k.REGULAR if tag in day.regular else k.OVERSIZE
+        if tag_type[code] == k.UNKNOWN:
             tag_type[code] = btype
         elif tag_type[code] != btype:
-            tag_type[code] = g.MIXED
+            tag_type[code] = k.MIXED
         # Tag count
         tag_count[code] += 1
 

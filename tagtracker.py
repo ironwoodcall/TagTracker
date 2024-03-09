@@ -43,8 +43,7 @@ if sys.version_info < (3, 10):
     print("TagTracker requires Python 3.10 or later.")
     sys.exit(1)
 
-import tt_globals as g
-# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+import tt_constants as k
 from tt_tag import TagID
 from tt_realtag import Stay
 from tt_time import VTime
@@ -120,7 +119,7 @@ def deduce_PARKING_DATE(current_guess: str, filename: str) -> str:
     """
     if current_guess:
         return current_guess
-    r = g.DATE_PART_RE.search(filename)
+    r = k.DATE_PART_RE.search(filename)
     if r:
         return f"{int(r.group(2)):04d}-{int(r.group(3)):02d}-" f"{int(r.group(4)):02d}"
     return ut.date_str("today")
@@ -346,10 +345,10 @@ def query_one_tag(maybe_tag: str, day: td.TrackerDay, multi_line: bool = False) 
             style=cfg.WARNING_STYLE,
         )
         return
-    if tag.state == g.RETIRED:
+    if tag.state == k.RETIRED:
         pr.iprint(f"Tag {tag.tag} is retired", style=cfg.WARNING_STYLE)
         return
-    if tag.state == g.BIKE_OUT:
+    if tag.state == k.BIKE_OUT:
         if multi_line:
             pr.iprint(
                 f"{tag.time_in.tidy}  " f"{tag.tag} checked in",
@@ -366,7 +365,7 @@ def query_one_tag(maybe_tag: str, day: td.TrackerDay, multi_line: bool = False) 
                 style=cfg.ANSWER_STYLE,
             )
         return
-    if tag.state == g.BIKE_IN:
+    if tag.state == k.BIKE_IN:
         # Bike has come in sometime today but gone out
         dur = VTime("now").num - tag.time_in.num
         if multi_line:
@@ -390,7 +389,7 @@ def query_one_tag(maybe_tag: str, day: td.TrackerDay, multi_line: bool = False) 
             )
 
         return
-    if tag.state == g.USABLE:
+    if tag.state == k.USABLE:
         pr.iprint(
             f"Tag {tag.tag} not used yet today",
             style=cfg.ANSWER_STYLE,
@@ -424,9 +423,7 @@ def query_tag(targets: list[str], multi_line: bool = None) -> None:
 def operating_hours_command() -> None:
     """Respond to the 'hours' command."""
     global OPENING_TIME, CLOSING_TIME  # pylint: disable=global-statement
-    OPENING_TIME, CLOSING_TIME = bits.get_operating_hours(
-        OPENING_TIME, CLOSING_TIME
-    )
+    OPENING_TIME, CLOSING_TIME = bits.get_operating_hours(OPENING_TIME, CLOSING_TIME)
 
 
 def multi_edit(args: list[str]):
@@ -467,9 +464,9 @@ def multi_edit(args: list[str]):
             self.num_tokens = len(parts)
             self.tags = []  # valid Tags (though possibly not available)
             self.inout_str = ""  # what the user said
-            self.inout_value = g.BADVALUE  # or g.BIKE_IN, g.BIKE_OUT
+            self.inout_value = k.BADVALUE  # ork.BIKE_IN,k.BIKE_OUT
             self.atime_str = ""  # What the user said
-            self.atime_value = g.BADVALUE  # A valid time, or g.BADVALUE
+            self.atime_value = k.BADVALUE  # A valid time, ork.BADVALUE
             self.remainder = []  # whatever is left (hopefully nothing)
             if self.num_tokens == 0:
                 return
@@ -488,9 +485,9 @@ def multi_edit(args: list[str]):
             self.inout_str = self.remainder[0]
             self.remainder = self.remainder[1:]
             if self.inout_str.lower() in ["i", "in"]:
-                self.inout_value = g.BIKE_IN
+                self.inout_value = k.BIKE_IN
             elif self.inout_str.lower() in ["o", "out"]:
-                self.inout_value = g.BIKE_OUT
+                self.inout_value = k.BIKE_OUT
             else:
                 return
             # Anything left over?
@@ -511,16 +508,16 @@ def multi_edit(args: list[str]):
 
         On entry:
             tag: is a valid tag id (though possibly not usable)
-            inout: is g.BIKE_IN or g.BIKE_OUT
+            inout: isk.BIKE_IN ork.BIKE_OUT
             target_time: is a valid Time
         On exit, either:
-            tag has been changed, msg delivered; returns g.BIKE_IN or g.BIKE_OUT; or
+            tag has been changed, msg delivered; returnsk.BIKE_IN ork.BIKE_OUT; or
             no change, error msg delivered, returns ""
         """
 
         def success(tag: TagID, inout_str: str, newtime: VTime) -> None:
             """Print change message. inout_str is 'in' or 'out."""
-            inoutflag = g.BIKE_IN if inout_str == "in" else g.BIKE_OUT
+            inoutflag = k.BIKE_IN if inout_str == "in" else k.BIKE_OUT
             print_tag_inout(tag, inoutflag, newtime)
 
         # Error conditions to test for
@@ -541,10 +538,10 @@ def multi_edit(args: list[str]):
         if tag not in ALL_TAGS:
             error(f"Tag '{tag}' not available for use")
             return ""
-        if inout == g.BIKE_IN and tag in check_outs and check_outs[tag] < target_time:
+        if inout == k.BIKE_IN and tag in check_outs and check_outs[tag] < target_time:
             error(f"Tag '{tag}' has check-out time earlier than {target_time}")
             return ""
-        if inout == g.BIKE_OUT:
+        if inout == k.BIKE_OUT:
             if tag not in check_ins:
                 error(f"Tag '{tag}' not checked in")
                 return ""
@@ -552,10 +549,10 @@ def multi_edit(args: list[str]):
                 error(f"Tag '{tag}' has checked in later than {target_time.short}")
                 return ""
         # Have checked for errors, can now commit the change
-        if inout == g.BIKE_IN:
+        if inout == k.BIKE_IN:
             check_ins[tag] = target_time
             success(tag, "in", target_time)
-        elif inout == g.BIKE_OUT:
+        elif inout == k.BIKE_OUT:
             check_outs[tag] = target_time
             success(tag, "out", target_time)
         else:
@@ -589,7 +586,7 @@ def multi_edit(args: list[str]):
             return
         argstring += " " + response
         cmd = TokenSet(argstring)
-    if cmd.inout_value not in [g.BIKE_IN, g.BIKE_OUT]:
+    if cmd.inout_value not in [k.BIKE_IN, k.BIKE_OUT]:
         error(f"Must specify IN or OUT, not '{cmd.inout_str}'. " f"{syntax}")
         return
     # Now we know we have tags and an INOUT
@@ -600,7 +597,7 @@ def multi_edit(args: list[str]):
             return
         argstring += " " + response
         cmd = TokenSet(argstring)
-    if cmd.atime_value == g.BADVALUE:
+    if cmd.atime_value == k.BADVALUE:
         error(f"Bad time '{cmd.atime_str}', " f"must be HHMM or 'now'. {syntax}")
         return
     # That should be the whole command, with nothing left over.
@@ -617,11 +614,11 @@ def multi_edit(args: list[str]):
 
 def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
     """Pretty-print a tag-in or tag-out message."""
-    if inout == g.BIKE_IN:
+    if inout == k.BIKE_IN:
         basemsg = f"Bike {tag} checked in"
         basemsg = f"{basemsg} at {when.short}" if when else basemsg
         finalmsg = f"{basemsg:40} <---in---  "
-    elif inout == g.BIKE_OUT:
+    elif inout == k.BIKE_OUT:
         basemsg = f"Bike {tag} checked out"
         basemsg = f"{basemsg} at {when.short}" if when else basemsg
         finalmsg = f"{basemsg:55} ---out--->  "
@@ -651,7 +648,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
         if tag in check_ins:
             if tag in check_outs:  # if tag has checked in & out
                 query_tag([tag], multi_line=False)
-                NoiseMaker.play(g.ALERT)
+                NoiseMaker.play(k.ALERT)
                 pr.iprint(
                     f"Overwrite {check_outs[tag]} check-out with "
                     f"current time ({VTime('now').short})? "
@@ -676,7 +673,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                     )
                     return
                 if time_diff_mins < cfg.CHECK_OUT_CONFIRM_TIME:
-                    NoiseMaker.play(g.ALERT)
+                    NoiseMaker.play(k.ALERT)
                     query_tag([tag], multi_line=False)
                     pr.iprint(
                         "Do you want to check it out? " f"(y/N) {cfg.CURSOR}",
@@ -692,8 +689,8 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                     pr.iprint("Cancelled bike check out", style=cfg.WARNING_STYLE)
         else:  # if string is in neither dict
             check_ins[tag] = VTime("now")
-            print_tag_inout(tag, g.BIKE_IN)
-            NoiseMaker.play(g.BIKE_IN)
+            print_tag_inout(tag, k.BIKE_IN)
+            NoiseMaker.play(k.BIKE_IN)
 
 
 def parse_command(user_input: str) -> list[str]:
@@ -737,6 +734,7 @@ def parse_command(user_input: str) -> list[str]:
         return [cfg.CMD_UNKNOWN] + input_tokens[1:]
     # We have a recognized command, return it with its args.
     return [command] + input_tokens[1:]
+
 
 def dump_data():
     """For debugging. Dump current contents of core data structures."""
@@ -803,7 +801,6 @@ def bikes_on_hand_reminder() -> None:
             " here.",
             style=cfg.HIGHLIGHT_STYLE,
         )
-
 
 
 def main():
@@ -905,7 +902,7 @@ def main():
         elif not TagID(cmd_bits.command):
             # This is not a tag
             if cmd_bits.command == cfg.CMD_UNKNOWN or len(cmd_bits.args) > 0:
-                NoiseMaker.play(g.ALERT)
+                NoiseMaker.play(k.ALERT)
                 msg = "Unrecognized command, enter 'h' for help"
             elif cmd_bits.command == cfg.CMD_TAG_RETIRED:
                 msg = f"Tag '{TagID(user_str)}' is retired"
@@ -1043,8 +1040,6 @@ if not CUSTOM_DAT:
 
 
 if __name__ == "__main__":
-
-
     # Possibly turn on echo. Print any error msgs later, though
     echo_msg = ""
     if cfg.ECHO:
@@ -1063,7 +1058,7 @@ if __name__ == "__main__":
     # echo error messages now
     if echo_msg:
         pr.iprint()
-        pr.iprint(echo_msg,style=cfg.WARNING_STYLE)
+        pr.iprint(echo_msg, style=cfg.WARNING_STYLE)
 
     # Check that data directory is writable
     if not ut.writable_dir(cfg.DATA_FOLDER):

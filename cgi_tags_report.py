@@ -24,8 +24,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import sqlite3
 
-##from tt_globals import *
-
 import tt_util as ut
 import tt_dbutil as db
 import cgi_common as cc
@@ -99,17 +97,16 @@ def tags_report(ttdb: sqlite3.Connection):
                 picked up by end of day.</i></td></tr>
           <tr><td colspan=2><i>Lost tag counts exclude bikes today ({today}).</i></td></tr>
           </table><br>
-          """
-          )
+          """)
 
     print("<table class=general_table>")
     print(f"<tr><th colspan={max_tag+1}>Every tag ever used</th></tr>")
     for pre in sorted(prefixes.keys()):
         print("<tr>")
-        for num in range(0, max_tag+1):
+        for num in range(0, max_tag + 1):
             tag = TagID(f"{pre}{num}")
             if tag in taginfo:
-                taglink = cc.selfref(cc.WHAT_TAG_HISTORY,qtag=tag)
+                taglink = cc.selfref(cc.WHAT_TAG_HISTORY, qtag=tag)
                 info = taginfo[tag]
                 hover = f"Tag: {tag.upper()}\nUsed {info.times_used} {ut.plural(info.times_used,'time')}\nLast used {info.last_used}\n"
                 if info.times_lost == 0:
@@ -121,11 +118,13 @@ def tags_report(ttdb: sqlite3.Connection):
                         color = STYLE_NOW_LOST
                     else:
                         color = STYLE_EVER_LOST
-                print(f"  <td title='{hover}' style='background:{color}'>"
-                      f"<a href='{taglink}'>{info.tag.upper()}</a></td>")
+                print(
+                    f"  <td title='{hover}' style='background:{color}'>"
+                    f"<a href='{taglink}'>{info.tag.upper()}</a></td>"
+                )
             else:
-                print(f"  <td title='Tag {tag.upper()} unknown' style='{STYLE_EMPTY}'>&nbsp;</td>")
+                print(
+                    f"  <td title='Tag {tag.upper()} unknown' style='{STYLE_EMPTY}'>&nbsp;</td>"
+                )
         print("</tr>")
     print("</table>")
-
-

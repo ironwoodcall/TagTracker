@@ -38,10 +38,11 @@ import sys
 import signal
 import urllib.request
 
+import tt_constants as k
 import tt_conf as cfg
 import tt_printer as pr
 from tt_sounds import NoiseMaker
-import tt_globals as g
+
 
 
 class InternetMonitorController:
@@ -214,7 +215,7 @@ class InternetMonitor:
             time.sleep(cfg.INTERNET_MONITORING_FREQUENCY * 60)
 
             if not cls._check_internet():
-                NoiseMaker.play(g.ALERT)
+                NoiseMaker.play(k.ALERT)
                 pr.text_alert(
                     "Please open a web browser to check internet connection.",
                     style=cfg.STRONG_ALERT_STYLE,

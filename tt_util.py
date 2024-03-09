@@ -30,14 +30,8 @@ import collections
 import random
 import string
 
-
-# This is for type hints instead of (eg) int|str
-from typing import Union
-
-# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_time import VTime
 from tt_tag import TagID
-
 
 
 def find_on_path(filename):
@@ -100,7 +94,6 @@ def decomment(string: str) -> str:
     if r:
         return r.group(1)
     return string
-
 
 
 def date_str(
@@ -235,7 +228,7 @@ def get_time() -> VTime:
     return VTime(datetime.datetime.today().strftime("%H:%M"))
 
 
-def time_int(maybe_time: Union[str, int, float, None]) -> Union[int, None]:
+def time_int(maybe_time: str | int | float | None) -> int | None:
     """Return maybe_time (str or int) to number of minutes since midnight or "".
 
         Input can be int (minutes since midnight) or a string
@@ -280,7 +273,7 @@ def iso_timestamp() -> str:
 
 
 def time_str(
-    maybe_time: Union[int, str, float, None],
+    maybe_time: int | str | float | None,
     allow_now: bool = False,
     default_now: bool = False,
 ) -> VTime:
@@ -326,7 +319,6 @@ def time_str(
         m = maybe_time % 60
     # Return 5-digit time string
     return VTime(f"{h:02d}:{m:02d}")
-
 
 
 def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
@@ -578,7 +570,7 @@ def greatest_tagnum(
     if not regular_tags and not oversize_tags:
         return None
     # print(f"{prefix=},{len(regular_tags)=},{len(oversize_tags)=}")
-    all_tags = list(regular_tags)+list(oversize_tags)
+    all_tags = list(regular_tags) + list(oversize_tags)
     this_group = [t for t in all_tags if t.prefix == prefix]
     # print(f"{this_group=}")
     if this_group:
@@ -586,7 +578,8 @@ def greatest_tagnum(
     else:
         return None
 
-def writable_dir(filepath:str) -> bool:
+
+def writable_dir(filepath: str) -> bool:
     """Test if filepath is a folder and writeable."""
     if os.path.isdir(filepath):
         if os.access(filepath, os.W_OK):

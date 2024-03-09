@@ -26,10 +26,8 @@ import sqlite3
 import sys
 import os
 import urllib.parse
-import datetime
 
-import tt_globals as g
-
+import tt_constants as k
 import tt_dbutil as db
 import tt_conf as cfg
 import tt_reports as rep
@@ -47,7 +45,8 @@ import cgi_season_report
 import cgi_tags_report
 import cgi_period_summaries
 
-def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: g.MaybeTag) -> None:
+
+def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: k.MaybeTag) -> None:
     """Report a tag's history."""
 
     this_tag = TagID(maybe_tag)
@@ -115,11 +114,11 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
         formatted_tag = f"{this_tag.lower()},   "[:6]
         print(f"  {formatted_tag}{atime}")
     print(f"{df.HEADER_REGULAR}")
-    ut.line_wrapper(" ".join(sorted(day.regular)),print_handler=pr.iprint)
+    ut.line_wrapper(" ".join(sorted(day.regular)), print_handler=pr.iprint)
     print(f"{df.HEADER_OVERSIZE}")
-    ut.line_wrapper(" ".join(sorted(day.oversize)),print_handler=pr.iprint)
+    ut.line_wrapper(" ".join(sorted(day.oversize)), print_handler=pr.iprint)
     print(f"{df.HEADER_RETIRED}")
-    ut.line_wrapper(" ".join(sorted(day.retired)),print_handler=pr.iprint)
+    ut.line_wrapper(" ".join(sorted(day.retired)), print_handler=pr.iprint)
     print(f"{df.HEADER_COLOURS}")
     for col, name in day.colour_letters.items():
         print(f"  {col},{name}")
@@ -137,15 +136,17 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     if not day:
         print("<b>no information for this day</b><br>")
         return
-    aud.audit_report(day, [whattime], include_notes=False,include_returns=True)
+    aud.audit_report(day, [whattime], include_notes=False, include_returns=True)
     print(f"\n  Registrations today: {day.registrations}\n")
     print("</pre>")
-    print( "<h2>Tag Inventory Matrix</h2>")
+    print("<h2>Tag Inventory Matrix</h2>")
     print("<pre>")
-    tt_tag_inv.tags_config_report(day,[whattime],include_empty_groups=True)
-    print( "\n</pre>")
-    print( "<h2>See also:</h2>")
-    print(f"""<ul><a href='{cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today",qtime="now",qsort="tag")}'>Today details</a>""")
+    tt_tag_inv.tags_config_report(day, [whattime], include_empty_groups=True)
+    print("\n</pre>")
+    print("<h2>See also:</h2>")
+    print(
+        f"""<ul><a href='{cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today",qtime="now",qsort="tag")}'>Today details</a>"""
+    )
 
 
 def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
@@ -163,11 +164,11 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     print()
     rep.busyness_report(day, [qtime])
     print()
-    aud.audit_report(day, [query_time], include_notes=False,include_returns=True)
+    aud.audit_report(day, [query_time], include_notes=False, include_returns=True)
     print()
     rep.full_chart(day, query_time)
     print()
-    tt_tag_inv.tags_config_report(day, [query_time],True)
+    tt_tag_inv.tags_config_report(day, [query_time], True)
     print()
     rep.busy_graph(day, query_time)
     print()
@@ -224,13 +225,16 @@ def html_head(
     ##print(cc.style())
     print("<body>")
 
-def webpage_footer(ttdb:sqlite3.Connection):
+
+def webpage_footer(ttdb: sqlite3.Connection):
     """Prints the footer for each webpage"""
 
     print("<pre>")
 
     if cfg.DATA_OWNER:
-        data_note = cfg.DATA_OWNER if isinstance(cfg.DATA_OWNER,list) else [cfg.DATA_OWNER]
+        data_note = (
+            cfg.DATA_OWNER if isinstance(cfg.DATA_OWNER, list) else [cfg.DATA_OWNER]
+        )
         for line in data_note:
             print(line)
         print()
@@ -312,7 +316,7 @@ elif what == cc.WHAT_SUMMARY:
     cgi_season_report.season_summary(database)
 elif what == cc.WHAT_SUMMARY_FREQUENCIES:
     cgi_season_report.season_frequencies_report(
-        database, dow_parameter=dow_parameter, title_bit=text,pages_back=pages_back
+        database, dow_parameter=dow_parameter, title_bit=text, pages_back=pages_back
     )
 elif what == cc.WHAT_TAGS_LOST:
     cgi_tags_report.tags_report(database)
@@ -325,9 +329,15 @@ elif what == cc.WHAT_DATAFILE:
 elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_enry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
-    web_audit_report(database, 'today', VTime("now"))
-elif what in [cc.WHAT_PERIOD,cc.WHAT_PERIOD_WEEK,cc.WHAT_PERIOD_MONTH,cc.WHAT_PERIOD_QUARTER,cc.WHAT_PERIOD_YEAR]:
-    cgi_period_summaries.period_summary(database,what)
+    web_audit_report(database, "today", VTime("now"))
+elif what in [
+    cc.WHAT_PERIOD,
+    cc.WHAT_PERIOD_WEEK,
+    cc.WHAT_PERIOD_MONTH,
+    cc.WHAT_PERIOD_QUARTER,
+    cc.WHAT_PERIOD_YEAR,
+]:
+    cgi_period_summaries.period_summary(database, what)
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)

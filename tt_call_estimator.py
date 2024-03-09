@@ -24,7 +24,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import urllib.request
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_conf as cfg
 import tt_util as ut
 from tt_time import VTime
