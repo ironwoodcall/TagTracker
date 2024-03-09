@@ -29,7 +29,7 @@ import urllib.parse
 
 import tt_constants as k
 import tt_dbutil as db
-import tt_conf as cfg
+import web_base_config as wcfg
 import tt_reports as rep
 import tt_audit_report as aud
 import tt_datafile as df
@@ -231,9 +231,9 @@ def webpage_footer(ttdb: sqlite3.Connection):
 
     print("<pre>")
 
-    if cfg.DATA_OWNER:
+    if wcfg.DATA_OWNER:
         data_note = (
-            cfg.DATA_OWNER if isinstance(cfg.DATA_OWNER, list) else [cfg.DATA_OWNER]
+            wcfg.DATA_OWNER if isinstance(wcfg.DATA_OWNER, list) else [wcfg.DATA_OWNER]
         )
         for line in data_note:
             print(line)
@@ -247,9 +247,9 @@ def webpage_footer(ttdb: sqlite3.Connection):
 # =================================================================
 print("Content-type: text/html\n\n\n")
 
-TagID.uc(cfg.TAGS_UPPERCASE)
+TagID.uc(wcfg.TAGS_UPPERCASE)
 
-DBFILE = cfg.DB_FILENAME
+DBFILE = wcfg.DB_FILENAME
 database = db.db_connect(DBFILE)
 
 # Set text colours off (for the text-based reports)

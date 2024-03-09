@@ -22,16 +22,16 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import tt_constants as k
 from tt_trackerday import TrackerDay
 from tt_time import VTime
 from tt_event import Event
-import tt_conf as cfg
 
 
 class Block:
     """Class to help with reporting.
 
-    Each instance is a timeblock of duration cfg.BLOCK_DURATION.
+    Each instance is a timeblock of duration k.BLOCK_DURATION.
     """
 
     def __init__(self, start_time: VTime|int) -> None:
@@ -65,7 +65,7 @@ def block_start(atime: int|str) -> VTime:
     if atime is None:
         return ""
     # which block of time does it fall in?
-    block_start_min = (atime.num // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
+    block_start_min = (atime.num // k.BLOCK_DURATION) * k.BLOCK_DURATION
     return VTime(block_start_min)
 
 
@@ -77,7 +77,7 @@ def block_end(atime: int|str) -> VTime:
     # Get block start
     start = block_start(atime)
     # Calculate block end
-    end = start.num + cfg.BLOCK_DURATION - 1
+    end = start.num + k.BLOCK_DURATION - 1
     # Return as minutes or HHMM
     return VTime(end)
 
@@ -106,7 +106,7 @@ def get_timeblock_list(day: TrackerDay, as_of_when: str) -> list[VTime]:
     # Create list of timeblocks for the the whole day.
     timeblocks = []
     for t in range(
-        min_block_min, max_block_min + cfg.BLOCK_DURATION, cfg.BLOCK_DURATION
+        min_block_min, max_block_min + k.BLOCK_DURATION, k.BLOCK_DURATION
     ):
         timeblocks.append(VTime(t))
     return timeblocks

@@ -42,10 +42,11 @@ import sys
 import math
 import statistics
 
-import tt_conf as cfg
+import web_base_config as wcfg
 import tt_util as ut
 from tt_time import VTime
 import tt_dbutil as db
+import tt_conf as cfg
 import tt_estimator_rf as rf
 
 # These are model states
@@ -338,7 +339,7 @@ class LRModel:
 class Estimator:
     """Data and methods to estimate how many more bikes to expect."""
 
-    DBFILE = cfg.DB_FILENAME
+    DBFILE = wcfg.DB_FILENAME
 
     def __init__(
         self,
@@ -381,7 +382,7 @@ class Estimator:
         self.rf_model = rf.RandomForestRegressorModel()
 
         # pylint: disable-next=invalid-name
-        DBFILE = cfg.DB_FILENAME
+        DBFILE = wcfg.DB_FILENAME
         if not os.path.exists(DBFILE):
             self.error = "Database not found"
             self.state = ERROR

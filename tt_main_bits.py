@@ -26,6 +26,7 @@ import tt_printer as pr
 import tt_util as ut
 import tt_conf as cfg
 from tt_time import VTime
+import tt_constants as k
 
 # Import pyfiglet if it's available.
 try:
@@ -132,7 +133,7 @@ def show_help():
     other lines in normal style.
     """
     title_done = False
-    for line in cfg.HELP_MESSAGE.split("\n"):
+    for line in k.HELP_MESSAGE.split("\n"):
         if not line:
             pr.iprint()
         elif not title_done:

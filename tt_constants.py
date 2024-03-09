@@ -84,3 +84,41 @@ _DATE_RE = r"(2[0-9][0-9][0-9])[/-]([01]?[0-9])[/-]([0123]?[0-9])"
 DATE_PART_RE = re.compile(r"(\b|[^a-zA-Z0-9])" + _DATE_RE + r"\b")
 # Match a date as the whole string
 DATE_FULL_RE = re.compile(r"^ *" + _DATE_RE + " *$")
+
+# How long a single time block is (minutes) - for charts/stats etc
+BLOCK_DURATION = 30
+
+
+# Help message.  Colour styles will be applied as:
+#       First non-blank line will be in TITLE_STYLE, after which
+#       lines that are flush left will be in SUBTITLE_STYLE; and
+#       all other lines will be in NORMAL_STYLE
+HELP_MESSAGE = """
+TagTracker Commands
+
+To enter and change tracking data
+  Check bike in or out         :   <tag> (eg “wa3”)
+  Edit check in/out times      :   edit / e
+  Delete a check in/out        :   delete / del  / d
+  Change operating hours       :   hours
+  View/add operator notes      :   note / n
+  View/set bike registrations  :   registrations / reg / r
+
+Information and reports
+  Show info about one tag      :   query / q / ?
+  Show recent activity         :   recent / rec
+  Show audit info              :   audit / a
+  Show day-end stats report    :   stat  / s
+  Show site busy-ness report   :   busy / b
+  Show data as on paper form   :   form / f
+  Show tag configurations      :   tags / t
+  Show chart of all activity   :   chart / c
+  Estimate further bikes       :   estimate / est / guess
+
+Other
+  Show this list of commands   :   help  /  h
+  Set tag display to UPPERCASE :   uppercase / uc
+  Set tag display to lowercase :   lowercase / lc
+  Send reports to shared drive :   publish / pub
+  Exit                         :   exit / x
+"""

@@ -572,7 +572,7 @@ def busy_report(
         """Format and print one line of busyness report."""
         pr.iprint(f"{rank:2d}     {num_events:3d}      ", end="")
         for time_num, start_time in enumerate(sorted(times), start=1):
-            end_time = VTime(start_time.num + cfg.BLOCK_DURATION)
+            end_time = VTime(start_time.num + k.BLOCK_DURATION)
             pr.iprint(
                 f"{start_time.short}-{end_time.short}",
                 num_indents=0,
