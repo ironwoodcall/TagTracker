@@ -113,6 +113,8 @@ SPECIAL_HOURS = {}
 # }
 
 
+COLOUR_LETTERS = {}
+
 # Import any local config to override this module's values.
 try:
     from client_local_config import *  # pylint:disable=wildcard-import,unused-wildcard-import

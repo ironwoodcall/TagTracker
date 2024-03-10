@@ -64,6 +64,7 @@ from tt_sounds import NoiseMaker
 import tt_audit_report as aud
 from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
+import tt_default_hours
 
 # pylint: enable=wrong-import-position
 
@@ -87,8 +88,10 @@ COLOUR_LETTERS = {}
 check_ins = {}
 check_outs = {}
 
-# The assignment below is unneccessary but stops pylint from whining.
+
+# The assignments below are unneccessary but stop pylint from whining.
 publishment = None
+DATA_FILEPATH = ""
 
 
 def fix_2400_events() -> list[TagID]:
@@ -111,7 +114,7 @@ def fix_2400_events() -> list[TagID]:
     return changed
 
 
-def deduce_PARKING_DATE(current_guess: str, filename: str) -> str:
+def deduce_parking_date(current_guess: str, filename: str) -> str:
     """Guess what date the current data is for.
 
     Logic:
@@ -171,6 +174,63 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
 
 
 def initialize_today() -> bool:
+    """Set up today's info from existing datafile or from configs.
+
+    This does *not* /create/ the new datafile, just the data that
+    will go into it.
+    """
+
+    def handle_msgs(msgs: list[str]):
+        """Print a list of warning/error messages."""
+        pr.iprint()
+        for text in msgs:
+            pr.iprint(text, style=k.ERROR_STYLE)
+
+    if os.path.exists(DATA_FILEPATH):
+        # Read from existing datafile
+        error_msgs = []
+        today = df.read_datafile(DATA_FILEPATH, error_msgs)
+        if error_msgs:
+            handle_msgs(error_msgs)
+            return False
+    else:
+        # Set up for a new day
+        today = td.TrackerDay()
+    # Add/check parts of the 'roday' object
+    if not today.date:
+        today.date = deduce_parking_date(today.date, DATA_FILEPATH)
+    # Find the tag reference lists (regular, oversize, etc).
+    # If there's no tag reference lists, or it's today's date,
+    # then fetch the tag reference lists from tags config
+    if not (today.regular or today.oversize) or today.date == ut.date_str("today"):
+        tagconfig = get_taglists_from_config()
+        today.regular = tagconfig.regular
+        today.oversize = tagconfig.oversize
+        today.retired = tagconfig.retired
+        today.colour_letters = tagconfig.colour_letters
+    # Set UC if needed (NB: datafiles are always LC)
+    TagID.uc(cfg.TAGS_UPPERCASE)
+    # On success, set today's working data
+    unpack_day_data(today)
+    # Now do a consistency check.
+    errs = pack_day_data().lint_check(strict_datetimes=False)
+    if errs:
+        pr.iprint()
+        for msg in errs:
+            pr.iprint(msg, style=k.ERROR_STYLE)
+        error_exit()
+    # In case doing a date that's not today, warn
+    if PARKING_DATE != ut.date_str("today"):
+        handle_msgs(
+            [
+                f"Warning: Data is from {ut.date_str(PARKING_DATE,long_date=True)}, not today"
+            ]
+        )
+    # Done
+    return True
+
+
+def initialize_today_old() -> bool:
     """Read today's info from datafile & maybe tags-config file."""
     # Does the file even exist? (If not we will just create it later)
     pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
@@ -195,7 +255,7 @@ def initialize_today() -> bool:
             return False
     # Figure out the date for this bunch of data
     if not today.date:
-        today.date = deduce_PARKING_DATE(today.date, DATA_FILEPATH)
+        today.date = deduce_parking_date(today.date, DATA_FILEPATH)
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
     # then fetch the tag reference lists from tags config
@@ -1030,7 +1090,18 @@ def get_taglists_from_old_config() -> td.TrackerDay:
 
 
 def get_taglists_from_config() -> td.TrackerDay:
-    """Read taglists from config module into tag lists part of a trackerday."""
+    """Read taglists from config module into tag lists part of a trackerday.
+
+    In the trackerday object, only these will have meaning:
+    - .colour_letters
+    - .regular
+    - .oversize
+    - .retired
+
+    'colour_letters' will be read from config but extended to include any
+    tag colours that are not listed in the regular/oversize/retired lists.
+
+    """
 
     def tokenize(s: str) -> list:
         """Break a string into a list of tokens."""
@@ -1075,21 +1146,29 @@ def get_taglists_from_config() -> td.TrackerDay:
     day.regular = frozenset(reg)
     day.oversize = frozenset(over)
     day.retired = frozenset(ret)
+
+    # Colour letters
+    day.colour_letters = cfg.COLOUR_LETTERS
+    # Extend for any missing colours
+    tag_colours = set([x.colour for x in reg + over + ret])
+    for colour in tag_colours:
+        if colour not in day.colour_letters:
+            day.colour_letters[colour] = f"Colour {colour.upper()}"
+
     return day
 
 
 # ---------------------------------------------
 # STARTUP
 
-# Tags uppercase or lowercase?
-# Data file
-DATA_FILEPATH = custom_datafile()
-CUSTOM_DAT = bool(DATA_FILEPATH)
-if not CUSTOM_DAT:
-    DATA_FILEPATH = df.datafile_name(cfg.DATA_FOLDER)
-
 
 if __name__ == "__main__":
+
+    # Data file
+    DATA_FILEPATH = custom_datafile()
+    CUSTOM_DAT = bool(DATA_FILEPATH)
+    if not CUSTOM_DAT:
+        DATA_FILEPATH = df.datafile_name(cfg.DATA_FOLDER)
 
     # Set colour module's colour flag based on config
     pr.COLOUR_ACTIVE = cfg.USE_COLOUR
@@ -1128,18 +1207,18 @@ if __name__ == "__main__":
     # Check that sounds can work (if enabled).
     NoiseMaker.init_check()
 
-    # Check for tags config file
-    if not os.path.exists(cfg.TAG_CONFIG_FILE):
-        df.new_tag_config_file(cfg.TAG_CONFIG_FILE)
-        pr.iprint("No tags configuration file found.", style=k.WARNING_STYLE)
-        pr.iprint(
-            f"Creating new configuration file {cfg.TAG_CONFIG_FILE}",
-            style=k.WARNING_STYLE,
-        )
-        pr.iprint("Edit this file then re-rerun TagTracker.", style=k.WARNING_STYLE)
-        print("\n" * 3, "Exiting automatically in 15 seconds.")
-        time.sleep(15)
-        sys.exit()
+    # # Check for tags config file
+    # if not os.path.exists(cfg.TAG_CONFIG_FILE):
+    #     df.new_tag_config_file(cfg.TAG_CONFIG_FILE)
+    #     pr.iprint("No tags configuration file found.", style=k.WARNING_STYLE)
+    #     pr.iprint(
+    #         f"Creating new configuration file {cfg.TAG_CONFIG_FILE}",
+    #         style=k.WARNING_STYLE,
+    #     )
+    #     pr.iprint("Edit this file then re-rerun TagTracker.", style=k.WARNING_STYLE)
+    #     print("\n" * 3, "Exiting automatically in 15 seconds.")
+    #     time.sleep(15)
+    #     sys.exit()
 
     # Configure check in- and out-lists and operating hours from file
     pr.iprint()
@@ -1158,7 +1237,7 @@ if __name__ == "__main__":
 
     # Get/set operating hours
     if not OPENING_TIME or not CLOSING_TIME:
-        (opens, closes) = cfg.valet_hours(PARKING_DATE)
+        (opens, closes) = tt_default_hours.get_default_hours(PARKING_DATE)
         OPENING_TIME = OPENING_TIME if OPENING_TIME else opens
         CLOSING_TIME = CLOSING_TIME if CLOSING_TIME else closes
     OPENING_TIME, CLOSING_TIME = bits.get_operating_hours(

@@ -46,6 +46,7 @@ import web_base_config as wcfg
 import tt_util as ut
 from tt_time import VTime
 import tt_dbutil as db
+import tt_default_hours
 import client_base_config as cfg
 import tt_estimator_rf as rf
 
@@ -430,7 +431,7 @@ class Estimator:
         # closing time, if not given, will be most recent day that matches
         # the given day of the week, or of the date if that was given as dow.
         if not closing_time:
-            closing_time = cfg.valet_hours(dow_date)[1]
+            closing_time = tt_default_hours.get_default_hours(dow_date)[1]
         self.closing_time = VTime(closing_time)  # Closing time today
         if not self.closing_time:
             self.error = "Missing or bad closing_time parameter."
