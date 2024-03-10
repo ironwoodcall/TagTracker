@@ -24,7 +24,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import urllib.request
 
-import tt_conf as cfg
+import client_base_config as cfg
 import tt_util as ut
 from tt_time import VTime
 import tt_trackerday

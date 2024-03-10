@@ -33,7 +33,7 @@ import tt_util as ut
 from tt_event import Event
 import tt_block
 import tt_printer as pr
-import tt_conf as cfg
+import client_base_config as cfg
 import tt_registrations as reg
 
 # try:
@@ -56,7 +56,7 @@ BUSIEST_RANKS = 4
 def registrations_report(reg_count: int):
     """Display current count of registrations."""
     pr.iprint()
-    pr.iprint("Bike registrations", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Bike registrations", style=k.SUBTITLE_STYLE)
     reg.Registrations.display_current_count(reg_count=reg_count, num_indents=2)
 
 
@@ -89,17 +89,17 @@ def recent(day: TrackerDay, args: list[str]) -> None:
     if not start_time or not end_time or start_time > end_time:
         pr.iprint(
             "Can not make sense of the given start/end times",
-            style=cfg.WARNING_STYLE,
+            style=k.WARNING_STYLE,
         )
         return
     # Print header.
     pr.iprint()
     pr.iprint(
         f"Recent activity (from {start_time.short} to {end_time.short})",
-        style=cfg.TITLE_STYLE,
+        style=k.TITLE_STYLE,
     )
     pr.iprint()
-    pr.iprint("Time  BikeIn BikeOut", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Time  BikeIn BikeOut", style=k.SUBTITLE_STYLE)
     # Collect & print any bike-in/bike-out events in the time period.
     events = Event.calc_events(day, end_time)
     current_block_end = None
@@ -133,7 +133,7 @@ def later_events_warning(day: TrackerDay, when: VTime) -> None:
     if not later_events:
         return
     msg = f"Report excludes {later_events} events later than {when.short}"
-    pr.iprint(msg, style=cfg.WARNING_STYLE)
+    pr.iprint(msg, style=k.WARNING_STYLE)
 
 
 def simplified_taglist(tags: list[TagID] | str) -> str:
@@ -204,8 +204,8 @@ def csv_dump(day: TrackerDay, args) -> None:
     """Dump a few stats into csv for pasting into spreadsheets."""
     filename = (args + [None])[0]
     if not filename:
-        ##pr.iprint("usage: csv <filename>",style=cfg.WARNING_STYLE)
-        pr.iprint("Printing to screen.", style=cfg.WARNING_STYLE)
+        ##pr.iprint("usage: csv <filename>",style=k.WARNING_STYLE)
+        pr.iprint("Printing to screen.", style=k.WARNING_STYLE)
 
     def time_hrs(atime) -> str:
         """Return atime (str or int) as a string of decimal hours."""
@@ -297,7 +297,7 @@ def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     num_bikes_oversize = len([x for x in these_check_ins if x in day.oversize])
 
     pr.iprint()
-    pr.iprint("Bike check-ins", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Bike check-ins", style=k.SUBTITLE_STYLE)
     pr.iprint(f"Total bikes in:   {num_bikes_ttl:4d}")
     pr.iprint(f"AM bikes in:      {num_bikes_am:4d}")
     pr.iprint(f"PM bikes in:      {(num_bikes_ttl - num_bikes_am):4d}")
@@ -319,7 +319,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         if not lower and not upper:
             pr.iprint(
                 f"PROGRAM ERROR: called one_range(lower='{lower}'," f"upper='{upper}')",
-                style=cfg.ERROR_STYLE,
+                style=k.ERROR_STYLE,
             )
             return None
         if not lower:
@@ -338,7 +338,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         pr.iprint(f"{header:18s}{num:4d}")
 
     pr.iprint()
-    pr.iprint("Number of stays by duration", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Number of stays by duration", style=k.SUBTITLE_STYLE)
     prev_boundary = None
     for boundary in VISIT_CATEGORIES:
         one_range(lower=prev_boundary, upper=boundary)
@@ -356,7 +356,7 @@ def visit_statistics_report(visits: dict) -> None:
 
     def one_line(key: str, value: str) -> None:
         """Print one line."""
-        pr.iprint(f"{key:17s}{value}", style=cfg.NORMAL_STYLE)
+        pr.iprint(f"{key:17s}{value}", style=k.NORMAL_STYLE)
 
     def visits_mode(durations_list: list[int]) -> None:
         """Calculate and print the mode info."""
@@ -392,7 +392,7 @@ def visit_statistics_report(visits: dict) -> None:
     shortest = min(list(duration_tags.keys()))
     short_tags = make_tags_str(duration_tags[shortest])
     pr.iprint()
-    pr.iprint("Stay-length statistics", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Stay-length statistics", style=k.SUBTITLE_STYLE)
     one_line(f"Longest {noun}:", f"{VTime(longest).tidy}  ({long_tags})")
     one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}  ({short_tags})")
     # Make a list of stay-lengths (for mean, median, mode)
@@ -419,13 +419,13 @@ def highwater_report(events: dict) -> None:
         for num, val in enumerate(values):
             bit = f"{val:3d}"
             if num == highlight_field:
-                bit = pr.text_style(bit, style=cfg.HIGHLIGHT_STYLE)
+                bit = pr.text_style(bit, style=k.HIGHLIGHT_STYLE)
             line = f"{line}   {bit}"
         pr.iprint(f"{line}    {atime}")
 
     # Table header
     pr.iprint()
-    pr.iprint("Most bikes onsite at any one time", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Most bikes onsite at any one time", style=k.SUBTITLE_STYLE)
     if not events:
         pr.iprint("-no bikes-")
         return
@@ -458,20 +458,20 @@ def full_chart(day: TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("-no bikes-", style=cfg.WARNING_STYLE)
+        pr.iprint("-no bikes-", style=k.WARNING_STYLE)
         return
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
     pr.iprint()
-    pr.iprint(f"Activity chart {day.date}", style=cfg.TITLE_STYLE)
+    pr.iprint(f"Activity chart {day.date}", style=k.TITLE_STYLE)
     pr.iprint()
     pr.iprint(
         "          Activity    --Bikes onsite---    Max",
-        style=cfg.SUBTITLE_STYLE,
+        style=k.SUBTITLE_STYLE,
     )
     pr.iprint(
         " Time     In   Out    Reglr Ovrsz Total   Bikes",
-        style=cfg.SUBTITLE_STYLE,
+        style=k.SUBTITLE_STYLE,
     )
     for blk_start in sorted(blocks.keys()):
         blk: tt_block.Block
@@ -492,7 +492,7 @@ def busy_graph(day: TrackerDay, as_of_when: str = "") -> None:
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("-no bikes-", style=cfg.WARNING_STYLE)
+        pr.iprint("-no bikes-", style=k.WARNING_STYLE)
         return
 
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
@@ -506,11 +506,11 @@ def busy_graph(day: TrackerDay, as_of_when: str = "") -> None:
 
     # Print graph
     pr.iprint()
-    pr.iprint(f"Chart of busyness for {day.date}", style=cfg.TITLE_STYLE)
+    pr.iprint(f"Chart of busyness for {day.date}", style=k.TITLE_STYLE)
     pr.iprint(
         f"Each marker represents {scale_factor} "
         f"{ut.plural(scale_factor,'bike')} in ({in_marker}) or out ({out_marker})",
-        style=cfg.SUBTITLE_STYLE,
+        style=k.SUBTITLE_STYLE,
     )
     ins_field_width = round(max_ins / scale_factor) + 1
     for start in sorted(blocks.keys()):
@@ -535,7 +535,7 @@ def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
     if not day.bikes_in:
         pr.iprint()
-        pr.iprint("-no bikes-", style=cfg.WARNING_STYLE)
+        pr.iprint("-no bikes-", style=k.WARNING_STYLE)
         return
 
     max_full = max([b.num_here for b in blocks.values()] + [0])
@@ -546,12 +546,12 @@ def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
     pr.iprint()
     pr.iprint(
         f"Max bikes onsite within a time block for {day.date}",
-        style=cfg.TITLE_STYLE,
+        style=k.TITLE_STYLE,
     )
     pr.iprint(
         f"Each marker represents {scale_factor} regular ({regular_marker}) "
         f"or oversize ({oversize_marker}) {ut.plural(scale_factor,'bike')}",
-        style=cfg.SUBTITLE_STYLE,
+        style=k.SUBTITLE_STYLE,
     )
     for start in sorted(blocks.keys()):
         b: tt_block.Block
@@ -601,7 +601,7 @@ def busy_report(
         busy_times[activity].append(atime)
     # Report the results.
     pr.iprint()
-    pr.iprint("Busiest times of day", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Busiest times of day", style=k.SUBTITLE_STYLE)
     pr.iprint("Rank  Ins&Outs  When")
     for rank, activity in enumerate(sorted(busy_times.keys(), reverse=True), start=1):
         if rank > BUSIEST_RANKS:
@@ -644,7 +644,7 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     pr.iprint()
     pr.iprint(
         "Were today's stays more queue-like or stack-like?",
-        style=cfg.SUBTITLE_STYLE,
+        style=k.SUBTITLE_STYLE,
     )
     if not queueish and not stackish:
         pr.iprint("Unable to determine.")
@@ -684,17 +684,17 @@ def day_end_report(day: TrackerDay, args: list, include_notes: bool = True) -> N
         if not (as_of_when):
             pr.iprint(
                 f"Unrecognized time passed to visits summary ({args[0]})",
-                style=cfg.WARNING_STYLE,
+                style=k.WARNING_STYLE,
             )
             return
     pr.iprint()
     pr.iprint(
         f"Summary statistics {as_of_when.as_at}",
-        style=cfg.TITLE_STYLE,
+        style=k.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
     if not day.latest_event(as_of_when):
-        pr.iprint(f"No bikes checked in by {as_of_when}", style=cfg.SUBTITLE_STYLE)
+        pr.iprint(f"No bikes checked in by {as_of_when}", style=k.SUBTITLE_STYLE)
         return
     # Bikes in, in various categories.
     bike_check_ins_report(day, as_of_when)
@@ -715,16 +715,16 @@ def busyness_report(day: TrackerDay, args: list) -> None:
     # rightnow = ut.get_time()
     as_of_when = VTime((args + ["now"])[0])
     if not (as_of_when):
-        pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
+        pr.iprint("Unrecognized time", style=k.WARNING_STYLE)
         return
     pr.iprint()
     pr.iprint(
         f"Busyness report {as_of_when.as_at}",
-        style=cfg.TITLE_STYLE,
+        style=k.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
     if not day.latest_event(as_of_when):
-        pr.iprint(f"No bikes checked in by {as_of_when}", style=cfg.SUBTITLE_STYLE)
+        pr.iprint(f"No bikes checked in by {as_of_when}", style=k.SUBTITLE_STYLE)
         return
     # Dict of time (events)
     events = Event.calc_events(day, as_of_when)
@@ -747,20 +747,20 @@ def dataform_report(day: TrackerDay, args: list[str]) -> None:
     """
     end_time = VTime((args + ["now"])[0])
     if not end_time:
-        pr.iprint(f"Unrecognized time {end_time.original}", style=cfg.WARNING_STYLE)
+        pr.iprint(f"Unrecognized time {end_time.original}", style=k.WARNING_STYLE)
         return
     # Special case: allow "24:00"
     if end_time != "24:00":
         end_time = tt_block.block_end(end_time)
         if not (end_time):
             pr.iprint()
-            pr.iprint(f"Unrecognized time {args[0]}", style=cfg.WARNING_STYLE)
+            pr.iprint(f"Unrecognized time {args[0]}", style=k.WARNING_STYLE)
             return
 
     pr.iprint()
     pr.iprint(
         f"Tracking form data from start of day until {end_time.short}",
-        style=cfg.TITLE_STYLE,
+        style=k.TITLE_STYLE,
     )
     later_events_warning(day, end_time)
     all_blocks = tt_block.calc_blocks(day, end_time)
@@ -768,7 +768,7 @@ def dataform_report(day: TrackerDay, args: list[str]) -> None:
         earliest = day.earliest_event()
         pr.iprint(
             f"No bikes checked in before {end_time} " f"(earliest in at {earliest})",
-            style=cfg.HIGHLIGHT_STYLE,
+            style=k.HIGHLIGHT_STYLE,
         )
         return
     for which in [k.BIKE_IN, k.BIKE_OUT]:
@@ -782,8 +782,8 @@ def dataform_report(day: TrackerDay, args: list[str]) -> None:
             suffix = ""
         title = f"Bikes {titlebit}"
         pr.iprint()
-        pr.iprint(title, style=cfg.SUBTITLE_STYLE)
-        pr.iprint("-" * len(title), style=cfg.SUBTITLE_STYLE)
+        pr.iprint(title, style=k.SUBTITLE_STYLE)
+        pr.iprint("-" * len(title), style=k.SUBTITLE_STYLE)
         for start, block in all_blocks.items():
             inouts = block.ins_list if which == k.BIKE_IN else block.outs_list
             end = tt_block.block_end(start)

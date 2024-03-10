@@ -23,8 +23,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 from tt_tag import TagID
 import tt_util as ut
-import tt_conf as cfg
-
+import tt_constants as k
 
 class CmdBits:
     """Parse and store user command input into its bits."""
@@ -74,9 +73,9 @@ class CmdBits:
         if maybetag:
             # This appears to be a tag.  Usable?
             if maybetag in retired_tags:
-                self.command = cfg.CMD_TAG_RETIRED
+                self.command = k.CMD_TAG_RETIRED
             elif maybetag not in all_tags:
-                self.command = cfg.CMD_TAG_UNUSABLE
+                self.command = k.CMD_TAG_UNUSABLE
             else:
                 # This appears to be a usable tag.
                 self.command = maybetag
@@ -85,7 +84,7 @@ class CmdBits:
             # cfg.command_aliases is dict of lists of aliases keyed by
             # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
             command = None
-            for c, aliases in cfg.COMMANDS.items():
+            for c, aliases in k.COMMANDS.items():
                 if parts[0] in aliases:
                     command = c
                     break
@@ -93,4 +92,4 @@ class CmdBits:
             if command:
                 self.command = command
             else:
-                self.command = cfg.CMD_UNKNOWN
+                self.command = k.CMD_UNKNOWN

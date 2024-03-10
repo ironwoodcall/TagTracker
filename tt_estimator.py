@@ -46,7 +46,7 @@ import web_base_config as wcfg
 import tt_util as ut
 from tt_time import VTime
 import tt_dbutil as db
-import tt_conf as cfg
+import client_base_config as cfg
 import tt_estimator_rf as rf
 
 # These are model states

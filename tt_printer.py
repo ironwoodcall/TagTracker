@@ -34,7 +34,8 @@ except ImportError:
     pass
 
 import tt_util as ut
-import tt_conf as cfg
+import client_base_config as cfg
+import tt_constants as k
 import tt_notes as notes
 from tt_time import VTime
 
@@ -132,9 +133,9 @@ def set_output(filename: str = "") -> bool:
         except OSError:
             iprint(
                 f"OSError opening destination file '{filename}'",
-                style=cfg.ERROR_STYLE,
+                style=k.ERROR_STYLE,
             )
-            iprint("Ignoring print redirect request.", style=cfg.ERROR_STYLE)
+            iprint("Ignoring print redirect request.", style=k.ERROR_STYLE)
             _destination = ""
             return False
     _destination = filename
@@ -155,11 +156,11 @@ def text_style(text: str, style=None) -> str:
     if not COLOUR_ACTIVE:
         return text
     if not style:
-        style = cfg.NORMAL_STYLE
-    if style not in cfg.STYLE:
+        style = k.NORMAL_STYLE
+    if style not in k.STYLE:
         ut.squawk(f"Call to text_style() with unknown style '{style}'")
         return "!!!???"
-    return f"{cfg.STYLE[style]}{text}{cfg.STYLE[cfg.RESET_STYLE]}"
+    return f"{k.STYLE[style]}{text}{k.STYLE[k.RESET_STYLE]}"
 
 
 def iprint(text: str = "", num_indents: int = None, style=None, end="\n") -> None:
@@ -268,7 +269,7 @@ def print_tag_notes(tag: str, reset: bool = False):
 
     if tag and not _print_tag_notes_control[_print_tag_notes_key_printed]:
         for line in notes.Notes.find(tag):
-            iprint(line, style=cfg.WARNING_STYLE)
+            iprint(line, style=k.WARNING_STYLE)
         _print_tag_notes_control[_print_tag_notes_key_printed] = True
 
     _print_tag_notes_control[_print_tag_notes_key_prev] = tag

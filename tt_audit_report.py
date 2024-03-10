@@ -29,7 +29,7 @@ from tt_realtag import Stay
 from tt_trackerday import TrackerDay
 import tt_util as ut
 import tt_printer as pr
-import tt_conf as cfg
+import client_base_config as cfg
 import tt_reports as rep
 
 
@@ -37,10 +37,10 @@ def notes_bit(day: TrackerDay) -> None:
     """Add a 'notes' section to a report."""
     pr.iprint()
 
-    pr.iprint("Today's notes:", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Today's notes:", style=k.SUBTITLE_STYLE)
     if day.notes:
         for line in day.notes:
-            pr.iprint(line, style=cfg.NORMAL_STYLE, num_indents=1)
+            pr.iprint(line, style=k.NORMAL_STYLE, num_indents=1)
     else:
         pr.iprint("There are no notes yet today.", num_indents=2)
 
@@ -72,7 +72,7 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
 
     # Print summary of bikes in/out/here
     pr.iprint()
-    pr.iprint("Summary             Regular Oversize Total", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Summary             Regular Oversize Total", style=k.SUBTITLE_STYLE)
     pr.iprint(
         f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}" f"    {sum_in:4d}"
     )
@@ -113,14 +113,14 @@ def audit_report(
     as_of_when = (args + ["now"])[0]
     as_of_when = VTime(as_of_when)
     if not as_of_when:
-        pr.iprint("Unrecognized time", style=cfg.WARNING_STYLE)
+        pr.iprint("Unrecognized time", style=k.WARNING_STYLE)
         return False
 
     # Audit report header. Special case if request is for "24:00"
     pr.iprint()
     pr.iprint(
         f"Audit report for {day.date} {as_of_when.as_at}",
-        style=cfg.TITLE_STYLE,
+        style=k.TITLE_STYLE,
     )
     rep.later_events_warning(day, as_of_when)
 
@@ -161,7 +161,7 @@ def audit_report(
     pr.iprint(
         f"Bikes still onsite at {as_of_when.short}"
         f" ({RETIRED_TAG_STR} --> retired tag)",
-        style=cfg.SUBTITLE_STYLE,
+        style=k.SUBTITLE_STYLE,
     )
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
@@ -181,7 +181,7 @@ def audit_report(
     # Bikes returned out -- tags matrix.
     if include_returns:
         pr.iprint()
-        pr.iprint("Bikes returned", style=cfg.SUBTITLE_STYLE)
+        pr.iprint("Bikes returned", style=k.SUBTITLE_STYLE)
         for prefix in sorted(prefixes_returned_out.keys()):
             numbers = prefixes_returned_out[prefix]
             line = f"{prefix:3>} "

@@ -28,7 +28,7 @@ import random
 # import tt_globals
 import tt_constants as k
 import tt_util as ut
-import tt_conf as cfg
+import client_base_config as cfg
 import tt_printer as pr
 
 
@@ -77,12 +77,12 @@ class NoiseMaker:
             if sounds_missing:
                 pr.iprint(
                     "Some sound file(s) not found, some sounds may not play.",
-                    style=cfg.WARNING_STYLE,
+                    style=k.WARNING_STYLE,
                 )
             if player_missing:
                 pr.iprint(
                     "Missing sound-player, sounds are disabled.",
-                    style=cfg.WARNING_STYLE,
+                    style=k.WARNING_STYLE,
                 )
                 cls.enabled = False
                 return False

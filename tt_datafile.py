@@ -38,7 +38,7 @@ from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 from tt_trackerday import TrackerDay
-import tt_conf as cfg
+import client_base_config as cfg
 
 # Header strings to use in datafile and tags- config file
 # These are used when writing & also for string-matching when reading.
