@@ -28,7 +28,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 import os
 import sys
 import time
-import pathlib
 
 # The readline module magically solves arrow keys creating ANSI esc codes
 # on the Chromebook.  But it isn't on all platforms.
@@ -208,6 +207,14 @@ def initialize_today() -> bool:
         today.oversize = tagconfig.oversize
         today.retired = tagconfig.retired
         today.colour_letters = tagconfig.colour_letters
+    # Back-compatibility edge case read from old tags.cfg FIXME: remove after cutover
+    old_config = "tags.cfg"
+    if not today.regular and not today.oversize and os.path.exists(old_config):
+        oldtagconfig = get_taglists_from_old_config(old_config)
+        today.regular = oldtagconfig.regular
+        today.oversize = oldtagconfig.oversize
+        today.retired = oldtagconfig.retired
+        today.fill_colour_dict_gaps()
     # Set UC if needed (NB: datafiles are always LC)
     TagID.uc(cfg.TAGS_UPPERCASE)
     # On success, set today's working data
@@ -230,59 +237,59 @@ def initialize_today() -> bool:
     return True
 
 
-def initialize_today_old() -> bool:
-    """Read today's info from datafile & maybe tags-config file."""
-    # Does the file even exist? (If not we will just create it later)
-    pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
-    if not os.path.exists(DATA_FILEPATH):
-        # pr.iprint(
-        #     f"Creating datafile '{DATA_FILEPATH}'.",
-        #     style=k.SUBTITLE_STYLE,
-        # )
-        today = td.TrackerDay()
-    else:
-        # Fetch data from file; errors go into error_msgs
-        # pr.iprint(
-        #     f"Using datafile '{DATA_FILEPATH}'.",
-        #     style=k.SUBTITLE_STYLE,
-        # )
-        error_msgs = []
-        today = df.read_datafile(DATA_FILEPATH, error_msgs)
-        if error_msgs:
-            pr.iprint()
-            for text in error_msgs:
-                pr.iprint(text, style=k.ERROR_STYLE)
-            return False
-    # Figure out the date for this bunch of data
-    if not today.date:
-        today.date = deduce_parking_date(today.date, DATA_FILEPATH)
-    # Find the tag reference lists (regular, oversize, etc).
-    # If there's no tag reference lists, or it's today's date,
-    # then fetch the tag reference lists from tags config
-    if not (today.regular or today.oversize) or today.date == ut.date_str("today"):
-        tagconfig = get_taglists_from_config()
-        today.regular = tagconfig.regular
-        today.oversize = tagconfig.oversize
-        today.retired = tagconfig.retired
-        today.colour_letters = tagconfig.colour_letters
-    # Set UC if needed (NB: datafiles are always LC)
-    TagID.uc(cfg.TAGS_UPPERCASE)
-    # On success, set today's working data
-    unpack_day_data(today)
-    # Now do a consistency check.
-    errs = pack_day_data().lint_check(strict_datetimes=False)
-    if errs:
-        pr.iprint()
-        for msg in errs:
-            pr.iprint(msg, style=k.ERROR_STYLE)
-        error_exit()
-    # Done
-    if PARKING_DATE != ut.date_str("today"):
-        pr.iprint(
-            f"Warning: Data is from {ut.date_str(PARKING_DATE,long_date=True)}, not today",
-            style=k.WARNING_STYLE,
-        )
-    return True
+# def initialize_today_old() -> bool:
+#     """Read today's info from datafile & maybe tags-config file."""
+#     # Does the file even exist? (If not we will just create it later)
+#     pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
+#     if not os.path.exists(DATA_FILEPATH):
+#         # pr.iprint(
+#         #     f"Creating datafile '{DATA_FILEPATH}'.",
+#         #     style=k.SUBTITLE_STYLE,
+#         # )
+#         today = td.TrackerDay()
+#     else:
+#         # Fetch data from file; errors go into error_msgs
+#         # pr.iprint(
+#         #     f"Using datafile '{DATA_FILEPATH}'.",
+#         #     style=k.SUBTITLE_STYLE,
+#         # )
+#         error_msgs = []
+#         today = df.read_datafile(DATA_FILEPATH, error_msgs)
+#         if error_msgs:
+#             pr.iprint()
+#             for text in error_msgs:
+#                 pr.iprint(text, style=k.ERROR_STYLE)
+#             return False
+#     # Figure out the date for this bunch of data
+#     if not today.date:
+#         today.date = deduce_parking_date(today.date, DATA_FILEPATH)
+#     # Find the tag reference lists (regular, oversize, etc).
+#     # If there's no tag reference lists, or it's today's date,
+#     # then fetch the tag reference lists from tags config
+#     if not (today.regular or today.oversize) or today.date == ut.date_str("today"):
+#         tagconfig = get_taglists_from_config()
+#         today.regular = tagconfig.regular
+#         today.oversize = tagconfig.oversize
+#         today.retired = tagconfig.retired
+#         today.colour_letters = tagconfig.colour_letters
+#     # Set UC if needed (NB: datafiles are always LC)
+#     TagID.uc(cfg.TAGS_UPPERCASE)
+#     # On success, set today's working data
+#     unpack_day_data(today)
+#     # Now do a consistency check.
+#     errs = pack_day_data().lint_check(strict_datetimes=False)
+#     if errs:
+#         pr.iprint()
+#         for msg in errs:
+#             pr.iprint(msg, style=k.ERROR_STYLE)
+#         error_exit()
+#     # Done
+#     if PARKING_DATE != ut.date_str("today"):
+#         pr.iprint(
+#             f"Warning: Data is from {ut.date_str(PARKING_DATE,long_date=True)}, not today",
+#             style=k.WARNING_STYLE,
+#         )
+#     return True
 
 
 def delete_entry(  # pylint:disable=keyword-arg-before-vararg
@@ -1077,15 +1084,24 @@ def midnight_passed(today_is: str) -> bool:
     return True
 
 
-def get_taglists_from_old_config() -> td.TrackerDay:
+def get_taglists_from_old_config(old_config_file: str) -> td.TrackerDay:
     """Read tag lists (oversize, etc) from tag config file."""
     # Lists of normal, oversize, retired tags
     # Return a TrackerDay object, though its bikes_in/out are meaningless.
     errs = []
-    day = df.read_datafile(cfg.TAG_CONFIG_FILE, errs)
+    day = df.read_datafile(old_config_file, errs)
     if errs:
         print(f"Errors in file, {errs=}")
         error_exit()
+    pr.iprint()
+    pr.iprint(
+        f"Using tag configurations from deprecated '{old_config_file}' configuration file.",
+        style=k.ERROR_STYLE,
+    )
+    pr.iprint(
+        "Please define tag configurations in client_local_config.py.",
+        style=k.ERROR_STYLE,
+    )
     return day
 
 
@@ -1137,23 +1153,24 @@ def get_taglists_from_config() -> td.TrackerDay:
             new_list.append(t)
         return new_list, errors
 
-    reg, reg_errors = tagize(tokenize(cfg.REGULAR_TAGS), "Regular Tags")
-    over, over_errors = tagize(tokenize(cfg.OVERSIZE_TAGS), "Oversize Tags", reg)
+    reglr, reg_errors = tagize(tokenize(cfg.REGULAR_TAGS), "Regular Tags")
+    over, over_errors = tagize(tokenize(cfg.OVERSIZE_TAGS), "Oversize Tags", reglr)
     ret, ret_errors = tagize(tokenize(cfg.RETIRED_TAGS), "Retired Tags")
     if reg_errors or over_errors or ret_errors:
         error_exit()
     day = td.TrackerDay()
-    day.regular = frozenset(reg)
+    day.regular = frozenset(reglr)
     day.oversize = frozenset(over)
     day.retired = frozenset(ret)
 
     # Colour letters
     day.colour_letters = cfg.COLOUR_LETTERS
-    # Extend for any missing colours
-    tag_colours = set([x.colour for x in reg + over + ret])
-    for colour in tag_colours:
-        if colour not in day.colour_letters:
-            day.colour_letters[colour] = f"Colour {colour.upper()}"
+    day.fill_colour_dict_gaps()
+    # # Extend for any missing colours
+    # tag_colours = set([x.colour for x in reg + over + ret])
+    # for colour in tag_colours:
+    #     if colour not in day.colour_letters:
+    #         day.colour_letters[colour] = f"Colour {colour.upper()}"
 
     return day
 

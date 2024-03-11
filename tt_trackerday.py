@@ -72,15 +72,21 @@ class TrackerDay:
         self.regular = frozenset(regulars)
         self.oversize = frozenset(oversizes)
 
-    def make_fake_colour_dict(self) -> None:
-        """Fake up a colour dictionary in day from existing tags."""
-        letters = set()
-        for tag in list(self.bikes_in.keys()) + list(self.oversize | self.regular):
-            letters.add(tag.colour.lower())
-        colour_dict = {}
-        for c in letters:
-            colour_dict[c] = f"colour {c}"
-        self.colour_letters = colour_dict
+    def fill_colour_dict_gaps(self) -> None:
+        """Make up colour names for any tag colours not in the colour dict."""
+
+        # Extend for any missing colours
+        tag_colours = set([x.colour for x in list(self.oversize | self.regular | self.retired)])
+        for colour in tag_colours:
+            if colour not in self.colour_letters:
+                self.colour_letters[colour] = f"Colour {colour.upper()}"
+        # letters = set()
+        # for tag in list(self.bikes_in.keys()) + list(self.oversize | self.regular):
+        #     letters.add(tag.colour.lower())
+        # colour_dict = {}
+        # for c in letters:
+        #     colour_dict[c] = f"colour {c}"
+        # self.colour_letters = colour_dict
 
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
         """Generate a list of logic error messages for TrackerDay object.

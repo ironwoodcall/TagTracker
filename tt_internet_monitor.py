@@ -43,6 +43,8 @@ import client_base_config as cfg
 import tt_printer as pr
 from tt_sounds import NoiseMaker
 
+# Set colour on/off from config.
+pr.COLOUR_ACTIVE = cfg.USE_COLOUR
 
 
 class InternetMonitorController:
@@ -218,7 +220,7 @@ class InternetMonitor:
                 NoiseMaker.play(k.ALERT)
                 pr.text_alert(
                     "Please open a web browser to check internet connection.",
-                    style=cfg.STRONG_ALERT_STYLE,
+                    style=k.STRONG_ALERT_STYLE,
                 )
             # else:
             #     pr.text_alert("Internet connection ok.")
