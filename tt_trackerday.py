@@ -76,17 +76,12 @@ class TrackerDay:
         """Make up colour names for any tag colours not in the colour dict."""
 
         # Extend for any missing colours
-        tag_colours = set([x.colour for x in list(self.oversize | self.regular | self.retired)])
+        tag_colours = set(
+            [x.colour for x in list(self.oversize | self.regular | self.retired)]
+        )
         for colour in tag_colours:
             if colour not in self.colour_letters:
                 self.colour_letters[colour] = f"Colour {colour.upper()}"
-        # letters = set()
-        # for tag in list(self.bikes_in.keys()) + list(self.oversize | self.regular):
-        #     letters.add(tag.colour.lower())
-        # colour_dict = {}
-        # for c in letters:
-        #     colour_dict[c] = f"colour {c}"
-        # self.colour_letters = colour_dict
 
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
         """Generate a list of logic error messages for TrackerDay object.
@@ -177,7 +172,7 @@ class TrackerDay:
             return ""
         return min(all_events)
 
-    def latest_event(self, as_of_when: VTime|int|None = None) -> VTime:
+    def latest_event(self, as_of_when: VTime | int | None = None) -> VTime:
         """Return the latest event of the day at or before as_of_when.
 
         If no events in the time period, return "".
@@ -201,7 +196,7 @@ class TrackerDay:
         latest = max(events)
         return latest
 
-    def num_later_events(self, after_when: VTime|int|None = None) -> int:
+    def num_later_events(self, after_when: VTime | int | None = None) -> int:
         """Get count of events that are later than after_when."""
         if not after_when:
             after_when = VTime("now")
