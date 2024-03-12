@@ -25,7 +25,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 import os
 import pathlib
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+import tt_constants as k
 from tt_time import VTime
 import tt_util as ut
 from tt_trackerday import TrackerDay
@@ -34,7 +34,7 @@ import tt_printer as pr
 import tt_reports as rep
 import tt_audit_report as aud
 
-import tt_conf as cfg
+import client_base_config as cfg
 
 
 class Publisher:
@@ -50,8 +50,10 @@ class Publisher:
         if not destination:
             self.able_to_publish = False
             pr.iprint()
-            pr.iprint("No reports folder configured, not publishing static reports.",
-                      style=cfg.HIGHLIGHT_STYLE)
+            pr.iprint(
+                "No reports folder configured, not publishing static reports.",
+                style=k.HIGHLIGHT_STYLE,
+            )
             return
         self.last_publish = "00:00"
         self.able_to_publish = True
@@ -63,7 +65,7 @@ class Publisher:
             pr.iprint(
                 f"Publication folder '{cfg.REPORTS_FOLDER}' missing or not writable, "
                 "publication disabled.",
-                style=cfg.ERROR_STYLE,
+                style=k.ERROR_STYLE,
             )
 
     def publish(self, day: TrackerDay, as_of_when: str = "") -> None:
@@ -71,8 +73,8 @@ class Publisher:
         if not self.able_to_publish:
             return
         if not self.publish_datafile(day, self.destination):
-            pr.iprint("ERROR PUBLISHING DATAFILE", style=cfg.ERROR_STYLE)
-            pr.iprint("REPORT PUBLISHING TURNED OFF", style=cfg.ERROR_STYLE)
+            pr.iprint("ERROR PUBLISHING DATAFILE", style=k.ERROR_STYLE)
+            pr.iprint("REPORT PUBLISHING TURNED OFF", style=k.ERROR_STYLE)
             self.able_to_publish = False
             return
 
@@ -96,7 +98,7 @@ class Publisher:
         fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
         if not pr.set_output(fullfn):
             return
-        aud.audit_report(day, args,include_returns=True)
+        aud.audit_report(day, args, include_returns=True)
         pr.set_output()
 
     def publish_datafile(self, day: TrackerDay, destination: str) -> bool:
@@ -116,7 +118,7 @@ class Publisher:
         return df.write_datafile(latestpath, day)
 
     def publish_city_report(
-        self, day: TrackerDay, as_of_when: MaybeTime = "now"
+        self, day: TrackerDay, as_of_when: k.MaybeTime = "now"
     ) -> None:
         """Publish a report for daily insight to the City."""
         if not self.able_to_publish:

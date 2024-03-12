@@ -32,11 +32,10 @@ import sys
 import os
 import re
 import random
-
-##from typing import Union
-from tt_globals import *
-import tt_util as ut
 from typing import Tuple
+
+import tt_constants as k
+import tt_util as ut
 from tt_tag import TagID
 from tt_time import VTime
 
@@ -111,10 +110,10 @@ def readafile(file: str) -> Tuple[dict, dict]:
                 continue
             # Is this a "check-in" or "check-out" header line?
             if re.match(r"^Tag given out", chunks[0]):
-                inout = BIKE_IN
+                inout = k.BIKE_IN
                 continue
             elif re.match(r"^Tag returned", chunks[0]):
-                inout = BIKE_OUT
+                inout = k.BIKE_OUT
                 continue
             # Ignore non-date junk at top of the file
             if not inout:
@@ -146,13 +145,11 @@ def readafile(file: str) -> Tuple[dict, dict]:
                     block_begin = ut.time_int(block_start)
                     check_time = random.randint(block_begin, block_begin + 29)
                 else:
-                    offset = (
-                        BIKE_IN_OFFSET if inout == BIKE_IN else BIKE_OUT_OFFSET
-                    )
+                    offset = BIKE_IN_OFFSET if inout == k.BIKE_IN else BIKE_OUT_OFFSET
                     check_time = ut.time_int(block_start) + offset
-                if inout == BIKE_IN:
+                if inout == k.BIKE_IN:
                     check_ins[tag] = VTime(check_time)
-                elif inout == BIKE_OUT:
+                elif inout == k.BIKE_OUT:
                     check_outs[tag] = VTime(check_time)
     return (dict(check_ins), dict(check_outs))
 

@@ -24,8 +24,9 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import tt_printer as pr
 import tt_util as ut
-import tt_conf as cfg
+import client_base_config as cfg
 from tt_time import VTime
+import tt_constants as k
 
 # Import pyfiglet if it's available.
 try:
@@ -101,7 +102,7 @@ def splash_top_pyfiglet():
 
     # Print the message
     for line in msg_lines:
-        pr.iprint(line, style=cfg.ANSWER_STYLE)
+        pr.iprint(line, style=k.ANSWER_STYLE)
     return True
 
 
@@ -120,7 +121,7 @@ def splash_top_default():
     ]:
         pr.iprint(
             line,
-            style=cfg.ANSWER_STYLE,
+            style=k.ANSWER_STYLE,
         )
 
 
@@ -132,16 +133,16 @@ def show_help():
     other lines in normal style.
     """
     title_done = False
-    for line in cfg.HELP_MESSAGE.split("\n"):
+    for line in k.HELP_MESSAGE.split("\n"):
         if not line:
             pr.iprint()
         elif not title_done:
             title_done = True
-            pr.iprint(line, style=cfg.TITLE_STYLE)
+            pr.iprint(line, style=k.TITLE_STYLE)
         elif line[0] != " ":
-            pr.iprint(line, style=cfg.SUBTITLE_STYLE)
+            pr.iprint(line, style=k.SUBTITLE_STYLE)
         else:
-            pr.iprint(line, style=cfg.NORMAL_STYLE)
+            pr.iprint(line, style=k.NORMAL_STYLE)
 
 
 def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
@@ -151,15 +152,15 @@ def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
 
     if header:
         if notes_list:
-            pr.iprint("Today's notes:", style=cfg.TITLE_STYLE)
+            pr.iprint("Today's notes:", style=k.TITLE_STYLE)
         else:
             pr.iprint("There are no notes yet today.")
             pr.iprint("(To create a note, enter NOTE [note text])")
     for line in notes_list:
         if styled:
-            pr.iprint(line, style=cfg.WARNING_STYLE)
+            pr.iprint(line, style=k.WARNING_STYLE)
         else:
-            pr.iprint(line, style=cfg.NORMAL_STYLE)
+            pr.iprint(line, style=k.NORMAL_STYLE)
 
 
 def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]:
@@ -173,7 +174,7 @@ def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]
                 pr.iprint(
                     f"Enter new 24-hour HHMM {prompt_bit} time or press <Enter> to leave as {current_time.short}: ",
                     end="",
-                    style=cfg.PROMPT_STYLE,
+                    style=k.PROMPT_STYLE,
                 )
             else:
                 pr.iprint(f"Enter 24-hour HHMM {prompt_bit} time: ", end="")
@@ -184,18 +185,18 @@ def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]
             if new_time:
                 return new_time
             else:
-                pr.iprint("Not a time. ", style=cfg.WARNING_STYLE)
+                pr.iprint("Not a time. ", style=k.WARNING_STYLE)
 
     which = "confirm" if opening else "enter"
     pr.iprint()
     pr.iprint(
-        f"Please {which} today's operating hours.", style=cfg.HIGHLIGHT_STYLE, end=""
+        f"Please {which} today's operating hours.", style=k.HIGHLIGHT_STYLE, end=""
     )
     if opening and closing:
         pr.iprint(
             f"  Currently set at {opening.short} - {closing.short}.",
             num_indents=0,
-            style=cfg.HIGHLIGHT_STYLE,
+            style=k.HIGHLIGHT_STYLE,
             end="",
         )
     pr.iprint()  # linefeed for end of the above line
@@ -212,4 +213,6 @@ def data_owner_notice():
             cfg.DATA_OWNER if isinstance(cfg.DATA_OWNER, list) else [cfg.DATA_OWNER]
         )
         for line in data_note:
-            pr.iprint(line, style=cfg.ANSWER_STYLE)
+            pr.iprint(line, style=k.ANSWER_STYLE)
+
+

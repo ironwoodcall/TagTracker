@@ -38,10 +38,13 @@ import sys
 import signal
 import urllib.request
 
-import tt_conf as cfg
+import tt_constants as k
+import client_base_config as cfg
 import tt_printer as pr
 from tt_sounds import NoiseMaker
-import tt_globals as g
+
+# Set colour on/off from config.
+pr.COLOUR_ACTIVE = cfg.USE_COLOUR
 
 
 class InternetMonitorController:
@@ -60,7 +63,7 @@ class InternetMonitorController:
             return False
         if not sys.platform.startswith("linux"):
             pr.iprint(
-                "Not Linux, can not start internet monitor.", style=cfg.WARNING_STYLE
+                "Not Linux, can not start internet monitor.", style=k.WARNING_STYLE
             )
             return False
         return True
@@ -79,7 +82,7 @@ class InternetMonitorController:
         # pr.iprint(
         #     "Checking internet connection "
         #     f"every {cfg.INTERNET_MONITORING_FREQUENCY} minutes.",
-        #     style=cfg.HIGHLIGHT_STYLE,
+        #     style=k.HIGHLIGHT_STYLE,
         # )
         # print(f"{sys.executable=}, {script_dir=}, {script_name=}")
 
@@ -214,10 +217,10 @@ class InternetMonitor:
             time.sleep(cfg.INTERNET_MONITORING_FREQUENCY * 60)
 
             if not cls._check_internet():
-                NoiseMaker.play(g.ALERT)
+                NoiseMaker.play(k.ALERT)
                 pr.text_alert(
                     "Please open a web browser to check internet connection.",
-                    style=cfg.STRONG_ALERT_STYLE,
+                    style=k.STRONG_ALERT_STYLE,
                 )
             # else:
             #     pr.text_alert("Internet connection ok.")

@@ -21,7 +21,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+
 from tt_trackerday import TrackerDay
 from tt_time import VTime
 
@@ -43,7 +43,7 @@ class Event:
 
     @staticmethod
     def calc_events(
-        day: TrackerDay, as_of_when: (int or VTime) = None
+        day: TrackerDay, as_of_when: int|VTime = None
     ) -> dict[VTime, "Event"]:
         """Create a dict of events keyed by HH:MM time.
 
@@ -83,12 +83,12 @@ class Event:
             ev.num_ins = len(ev.bikes_in)
             ev.num_outs = len(ev.bikes_out)
             # How many regular & oversize bikes have we added or lost?
-            delta_regular = len(
-                [x for x in ev.bikes_in if x in day.regular]
-            ) - len([x for x in ev.bikes_out if x in day.regular])
-            delta_oversize = len(
-                [x for x in ev.bikes_in if x in day.oversize]
-            ) - len([x for x in ev.bikes_out if x in day.oversize])
+            delta_regular = len([x for x in ev.bikes_in if x in day.regular]) - len(
+                [x for x in ev.bikes_out if x in day.regular]
+            )
+            delta_oversize = len([x for x in ev.bikes_in if x in day.oversize]) - len(
+                [x for x in ev.bikes_out if x in day.oversize]
+            )
             num_regular += delta_regular
             num_oversize += delta_oversize
             ev.num_here_regular = num_regular

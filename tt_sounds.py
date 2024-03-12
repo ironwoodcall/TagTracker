@@ -26,9 +26,9 @@ import subprocess
 import random
 
 # import tt_globals
-import tt_globals as g
+import tt_constants as k
 import tt_util as ut
-import tt_conf as cfg
+import client_base_config as cfg
 import tt_printer as pr
 
 
@@ -77,12 +77,12 @@ class NoiseMaker:
             if sounds_missing:
                 pr.iprint(
                     "Some sound file(s) not found, some sounds may not play.",
-                    style=cfg.WARNING_STYLE,
+                    style=k.WARNING_STYLE,
                 )
             if player_missing:
                 pr.iprint(
                     "Missing sound-player, sounds are disabled.",
-                    style=cfg.WARNING_STYLE,
+                    style=k.WARNING_STYLE,
                 )
                 cls.enabled = False
                 return False
@@ -120,13 +120,13 @@ class NoiseMaker:
     def get_sound_filepath(cls,code:str) -> str:
         """Fetch the soundfile for a given sound code."""
 
-        if code == g.BIKE_IN:
+        if code ==k.BIKE_IN:
             look_at = cls.bike_in
-        elif code == g.BIKE_OUT:
+        elif code ==k.BIKE_OUT:
             look_at = cls.bike_out
-        elif code == g.ALERT:
+        elif code ==k.ALERT:
             look_at = cls.alert
-        elif code == g.CHEER:
+        elif code ==k.CHEER:
             look_at = cls.cheer
         else:
             ut.squawk(f"sound type {code} not recognized")

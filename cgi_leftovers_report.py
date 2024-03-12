@@ -30,24 +30,23 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import sqlite3
 
-##from tt_globals import *
-
 import tt_dbutil as db
 import datacolors as dc
 import cgi_common as cc
+
 
 def leftovers_report(ttdb: sqlite3.Connection):
     rows = fetch_data(ttdb)
 
     max_diff = max([r.difference for r in rows])
     colors = dc.Dimension(interpolation_exponent=0.75)
-    colors.add_config(0,'white')
-    colors.add_config(max_diff,'tomato')
+    colors.add_config(0, "white")
+    colors.add_config(max_diff, "tomato")
 
     print("<h1>TagTracker vs Day-End Form</h1>")
     print(f"{cc.main_and_back_buttons(1)}<br>")
     print("<h2>Discrepencies between calculated and reported leftovers</h2>")
-    print( """Discrepencies between the number of leftovers calculated from TagTracker data
+    print("""Discrepencies between the number of leftovers calculated from TagTracker data
           vs leftovers reported in the day end form are possibly the greatest
           outstanding source of data error at the bike valet.  It is typically
           avoidable.  The discrepencies come from:
@@ -61,16 +60,23 @@ def leftovers_report(ttdb: sqlite3.Connection):
           <li>Historically, the pre-TagTracker data is of notoriously low quality.<p></p>
 """)
     print("<table style=text-align:center class='general_table'>")
-    print("<tr><th colspan=3 style='text-align:center'>Leftover bike mismatches</th></tr>")
-    print("<tr><th>Date</th><th>As recorded<br>in TagTracker</th><th>As reported on<br>day-end form</th></tr>")
+    print(
+        "<tr><th colspan=3 style='text-align:center'>Leftover bike mismatches</th></tr>"
+    )
+    print(
+        "<tr><th>Date</th><th>As recorded<br>in TagTracker</th><th>As reported on<br>day-end form</th></tr>"
+    )
 
     for row in rows:
         link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date, qsort=cc.SORT_TAG)
         style = f"style='{colors.css_bg_fg(abs(row.difference))}'"
-        print(f"<tr><td style='{colors.css_bg_fg(abs(row.difference))}'><a href='{link}'>{row.date}</a></td><td {style}>{row.calculated}</td><td {style}>{row.reported}</td></tr>")
+        print(
+            f"<tr><td style='{colors.css_bg_fg(abs(row.difference))}'><a href='{link}'>{row.date}</a></td><td {style}>{row.calculated}</td><td {style}>{row.reported}</td></tr>"
+        )
     print("</table>")
 
-def fetch_data(ttdb:sqlite3.Connection) -> list:
+
+def fetch_data(ttdb: sqlite3.Connection) -> list:
     sel = """SELECT
         d.date,
         d.leftover AS reported,
@@ -88,5 +94,3 @@ def fetch_data(ttdb:sqlite3.Connection) -> list:
     """
     rowdata = db.db_fetch(ttdb, sel)
     return rowdata
-
-

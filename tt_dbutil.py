@@ -211,7 +211,7 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     if not day.oversize:
         day.oversize = frozenset(oversize)
     # Fake up a colour dictionary
-    day.make_fake_colour_dict()
+    day.fill_colour_dict_gaps()
     return day
 
 

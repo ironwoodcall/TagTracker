@@ -22,21 +22,19 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Union
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+import tt_constants as k
 from tt_trackerday import TrackerDay
 from tt_time import VTime
 from tt_event import Event
-import tt_conf as cfg
 
 
 class Block:
     """Class to help with reporting.
 
-    Each instance is a timeblock of duration cfg.BLOCK_DURATION.
+    Each instance is a timeblock of duration k.BLOCK_DURATION.
     """
 
-    def __init__(self, start_time: Union[VTime, int]) -> None:
+    def __init__(self, start_time: VTime|int) -> None:
         """Initialize. Assumes that start_time is valid."""
         self.start = VTime(start_time)  # in case it's a str not a VTime
         self.ins_list = []  # Tags of bikes that came in.
@@ -57,7 +55,7 @@ class Block:
         self.max_here_oversize = 0
 
 
-def block_start(atime: Union[int, str]) -> VTime:
+def block_start(atime: int|str) -> VTime:
     """Return the start time of the block that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
@@ -67,11 +65,11 @@ def block_start(atime: Union[int, str]) -> VTime:
     if atime is None:
         return ""
     # which block of time does it fall in?
-    block_start_min = (atime.num // cfg.BLOCK_DURATION) * cfg.BLOCK_DURATION
+    block_start_min = (atime.num // k.BLOCK_DURATION) * k.BLOCK_DURATION
     return VTime(block_start_min)
 
 
-def block_end(atime: Union[int, str]) -> VTime:
+def block_end(atime: int|str) -> VTime:
     """Return the last minute of the timeblock that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
@@ -79,7 +77,7 @@ def block_end(atime: Union[int, str]) -> VTime:
     # Get block start
     start = block_start(atime)
     # Calculate block end
-    end = start.num + cfg.BLOCK_DURATION - 1
+    end = start.num + k.BLOCK_DURATION - 1
     # Return as minutes or HHMM
     return VTime(end)
 
@@ -108,15 +106,13 @@ def get_timeblock_list(day: TrackerDay, as_of_when: str) -> list[VTime]:
     # Create list of timeblocks for the the whole day.
     timeblocks = []
     for t in range(
-        min_block_min, max_block_min + cfg.BLOCK_DURATION, cfg.BLOCK_DURATION
+        min_block_min, max_block_min + k.BLOCK_DURATION, k.BLOCK_DURATION
     ):
         timeblocks.append(VTime(t))
     return timeblocks
 
 
-def calc_blocks(
-    day: TrackerDay, as_of_when: str = None
-) -> dict[VTime, object]:
+def calc_blocks(day: TrackerDay, as_of_when: str = None) -> dict[VTime, object]:
     """Create a dictionary of Blocks {start:Block} for whole day."""
     if not as_of_when:
         as_of_when = day.latest_event("24:00")

@@ -33,15 +33,19 @@ try:
 except ImportError:
     pass
 
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 import tt_util as ut
-import tt_conf as cfg
+import client_base_config as cfg
+import tt_constants as k
 import tt_notes as notes
 from tt_time import VTime
 
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
 _INDENT = "  "
+
+# This flag controls whether or not colour is active. It can be directly
+# read and set by other modules
+COLOUR_ACTIVE = False
 
 # echo will save all input & (screen) output to an echo datafile
 # To start echoing, call set_echo(True)
@@ -59,7 +63,7 @@ def get_echo() -> bool:
 
 def set_echo(state: bool) -> None:
     """Set the echo state to ON or OFF."""
-    global _echo_state, _echo_file
+    global _echo_state, _echo_file # pylint: disable=global-statement
     if state == _echo_state:
         return
     _echo_state = state
@@ -118,7 +122,7 @@ def set_output(filename: str = "") -> bool:
     Returns True/False if able to change to the new filename.
     (Always True if returning output to screen.)
     """
-    global _destination, _destination_file
+    global _destination, _destination_file # pylint:disable=global-statement
     if filename == _destination:
         return True
     if _destination:
@@ -129,9 +133,9 @@ def set_output(filename: str = "") -> bool:
         except OSError:
             iprint(
                 f"OSError opening destination file '{filename}'",
-                style=cfg.ERROR_STYLE,
+                style=k.ERROR_STYLE,
             )
-            iprint("Ignoring print redirect request.", style=cfg.ERROR_STYLE)
+            iprint("Ignoring print redirect request.", style=k.ERROR_STYLE)
             _destination = ""
             return False
     _destination = filename
@@ -148,15 +152,15 @@ def text_style(text: str, style=None) -> str:
     # If redirecting to file, do not apply style
     if _destination:
         return text
-    # If no colour avilable, do not apply style
-    if not cfg.USE_COLOUR:
+    # If colour not active, do not apply colour styles
+    if not COLOUR_ACTIVE:
         return text
     if not style:
-        style = cfg.NORMAL_STYLE
-    if style not in cfg.STYLE:
+        style = k.NORMAL_STYLE
+    if style not in k.STYLE:
         ut.squawk(f"Call to text_style() with unknown style '{style}'")
         return "!!!???"
-    return f"{cfg.STYLE[style]}{text}{cfg.STYLE[cfg.RESET_STYLE]}"
+    return f"{k.STYLE[style]}{text}{k.STYLE[k.RESET_STYLE]}"
 
 
 def iprint(text: str = "", num_indents: int = None, style=None, end="\n") -> None:
@@ -176,7 +180,7 @@ def iprint(text: str = "", num_indents: int = None, style=None, end="\n") -> Non
         _destination_file.write(f"{indent}{text}{end}")
     else:
         # Going to screen.  Style and indent.
-        if cfg.USE_COLOUR and style:
+        if COLOUR_ACTIVE and style:
             styled_text = text_style(text, style=style)
             print(f"{indent}{styled_text}", end=end)
         else:
@@ -265,11 +269,12 @@ def print_tag_notes(tag: str, reset: bool = False):
 
     if tag and not _print_tag_notes_control[_print_tag_notes_key_printed]:
         for line in notes.Notes.find(tag):
-            iprint(line, style=cfg.WARNING_STYLE)
+            iprint(line, style=k.WARNING_STYLE)
         _print_tag_notes_control[_print_tag_notes_key_printed] = True
 
     _print_tag_notes_control[_print_tag_notes_key_prev] = tag
 
+
 def clear_screen():
     """Clear the screen, set cursor to UL corner."""
-    print('\033[2J\033[H',end="")
+    print("\033[2J\033[H", end="")

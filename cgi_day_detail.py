@@ -25,8 +25,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 import sqlite3
 from statistics import mean, median
 
-##from tt_globals import MaybeTag
-
 import tt_dbutil as db
 from tt_tag import TagID
 from tt_time import VTime

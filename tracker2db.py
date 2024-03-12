@@ -36,11 +36,10 @@ import os
 import re
 import sqlite3
 import sys
-from typing import Union  # for type hints instead of (eg) int|str
 
 import tt_datafile
 import tt_dbutil
-import tt_globals
+import tt_constants
 import tt_util as ut
 
 from tt_event import Event
@@ -112,7 +111,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
     for each bike, and record a row of visit data into TABLE_VISITS
     """
 
-    def what_bike_type(tag: str) -> Union[str, None]:
+    def what_bike_type(tag: str) -> str|None:
         """Return the type 'Normal' or 'Oversize' of a tag.
         Based on each day's datafile"""
         if tag in regular_tags:
@@ -220,7 +219,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
         time_close = data.latest_event()
 
     # Find int day of week
-    date_bits = re.match(tt_globals.DATE_FULL_RE, date)
+    date_bits = re.match(tt_constants.DATE_FULL_RE, date)
     year = int(date_bits.group(1))
     month = int(date_bits.group(2))
     day = int(date_bits.group(3))
@@ -377,7 +376,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
         sys.exit(1)
 
 
-def select_closing_time(date: str, conn) -> Union[VTime, bool]:
+def select_closing_time(date: str, conn) -> VTime|bool:
     """Return the closing time of a given date in TABLE_DAYS.
 
     - SELECT closing time from rows with matching dates (should be just 1)

@@ -29,18 +29,16 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
             lead/trailing whitespace
 
 """
+
 import os
 import re
 
-import tt_globals as g
-
-# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
+import tt_constants as k
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 from tt_trackerday import TrackerDay
-import tt_conf as cfg
-# import tt_notes as notes
+import client_base_config as cfg
 
 # Header strings to use in datafile and tags- config file
 # These are used when writing & also for string-matching when reading.
@@ -128,30 +126,30 @@ def read_datafile(
                 continue
             # Look for section headers to figure out what section we will process
             if re.match(rf"^ *{HEADER_BIKES_IN}", line):
-                section = g.BIKE_IN
+                section = k.BIKE_IN
                 continue
             elif re.match(rf"^ *{HEADER_BIKES_OUT}", line):
-                section = g.BIKE_OUT
+                section = k.BIKE_OUT
                 continue
             # Look for headers for oversize & regular bikes, ignore them.
             elif re.match(rf"^ *{HEADER_REGULAR}", line):
-                section = g.REGULAR
+                section = k.REGULAR
                 continue
             elif re.match(rf"^ *{HEADER_OVERSIZE}", line):
-                section = g.OVERSIZE
+                section = k.OVERSIZE
                 continue
             elif re.match(rf"^ *{HEADER_RETIRED}", line):
-                section = g.RETIRED
+                section = k.RETIRED
                 continue
             elif re.match(rf"^ *{HEADER_COLOURS}", line):
-                section = g.COLOURS
+                section = k.COLOURS
                 continue
             elif re.match(rf"^ *{HEADER_NOTES}", line):
-                section = g.NOTES
+                section = k.NOTES
                 continue
             elif re.match(rf"^ *{HEADER_REGISTRATIONS}", line):
                 # Read the number of registrations
-                section = g.NOT_A_LIST
+                section = k.NOT_A_LIST
                 r = re.match(rf"{HEADER_REGISTRATIONS} *(.+)", line)
                 try:
                     data.registrations = int(r.group(1))
@@ -176,7 +174,7 @@ def read_datafile(
                 continue
             elif re.match(rf"^ *{HEADER_VALET_DATE}", line):
                 # Read the datafile's date
-                section = g.NOT_A_LIST
+                section = k.NOT_A_LIST
                 r = re.match(rf"{HEADER_VALET_DATE} *(.+)", line)
                 maybedate = ut.date_str(r.group(1))
                 if not maybedate:
@@ -192,7 +190,7 @@ def read_datafile(
                 continue
             elif re.match(rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES})", line):
                 # This is an open or a close time (probably)
-                section = g.NOT_A_LIST
+                section = k.NOT_A_LIST
                 r = re.match(
                     rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES}) *(.+)",
                     line,
@@ -223,16 +221,16 @@ def read_datafile(
                 )
                 continue
 
-            if section == g.NOT_A_LIST:
+            if section == k.NOT_A_LIST:
                 # IUgnore anything htat is not a list section
                 continue
 
-            if section == g.NOTES:
+            if section == k.NOTES:
                 # Read operator notes
                 data.notes.append(line)
                 continue
 
-            if section == g.COLOURS:
+            if section == k.COLOURS:
                 # Read the colour dictionary
                 bits = ut.splitline(line)
                 if len(bits) < 2:
@@ -256,7 +254,7 @@ def read_datafile(
                 data.colour_letters[bits[0]] = " ".join(bits[1:])
                 continue
 
-            if section in [g.REGULAR, g.OVERSIZE, g.RETIRED]:
+            if section in [k.REGULAR, k.OVERSIZE, k.RETIRED]:
                 # Break each line into 0 or more tags
                 bits = ut.splitline(line)
                 taglist = [TagID(x) for x in bits]
@@ -272,18 +270,18 @@ def read_datafile(
                     )
                     continue
                 # Looks like we have some tags
-                if section == g.REGULAR:
+                if section == k.REGULAR:
                     data.regular |= set(taglist)
-                elif section == g.OVERSIZE:
+                elif section == k.OVERSIZE:
                     data.oversize |= set(taglist)
-                elif section == g.RETIRED:
+                elif section == k.RETIRED:
                     data.retired |= set(taglist)
                 else:
                     ut.squawk(f"Bad section value in read_datafile(), '{section}")
                     return
                 continue
 
-            if section not in [g.BIKE_IN, g.BIKE_OUT]:
+            if section not in [k.BIKE_IN, k.BIKE_OUT]:
                 ut.squawk(f"Bad section value in read_datafile(), '{section}")
                 return
 
@@ -329,7 +327,7 @@ def read_datafile(
                 )
                 continue
             # Maybe add to data.bikes_in or data.bikes_out structures.
-            if section == g.BIKE_IN:
+            if section == k.BIKE_IN:
                 # Maybe add to check_in structure
                 if this_tag in data.bikes_in:
                     errors = data_read_error(
@@ -350,7 +348,7 @@ def read_datafile(
                     )
                     continue
                 data.bikes_in[this_tag] = this_time
-            elif section == g.BIKE_OUT:
+            elif section == k.BIKE_OUT:
                 if this_tag in data.bikes_out:
                     errors = data_read_error(
                         f"Duplicate {this_tag} check-out",
@@ -388,7 +386,7 @@ def read_datafile(
         err_msgs.append(f"Found {errors} errors in datafile {filename}")
     # If no colour dictionary, fake one up
     if not data.colour_letters:
-        data.make_fake_colour_dict()
+        data.fill_colour_dict_gaps()
     # Return today's working data.
     return data
 
@@ -406,7 +404,7 @@ def write_datafile(filename: str, data: TrackerDay) -> bool:
     lines.append(f"# TagTracker version {ut.get_version()}")
     # For convenience, show # of leftovers & latest event
     if data.bikes_in:
-        latest_event = max(list(data.bikes_in.values())+list(data.bikes_out.values()))
+        latest_event = max(list(data.bikes_in.values()) + list(data.bikes_out.values()))
         leftovers = len(data.bikes_in) - len(data.bikes_out)
         lines.append(f"# {leftovers} bikes left as of {latest_event}")
     else:

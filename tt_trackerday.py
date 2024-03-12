@@ -23,8 +23,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from typing import Union
-from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
@@ -74,15 +72,16 @@ class TrackerDay:
         self.regular = frozenset(regulars)
         self.oversize = frozenset(oversizes)
 
-    def make_fake_colour_dict(self) -> None:
-        """Fake up a colour dictionary in day from existing tags."""
-        letters = set()
-        for tag in list(self.bikes_in.keys())+list(self.oversize|self.regular):
-            letters.add(tag.colour.lower())
-        colour_dict = {}
-        for c in letters:
-            colour_dict[c] = f"colour {c}"
-        self.colour_letters = colour_dict
+    def fill_colour_dict_gaps(self) -> None:
+        """Make up colour names for any tag colours not in the colour dict."""
+
+        # Extend for any missing colours
+        tag_colours = set(
+            [x.colour for x in list(self.oversize | self.regular | self.retired)]
+        )
+        for colour in tag_colours:
+            if colour not in self.colour_letters:
+                self.colour_letters[colour] = f"Colour {colour.upper()}"
 
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
         """Generate a list of logic error messages for TrackerDay object.
@@ -118,8 +117,7 @@ class TrackerDay:
             for key, atime in timesdict.items():
                 if not isinstance(atime, VTime) or not atime:
                     msgs.append(
-                        f"Bad time '{atime}' in "
-                        f"{listname} with key '{key}'"
+                        f"Bad time '{atime}' in " f"{listname} with key '{key}'"
                     )
             return msgs
 
@@ -128,18 +126,10 @@ class TrackerDay:
         if strict_datetimes:
             if not self.date or ut.date_str(self.date) != self.date:
                 errors.append(f"Bad or missing valet date {self.date}")
-            if not self.opening_time or not isinstance(
-                self.opening_time, VTime
-            ):
-                errors.append(
-                    f"Bad or missing opening time {self.opening_time}"
-                )
-            if not self.closing_time or not isinstance(
-                self.closing_time, VTime
-            ):
-                errors.append(
-                    f"Bad or missing closing time {self.closing_time}"
-                )
+            if not self.opening_time or not isinstance(self.opening_time, VTime):
+                errors.append(f"Bad or missing opening time {self.opening_time}")
+            if not self.closing_time or not isinstance(self.closing_time, VTime):
+                errors.append(f"Bad or missing closing time {self.closing_time}")
             if (
                 self.opening_time
                 and self.closing_time
@@ -157,12 +147,8 @@ class TrackerDay:
         errors += bad_times(self.bikes_in, "bikes-checked-in")
         errors += bad_times(self.bikes_out, "bikes-checked-out")
         # Look for duplicates in regular and oversize tags lists
-        if len(self.regular | self.oversize) != len(self.regular) + len(
-            self.oversize
-        ):
-            errors.append(
-                "Size mismatch between regular+oversize tags and their union"
-            )
+        if len(self.regular | self.oversize) != len(self.regular) + len(self.oversize):
+            errors.append("Size mismatch between regular+oversize tags and their union")
         # Look for bike checked out but not in, or check-in later than check-out
         for tag, atime in self.bikes_out.items():
             if tag not in self.bikes_in:
@@ -174,9 +160,7 @@ class TrackerDay:
         _used_tags = self.bikes_in.keys() | self.bikes_out.keys()
         for tag in _used_tags:
             if tag not in _allowed_tags:
-                errors.append(
-                    f"Tag {tag} not in use (not regular nor oversized)"
-                )
+                errors.append(f"Tag {tag} not in use (not regular nor oversized)")
             if tag in self.retired:
                 errors.append(f"Tag {tag} is marked as retired")
         return errors
@@ -188,9 +172,7 @@ class TrackerDay:
             return ""
         return min(all_events)
 
-    def latest_event(
-        self, as_of_when: Union[VTime, int, None] = None
-    ) -> VTime:
+    def latest_event(self, as_of_when: VTime | int | None = None) -> VTime:
         """Return the latest event of the day at or before as_of_when.
 
         If no events in the time period, return "".
@@ -204,9 +186,7 @@ class TrackerDay:
                 return ""
         events = [
             x
-            for x in (
-                set(self.bikes_in.values()) | set(self.bikes_out.values())
-            )
+            for x in (set(self.bikes_in.values()) | set(self.bikes_out.values()))
             if x <= as_of_when
         ]
         # Anything?
@@ -216,9 +196,7 @@ class TrackerDay:
         latest = max(events)
         return latest
 
-    def num_later_events(
-        self, after_when: Union[VTime, int, None] = None
-    ) -> int:
+    def num_later_events(self, after_when: VTime | int | None = None) -> int:
         """Get count of events that are later than after_when."""
         if not after_when:
             after_when = VTime("now")
@@ -229,9 +207,7 @@ class TrackerDay:
 
         events = [
             x
-            for x in (
-                set(self.bikes_in.values()) | set(self.bikes_out.values())
-            )
+            for x in (set(self.bikes_in.values()) | set(self.bikes_out.values()))
             if x > after_when
         ]
         return len(events)

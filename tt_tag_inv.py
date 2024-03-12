@@ -30,21 +30,21 @@ Symbols for:
 
 """
 
-import tt_globals as g
+import tt_constants as k
 import tt_printer as pr
 from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
 from tt_trackerday import TrackerDay
-import tt_conf as cfg
+import client_base_config as cfg
 import tt_util as ut
 
 
 def index_line(max_tag_num):
     """Print an index line for the matrix."""
-    pr.iprint(f"{' ':3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
+    pr.iprint(f"{' ':3s} ", style=k.HIGHLIGHT_STYLE, end="")
     for i in range(0, max_tag_num + 1):
-        pr.iprint(f" {i:02d}", style=cfg.HIGHLIGHT_STYLE, end="")
+        pr.iprint(f" {i:02d}", style=k.HIGHLIGHT_STYLE, end="")
 
 
 def tag_inventory_matrix(
@@ -66,13 +66,13 @@ def tag_inventory_matrix(
 
     as_of_when = VTime(as_of_when)
     pr.iprint()
-    pr.iprint(f"Tags status {as_of_when.as_at}", style=cfg.TITLE_STYLE)
+    pr.iprint(f"Tags status {as_of_when.as_at}", style=k.TITLE_STYLE)
     pr.iprint(
-        f"Key: '{cfg.TAG_INV_AVAILABLE[0]}'=Available; "
-        f"'{cfg.TAG_INV_BIKE_IN[0]}'=Bike In; "
-        f"'{cfg.TAG_INV_BIKE_OUT[0]}'=Bike Out; "
-        f"'{cfg.TAG_INV_RETIRED[0]}'=Retired",
-        style=cfg.NORMAL_STYLE,
+        f"Key: '{k.TAG_INV_AVAILABLE[0]}'=Available; "
+        f"'{k.TAG_INV_BIKE_IN[0]}'=Bike In; "
+        f"'{k.TAG_INV_BIKE_OUT[0]}'=Bike Out; "
+        f"'{k.TAG_INV_RETIRED[0]}'=Retired",
+        style=k.NORMAL_STYLE,
     )
     pr.iprint()
     max_tag_num = 0
@@ -90,27 +90,27 @@ def tag_inventory_matrix(
         for i in range(0, max_tag_num + 1):
             this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not this_tag or not this_tag.state:
-                tag_states.append(cfg.TAG_INV_UNKNOWN)
-            elif this_tag.state == g.USABLE:
-                tag_states.append(cfg.TAG_INV_AVAILABLE)
-            elif this_tag.state == g.BIKE_IN:
-                tag_states.append(cfg.TAG_INV_BIKE_IN)
-            elif this_tag.state == g.BIKE_OUT:
-                tag_states.append(cfg.TAG_INV_BIKE_OUT)
-            elif this_tag.state == g.RETIRED:
-                tag_states.append(cfg.TAG_INV_RETIRED)
+                tag_states.append(k.TAG_INV_UNKNOWN)
+            elif this_tag.state == k.USABLE:
+                tag_states.append(k.TAG_INV_AVAILABLE)
+            elif this_tag.state == k.BIKE_IN:
+                tag_states.append(k.TAG_INV_BIKE_IN)
+            elif this_tag.state == k.BIKE_OUT:
+                tag_states.append(k.TAG_INV_BIKE_OUT)
+            elif this_tag.state == k.RETIRED:
+                tag_states.append(k.TAG_INV_RETIRED)
             else:
-                tag_states.append(cfg.TAG_INV_ERROR)
+                tag_states.append(k.TAG_INV_ERROR)
 
         # Are there any used tags in this row?
         this_prefix_used = any(
-            x[0] in [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]]
+            x[0] in [k.TAG_INV_BIKE_IN[0], k.TAG_INV_BIKE_OUT[0]]
             for x in tag_states
         )
         # ut.squawk(f"{prefix=},{ [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]]=}")
         # ut.squawk(f"{this_prefix_used=},{[x[0] for x in tag_states]=}")
         if this_prefix_used:
-            pr.iprint(f"{prefix:3s} ", style=cfg.HIGHLIGHT_STYLE, end="")
+            pr.iprint(f"{prefix:3s} ", style=k.HIGHLIGHT_STYLE, end="")
             for tup in tag_states:
                 pr.iprint(" " + tup[0], style=tup[1], end="")
             pr.iprint()
@@ -122,17 +122,17 @@ def tag_inventory_matrix(
 def colours_report(day: TrackerDay) -> None:
     """List colours in use."""
     type_names = {
-        g.UNKNOWN: "None",
-        g.REGULAR: "Regular",
-        g.OVERSIZE: "Oversize",
-        g.MIXED: "Mixed",
+        k.UNKNOWN: "None",
+        k.REGULAR: "Regular",
+        k.OVERSIZE: "Oversize",
+        k.MIXED: "Mixed",
     }
 
     # Make a dict of the colour letters that's all lowercase
     colours = {k.lower(): v for k, v in day.colour_letters.items()}
     # Dict of bike types for tags: UNKNOWN, OVERSIZE, REGULAR or MIXED
     tag_type = dict(
-        zip(list(day.colour_letters.keys()), [g.UNKNOWN for _ in range(0, 100)])
+        zip(list(day.colour_letters.keys()), [k.UNKNOWN for _ in range(0, 100)])
     )
     # Dictionary of how many tags are of each colour.
     tag_count = dict(zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)]))
@@ -143,16 +143,16 @@ def colours_report(day: TrackerDay) -> None:
             ut.squawk(f"bad colour for {tag}: '{code}' in colours_report()")
             continue
         # Tag type
-        btype = g.REGULAR if tag in day.regular else g.OVERSIZE
-        if tag_type[code] == g.UNKNOWN:
+        btype = k.REGULAR if tag in day.regular else k.OVERSIZE
+        if tag_type[code] == k.UNKNOWN:
             tag_type[code] = btype
         elif tag_type[code] != btype:
-            tag_type[code] = g.MIXED
+            tag_type[code] = k.MIXED
         # Tag count
         tag_count[code] += 1
 
     pr.iprint()
-    pr.iprint("Code Colour   Bike type  Count", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Code Colour   Bike type  Count", style=k.SUBTITLE_STYLE)
     for code in sorted(colours):
         name = colours[code].title()
         code_str = code.upper() if TagID.uc() else code
@@ -165,7 +165,7 @@ def colours_report(day: TrackerDay) -> None:
 def retired_report(day: TrackerDay) -> None:
     """List retired tags."""
     pr.iprint()
-    pr.iprint("Retired tags", style=cfg.SUBTITLE_STYLE)
+    pr.iprint("Retired tags", style=k.SUBTITLE_STYLE)
     if not day.retired:
         pr.iprint("--no retired tags--")
         return
@@ -182,10 +182,10 @@ def tags_config_report(
     as_of_when = (args + ["now"])[0]
     as_of_when = VTime(as_of_when)
     if not as_of_when:
-        pr.iprint(f"Unrecognized time {as_of_when.original}", style=cfg.WARNING_STYLE)
+        pr.iprint(f"Unrecognized time {as_of_when.original}", style=k.WARNING_STYLE)
         return
     pr.iprint()
-    pr.iprint("Current tags configuration", style=cfg.TITLE_STYLE)
+    pr.iprint("Current tags configuration", style=k.TITLE_STYLE)
     colours_report(day)
     retired_report(day)
     tag_inventory_matrix(day, as_of_when, include_empty_groups=include_empty_groups)

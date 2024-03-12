@@ -26,8 +26,6 @@ import sqlite3
 import copy
 from collections import defaultdict
 
-##from tt_globals import *
-
 import tt_dbutil as db
 from tt_time import VTime
 import tt_util as ut
@@ -166,7 +164,6 @@ def process_blocks_data(
     block_maxes.num_out = max(b.num_out for b in all_blocks)
     block_maxes.full = max(b.full for b in all_blocks)
     block_maxes.so_far = max(b.so_far for b in all_blocks)
-
 
     return tabledata, block_maxes
 
@@ -308,7 +305,7 @@ def blocks_report(
     for ISO int dow (1=Monday-->7=Sunday)
 
     """
-    cc.test_dow_parameter(iso_dow,list_ok=False)
+    cc.test_dow_parameter(iso_dow, list_ok=False)
     title_bit, where = process_iso_dow(iso_dow)
 
     dayrows = fetch_day_data(ttdb, where)

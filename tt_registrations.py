@@ -21,11 +21,11 @@ Copyright (C) 2023-2024 Julias Hocking and Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import tt_constants as k
+import client_base_config as cfg
 import tt_util as ut
-import tt_conf as cfg
 import tt_printer as pr
 from tt_sounds import NoiseMaker
-import tt_globals as g
 
 
 class Registrations:
@@ -74,7 +74,7 @@ class Registrations:
 
         if operator == "+":
             new_count = cls.num_registrations + num
-            NoiseMaker.play(g.CHEER)
+            NoiseMaker.play(k.CHEER)
         elif operator == "-":
             new_count = cls.num_registrations - num
         elif operator == "=":
@@ -112,10 +112,10 @@ class Registrations:
     def display_error_message(cls, error: str = ""):
         """Show an error message."""
         if error:
-            pr.iprint(error, style=cfg.ERROR_STYLE)
+            pr.iprint(error, style=k.ERROR_STYLE)
         else:
-            pr.iprint("Error: Invalid registration command.", style=cfg.ERROR_STYLE)
-        pr.iprint(cls.usage_str(), style=cfg.ERROR_STYLE)
+            pr.iprint("Error: Invalid registration command.", style=k.ERROR_STYLE)
+        pr.iprint(cls.usage_str(), style=k.ERROR_STYLE)
 
     @classmethod
     def usage_str(cls):

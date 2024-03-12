@@ -42,11 +42,12 @@ import sys
 import math
 import statistics
 
-# from tt_globals import *  # pylint:disable=unused-wildcard-import,wildcard-import
-import tt_conf as cfg
+import web_base_config as wcfg
 import tt_util as ut
 from tt_time import VTime
 import tt_dbutil as db
+import tt_default_hours
+import client_base_config as cfg
 import tt_estimator_rf as rf
 
 # These are model states
@@ -339,7 +340,7 @@ class LRModel:
 class Estimator:
     """Data and methods to estimate how many more bikes to expect."""
 
-    DBFILE = cfg.DB_FILENAME
+    DBFILE = wcfg.DB_FILENAME
 
     def __init__(
         self,
@@ -382,7 +383,7 @@ class Estimator:
         self.rf_model = rf.RandomForestRegressorModel()
 
         # pylint: disable-next=invalid-name
-        DBFILE = cfg.DB_FILENAME
+        DBFILE = wcfg.DB_FILENAME
         if not os.path.exists(DBFILE):
             self.error = "Database not found"
             self.state = ERROR
@@ -430,7 +431,7 @@ class Estimator:
         # closing time, if not given, will be most recent day that matches
         # the given day of the week, or of the date if that was given as dow.
         if not closing_time:
-            closing_time = cfg.valet_hours(dow_date)[1]
+            closing_time = tt_default_hours.get_default_hours(dow_date)[1]
         self.closing_time = VTime(closing_time)  # Closing time today
         if not self.closing_time:
             self.error = "Missing or bad closing_time parameter."

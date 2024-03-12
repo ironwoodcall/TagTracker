@@ -24,7 +24,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 import re
 import tt_util as ut
 import tt_time
-import tt_conf as cfg
+import client_base_config as cfg
 
 
 class Notes:
