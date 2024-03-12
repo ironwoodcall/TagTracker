@@ -51,19 +51,15 @@ SOUND_ENABLED = True
 # If set to 0 (or anything else that evalues False), no monitoring is done.
 INTERNET_MONITORING_FREQUENCY = 10
 
-# This file defines what tags are available, for current-day sessions.
-# FIXME: theis TAGS_CONFIG_FILE will go away
-TAG_CONFIG_FILE = "tags.cfg"
-
 # Files and folder locations
 DATA_FOLDER = "../data"  # Folder to keep datafiles in
-DATA_BASENAME = "cityhall_"  # Files will be {BASENAME}YY-MM-DD.dat
+DATA_BASENAME = "bikeparking_"  # Files will be {BASENAME}YY-MM-DD.dat
 # Where and how often to publish reports
-REPORTS_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
+REPORTS_FOLDER = ""
 PUBLISH_FREQUENCY = 15  # minutes. "0" means do not publish
 
 # Echo captures full transcripts of a day's TT session
-ECHO_FOLDER = r"/mnt/chromeos/GoogleDrive/MyDrive/tracker_data/"
+ECHO_FOLDER = ""
 ECHO = False
 
 # Base of URL to use for calls to estimator
@@ -78,10 +74,25 @@ MAX_NOTE_LENGTH = 80
 CHECK_OUT_CONFIRM_TIME = 10  # mins
 
 # Stubs here; the default hours should be defined in the local config file.
-REGULAR_TAGS = ""
-OVERSIZE_TAGS = ""
-RETIRED_TAGS = ""
+# They would look something like this:
+# REGULAR_TAGS = """
+#   wa0 wa1 wa2 wa3 wa4 wa5 bf0 bf2 bf5
+#   bf7 wc0 wc1 wc3
+# """
+# Where tags can be in any order, separated by spaces or commas,
+# on multiple lines
+REGULAR_TAGS = """
+
+"""
+OVERSIZE_TAGS = """
+
+"""
+RETIRED_TAGS = """
+
+"""
+
 TAG_COLOUR_NAMES = {}
+
 SEASON_HOURS = {}
 SPECIAL_HOURS = {}
 # The format for SEASON_HOURS and SPECIAL_HOURS is like this:
@@ -113,7 +124,6 @@ SPECIAL_HOURS = {}
 # }
 
 
-COLOUR_LETTERS = {}
 
 # Import any local config to override this module's values.
 try:

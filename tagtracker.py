@@ -83,7 +83,7 @@ NORMAL_TAGS = []
 OVERSIZE_TAGS = []
 RETIRED_TAGS = []
 ALL_TAGS = []
-COLOUR_LETTERS = {}
+TAG_COLOUR_NAMES = {}
 check_ins = {}
 check_outs = {}
 
@@ -144,7 +144,7 @@ def pack_day_data() -> td.TrackerDay:
     day.regular = NORMAL_TAGS
     day.oversize = OVERSIZE_TAGS
     day.retired = RETIRED_TAGS
-    day.colour_letters = COLOUR_LETTERS
+    day.colour_letters = TAG_COLOUR_NAMES
     day.notes = notes.Notes.fetch()
     return day
 
@@ -156,7 +156,7 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
     global check_ins, check_outs
     global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
     global ALL_TAGS
-    global COLOUR_LETTERS
+    global TAG_COLOUR_NAMES
     # pylint: enable=global-statement
     PARKING_DATE = today_data.date
     OPENING_TIME = VTime(today_data.opening_time)
@@ -168,7 +168,7 @@ def unpack_day_data(today_data: td.TrackerDay) -> None:
     OVERSIZE_TAGS = today_data.oversize
     RETIRED_TAGS = today_data.retired
     ALL_TAGS = (NORMAL_TAGS | OVERSIZE_TAGS) - RETIRED_TAGS
-    COLOUR_LETTERS = today_data.colour_letters
+    TAG_COLOUR_NAMES = today_data.colour_letters
     notes.Notes.load(today_data.notes)
 
 
@@ -1164,7 +1164,7 @@ def get_taglists_from_config() -> td.TrackerDay:
     day.retired = frozenset(ret)
 
     # Colour letters
-    day.colour_letters = cfg.COLOUR_LETTERS
+    day.colour_letters = cfg.TAG_COLOUR_NAMES
     day.fill_colour_dict_gaps()
     # # Extend for any missing colours
     # tag_colours = set([x.colour for x in reg + over + ret])
