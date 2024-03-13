@@ -6,9 +6,6 @@
 # then (on user confirmation), run it again.  (This because
 # program may well have shut down to reset for next day.)
 
-echo "To start Tagtracker, enter 'tagtracker'"
-exit 1
-
 TT_DIR="$HOME/TagTracker"
 
 this_dir="$(pwd)"
