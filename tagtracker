@@ -8,6 +8,7 @@
 
 TT_DIR="$HOME/TagTracker"
 
+
 this_dir="$(pwd)"
 this_prog=$0
 prog_name="${0##*/}"
