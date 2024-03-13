@@ -1175,26 +1175,35 @@ def get_taglists_from_config() -> td.TrackerDay:
 
     return day
 
+
 def confirm_hours(
     date: k.MaybeDate, current_open: k.MaybeTime, current_close: k.MaybeTime
-) -> tuple[bool, int, int]:
+) -> tuple[bool, VTime, VTime]:
     """Get/set operating hours.
 
     Returns flag True if values have changed
-    and new (or unchanged) open and close times.
+    and new (or unchanged) open and close times as as tuple:
+        changed:bool, open:VTime, closed:VTime
+
+    Logic:
+    - On entry, current_open/close are either times or ""
+    - If "", sets from defaults
+    - Prompts user for get/confirm
+    - Returns result tuple
+
     """
-    # If no times yet set, fetch defaults
-    new_open = ""
-    new_close = ""
-    if not current_open or not current_close:
+    maybe_open, maybe_close = (current_open, current_close)
+    if not maybe_open or not maybe_close:
+        # Set any blank value from config'd defaults
         default_open, default_close = tt_default_hours.get_default_hours(date)
-        (new_open, new_close) = tt_default_hours.get_default_hours(date)
-        new_open = current_open if current_open else new_open
-        new_close = current_close if current_close else new_close
-    # Ask operator to enter or confirm
+        maybe_open = maybe_open if maybe_open else default_open
+        maybe_close = maybe_close if maybe_close else default_close
+
+    # Prompt user to get/confirm times
     new_open, new_close = bits.get_operating_hours(
-        VTime(new_open), VTime(new_close)
+        VTime(maybe_open), VTime(maybe_close)
     )
+
     # Has anything changed?
     return (
         bool(new_open != current_open or new_close != current_close),
@@ -1279,7 +1288,6 @@ if __name__ == "__main__":
 
     # Display data owner notice
     bits.data_owner_notice()
-
 
     # Get/set operating hours
     hours_changed, OPENING_TIME, CLOSING_TIME = confirm_hours(
