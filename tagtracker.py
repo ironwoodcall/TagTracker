@@ -950,7 +950,8 @@ def main():
         elif cmd_bits.command == k.CMD_LINT:
             lint_report(strict_datetimes=True)
         elif cmd_bits.command == k.CMD_REGISTRATION:
-            reg.Registrations.process_registration(cmd_bits.tail)
+            if reg.Registrations.process_registration(cmd_bits.tail):
+                data_dirty = True
         elif cmd_bits.command == k.CMD_NOTES:
             if cmd_bits.args:
                 notes.Notes.add(cmd_bits.tail)

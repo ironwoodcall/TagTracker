@@ -51,7 +51,11 @@ class Registrations:
 
     @classmethod
     def process_registration(cls, user_input: str):
-        """Set registration value based on a user command."""
+        """Set registration value based on a user command.
+
+        Returns True if the count has changed, False otherwise.
+        """
+        current_reg = cls.num_registrations
         user_input = user_input.strip()  # Remove leading and trailing whitespace
 
         if not user_input:
@@ -60,6 +64,8 @@ class Registrations:
             cls.parse_registration_count(user_input)
         else:
             cls.display_error_message()
+        # Indicate if the registration count has changed
+        return current_reg != cls.num_registrations
 
     @classmethod
     def parse_registration_count(cls, user_input: str):
