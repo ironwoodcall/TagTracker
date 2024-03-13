@@ -1175,6 +1175,33 @@ def get_taglists_from_config() -> td.TrackerDay:
 
     return day
 
+def confirm_hours(
+    date: k.MaybeDate, current_open: k.MaybeTime, current_close: k.MaybeTime
+) -> tuple[bool, int, int]:
+    """Get/set operating hours.
+
+    Returns flag True if values have changed
+    and new (or unchanged) open and close times.
+    """
+    # If no times yet set, fetch defaults
+    new_open = ""
+    new_close = ""
+    if not current_open or not current_close:
+        default_open, default_close = tt_default_hours.get_default_hours(date)
+        (new_open, new_close) = tt_default_hours.get_default_hours(date)
+        new_open = current_open if current_open else new_open
+        new_close = current_close if current_close else new_close
+    # Ask operator to enter or confirm
+    new_open, new_close = bits.get_operating_hours(
+        VTime(new_open), VTime(new_close)
+    )
+    # Has anything changed?
+    return (
+        bool(new_open != current_open or new_close != current_close),
+        new_open,
+        new_close,
+    )
+
 
 # ---------------------------------------------
 # STARTUP
@@ -1253,15 +1280,12 @@ if __name__ == "__main__":
     # Display data owner notice
     bits.data_owner_notice()
 
+
     # Get/set operating hours
-    if not OPENING_TIME or not CLOSING_TIME:
-        (opens, closes) = tt_default_hours.get_default_hours(PARKING_DATE)
-        OPENING_TIME = OPENING_TIME if OPENING_TIME else opens
-        CLOSING_TIME = CLOSING_TIME if CLOSING_TIME else closes
-    OPENING_TIME, CLOSING_TIME = bits.get_operating_hours(
-        VTime(OPENING_TIME), VTime(CLOSING_TIME)
+    hours_changed, OPENING_TIME, CLOSING_TIME = confirm_hours(
+        PARKING_DATE, OPENING_TIME, CLOSING_TIME
     )
-    if OPENING_TIME or CLOSING_TIME:
+    if hours_changed:
         save()
 
     # Start tracking tags
