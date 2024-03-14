@@ -260,10 +260,10 @@ pr.COLOUR_ACTIVE = False
 
 # Parse query parameters from the URL if present
 query_string = ut.untaint(os.environ.get("QUERY_STRING", ""))
-if os.getenv("TAGTRACKER_DEV"):
+if os.getenv("TAGTRACKER_DEBUG"):
     print(
         "<pre style='color:red'>"
-        "\n\nDEV DEV DEV DEV DEV DEV DEV DEV\n\n"
+        "\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n"
         f"export QUERY_STRING='{query_string}'; "
         f"export SERVER_PORT={os.environ.get('SERVER_PORT')}\n\n"
         "</pre>"
