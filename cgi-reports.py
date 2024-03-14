@@ -130,7 +130,9 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     thisday = ut.date_str(date)
     if not thisday:
         cc.bad_date(thisday)
+    # Make this page have a black background
     print("<style>body {background-color:black;color:white}</style>")
+
     print(f"<h1>Parking attendant report {thisday}</h1>")
 
     print("<h2>Audit</h2>")
