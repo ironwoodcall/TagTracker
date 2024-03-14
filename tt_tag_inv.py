@@ -109,7 +109,7 @@ def tag_inventory_matrix(
         )
         # ut.squawk(f"{prefix=},{ [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]]=}")
         # ut.squawk(f"{this_prefix_used=},{[x[0] for x in tag_states]=}")
-        if this_prefix_used:
+        if this_prefix_used or include_empty_groups:
             pr.iprint(f"{prefix:3s} ", style=k.HIGHLIGHT_STYLE, end="")
             for tup in tag_states:
                 pr.iprint(" " + tup[0], style=tup[1], end="")
