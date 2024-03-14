@@ -264,8 +264,6 @@ if os.getenv("TAGTRACKER_DEBUG"):
     print(
         "<pre style='color:red'>"
         "\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n"
-        f"export QUERY_STRING='{query_string}'; "
-        f"export SERVER_PORT={os.environ.get('SERVER_PORT')}\n\n"
         "</pre>"
     )
 query_params = urllib.parse.parse_qs(query_string)
