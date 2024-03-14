@@ -130,23 +130,32 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     thisday = ut.date_str(date)
     if not thisday:
         cc.bad_date(thisday)
-    print("<h1>Audit report</h1>")
+    print(f"<h1>Parking attendant report {thisday}</h1>")
+
+    print("<h2>Audit</h2>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
     if not day:
         print("<b>no information for this day</b><br>")
         return
     aud.audit_report(day, [whattime], include_notes=False, include_returns=True)
-    print(f"\n  Registrations today: {day.registrations}\n")
-    print("</pre>")
-    print("<h2>Tag Inventory Matrix</h2>")
+    print("\n</pre>")
+
+    print("<h2>Bike registrations</h2>")
+    print(f"<p>&nbsp;&nbsp;Registrations today: {day.registrations}\n</p>")
+
+    print("<h2>Busyness</h2>")
+    print("<pre>")
+    rep.busyness_report(day, [qtime])
+    print("\n</pre>")
+
+    print("<h2>Tag inventory</h2>")
     print("<pre>")
     tt_tag_inv.tags_config_report(day, [whattime], include_empty_groups=True)
-    print("\n</pre>")
-    print("<h2>See also:</h2>")
-    print(
-        f"""<ul><a href='{cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today",qtime="now",qsort="tag")}'>Today details</a>"""
-    )
+    print("</pre>")
+    print("<br><br>")
+
+    print("<h2>Notices</h2>")
 
 
 def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
@@ -251,18 +260,20 @@ TagID.uc(wcfg.TAGS_UPPERCASE)
 
 DBFILE = wcfg.DB_FILENAME
 database = db.db_connect(DBFILE)
+if not database:
+    print("<br>No database")
+    sys.exit()
 
 # Set text colours off (for the text-based reports)
-pr.COLOUR_ACTIVE = False
+pr.COLOUR_ACTIVE = True
+k.set_html_style()
 
 # Parse query parameters from the URL if present
 query_string = ut.untaint(os.environ.get("QUERY_STRING", ""))
-if os.getenv("TAGTRACKER_DEV"):
+if os.getenv("TAGTRACKER_DEBUG"):
     print(
         "<pre style='color:red'>"
-        "\n\nDEV DEV DEV DEV DEV DEV DEV DEV\n\n"
-        f"export QUERY_STRING='{query_string}'; "
-        f"export SERVER_PORT={os.environ.get('SERVER_PORT')}\n\n"
+        "\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n"
         "</pre>"
     )
 query_params = urllib.parse.parse_qs(query_string)

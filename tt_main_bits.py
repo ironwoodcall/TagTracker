@@ -27,6 +27,7 @@ import tt_util as ut
 import client_base_config as cfg
 from tt_time import VTime
 import tt_constants as k
+import tt_default_hours
 
 # Import pyfiglet if it's available.
 try:
@@ -96,7 +97,6 @@ def splash_top_pyfiglet():
         available_fonts.remove(font)
         msg_lines = render("TagTracker", font, hpadding=2, vpadding=1)
 
-
     if not msg_lines:
         return False
 
@@ -163,6 +163,48 @@ def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
             pr.iprint(line, style=k.NORMAL_STYLE)
 
 
+def confirm_hours(
+    date: k.MaybeDate, current_open: k.MaybeTime, current_close: k.MaybeTime
+) -> tuple[bool, VTime, VTime]:
+    """Get/set operating hours.
+
+    Returns flag True if values have changed
+    and new (or unchanged) open and close times as as tuple:
+        changed:bool, open:VTime, closed:VTime
+
+    Logic:
+    - On entry, current_open/close are either times or ""
+    - If "", sets from defaults
+    - Prompts user for get/confirm
+    - Returns result tuple
+
+    """
+    maybe_open, maybe_close = (current_open, current_close)
+    if not maybe_open or not maybe_close:
+        # Set any blank value from config'd defaults
+        default_open, default_close = tt_default_hours.get_default_hours(date)
+        maybe_open = maybe_open if maybe_open else default_open
+        maybe_close = maybe_close if maybe_close else default_close
+
+    # Prompt user to get/confirm times
+    done = False
+    new_open, new_close = VTime(maybe_open), VTime(maybe_close)
+    while not done:
+        new_open, new_close = get_operating_hours(new_open, new_close)
+        if new_open >= new_close:
+            pr.iprint(
+                "Closing time must be later than opening time", style=k.ERROR_STYLE
+            )
+        else:
+            done = True
+    # Has anything changed?
+    return (
+        bool(new_open != current_open or new_close != current_close),
+        new_open,
+        new_close,
+    )
+
+
 def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]:
     """Get/confirm today's operating hours."""
 
@@ -214,5 +256,3 @@ def data_owner_notice():
         )
         for line in data_note:
             pr.iprint(line, style=k.ANSWER_STYLE)
-
-

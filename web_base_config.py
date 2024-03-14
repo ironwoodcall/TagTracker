@@ -38,7 +38,7 @@ TAGS_UPPERCASE = False
 DATA_OWNER = ""
 
 # Database filename
-DB_FILENAME = "cityhall_bikevalet.db"  # Name of persistent database
+DB_FILENAME = ""  # Filepath to sqlite3 database
 
 # Import any local web config to override this module's values.
 try:

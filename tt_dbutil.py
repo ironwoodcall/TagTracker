@@ -225,7 +225,9 @@ def db_connect(db_file, must_exist: bool = True) -> sqlite3.Connection:
     path."""
 
     if not os.path.exists(db_file):
-        print(f"Database file {db_file} not found", file=sys.stderr)
+        print(f"Database file {db_file} not found",
+              #file=sys.stderr
+              )
         return None
 
     try:
@@ -235,7 +237,7 @@ def db_connect(db_file, must_exist: bool = True) -> sqlite3.Connection:
         print(
             "sqlite ERROR in db_connect() -- ",
             sqlite_err,
-            file=sys.stderr,
+            #file=sys.stderr,
         )
         return None
     return connection

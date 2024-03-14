@@ -36,15 +36,15 @@ from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
 from tt_trackerday import TrackerDay
-import client_base_config as cfg
+#import client_base_config as cfg
 import tt_util as ut
 
 
 def index_line(max_tag_num):
     """Print an index line for the matrix."""
-    pr.iprint(f"{' ':3s} ", style=k.HIGHLIGHT_STYLE, end="")
+    pr.iprint("    ", style=k.HIGHLIGHT_STYLE, end="",num_indents=1)
     for i in range(0, max_tag_num + 1):
-        pr.iprint(f" {i:02d}", style=k.HIGHLIGHT_STYLE, end="")
+        pr.iprint(f"   {i:02d}", style=k.HIGHLIGHT_STYLE, end="",num_indents=0)
 
 
 def tag_inventory_matrix(
@@ -109,10 +109,11 @@ def tag_inventory_matrix(
         )
         # ut.squawk(f"{prefix=},{ [cfg.TAG_INV_BIKE_IN[0], cfg.TAG_INV_BIKE_OUT[0]]=}")
         # ut.squawk(f"{this_prefix_used=},{[x[0] for x in tag_states]=}")
-        if this_prefix_used:
+        if this_prefix_used or include_empty_groups:
             pr.iprint(f"{prefix:3s} ", style=k.HIGHLIGHT_STYLE, end="")
             for tup in tag_states:
-                pr.iprint(" " + tup[0], style=tup[1], end="")
+                pr.iprint("   ",style=k.NORMAL_STYLE,end="",num_indents=0)
+                pr.iprint(tup[0], style=tup[1], end="",num_indents=0)
             pr.iprint()
 
     index_line(max_tag_num)

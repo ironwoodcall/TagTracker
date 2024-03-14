@@ -391,7 +391,8 @@ class Estimator:
         self.database = db.db_connect(DBFILE)
 
         # Now process the inputs from passed-in values.
-        if not bikes_so_far and not as_of_when and not dow_in and not closing_time:
+        ##if not bikes_so_far and not as_of_when and not dow_in and not closing_time:
+        if not bikes_so_far:
             bikes_so_far = self._bikes_right_now()
 
         bikes_so_far = str(bikes_so_far).strip()

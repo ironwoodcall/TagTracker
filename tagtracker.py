@@ -950,7 +950,8 @@ def main():
         elif cmd_bits.command == k.CMD_LINT:
             lint_report(strict_datetimes=True)
         elif cmd_bits.command == k.CMD_REGISTRATION:
-            reg.Registrations.process_registration(cmd_bits.tail)
+            if reg.Registrations.process_registration(cmd_bits.tail):
+                data_dirty = True
         elif cmd_bits.command == k.CMD_NOTES:
             if cmd_bits.args:
                 notes.Notes.add(cmd_bits.tail)
@@ -1175,6 +1176,7 @@ def get_taglists_from_config() -> td.TrackerDay:
     return day
 
 
+
 # ---------------------------------------------
 # STARTUP
 
@@ -1253,14 +1255,10 @@ if __name__ == "__main__":
     bits.data_owner_notice()
 
     # Get/set operating hours
-    if not OPENING_TIME or not CLOSING_TIME:
-        (opens, closes) = tt_default_hours.get_default_hours(PARKING_DATE)
-        OPENING_TIME = OPENING_TIME if OPENING_TIME else opens
-        CLOSING_TIME = CLOSING_TIME if CLOSING_TIME else closes
-    OPENING_TIME, CLOSING_TIME = bits.get_operating_hours(
-        VTime(OPENING_TIME), VTime(CLOSING_TIME)
+    hours_changed, OPENING_TIME, CLOSING_TIME = bits.confirm_hours(
+        PARKING_DATE, OPENING_TIME, CLOSING_TIME
     )
-    if OPENING_TIME or CLOSING_TIME:
+    if hours_changed:
         save()
 
     # Start tracking tags

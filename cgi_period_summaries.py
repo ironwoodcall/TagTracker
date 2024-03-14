@@ -31,7 +31,7 @@ import os
 import tt_dbutil as db
 import cgi_common as cc
 
-if "TAGTRACKER_DEV" in os.environ:
+if "TAGTRACKER_DEBUG" in os.environ:
     import cgitb
     cgitb.enable()
 
