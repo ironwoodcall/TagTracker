@@ -87,7 +87,7 @@ args = parse_args()
 if not os.path.exists(args.database_file):
     print(f"Database file {args.database_file} not found", file=sys.stderr)
     sys.exit(1)
-database = db.db_connect(args.database_file, must_exist=True)
+database = db.db_connect(args.database_file)
 dbrows = db.db_fetch(
     database, f"select max_total from day where date = '{args.date}'"
 )

@@ -272,14 +272,14 @@ pr.COLOUR_ACTIVE = True
 k.set_html_style()
 
 # Parse query parameters from the URL if present
-query_string = ut.untaint(os.environ.get("QUERY_STRING", ""))
+QUERY_STRING = ut.untaint(os.environ.get("QUERY_STRING", ""))
 if os.getenv("TAGTRACKER_DEBUG"):
     print(
         "<pre style='color:red'>"
         "\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n"
         "</pre>"
     )
-query_params = urllib.parse.parse_qs(query_string)
+query_params = urllib.parse.parse_qs(QUERY_STRING)
 what = query_params.get("what", [""])[0]
 what = what if what else cc.WHAT_SUMMARY
 maybedate = query_params.get("date", [""])[0]

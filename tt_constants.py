@@ -22,6 +22,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 import re
 from tt_colours import Style, Fore, Back
 
@@ -140,27 +141,30 @@ ERROR_STYLE = "error_style"
 ALERT_STYLE = "alert_style"
 STRONG_ALERT_STYLE = "strong_alert_style"
 
+
 def set_html_style():
     """Set STYLE values to work in an HTML doc."""
-    global STYLE
+    global STYLE  # pylint:disable=global-statement
     STYLE = {
         PROMPT_STYLE: '<span style="color: green; background-color: black; font-weight: bold;">',
         SUBPROMPT_STYLE: '<span style="color: green; background-color: black; font-weight: bold;">',
         ANSWER_STYLE: '<span style="color: yellow; background-color: blue; font-weight: bold;">',
         TITLE_STYLE: '<span style="color: white; background-color: blue; font-weight: bold;">',
         SUBTITLE_STYLE: '<span style="color: cyan; background-color: black; font-weight: bold;">',
-        RESET_STYLE: '</span>',  # Closes the style tag
-        NORMAL_STYLE: '<span style="color:white;background-color:black;">', # Nothing
+        RESET_STYLE: "</span>",  # Closes the style tag
+        NORMAL_STYLE: '<span style="color:white;background-color:black;">',  # Nothing
         HIGHLIGHT_STYLE: '<span style="color: cyan; background-color: black; font-weight: bold;">',
         WARNING_STYLE: '<span style="color: red; background-color: black; font-weight: bold;">',
         ERROR_STYLE: '<span style="color: white; background-color: red; font-weight: bold;">',
         ALERT_STYLE: '<span style="color: white; background-color: blue; font-weight: bold;">',
-        STRONG_ALERT_STYLE: '<span style="color: white; background-color: red; font-weight: bold;">'
+        STRONG_ALERT_STYLE:
+            '<span style="color: white; background-color: red; font-weight: bold;">',
     }
+
 
 def set_terminal_style():
     """Set STYLE values to work on a terminal."""
-    global STYLE
+    global STYLE  # pylint:disable=global-statement
     STYLE = {
         PROMPT_STYLE: f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}",
         SUBPROMPT_STYLE: f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}",
@@ -173,12 +177,12 @@ def set_terminal_style():
         WARNING_STYLE: f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}",
         ERROR_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}",
         ALERT_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}",
-        STRONG_ALERT_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
+        STRONG_ALERT_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}",
     }
+
 
 # Colour combinations.
 set_terminal_style()
-
 
 # These are the symbols & styles used in the tag inventory matrix.
 # Each is a tuple of (symbol,style).
@@ -214,11 +218,8 @@ CMD_BUSY_CHART = "busy_chart"
 CMD_FULL_CHART = "full_chart"
 CMD_CHART = "chart"
 CMD_PUBLISH = "publish"
-CMD_COLOURS = "colours"  # FIXME: remove in a while. Now "tags"
-CMD_RETIRED = "retired"  # FIXME: remove in a while.  Now "tags"
 CMD_TAGS = "tags"
 CMD_ESTIMATE = "estimate"
-
 
 COMMANDS = {}
 COMMANDS[CMD_AUDIT] = ["audit", "a", "aud"]
@@ -235,7 +236,6 @@ COMMANDS[CMD_VALET_HOURS] = ["hour", "hours", "v"]
 COMMANDS[CMD_CSV] = ["csv"]
 COMMANDS[CMD_UPPERCASE] = ["uc", "uppercase", "upper"]
 COMMANDS[CMD_LOWERCASE] = ["lc", "lowercase", "lower"]
-COMMANDS[CMD_RETIRED] = ["retired", "ret"]
 COMMANDS[CMD_LINT] = ["consistency", "consistent", "cons", "con"]
 COMMANDS[CMD_DUMP] = ["dump"]
 COMMANDS[CMD_BUSY_CHART] = [
@@ -252,17 +252,11 @@ COMMANDS[CMD_FULL_CHART] = [
 ]
 COMMANDS[CMD_CHART] = ["chart", "c"]
 COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
-COMMANDS[CMD_COLOURS] = ["col", "color", "colors", "colour", "colours"]
 COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
 COMMANDS[CMD_NOTES] = ["note", "notes", "n"]
-COMMANDS[CMD_REGISTRATION] = ["registrations","register","reg","r"]
+COMMANDS[CMD_REGISTRATION] = ["registrations", "register", "reg", "r"]
 COMMANDS[CMD_ESTIMATE] = ["est", "estimate", "guess"]
 # These are for commands that are not recognized so *maybe* are a tag
-CMD_UNKNOWN = "unknown" + chr(
-    12345
-)  # special value to mean unrecognized command
-CMD_TAG_RETIRED = "tag_retired" + chr(
-    12345
-)  # For a tag that's retired (not a command)
+CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
+CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)
 CMD_TAG_UNUSABLE = "tag_unusable" + chr(12345)
-

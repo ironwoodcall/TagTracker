@@ -215,7 +215,7 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
     return day
 
 
-def db_connect(db_file, must_exist: bool = True) -> sqlite3.Connection:
+def db_connect(db_file) -> sqlite3.Connection:
     """Connect to (existing) SQLite database.
 
     Flag must_exist indicates whether:

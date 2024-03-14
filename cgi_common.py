@@ -567,7 +567,7 @@ def get_visit_stats(
     num_visits = len(durations)
     total_duration = sum(durations)  # minutes
     if num_visits <= 0:
-        return 0, "", ""
+        return 0, "", "", [], 0
     mean = statistics.mean(durations)
     median = statistics.median(durations)
     modes, modes_occurences = ut.calculate_visit_modes(durations)
