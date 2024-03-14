@@ -42,7 +42,7 @@ import tt_util as ut
 
 def index_line(max_tag_num):
     """Print an index line for the matrix."""
-    pr.iprint(f"{'   ':3s} ", style=k.HIGHLIGHT_STYLE, end="",num_indents=0)
+    pr.iprint("    ", style=k.HIGHLIGHT_STYLE, end="",num_indents=0)
     for i in range(0, max_tag_num + 1):
         pr.iprint(f"   {i:02d}", style=k.HIGHLIGHT_STYLE, end="",num_indents=0)
 
