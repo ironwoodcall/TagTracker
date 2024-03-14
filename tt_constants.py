@@ -140,19 +140,45 @@ ERROR_STYLE = "error_style"
 ALERT_STYLE = "alert_style"
 STRONG_ALERT_STYLE = "strong_alert_style"
 
-# Colour combinations. Override these in local config as desired.
-STYLE[PROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
-STYLE[SUBPROMPT_STYLE] = f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}"
-STYLE[ANSWER_STYLE] = f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}"
-STYLE[TITLE_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}"
-STYLE[SUBTITLE_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
-STYLE[RESET_STYLE] = f"{Style.RESET_ALL}"
-STYLE[NORMAL_STYLE] = f"{Style.RESET_ALL}"
-STYLE[HIGHLIGHT_STYLE] = f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}"
-STYLE[WARNING_STYLE] = f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}"
-STYLE[ERROR_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
-STYLE[ALERT_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}"
-STYLE[STRONG_ALERT_STYLE] = f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
+def set_html_style():
+    """Set STYLE values to work in an HTML doc."""
+    global STYLE
+    STYLE = {
+        PROMPT_STYLE: '<span style="color: green; background-color: black; font-weight: bold;">',
+        SUBPROMPT_STYLE: '<span style="color: green; background-color: black; font-weight: bold;">',
+        ANSWER_STYLE: '<span style="color: yellow; background-color: blue; font-weight: bold;">',
+        TITLE_STYLE: '<span style="color: white; background-color: blue; font-weight: bold;">',
+        SUBTITLE_STYLE: '<span style="color: cyan; background-color: black; font-weight: bold;">',
+        RESET_STYLE: '</span>',  # Closes the style tag
+        NORMAL_STYLE: '', # Nothing
+        HIGHLIGHT_STYLE: '<span style="color: cyan; background-color: black; font-weight: bold;">',
+        WARNING_STYLE: '<span style="color: red; background-color: black; font-weight: bold;">',
+        ERROR_STYLE: '<span style="color: white; background-color: red; font-weight: bold;">',
+        ALERT_STYLE: '<span style="color: white; background-color: blue; font-weight: bold;">',
+        STRONG_ALERT_STYLE: '<span style="color: white; background-color: red; font-weight: bold;">'
+    }
+
+def set_terminal_style():
+    """Set STYLE values to work on a terminal."""
+    global STYLE
+    STYLE = {
+        PROMPT_STYLE: f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}",
+        SUBPROMPT_STYLE: f"{Style.BRIGHT}{Fore.GREEN}{Back.BLACK}",
+        ANSWER_STYLE: f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLUE}",
+        TITLE_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}",
+        SUBTITLE_STYLE: f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}",
+        RESET_STYLE: f"{Style.RESET_ALL}",
+        NORMAL_STYLE: f"{Style.RESET_ALL}",
+        HIGHLIGHT_STYLE: f"{Style.BRIGHT}{Fore.CYAN}{Back.BLACK}",
+        WARNING_STYLE: f"{Style.BRIGHT}{Fore.RED}{Back.BLACK}",
+        ERROR_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}",
+        ALERT_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}",
+        STRONG_ALERT_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}"
+    }
+
+# Colour combinations.
+set_terminal_style()
+
 
 # These are the symbols & styles used in the tag inventory matrix.
 # Each is a tuple of (symbol,style).

@@ -253,7 +253,8 @@ if not database:
     sys.exit()
 
 # Set text colours off (for the text-based reports)
-pr.COLOUR_ACTIVE = False
+pr.COLOUR_ACTIVE = True
+k.set_html_style()
 
 # Parse query parameters from the URL if present
 query_string = ut.untaint(os.environ.get("QUERY_STRING", ""))
