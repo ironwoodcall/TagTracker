@@ -139,6 +139,7 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
         print("<b>no information for this day</b><br>")
         return
     aud.audit_report(day, [whattime], include_notes=False, include_returns=True)
+    print("\n</pre>")
 
     print("<h2>Bike Registrations</h2>")
     print(f"<p>Registrations today: {day.registrations}\n</p>")
