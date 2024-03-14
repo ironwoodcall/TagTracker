@@ -150,7 +150,7 @@ def set_html_style():
         TITLE_STYLE: '<span style="color: white; background-color: blue; font-weight: bold;">',
         SUBTITLE_STYLE: '<span style="color: cyan; background-color: black; font-weight: bold;">',
         RESET_STYLE: '</span>',  # Closes the style tag
-        NORMAL_STYLE: '', # Nothing
+        NORMAL_STYLE: '<span style="color:white;background-color:black;">', # Nothing
         HIGHLIGHT_STYLE: '<span style="color: cyan; background-color: black; font-weight: bold;">',
         WARNING_STYLE: '<span style="color: red; background-color: black; font-weight: bold;">',
         ERROR_STYLE: '<span style="color: white; background-color: red; font-weight: bold;">',
