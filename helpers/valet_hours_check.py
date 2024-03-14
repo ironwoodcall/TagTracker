@@ -2,17 +2,28 @@
 """Scan valet hours to see if they seem correct."""
 
 import sys
-sys.path.append("../")
 import tt_dbutil as db
-from tt_conf import valet_hours
-from tt_util import date_str
+from web_base_config import DB_FILENAME
+import tt_util as ut
 
-dbfile = "/fs/sysbits/tagtracker/dev/data/cityhall_bikevalet.db"
+sys.path.append("../")
+
+dbfile = DB_FILENAME
 
 database = db.db_connect(dbfile)
+if not database:
+    sys.exit(1)
 vhours = db.db_fetch(
     database, "select date,time_open,time_closed from day order by date"
 )
+
+# If want to run this then need to fix up its call to (superseded) valet_hours.
+def valet_hours(date:str):
+    print("This script needs to get updated to use newer definitions of dates")
+    sys.exit(1)
+    return None,None
+
+
 print("Mismatches between actual and exected valet hours.")
 print(f"Database: {dbfile}")
 print()
@@ -28,7 +39,7 @@ for onedate in vhours:
         nomatch = "BOTH" if nomatch else "CLOSE"
     if nomatch:
         print(
-            f"{onedate.date} {date_str(onedate.date,dow_str_len=3)}  "
+            f"{onedate.date} {ut.date_str(onedate.date,dow_str_len=3)}  "
             f"{actual_open}-{actual_close}  "
             f"{expected_open}-{expected_close}  "
             f"{nomatch}"

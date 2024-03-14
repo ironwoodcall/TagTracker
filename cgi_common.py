@@ -31,7 +31,8 @@ import statistics
 import urllib
 from datetime import datetime, timedelta
 
-from tt_conf import SITE_NAME
+from web_base_config import SITE_NAME
+#from tt_conf import SITE_NAME
 from tt_time import VTime
 from tt_tag import TagID
 import tt_dbutil as db
