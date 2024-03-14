@@ -251,6 +251,9 @@ TagID.uc(wcfg.TAGS_UPPERCASE)
 
 DBFILE = wcfg.DB_FILENAME
 database = db.db_connect(DBFILE)
+if not database:
+    print("<br>No database")
+    sys.exit()
 
 # Set text colours off (for the text-based reports)
 pr.COLOUR_ACTIVE = False
