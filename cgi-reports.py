@@ -130,7 +130,7 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     thisday = ut.date_str(date)
     if not thisday:
         cc.bad_date(thisday)
-    print("<h1>Audit report</h1>")
+    print(f"<h1>Audit report {thisday}</h1>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
     if not day:
@@ -139,14 +139,11 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     aud.audit_report(day, [whattime], include_notes=False, include_returns=True)
     print(f"\n  Registrations today: {day.registrations}\n")
     print("</pre>")
-    print("<h2>Tag Inventory Matrix</h2>")
+    print("<h2>Tag Inventory Report/h2>")
     print("<pre>")
     tt_tag_inv.tags_config_report(day, [whattime], include_empty_groups=True)
     print("\n</pre>")
-    print("<h2>See also:</h2>")
-    print(
-        f"""<ul><a href='{cc.selfref(what=cc.WHAT_ONE_DAY,qdate="today",qtime="now",qsort="tag")}'>Today details</a>"""
-    )
+    print("<br><br>")
 
 
 def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
