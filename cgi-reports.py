@@ -139,7 +139,7 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     aud.audit_report(day, [whattime], include_notes=False, include_returns=True)
     print(f"\n  Registrations today: {day.registrations}\n")
     print("</pre>")
-    print("<h2>Tag Inventory Report/h2>")
+    print("<h2>Tag Inventory Report</h2>")
     print("<pre>")
     tt_tag_inv.tags_config_report(day, [whattime], include_empty_groups=True)
     print("\n</pre>")
