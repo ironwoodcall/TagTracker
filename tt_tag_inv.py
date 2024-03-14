@@ -112,7 +112,7 @@ def tag_inventory_matrix(
         if this_prefix_used or include_empty_groups:
             pr.iprint(f"{prefix:3s} ", style=k.HIGHLIGHT_STYLE, end="")
             for tup in tag_states:
-                pr.iprint(" ",style=k.NORMAL_STYLE,end="")
+                pr.iprint("   ",style=k.NORMAL_STYLE,end="",num_indents=0)
                 pr.iprint(tup[0], style=tup[1], end="",num_indents=0)
             pr.iprint()
 
