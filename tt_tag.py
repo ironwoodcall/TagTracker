@@ -115,7 +115,7 @@ class TagID(str):
         if not isinstance(string, str):
             selfstring = ""
         else:
-            r = re.match(r"^ *([a-z][a-z]?)([a-z])0*([0-9]+) *$", string.lower())
+            r = re.match(r"^ *([a-z])([a-z])0*([0-9]+) *$", string.lower())
             if r:
                 selfstring = f"{r.group(1)}{r.group(2)}{r.group(3)}".lower()
             else:
