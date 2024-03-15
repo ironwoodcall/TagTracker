@@ -32,7 +32,8 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import os
 import re
-import tempfile
+
+# import tempfile
 
 import tt_constants as k
 from tt_tag import TagID
@@ -45,9 +46,12 @@ import client_base_config as cfg
 # These are used when writing & also for string-matching when reading.
 HEADER_BIKES_IN = "Bikes checked in / tags out:"
 HEADER_BIKES_OUT = "Bikes checked out / tags in:"
-HEADER_DATE = "Valet date:"
-HEADER_OPENS = "Valet opens:"
-HEADER_CLOSES = "Valet closes:"
+HEADER_DATE = "Date:"
+HEADER_OPENS = "Opens:"
+HEADER_CLOSES = "Closes:"
+HEADER_OLD_DATE = "Valet date:"  # For back-compatibility
+HEADER_OLD_OPENS = "Valet opens:"  # For back-compatibility
+HEADER_OLD_CLOSES = "Valet closes:"  # For back-compatibility
 HEADER_OVERSIZE = "Oversize-bike tags:"
 HEADER_REGULAR = "Regular-bike tags:"
 HEADER_RETIRED = "Retired tags:"
@@ -80,8 +84,7 @@ def write_datafile(datafile: str, content: list[str], make_bak: bool) -> bool:
     # Write the content to a temporary file
     temp_filename = f"{datafile}.tmp"
     try:
-        with open(temp_filename,mode="w",encoding="utf-8"
-        ) as temp_file:
+        with open(temp_filename, mode="w", encoding="utf-8") as temp_file:
             for line in content:
                 temp_file.write(line)
                 temp_file.write("\n")
@@ -110,6 +113,100 @@ def write_datafile(datafile: str, content: list[str], make_bak: bool) -> bool:
     return True
 
 
+def _read_time_or_date(
+    line: str,
+    data: TrackerDay,
+    err_count: int,
+    err_msgs: list[str],
+    filename: str,
+    line_num: int,
+    header: str,
+    val: k.MaybeDate | k.MaybeTime,
+) -> int:
+    """
+    Process a time or date section.
+
+    Parameters:
+        - line: The current line being processed.
+        - data: The TrackerDay object to update with the processed data.
+        - err_msgs: A list to which any error messages will be appended.
+        - filename: The name of the file being processed.
+        - line_num: The line number of the current line.
+        - header: The header string for the section being processed.
+        - val: The value that follows the header on that line
+
+    Returns:
+        The number of errors encountered during processing.
+    """
+    # Extract information from the line based on the header
+    r = re.match(rf"{header} *(.+)", line)
+    if not r:
+        return _read_error_msg(
+            f"Unable to interpret {header}",
+            err_msgs,
+            errs=err_count,
+            fname=filename,
+            fline=line_num,
+        )
+
+    # Process based on the header type
+    if header in [HEADER_DATE, HEADER_OLD_DATE]:
+        # Read the datafile's date and update data.date
+        maybedate = ut.date_str(val)
+        if not maybedate:
+            return _read_error_msg(
+                f"Unable to interpret '{val}' as a date",
+                message_list=err_msgs,
+                errs=err_count,
+                fname=filename,
+                fline=line_num,
+            )
+        data.date = maybedate
+    elif header in [HEADER_OPENS, HEADER_CLOSES, HEADER_OLD_OPENS, HEADER_OLD_CLOSES]:
+        # This is an open or a close time (probably)
+        maybetime = VTime(val)
+        if not maybetime:
+            return _read_error_msg(
+                f"Unable to interpret '{val}' as a time",
+                message_list=err_msgs,
+                errs=err_count,
+                fname=filename,
+                fline=line_num,
+            )
+        if header in [HEADER_OPENS, HEADER_OLD_OPENS]:
+            data.opening_time = maybetime
+        else:
+            data.closing_time = maybetime
+    else:
+        ut.squawk(f"Unexpected unrecognition of header {header} line {line_num}")
+        return err_count + 1
+
+    return err_count
+
+
+def _read_error_msg(
+    text: str,
+    message_list: list[str],
+    errs: int = 0,
+    fname: str = "",
+    fline: int = None,
+) -> int:
+    """Print a datafile read error, increments error counter.
+
+    This returns the incremented error counter.  Ugh.
+    Also, if this is the first error (errors_before is None or 0)
+    then this makes an initial print() on the assumptino that the
+    immediately preceding print() statement had end="".
+    """
+    text = f" {text}"
+    if fline:
+        text = f"{fline}:{text}"
+    if fname:
+        text = f"{fname}:{text}"
+    message_list.append(text)
+    return errs + 1
+
+
 def read_datafile(
     filename: str, err_msgs: list[str], usable_tags: list[TagID] = None
 ) -> TrackerDay:
@@ -126,28 +223,6 @@ def read_datafile(
     list then it's an error.  If usable_tags is empty or None then no
     checking takes place.
     """
-
-    def data_read_error(
-        text: str,
-        message_list: list[str],
-        errs: int = 0,
-        fname: str = "",
-        fline: int = None,
-    ) -> int:
-        """Print a datafile read error, increments error counter.
-
-        This returns the incremented error counter.  Ugh.
-        Also, if this is the first error (errors_before is None or 0)
-        then this makes an initial print() on the assumptino that the
-        immediately preceding print() statement had end="".
-        """
-        text = f" {text}"
-        if fline:
-            text = f"{fline}:{text}"
-        if fname:
-            text = f"{fname}:{text}"
-        message_list.append(text)
-        return errs + 1
 
     data = TrackerDay()
     errors = 0  # How many errors found reading datafile?
@@ -189,7 +264,7 @@ def read_datafile(
                 try:
                     data.registrations = int(r.group(1))
                 except ValueError:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         "Unable to read registrations value",
                         err_msgs,
                         errs=errors,
@@ -198,7 +273,7 @@ def read_datafile(
                     )
                     continue
                 if data.registrations < 0:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         "Registrations value < 0",
                         err_msgs,
                         errs=errors,
@@ -207,48 +282,30 @@ def read_datafile(
                     )
                     continue
                 continue
-            elif re.match(rf"^ *{HEADER_DATE}", line):
-                # Read the datafile's date
+
+            elif r := re.match(
+                rf"({HEADER_OPENS}|{HEADER_CLOSES}|{HEADER_DATE}"
+                rf"|{HEADER_OLD_OPENS}|{HEADER_OLD_CLOSES}|{HEADER_OLD_DATE})"
+                r"\s+(.+)",
+                line,
+            ):
+                # This is a time or date (probably)
                 section = k.NOT_A_LIST
-                r = re.match(rf"{HEADER_DATE} *(.+)", line)
-                maybedate = ut.date_str(r.group(1))
-                if not maybedate:
-                    errors = data_read_error(
-                        "Unable to read parking service date",
-                        err_msgs,
-                        errs=errors,
-                        fname=filename,
-                        fline=line_num,
-                    )
-                    continue
-                data.date = maybedate
-                continue
-            elif re.match(rf"({HEADER_OPENS}|{HEADER_CLOSES})", line):
-                # This is an open or a close time (probably)
-                section = k.NOT_A_LIST
-                r = re.match(
-                    rf"({HEADER_OPENS}|{HEADER_CLOSES}) *(.+)",
-                    line,
+                errors = _read_time_or_date(
+                    line=line,
+                    data=data,
+                    err_msgs=err_msgs,
+                    err_count=errors,
+                    filename=filename,
+                    line_num=line_num,
+                    header=r.group(1),
+                    val=r.group(2),
                 )
-                maybetime = VTime(r.group(2))
-                if not maybetime:
-                    errors = data_read_error(
-                        f"Unable to understand open/close time '{maybetime.original}'",
-                        err_msgs,
-                        errs=errors,
-                        fname=filename,
-                        fline=line_num,
-                    )
-                    continue
-                if r.group(1) == HEADER_OPENS:
-                    data.opening_time = maybetime
-                else:
-                    data.closing_time = maybetime
-                continue
+
             # Can do nothing unless we know what section we're in
             if section is None:
-                errors = data_read_error(
-                    "Unexpected unintelligibility in line",
+                errors = _read_error_msg(
+                    f"Unexpected unintelligibility in line '{line}'",
                     err_msgs,
                     errs=errors,
                     fname=filename,
@@ -269,7 +326,7 @@ def read_datafile(
                 # Read the colour dictionary
                 bits = ut.splitline(line)
                 if len(bits) < 2:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         f"Bad colour code '{line}",
                         err_msgs,
                         errs=errors,
@@ -278,7 +335,7 @@ def read_datafile(
                     )
                     continue
                 if bits[0] in data.colour_letters:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         f"Duplicate colour code '{bits[0]}",
                         err_msgs,
                         errs=errors,
@@ -296,7 +353,7 @@ def read_datafile(
                 taglist = [x for x in taglist if x]  # remove blanks
                 # Any errors?
                 if len(taglist) != len(bits):
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         f"Bad tag(s) in '{line}",
                         err_msgs,
                         errs=errors,
@@ -324,7 +381,7 @@ def read_datafile(
             # Break into putative tag and text, looking for errors
             cells = line.split(",")
             if len(cells) != 2:
-                errors = data_read_error(
+                errors = _read_error_msg(
                     "Bad line in file",
                     err_msgs,
                     errs=errors,
@@ -334,7 +391,7 @@ def read_datafile(
                 continue
             this_tag = TagID(cells[0])
             if not this_tag:
-                errors = data_read_error(
+                errors = _read_error_msg(
                     "String does not appear to be a tag",
                     err_msgs,
                     errs=errors,
@@ -343,7 +400,7 @@ def read_datafile(
                 )
                 continue
             if usable_tags and this_tag not in usable_tags:
-                errors = data_read_error(
+                errors = _read_error_msg(
                     f"Tag '{this_tag}' not in use",
                     err_msgs,
                     errs=errors,
@@ -353,7 +410,7 @@ def read_datafile(
                 continue
             this_time = VTime(cells[1])
             if not this_time:
-                errors = data_read_error(
+                errors = _read_error_msg(
                     "Poorly formed time value",
                     err_msgs,
                     errs=errors,
@@ -365,7 +422,7 @@ def read_datafile(
             if section == k.BIKE_IN:
                 # Maybe add to check_in structure
                 if this_tag in data.bikes_in:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         f"Duplicate {this_tag} check-in",
                         err_msgs,
                         errs=errors,
@@ -374,7 +431,7 @@ def read_datafile(
                     )
                     continue
                 if this_tag in data.bikes_out and data.bikes_out[this_tag] < this_time:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         f"Tag {this_tag} check out before check-in",
                         err_msgs,
                         errs=errors,
@@ -385,7 +442,7 @@ def read_datafile(
                 data.bikes_in[this_tag] = this_time
             elif section == k.BIKE_OUT:
                 if this_tag in data.bikes_out:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         f"Duplicate {this_tag} check-out",
                         err_msgs,
                         errs=errors,
@@ -394,7 +451,7 @@ def read_datafile(
                     )
                     continue
                 if this_tag not in data.bikes_in:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         f"Tag {this_tag} checked out but not in",
                         err_msgs,
                         errs=errors,
@@ -403,7 +460,7 @@ def read_datafile(
                     )
                     continue
                 if this_tag in data.bikes_in and data.bikes_in[this_tag] > this_time:
-                    errors = data_read_error(
+                    errors = _read_error_msg(
                         f"Tag {this_tag} check out before check-in",
                         err_msgs,
                         errs=errors,
@@ -496,33 +553,3 @@ def write_datafile_old(filename: str, data: TrackerDay) -> bool:
     return True
 
 
-def new_tag_config_file(filename: str):
-    """Create new, empty tags config file."""
-    template = [
-        "# Tags configuration file for TagTracker \n",
-        "\n",
-        "# Regular bike tags are tags that are used for bikes that are stored on racks.\n",
-        "# List tags in any order, with one or more tags per line,\n",
-        "# separated by spaces or commas.\n",
-        "# E.g. bf1 bf2 bf3 bf4\n",
-        "Regular-bike tags:\n\n",
-        "# Oversize bike tags are tags that are used for oversize bikes.\n",
-        "# List tags in any order, with one or more tags per line,\n",
-        "# separated by spaces or commas.\n",
-        "# E.g. bf1 bf2 bf3 bf4\n",
-        "Oversize-bike tags:\n\n",
-        "# Retired tags are tags that are no longer available for use.\n",
-        "Retired tags:\n\n",
-        "# Colour codes are used to format reports.\n",
-        "# Each line is one- or two-letter colour code then the name of the colour\n",
-        "# E.g. r red \n",
-        "Colour codes:\n\n",
-    ]
-    if not os.path.exists(filename):  # make new tags config file only if needed
-        try:
-            with open(filename, "w", encoding="utf-8") as f:
-                f.writelines(template)
-        except OSError:
-            ut.squawk(f"ERROR: Unable to write file {filename}")
-            ut.squawk("exiting")
-            exit(1)
