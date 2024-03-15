@@ -1,4 +1,4 @@
-"""Class to manage count of Bike Registrations (Project 529) for TagTracker.
+"""Class to manage count of Bike Registrations (e.g. Project 529) for TagTracker.
 
 
 Copyright (C) 2023-2024 Julias Hocking and Todd Glover
