@@ -245,24 +245,24 @@ def season_summary(ttdb: sqlite3.Connection):
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Today<br>Detail</b></button>
+          <b>Today's<br>Visits</b></button>
         &nbsp;&nbsp;
-        <button onclick="window.location.href='{detail_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Summary of<br>Every Day</b></button>
-        &nbsp;&nbsp;
-        <button onclick="window.location.href='{summaries_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Summaries<br>by Period</b></button>
-        <br><br>
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Activity<br>Details</b></button>
+          <b>Daily<br>Visits<br>Activity</b></button>
         &nbsp;&nbsp;
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
-          <b>Activity<br>Graphs</b></button>
+          <b>Overall<br>Visits<br>Graphs</b></button>
+        <br><br>
+        <button onclick="window.location.href='{detail_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Daily<br>Summaries</b></button>
         &nbsp;&nbsp;
+        <button onclick="window.location.href='{summaries_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Period<br>Summaries</b></button>
+       &nbsp;&nbsp;
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Tags<br>Inventory</b></button>
