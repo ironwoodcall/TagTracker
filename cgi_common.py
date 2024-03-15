@@ -38,6 +38,11 @@ from tt_tag import TagID
 import tt_dbutil as db
 import tt_util as ut
 
+# Set up debugging .. maybe
+if "TAGTRACKER_DEBUG" in os.environ:
+    import cgitb
+    cgitb.enable()
+
 
 WHAT_OVERVIEW = "Ov"
 WHAT_BLOCKS = "Blk"
