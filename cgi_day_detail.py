@@ -496,7 +496,8 @@ def summary_table(
         <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td>
             <td>{day_data.max_bikes}</td></tr>
         <tr><td colspan=2>Bikes remaining:</td>
-            <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers>0)*HIGHLIGHT_WARN)}'>{day_data.leftovers}</td></tr>
+            <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers>0)*HIGHLIGHT_WARN)}'>
+                {day_data.leftovers}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
             <td>{day_data.registrations}</td></tr>
             """
@@ -513,7 +514,8 @@ def summary_table(
                 <td>{day_data.mean_stay}</td></tr>
             <tr><td colspan=2>Median visit length:</td>
                 <td>{day_data.median_stay}</td></tr>
-            <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')} visit length ({day_data.modes_occurences} occurences):</td>
+            <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')}
+                    visit length ({day_data.modes_occurences} occurences):</td>
                 <td>{'<br>'.join(day_data.modes_stay)}</td></tr>
             <tr><td colspan=2>529 registrations:</td>
             <td>{fmt_none(day_data.registrations)}</td></tr>
@@ -553,7 +555,8 @@ def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):
     print("<tr><td>Colours for length of stay:</td>")
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
     print(
-        f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>Medium</td>"
+        f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>"
+            "Medium</td>"
     )
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.max)}>Long</td>")
     print("</table><p></p>")

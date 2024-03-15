@@ -23,7 +23,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import os
-import pathlib
+#import pathlib
 
 import tt_constants as k
 from tt_time import VTime
@@ -110,12 +110,8 @@ class Publisher:
         filepath = df.datafile_name(destination, day.date)
         if not filepath:
             return False
-        result = df.write_datafile(filepath, day)
-        if not result:
-            return False
-        # Now save a copy to "latest.dat" in the same folder
-        latestpath = f"{pathlib.Path(filepath).parent}/latest.dat"
-        return df.write_datafile(latestpath, day)
+        content = df.prep_datafile_info(day)
+        return df.write_datafile(filepath, content=content, make_bak=False)
 
     def publish_city_report(
         self, day: TrackerDay, as_of_when: k.MaybeTime = "now"

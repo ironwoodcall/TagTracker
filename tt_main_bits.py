@@ -214,7 +214,8 @@ def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]
         while True:
             if current_time:
                 pr.iprint(
-                    f"Enter new 24-hour HHMM {prompt_bit} time or press <Enter> to leave as {current_time.short}: ",
+                    f"Enter new 24-hour HHMM {prompt_bit} time or press <Enter> "
+                    f"to leave as {current_time.short}: ",
                     end="",
                     style=k.PROMPT_STYLE,
                 )

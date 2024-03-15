@@ -32,6 +32,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import os
 import re
+import tempfile
 
 import tt_constants as k
 from tt_tag import TagID
@@ -64,14 +65,49 @@ def datafile_name(folder: str, whatdate: str = "today") -> str:
     return f"{folder}/{cfg.DATA_BASENAME}{date}.dat"
 
 
-def rotate_datafile(filename: str) -> None:
-    """Rename the current datafile to <itself>.bak."""
-    backuppath = f"{filename}.bak"
-    if os.path.exists(backuppath):
-        os.unlink(backuppath)
-    if os.path.exists(filename):
-        os.rename(filename, backuppath)
-    return None
+def write_datafile(datafile: str, content: list[str], make_bak: bool) -> bool:
+    """Write 'content' to datafile, possibly saving old as .bak.
+
+    On entry:
+        datafile is the filepath of the current datafile, which might exist
+        content is a list of strings that are the content to write
+        make_bak, if True, make the existing datafile '.bak'
+
+    To avoid a "Invalid cross-device link" error, make the tmp file
+    inthe same folder as the datafile will be.
+    """
+
+    # Write the content to a temporary file
+    temp_filename = f"{datafile}.tmp"
+    try:
+        with open(temp_filename,mode="w",encoding="utf-8"
+        ) as temp_file:
+            for line in content:
+                temp_file.write(line)
+                temp_file.write("\n")
+    except OSError as e:
+        ut.squawk(
+            f"PROBLEM: Unable to create temporary datafile '{temp_filename}': {e}"
+        )
+        return False
+
+    # If datafile already exists and making .bak, change it to .bak
+    if make_bak and os.path.exists(datafile):
+        try:
+            os.replace(datafile, f"{datafile}.bak")
+        except OSError as e:
+            ut.squawk(f"PROBLEM: Unable to change '{datafile}' to .bak: {e}")
+            return False
+
+    # Rename the temp file to the datafile name
+    try:
+        os.replace(temp_filename, datafile)
+    except OSError as e:
+        ut.squawk(f"PROBLEM: Unable to change '{temp_filename}'to '{datafile}': {e}")
+        return False
+
+    # Success
+    return True
 
 
 def read_datafile(
@@ -89,7 +125,6 @@ def read_datafile(
     usable_tags is a list of tags that can be used; if a tag is not in the
     list then it's an error.  If usable_tags is empty or None then no
     checking takes place.
-
     """
 
     def data_read_error(
@@ -391,11 +426,8 @@ def read_datafile(
     return data
 
 
-def write_datafile(filename: str, data: TrackerDay) -> bool:
-    """Write current data to today's data file.
-
-    Return True if succeeded, False if failed.
-    """
+def prep_datafile_info(data: TrackerDay) -> list[str]:
+    """Prepare a list of lines to write to the datafile."""
     lines = []
     lines.append(
         "# TagTracker datafile (data file) created on "
@@ -443,6 +475,15 @@ def write_datafile(filename: str, data: TrackerDay) -> bool:
     for letter, name in data.colour_letters.items():
         lines.append(f"{letter.lower()},{name}")
     lines.append("# Normal end of file")
+    return lines
+
+
+def write_datafile_old(filename: str, data: TrackerDay) -> bool:
+    """Write current data to today's data file.
+
+    Return True if succeeded, False if failed.
+    """
+    lines = prep_datafile_info(data)
     # Write the data to the file.
     try:
         with open(filename, "w", encoding="utf-8") as f:  # write stored lines to file

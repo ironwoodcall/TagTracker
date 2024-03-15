@@ -47,7 +47,7 @@ import tt_util as ut
 from tt_time import VTime
 import tt_dbutil as db
 import tt_default_hours
-import client_base_config as cfg
+# import client_base_config as cfg
 import tt_estimator_rf as rf
 
 # These are model states
@@ -316,8 +316,8 @@ class LRModel:
         if self.state != OK:
             lines.append(f"    Can't estimate because: {self.error}")
             return lines
-        cc = _format_measure(self.correlation_coefficient)
-        rs = _format_measure(self.r_squared)
+        # cc = _format_measure(self.correlation_coefficient)
+        # rs = _format_measure(self.r_squared)
 
         lines = lines + [
             f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."

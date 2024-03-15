@@ -31,10 +31,6 @@ import os
 import tt_dbutil as db
 import cgi_common as cc
 
-if "TAGTRACKER_DEBUG" in os.environ:
-    import cgitb
-    cgitb.enable()
-
 PERIOD_NAMES = {
     cc.WHAT_PERIOD_WEEK: "Weeks",
     cc.WHAT_PERIOD_MONTH: "Months",
