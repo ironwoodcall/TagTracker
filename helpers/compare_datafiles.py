@@ -30,7 +30,7 @@ def parse_file(filename):
 
         for line in file:
             line = line.strip()
-            # Parse the valet date
+            # Parse the date
             if line.startswith("Valet date:"):
                 if valet_date is None:
                     valet_date = line.split(":")[1].strip()

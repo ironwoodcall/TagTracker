@@ -958,7 +958,7 @@ def main():
             estimate(cmd_bits.args)
         elif cmd_bits.command == k.CMD_PUBLISH:
             publishment.publish_reports(pack_day_data(), cmd_bits.args)
-        elif cmd_bits.command == k.CMD_VALET_HOURS:
+        elif cmd_bits.command == k.CMD_HOURS:
             operating_hours_command()
             data_dirty = True
         elif cmd_bits.command == k.CMD_UPPERCASE or cmd_bits.command == k.CMD_LOWERCASE:

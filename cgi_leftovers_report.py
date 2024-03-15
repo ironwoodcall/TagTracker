@@ -48,7 +48,7 @@ def leftovers_report(ttdb: sqlite3.Connection):
     print("<h2>Discrepencies between calculated and reported leftovers</h2>")
     print("""Discrepencies between the number of leftovers calculated from TagTracker data
           vs leftovers reported in the day end form are possibly the greatest
-          outstanding source of data error at the bike valet.  It is typically
+          outstanding source of data error when parking bikes.  It is typically
           avoidable.  The discrepencies come from:
           <ol><li>Not checking out bikes.  This is easily avoided by doing audits
           through the day or even simply checking out any bikes at the end of

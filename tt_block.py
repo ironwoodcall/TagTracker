@@ -45,8 +45,8 @@ class Block:
         self.num_outs = 0  # Number of bikes that went out.
         self.num_outs_regular = 0
         self.num_outs_oversize = 0
-        self.here_list = []  # Tags of bikes in valet at end of block.
-        self.num_here = 0  # Number of bikes in valet at end of block.
+        self.here_list = []  # Tags of bikes onsite at end of block.
+        self.num_here = 0  # Number of bikes onsite at end of block.
         self.num_here_regular = 0
         self.num_here_oversize = 0
         self.max_here_list = []  # Tags at time max bikes here during the block

@@ -100,9 +100,9 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     day = db.db2day(ttdb, thisday)
     print(f"# TagTracker datafile for {thisday}")
     print(f"# Reconstructed on {ut.date_str('today')} at {VTime('now')}")
-    print(f"{df.HEADER_VALET_DATE} {day.date}")
-    print(f"{df.HEADER_VALET_OPENS} {day.opening_time}")
-    print(f"{df.HEADER_VALET_CLOSES} {day.closing_time}")
+    print(f"{df.HEADER_DATE} {day.date}")
+    print(f"{df.HEADER_OPENS} {day.opening_time}")
+    print(f"{df.HEADER_CLOSES} {day.closing_time}")
     print(f"{df.HEADER_BIKES_IN}")
     sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
     for this_tag, atime in sorted_bikes:

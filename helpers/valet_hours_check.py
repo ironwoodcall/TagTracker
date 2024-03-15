@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan valet hours to see if they seem correct."""
+"""Scan hours to see if they seem correct."""
 
 import sys
 import tt_dbutil as db
@@ -24,7 +24,7 @@ def valet_hours(date:str):
     return None,None
 
 
-print("Mismatches between actual and exected valet hours.")
+print("Mismatches between actual and exected operating hours.")
 print(f"Database: {dbfile}")
 print()
 print("Date            Actual(DB)   Expected")

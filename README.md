@@ -1,8 +1,6 @@
 # TagTracker by Julias Hocking
 
-This is a simple tag tracking/data gathering system for bike valet operations I wrote for use at Victoria, BC's downtown bike valet program.
-It generates persistent .dat files titled by date that can be collated and analyzed later.
-I intend to write some kind of script for this later.
+This is a simple tag tracking/data gathering system for bike parking operations for use at Victoria, BC's downtown bike parking service.
 
 Some important assumptions the program makes:
 * Opening hours don't cross midnight - the program automatically decides whether to start a new .dat based on the computer's date

@@ -137,7 +137,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
     date = data.date
     if not date:  # get from filename for old data formats (hopefully never)
         print(
-            f"Error: unable to read valet date from file {filename}. "
+            f"Error: unable to read bike parking date from file {filename}. "
             "Skipping this file",
             file=sys.stderr,
         )

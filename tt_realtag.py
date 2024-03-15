@@ -104,7 +104,7 @@ class Stay(RealTag):
 
     @property
     def still_here(self):
-        """Get whether a tag bike is currently in the valet."""
+        """Get whether a tag bike is currently onsite."""
         return self.state == k.BIKE_IN
 
     @staticmethod

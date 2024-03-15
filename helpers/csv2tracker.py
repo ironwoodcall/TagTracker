@@ -40,9 +40,9 @@ from tt_tag import TagID
 from tt_time import VTime
 
 
-HEADER_VALET_DATE = "Valet date:"
-HEADER_VALET_OPENS = "Valet opens:"
-HEADER_VALET_CLOSES = "Valet closes:"
+HEADER_DATE = "Valet date:"
+HEADER_OPENS = "Valet opens:"
+HEADER_CLOSES = "Valet closes:"
 
 # If set, RANDOMIZE_TIMES will randomize times within their block.
 # To keep things crazy simple, this assumes blocks are 30 minutes.
@@ -216,9 +216,9 @@ def write_file(
             f.write("# These issues detected during conversion:\n")
             for msg in messages[oldf]:
                 f.write(f"# {msg}\n")
-        f.write(f"{HEADER_VALET_DATE} {filedate}\n")
-        f.write(f"{HEADER_VALET_OPENS} {the_hours[0]}\n")
-        f.write(f"{HEADER_VALET_CLOSES} {the_hours[1]}\n")
+        f.write(f"{HEADER_DATE} {filedate}\n")
+        f.write(f"{HEADER_OPENS} {the_hours[0]}\n")
+        f.write(f"{HEADER_CLOSES} {the_hours[1]}\n")
         f.write(f"{BIKE_IN_HEADER}\n")
         for tag, time in check_ins.items():
             f.write(f"{tag},{time}\n")
@@ -241,7 +241,7 @@ def filename_to_date(filename: str) -> str:
 
 
 def valet_hours(the_date: str) -> Tuple[VTime, VTime]:
-    """Report what time the valet opened this the_date."""
+    """Report what time the site opened this the_date."""
     day = datetime.datetime.strptime(the_date, "%Y-%m-%d")
     day_of_week = datetime.datetime.weekday(day)  # 0..6
     spring = {

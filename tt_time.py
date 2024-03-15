@@ -1,4 +1,4 @@
-"""VTime (Valet Time) str object represents tie as HH:MM.
+"""VTime str object represents time as HH:MM.
 
 Typically used for time since midnight but can also
 represent duration (<=24 hours)
@@ -82,7 +82,7 @@ class VTime(str):
         return VTime._find_time(as_int)
 
     def __new__(cls, maybe_time=""):
-        """Create a Valet Time string with its 'self' as canonical time."""
+        """Create a VTime string with its 'self' as canonical time."""
         (self_string, self_int) = cls._find_time(maybe_time)
         instance = super().__new__(cls, self_string)
         instance.num = self_int

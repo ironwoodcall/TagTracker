@@ -45,9 +45,9 @@ import client_base_config as cfg
 # These are used when writing & also for string-matching when reading.
 HEADER_BIKES_IN = "Bikes checked in / tags out:"
 HEADER_BIKES_OUT = "Bikes checked out / tags in:"
-HEADER_VALET_DATE = "Valet date:"
-HEADER_VALET_OPENS = "Valet opens:"
-HEADER_VALET_CLOSES = "Valet closes:"
+HEADER_DATE = "Valet date:"
+HEADER_OPENS = "Valet opens:"
+HEADER_CLOSES = "Valet closes:"
 HEADER_OVERSIZE = "Oversize-bike tags:"
 HEADER_REGULAR = "Regular-bike tags:"
 HEADER_RETIRED = "Retired tags:"
@@ -207,14 +207,14 @@ def read_datafile(
                     )
                     continue
                 continue
-            elif re.match(rf"^ *{HEADER_VALET_DATE}", line):
+            elif re.match(rf"^ *{HEADER_DATE}", line):
                 # Read the datafile's date
                 section = k.NOT_A_LIST
-                r = re.match(rf"{HEADER_VALET_DATE} *(.+)", line)
+                r = re.match(rf"{HEADER_DATE} *(.+)", line)
                 maybedate = ut.date_str(r.group(1))
                 if not maybedate:
                     errors = data_read_error(
-                        "Unable to read valet date",
+                        "Unable to read parking service date",
                         err_msgs,
                         errs=errors,
                         fname=filename,
@@ -223,24 +223,24 @@ def read_datafile(
                     continue
                 data.date = maybedate
                 continue
-            elif re.match(rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES})", line):
+            elif re.match(rf"({HEADER_OPENS}|{HEADER_CLOSES})", line):
                 # This is an open or a close time (probably)
                 section = k.NOT_A_LIST
                 r = re.match(
-                    rf"({HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES}) *(.+)",
+                    rf"({HEADER_OPENS}|{HEADER_CLOSES}) *(.+)",
                     line,
                 )
                 maybetime = VTime(r.group(2))
                 if not maybetime:
                     errors = data_read_error(
-                        f"Unable to understand valet open/close time '{maybetime.original}'",
+                        f"Unable to understand open/close time '{maybetime.original}'",
                         err_msgs,
                         errs=errors,
                         fname=filename,
                         fline=line_num,
                     )
                     continue
-                if r.group(1) == HEADER_VALET_OPENS:
+                if r.group(1) == HEADER_OPENS:
                     data.opening_time = maybetime
                 else:
                     data.closing_time = maybetime
@@ -441,13 +441,13 @@ def prep_datafile_info(data: TrackerDay) -> list[str]:
         lines.append(f"# {leftovers} bikes left as of {latest_event}")
     else:
         lines.append("# No bikes")
-    # Valet data, opening & closing hours
+    # Date, opening & closing hours
     if data.date:
-        lines.append(f"{HEADER_VALET_DATE} {data.date}")
+        lines.append(f"{HEADER_DATE} {data.date}")
     if data.opening_time:
-        lines.append(f"{HEADER_VALET_OPENS} {data.opening_time}")
+        lines.append(f"{HEADER_OPENS} {data.opening_time}")
     if data.closing_time:
-        lines.append(f"{HEADER_VALET_CLOSES} {data.closing_time}")
+        lines.append(f"{HEADER_CLOSES} {data.closing_time}")
     if data.registrations:
         lines.append(f"{HEADER_REGISTRATIONS} {data.registrations}")
 

@@ -201,8 +201,8 @@ def print_the_html(
     print("</p></p>")
     tab = colortable.html_1d_text_color_table(
         marker_colors,
-        title="<b>Legend for number of bikes at valet at once</b>",
-        subtitle=f"{HIGHLIGHT_MARKER} = Time that the valet was fullest",
+        title="<b>Legend for number of bikes onsite at once</b>",
+        subtitle=f"{HIGHLIGHT_MARKER} = Time with the most bikes onsite",
         marker=NORMAL_MARKER,
         bg_color="grey",  # bg_color=xy_colors.get_color(0,0).html_color
         num_columns=20,
@@ -354,7 +354,7 @@ def create_color_maps(day_maxes: _OneDay, block_maxes: _OneBlock) -> tuple:
     d2.add_config(block_maxes.num_out, Y_TOP_COLOR)
 
     block_parked_colors = dc.Dimension(
-        interpolation_exponent=0.85, label="Bikes at valet"
+        interpolation_exponent=0.85, label="Bikes onsite"
     )
     block_colors = [
         colors.get_color(0, 0),

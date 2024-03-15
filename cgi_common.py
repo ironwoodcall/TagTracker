@@ -97,7 +97,7 @@ def test_dow_parameter(dow_parameter: str, list_ok: bool = False):
 
 def titleize(title: str = "") -> str:
     """Puts SITE_NAME in front of title and makes it pretty."""
-    name = SITE_NAME if SITE_NAME else "Valet"
+    name = SITE_NAME if SITE_NAME else "Bike Parking Service"
     if not title:
         return name
     return f"{SITE_NAME} {title}"

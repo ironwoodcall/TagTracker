@@ -9,7 +9,7 @@ Call (as itself) as:
             (default if missing or "": now)
         dow: ISO day of week (1=Mo..7=Su), YYYY-MM-DD, "today" or "yesterday"
             (default if missing or "": today)
-        closing_time: HHMM of time the valet closes day of estimate
+        closing_time: HHMM of time the service closes day of estimate
             (default if missing or "": will try to determine using config functions)
 
 Or call in a CGI script, and the parameters are read from QUERY_STRING.
