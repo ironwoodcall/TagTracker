@@ -63,7 +63,8 @@ from tt_sounds import NoiseMaker
 import tt_audit_report as aud
 from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
-import tt_default_hours
+
+# import tt_default_hours
 
 # pylint: enable=wrong-import-position
 
@@ -921,11 +922,6 @@ def main():
             bits.show_help()
         elif cmd_bits.command == k.CMD_LOOKBACK:
             rep.recent(pack_day_data(), cmd_bits.args)
-        elif cmd_bits.command == k.CMD_RETIRED or cmd_bits.command == k.CMD_COLOURS:
-            pr.iprint(
-                "This command has been replaced by the 'tags' command.",
-                style=k.WARNING_STYLE,
-            )
         elif cmd_bits.command == k.CMD_TAGS:
             inv.tags_config_report(pack_day_data(), cmd_bits.args, False)
         elif cmd_bits.command == k.CMD_QUERY:
@@ -998,8 +994,8 @@ def main():
             ##last_published = maybe_publish(last_published)
         # Flush any echo buffer
         pr.echo_flush()
-    # Exiting; one last save and publishing
-    save()
+    # Exiting; one last  publishing
+    #save()
     publishment.publish(pack_day_data())
 
 
@@ -1019,12 +1015,11 @@ def custom_datafile() -> str:
 
 def save():
     """Save today's data in the datafile."""
-    # Save .bak
-    df.rotate_datafile(DATA_FILEPATH)
-    # Pack data into a TrackerDay object to store
+    # Create the datafile content
     day = pack_day_data()
+    content = df.prep_datafile_info(day)
     # Store the data
-    if not df.write_datafile(DATA_FILEPATH, day):
+    if not df.write_datafile(DATA_FILEPATH, content, make_bak=True):
         ut.squawk("CRITICAL ERROR. Can not continue")
         error_exit()
 
@@ -1174,7 +1169,6 @@ def get_taglists_from_config() -> td.TrackerDay:
     #         day.colour_letters[colour] = f"Colour {colour.upper()}"
 
     return day
-
 
 
 # ---------------------------------------------
