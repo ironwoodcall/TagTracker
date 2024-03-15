@@ -469,6 +469,9 @@ def find_datafiles(arguments: argparse.Namespace) -> list:
 
 
 if __name__ == "__main__":
+    print("superseded")
+    sys.exit(1)
+
     parser = argparse.ArgumentParser()
     setup_parser(parser)
     args = parser.parse_args()
