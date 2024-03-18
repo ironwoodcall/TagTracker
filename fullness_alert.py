@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Prints a message if DATE's max bikes were over THRESHOLD",
         epilog="This is intended to pipe into a mailer as an alert on "
-        "whether the valet was reaching critical capacity.  If bikes "
+        "whether the bike parking service approaches critical capacity.  If bikes "
         "are below THRESHOLD then normally no message is printed; "
         "this is to fit into the 'discard empty messages' option "
         "of mailing programs (e.g. -E for s-nail).  To make always "

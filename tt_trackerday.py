@@ -1,7 +1,9 @@
 """TagTracker by Julias Hocking.
 
 TrackerDay class for tagtracker.
-TrackerDay holds all the state information about a single day at the bike valet.
+
+TrackerDay holds all the state information about a single day at the bike
+parking service.
 
 Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
@@ -125,7 +127,7 @@ class TrackerDay:
         # Look for missing or bad times and dates
         if strict_datetimes:
             if not self.date or ut.date_str(self.date) != self.date:
-                errors.append(f"Bad or missing valet date {self.date}")
+                errors.append(f"Bad or missing date {self.date}")
             if not self.opening_time or not isinstance(self.opening_time, VTime):
                 errors.append(f"Bad or missing opening time {self.opening_time}")
             if not self.closing_time or not isinstance(self.closing_time, VTime):

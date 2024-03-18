@@ -60,7 +60,7 @@ def totals_table(totals: cc.DaysSummary):
           {totals.total_oversize_bikes:,}{html_tr_end}
         {html_tr_start}Average bikes / day{html_tr_mid}
           {(totals.total_total_bikes/totals.total_valet_days):0.1f}{html_tr_end}
-        {html_tr_start}Total 529 registrations{html_tr_mid}
+        {html_tr_start}Total bike registrations{html_tr_mid}
           {totals.total_registrations:,}{html_tr_end}
         {html_tr_start}Total days open{html_tr_mid}
           {totals.total_valet_days:,}{html_tr_end}
@@ -245,24 +245,24 @@ def season_summary(ttdb: sqlite3.Connection):
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Today<br>Detail</b></button>
+          <b>Today's<br>Visits<br>Detail</b></button>
         &nbsp;&nbsp;
-        <button onclick="window.location.href='{detail_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Summary of<br>Every Day</b></button>
-        &nbsp;&nbsp;
-        <button onclick="window.location.href='{summaries_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Summaries<br>by Period</b></button>
-        <br><br>
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Activity<br>Details</b></button>
+          <b>Daily<br>Visits<br>Activity</b></button>
         &nbsp;&nbsp;
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
-          <b>Activity<br>Graphs</b></button>
+          <b>Overall<br>Visits<br>Graphs</b></button>
+        <br><br>
+        <button onclick="window.location.href='{detail_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Daily<br>Summaries</b></button>
         &nbsp;&nbsp;
+        <button onclick="window.location.href='{summaries_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Period<br>Summaries</b></button>
+       &nbsp;&nbsp;
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Tags<br>Inventory</b></button>
@@ -414,7 +414,7 @@ def season_detail(
         f"<th rowspan=2><a href={sort_fullness_link}>Most<br />bikes<br />at once</a></th>"
         # "<th rowspan=2>Bike-<br />hours</th>"
         # "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
-        "<th rowspan=2>529<br />Regs</th>"
+        "<th rowspan=2>Bike<br />Regs</th>"
         "<th colspan=3>Environment</th>"
         "</tr>"
     )

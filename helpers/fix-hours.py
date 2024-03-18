@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-time script to add valet hours to historic datafiles.
+"""One-time script to add service hours to historic datafiles.
 
 Delete as soon as historic conversions are complete & loaded into DB
 """
@@ -12,9 +12,9 @@ from typing import Tuple
 from tt_conf import valet_hours
 
 
-HEADER_VALET_DATE = "Valet date:"
-HEADER_VALET_OPENS = "Valet opens:"
-HEADER_VALET_CLOSES = "Valet closes:"
+HEADER_DATE = "Valet date:"
+HEADER_OPENS = "Valet opens:"
+HEADER_CLOSES = "Valet closes:"
 
 datfolder = r"/fs/sysbits/tagtracker/data_conversion/remotedata.fix_hours"
 
@@ -44,7 +44,7 @@ while thedate <= enddate:
     ##needs_dates = True
     for num,line in enumerate(lines):
         if re.match(
-            rf"({HEADER_VALET_DATE}|{HEADER_VALET_OPENS}|{HEADER_VALET_CLOSES})",
+            rf"({HEADER_DATE}|{HEADER_OPENS}|{HEADER_CLOSES})",
             line,
         ):
             lines[num] = f"## commented out by {whoami}: {line}"
@@ -56,8 +56,8 @@ while thedate <= enddate:
     with open(path, "w") as f:
         print(f"Rewriting {path}")
         f.write(f"# added by {whoami}\n")
-        f.write(f"{HEADER_VALET_DATE} {thedate}\n")
-        f.write(f"{HEADER_VALET_OPENS} {vopen}\n")
-        f.write(f"{HEADER_VALET_CLOSES} {vclose}\n")
+        f.write(f"{HEADER_DATE} {thedate}\n")
+        f.write(f"{HEADER_OPENS} {vopen}\n")
+        f.write(f"{HEADER_CLOSES} {vclose}\n")
         f.write(f"# end of addition by {whoami}\n\n")
         f.writelines(lines)

@@ -115,7 +115,7 @@ COL_TEMP = "temp"
 COL_SUNSET = "sunset"  # HHMM time at sunset - same
 COL_EVENT = "event"  # brief name of nearby event
 COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
-COL_REGISTRATIONS = "registrations"  # num of 529 registrations recorded
+COL_REGISTRATIONS = "registrations"  # num of bike registrations recorded
 # COL_NOTES name reused
 # COL_BATCH name reused
 

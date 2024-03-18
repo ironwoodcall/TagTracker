@@ -80,7 +80,7 @@ COL_TEMP = "temp"
 COL_SUNSET = "sunset"  # HHMM time at sunset - same
 COL_EVENT = "event"  # brief name of nearby event
 COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
-COL_REGISTRATIONS = "registrations"  # num of 529 registrations recorded
+COL_REGISTRATIONS = "registrations"  # num of bike registrations recorded
 # COL_NOTES name reused
 # COL_BATCH name reused
 
@@ -137,7 +137,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
     date = data.date
     if not date:  # get from filename for old data formats (hopefully never)
         print(
-            f"Error: unable to read valet date from file {filename}. "
+            f"Error: unable to read bike parking date from file {filename}. "
             "Skipping this file",
             file=sys.stderr,
         )
@@ -469,6 +469,9 @@ def find_datafiles(arguments: argparse.Namespace) -> list:
 
 
 if __name__ == "__main__":
+    print("superseded")
+    sys.exit(1)
+
     parser = argparse.ArgumentParser()
     setup_parser(parser)
     args = parser.parse_args()

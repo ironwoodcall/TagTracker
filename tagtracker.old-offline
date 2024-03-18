@@ -6,31 +6,26 @@
 # then (on user confirmation), run it again.  (This because
 # program may well have shut down to reset for next day.)
 
-old_dir="$(pwd)"
+TT_DIR="$HOME/TagTracker"
+
+this_dir="$(pwd)"
 this_prog=$0
 prog_name="${0##*/}"
 
-
-if [[ "$TAGTRACKER_HOME" == "" ]]; then
-    echo "TAGTRACKER_HOME not set"
+pgrep -f 'python3[0-9\.]*\s+tagtracker.py' >/dev/null
+if [[ $? -eq 0 ]]; then
+    echo TagTracker is already running!
+    echo
+    echo 'Look for another TagTracker running (e.g. in taskbar at bottom of screen).'
+    echo 'If all else fails, restart the computer.'
+    echo
     exit 1
-fi
-
-this_pid=$$
-tt_pids=$(pgrep -u "$USER" -f 'python3[0-9\.]*\s+tagtracker.py')
-if [[ "$tt_pids" != "" ]] ; then
-    echo TagTracker is already running, stopping other copies.
-    other_pids_to_kill=$(pgrep -u "$USER" -f "(\b$prog_name\b|python3[0-9\.]*\s+tt_internet_monitor)"|grep -v $this_pid)
-    kill -TERM $tt_pids $other_pids_to_kill 2>/dev/null
-    sleep 1
-    kill -KILL $tt_pids $other_pids_to_kill 2>/dev/null
-    sleep 1
 fi
 
 echo "Starting TagTracker..."
 echo
 
-cd "$TAGTRACKER_HOME/bin" || exit 1
+cd "$TT_DIR" || exit 1
 python3 tagtracker.py
 echo
 echo "TagTracker done."
@@ -41,6 +36,6 @@ if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
     exec "$this_prog"
 fi
 # Do not restart
-cd "$old_dir" || exit 1
+cd "$this_dir" || exit 1
 echo "To restart TagTracker, enter \"$prog_name\""
 echo
