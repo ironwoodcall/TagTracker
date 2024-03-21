@@ -124,7 +124,7 @@ def _freq_nav_buttons(pages_back) -> str:
                 pages_back=pages_back + 1,
                 text_note="weekends"
             )
-            }';">Weekdends</button>
+            }';">Weekends</button>
             &nbsp;&nbsp;&nbsp;
         """
 
@@ -200,7 +200,7 @@ def season_frequencies_report(
 
 def mini_freq_tables(ttdb: sqlite3.Connection):
     table_vars = (
-        ("duration", "Stay length", "teal"),
+        ("duration", "Visit length", "teal"),
         ("time_in", "Time in", "crimson"),
         ("time_out", "Time out", "royalblue"),
     )

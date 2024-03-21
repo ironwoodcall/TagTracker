@@ -315,7 +315,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         If lower is missing, uses anything below upper
         If upper is missing, uses anything above lower
         """
-        noun = "Stay"
+        noun = "Visit"
         if not lower and not upper:
             pr.iprint(
                 f"PROGRAM ERROR: called one_range(lower='{lower}'," f"upper='{upper}')",
@@ -352,7 +352,7 @@ def visit_statistics_report(visits: dict) -> None:
     On entry:
         visits is dict of tag:Stay
     """
-    noun = "stay"
+    noun = "Visit"
 
     def one_line(key: str, value: str) -> None:
         """Print one line."""
@@ -367,7 +367,7 @@ def visit_statistics_report(visits: dict) -> None:
         )
         modes_str = ",".join(modes)
         modes_str = f"{modes_str}  ({mode_occurences} occurences; {MODE_ROUND_TO_NEAREST} minute categories)"
-        one_line("Mode stay:", modes_str)
+        one_line("Mode visit:", modes_str)
 
     def make_tags_str(tags: list[TagID]) -> str:
         """Make a 'list of tags' string that is sure not to be too long."""
@@ -392,7 +392,7 @@ def visit_statistics_report(visits: dict) -> None:
     shortest = min(list(duration_tags.keys()))
     short_tags = make_tags_str(duration_tags[shortest])
     pr.iprint()
-    pr.iprint("Stay-length statistics", style=k.SUBTITLE_STYLE)
+    pr.iprint("Visit-length statistics", style=k.SUBTITLE_STYLE)
     one_line(f"Longest {noun}:", f"{VTime(longest).tidy}  ({long_tags})")
     one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}  ({short_tags})")
     # Make a list of stay-lengths (for mean, median, mode)

@@ -290,7 +290,7 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
 
 def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     table_vars = (
-        ("duration", "Stay length", "teal"),
+        ("duration", "Visit length", "teal"),
         ("time_in", "Time in", "crimson"),
         ("time_out", "Time out", "royalblue"),
     )
@@ -343,7 +343,7 @@ def visits_table(
                 1000000 if x.time_out == "" else x.duration,
             ),
         )
-        sort_msg = "length of stay"
+        sort_msg = "length of visit"
     else:
         rows = sorted(rows, key=lambda x: x.tag)
         sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
@@ -391,7 +391,7 @@ def visits_table(
     html += f"<tr><th><a href='{link_sort_tag}'>Bike</a></th>"
     html += f"<th><a href='{link_sort_time}'>Time in</a></th>"
     html += f"<th><a href='{link_sort_time_out}'>Time out</a></th>"
-    html += f"<th><a href='{link_sort_duration}'>Length<br>of stay</a></th>"
+    html += f"<th><a href='{link_sort_duration}'>Length<br>of visit</a></th>"
     html += (
         "<th>Bar graph of this visit<br>"
         f"{BAR_MARKERS['R']} = Regular bike; "
@@ -552,7 +552,7 @@ def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):
     print(f"<td style={daylight.css_bg_fg(daylight.min)}>Early</td>")
     print(f"<td style={daylight.css_bg_fg((daylight.min+daylight.max)/2)}>Mid-day</td>")
     print(f"<td style={daylight.css_bg_fg(daylight.max)}>Later</td>")
-    print("<tr><td>Colours for length of stay:</td>")
+    print("<tr><td>Colours for length of visit:</td>")
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
     print(
         f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>"

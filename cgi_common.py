@@ -557,7 +557,7 @@ def copy_properties(
 def get_visit_stats(
     ttdb: sqlite3.Connection,
 ) -> tuple[float, VTime, VTime, list[str], int]:
-    """Calculate stats for stay length.
+    """Calculate stats for visit length.
 
     Returns:
         total visit hours: float
