@@ -352,7 +352,7 @@ def visit_statistics_report(visits: dict) -> None:
     On entry:
         visits is dict of tag:Stay
     """
-    noun = "Visit"
+    noun = "visit"
 
     def one_line(key: str, value: str) -> None:
         """Print one line."""
