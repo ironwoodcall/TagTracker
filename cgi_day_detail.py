@@ -248,8 +248,8 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
     table_vars = (
         (
             "duration",
-            "Length of stays",
-            "Frequency distribution of lengths of stays",
+            "Length of visits",
+            "Frequency distribution of lengths of visits",
             "teal",
         ),
         (
@@ -267,7 +267,7 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
     )
     back_button = f"{cc.main_and_back_buttons(1)}<p></p>"
 
-    print(f"<h1>Distribution of stays on {today}</h1>")
+    print(f"<h1>Distribution of visits on {today}</h1>")
     print(f"{back_button}")
 
     for parameters in table_vars:

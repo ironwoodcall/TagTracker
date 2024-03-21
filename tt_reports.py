@@ -338,7 +338,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         pr.iprint(f"{header:18s}{num:4d}")
 
     pr.iprint()
-    pr.iprint("Number of stays by duration", style=k.SUBTITLE_STYLE)
+    pr.iprint("Number of visits by duration", style=k.SUBTITLE_STYLE)
     prev_boundary = None
     for boundary in VISIT_CATEGORIES:
         one_range(lower=prev_boundary, upper=boundary)
@@ -643,7 +643,7 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
 
     pr.iprint()
     pr.iprint(
-        "Were today's stays more queue-like or stack-like?",
+        "Were today's vists more queue-like or stack-like?",
         style=k.SUBTITLE_STYLE,
     )
     if not queueish and not stackish:
@@ -653,19 +653,19 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     queue_proportion = queueish / (queueish + stackish + neutralish)
     stack_proportion = stackish / (queueish + stackish + neutralish)
     pr.iprint(
-        f"The {total_possible_compares} compares of today's {len(visits)} " "stays are:"
+        f"The {total_possible_compares} compares of today's {len(visits)} " "visits are:"
     )
     pr.iprint(
-        f"{(queue_proportion):0.3f} queue-like (overlapping stays)",
+        f"{(queue_proportion):0.3f} queue-like (overlapping visits)",
         num_indents=2,
     )
     pr.iprint(
-        f"{(stack_proportion):0.3f} stack-like (nested stays)",
+        f"{(stack_proportion):0.3f} stack-like (nested visits)",
         num_indents=2,
     )
     pr.iprint(
         f"{((1 - stack_proportion - queue_proportion)):0.3f} neither "
-        "(disjunct stays, or share a check-in or -out time)",
+        "(disjunct visits, or share a check-in or -out time)",
         num_indents=2,
     )
 

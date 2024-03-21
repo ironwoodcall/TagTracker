@@ -156,8 +156,8 @@ def season_frequencies_report(
     table_vars = (
         (
             "duration",
-            "Length of stays",
-            "Frequency distribution of lengths of stays",
+            "Length of visits",
+            "Frequency distribution of lengths of visits",
             "teal",
         ),
         (
@@ -175,7 +175,7 @@ def season_frequencies_report(
     )
     back_button = f"{cc.main_and_back_buttons(pages_back)}<p></p>"
 
-    h1 = "Distribution of stays"
+    h1 = "Distribution of visits"
     h1 = f"{h1} for {title_bit}" if title_bit else h1
     print(f"<h1>{h1}</h1>")
     print(_freq_nav_buttons(pages_back))
