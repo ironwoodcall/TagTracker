@@ -753,7 +753,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                         end="",
                     )
                     sure = pr.tt_inp().lower() in ["yes", "y"]
-                else:  # don't check for long stays
+                else:  # don't check for long visits
                     sure = True
                 if sure:
                     multi_edit([tag, "o", rightnow])

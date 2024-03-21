@@ -156,7 +156,7 @@ def times_hist_table(
     color: str = None,
     mini:bool=False
 ) -> str:
-    """Create one html histogram table on lengths of stay.
+    """Create one html histogram table on lengths of visit.
 
     Parameters:
         query_column: time_in, time_out or duration (VISIT table)
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     result = html_histogram(
         data_example,
         num_data_rows=6,
-        subtitle="Frequency distribution of stay lengths",
+        subtitle="Frequency distribution of visit lengths",
         table_width=20,
         mini=True,
         bar_color="royalblue",
@@ -274,7 +274,7 @@ if __name__ == "__main__":
         data_example,
         20,
         "orange",
-        "<b>Lengths of stay 2023</b>",
+        "<b>Lengths of visit 2023</b>",
         "Category start (30 minute categories)",
         10,
         mini=False,

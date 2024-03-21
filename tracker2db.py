@@ -323,7 +323,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
             dur_end = closing
             if args.verbose:
                 print(
-                    f"(normal leftover): {tag} stay time found using "
+                    f"(normal leftover): {tag} visit time found using "
                     f"closing time {closing} from table '{TABLE_DAYS}'"
                 )
             time_out = ""  # empty str for no time
@@ -351,7 +351,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
             conn,
         ):
             print(
-                f"Error: failed to INSERT a stay for {tag}",
+                f"Error: failed to INSERT a visit for {tag}",
                 file=sys.stderr,
             )
             visit_commit_count -= 1

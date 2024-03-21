@@ -315,7 +315,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         If lower is missing, uses anything below upper
         If upper is missing, uses anything above lower
         """
-        noun = "Stay"
+        noun = "Visit"
         if not lower and not upper:
             pr.iprint(
                 f"PROGRAM ERROR: called one_range(lower='{lower}'," f"upper='{upper}')",
@@ -338,7 +338,7 @@ def visit_lengths_by_category_report(visits: dict) -> None:
         pr.iprint(f"{header:18s}{num:4d}")
 
     pr.iprint()
-    pr.iprint("Number of stays by duration", style=k.SUBTITLE_STYLE)
+    pr.iprint("Number of visits by duration", style=k.SUBTITLE_STYLE)
     prev_boundary = None
     for boundary in VISIT_CATEGORIES:
         one_range(lower=prev_boundary, upper=boundary)
@@ -352,7 +352,7 @@ def visit_statistics_report(visits: dict) -> None:
     On entry:
         visits is dict of tag:Stay
     """
-    noun = "stay"
+    noun = "visit"
 
     def one_line(key: str, value: str) -> None:
         """Print one line."""
@@ -367,7 +367,7 @@ def visit_statistics_report(visits: dict) -> None:
         )
         modes_str = ",".join(modes)
         modes_str = f"{modes_str}  ({mode_occurences} occurences; {MODE_ROUND_TO_NEAREST} minute categories)"
-        one_line("Mode stay:", modes_str)
+        one_line("Mode visit:", modes_str)
 
     def make_tags_str(tags: list[TagID]) -> str:
         """Make a 'list of tags' string that is sure not to be too long."""
@@ -392,7 +392,7 @@ def visit_statistics_report(visits: dict) -> None:
     shortest = min(list(duration_tags.keys()))
     short_tags = make_tags_str(duration_tags[shortest])
     pr.iprint()
-    pr.iprint("Stay-length statistics", style=k.SUBTITLE_STYLE)
+    pr.iprint("Visit-length statistics", style=k.SUBTITLE_STYLE)
     one_line(f"Longest {noun}:", f"{VTime(longest).tidy}  ({long_tags})")
     one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}  ({short_tags})")
     # Make a list of stay-lengths (for mean, median, mode)
@@ -643,7 +643,7 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
 
     pr.iprint()
     pr.iprint(
-        "Were today's stays more queue-like or stack-like?",
+        "Were today's vists more queue-like or stack-like?",
         style=k.SUBTITLE_STYLE,
     )
     if not queueish and not stackish:
@@ -653,19 +653,19 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     queue_proportion = queueish / (queueish + stackish + neutralish)
     stack_proportion = stackish / (queueish + stackish + neutralish)
     pr.iprint(
-        f"The {total_possible_compares} compares of today's {len(visits)} " "stays are:"
+        f"The {total_possible_compares} compares of today's {len(visits)} " "visits are:"
     )
     pr.iprint(
-        f"{(queue_proportion):0.3f} queue-like (overlapping stays)",
+        f"{(queue_proportion):0.3f} queue-like (overlapping visits)",
         num_indents=2,
     )
     pr.iprint(
-        f"{(stack_proportion):0.3f} stack-like (nested stays)",
+        f"{(stack_proportion):0.3f} stack-like (nested visits)",
         num_indents=2,
     )
     pr.iprint(
         f"{((1 - stack_proportion - queue_proportion)):0.3f} neither "
-        "(disjunct stays, or share a check-in or -out time)",
+        "(disjunct visits, or share a check-in or -out time)",
         num_indents=2,
     )
 
