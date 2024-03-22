@@ -517,8 +517,6 @@ def summary_table(
             <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')}
                     visit length ({day_data.modes_occurences} occurences):</td>
                 <td>{'<br>'.join(day_data.modes_stay)}</td></tr>
-            <tr><td colspan=2>Bike registrations:</td>
-            <td>{fmt_none(day_data.registrations)}</td></tr>
             <tr><td colspan=2>High temperature:</td>
                 <td>{fmt_none(day_data.temperature)}</td></tr>
             <tr><td colspan=2>Precipitation:</td>

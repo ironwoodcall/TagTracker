@@ -587,9 +587,12 @@ def get_visit_stats(
 
 
 def get_season_summary_data(
-    ttdb: sqlite3.Connection, season_dailies: list[SingleDay]
+    ttdb: sqlite3.Connection, season_dailies: list[SingleDay], include_visit_stats:bool=False
 ) -> DaysSummary:
-    """Fetch whole-season data."""
+    """Fetch whole-season data.
+
+    If include_visit_stats is True then includes those, else they are undefined.
+    """
 
     def set_obj_from_sql(database: sqlite3.Connection, sql_query: str, target: object):
         """Sets target's properties from row 0 of the return from SQL."""
@@ -652,13 +655,23 @@ def get_season_summary_data(
     )
 
     # Stats about visits
-    (
-        summ.total_visit_hours,
-        summ.visits_mean,
-        summ.visits_median,
-        summ.visits_modes,
-        summ.visits_modes_occurences,
-    ) = get_visit_stats(ttdb)
+    if include_visit_stats:
+        (
+            summ.total_visit_hours,
+            summ.visits_mean,
+            summ.visits_median,
+            summ.visits_modes,
+            summ.visits_modes_occurences,
+        ) = get_visit_stats(ttdb)
+    else:
+        (
+            summ.total_visit_hours,
+            summ.visits_mean,
+            summ.visits_median,
+            summ.visits_modes,
+            summ.visits_modes_occurences,
+        ) = 0, "","",[], 0
+
 
     return summ
 
