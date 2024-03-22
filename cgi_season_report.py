@@ -66,15 +66,6 @@ def totals_table(totals: cc.DaysSummary):
           {totals.total_valet_days:,}{html_tr_end}
         {html_tr_start}Total hours open{html_tr_mid}
           {totals.total_valet_hours:,.1f}{html_tr_end}
-        {html_tr_start}Total hours of visits{html_tr_mid}
-          {(totals.total_visit_hours):,.1f}{html_tr_end}
-        {html_tr_start}Mean visit length{html_tr_mid}
-          {totals.visits_mean}{html_tr_end}
-        {html_tr_start}Median visit length{html_tr_mid}
-          {totals.visits_median}{html_tr_end}
-        {html_tr_start}{ut.plural(len(totals.visits_modes),'Mode')} visit length
-                ({totals.visits_modes_occurences} occurences){html_tr_mid}
-          {"<br>".join(totals.visits_modes)}{html_tr_end}
         {html_tr_start}Most bikes parked
             (<a href='{most_parked_link}'>{totals.max_total_bikes_date}</a>)
           {html_tr_mid}{totals.max_total_bikes}{html_tr_end}
@@ -222,14 +213,14 @@ def mini_freq_tables(ttdb: sqlite3.Connection):
 def season_summary(ttdb: sqlite3.Connection):
     """Print super-brief summary report."""
     all_days = cc.get_days_data(ttdb)
-    days_totals = cc.get_season_summary_data(ttdb, all_days)
+    days_totals = cc.get_season_summary_data(ttdb, all_days, include_visit_stats=False)
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
     summaries_link = cc.selfref(what=cc.WHAT_PERIOD)
 
-    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary')}</h1><br><br>")
+    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary of all records')}</h1><br><br>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
     totals_table(days_totals)
@@ -280,7 +271,7 @@ def season_detail(
     """Print new version of the all-days default report."""
     all_days = cc.get_days_data(ttdb)
     cc.incorporate_blocks_data(ttdb, all_days)
-    days_totals = cc.get_season_summary_data(ttdb, all_days)
+    days_totals = cc.get_season_summary_data(ttdb, all_days,include_visit_stats=True)
     ##blocks_totals = cc.get_blocks_summary(all_days)
 
     # Sort the all_days ldataccording to the sort parameter
@@ -354,8 +345,6 @@ def season_detail(
     print(f"<h1>{cc.titleize(': Detail')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
 
-    ##totals_table(days_totals)
-    # FIXME - call the legend tables here (??)
     print("<br><br>")
 
     sort_date_link = cc.selfref(
