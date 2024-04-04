@@ -190,7 +190,10 @@ class InternetMonitor:
     def _check_internet(cls) -> bool:
         """Test if connected to the internet."""
         try:
-            urllib.request.urlopen("http://example.com", timeout=5)
+            req = urllib.request.Request(
+                "http://example.com", headers={"Cache-Control": "no-cache"}
+            )
+            urllib.request.urlopen(req, timeout=5)
             return True
         except urllib.request.URLError:
             return False
