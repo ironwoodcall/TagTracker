@@ -722,17 +722,15 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
                 query_tag([tag], multi_line=False)
                 NoiseMaker.play(k.ALERT)
                 pr.iprint(
-                    f"Overwrite {check_outs[tag]} check-out with "
-                    f"current time ({VTime('now').short})? "
-                    f"(y/N) {cfg.CURSOR}",
-                    style=k.SUBPROMPT_STYLE,
-                    end="",
+                    f"Bike {tag} already checked out. "
+                    "To change check out time, use 'edit' command.",
+                    style=k.WARNING_STYLE,
                 )
-                sure = pr.tt_inp().lower() in ["y", "yes"]
-                if sure:
-                    multi_edit([tag, "o", VTime("now")])
-                else:
-                    pr.iprint("Cancelled", style=k.WARNING_STYLE)
+                # sure = pr.tt_inp().lower() in ["y", "yes"]
+                # if sure:
+                #     multi_edit([tag, "o", VTime("now")])
+                # else:
+                #     pr.iprint("Cancelled", style=k.WARNING_STYLE)
             else:  # checked in only
                 # How long ago checked in? Maybe ask operator to confirm.
                 rightnow = VTime("now")
@@ -765,47 +763,47 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
             NoiseMaker.play(k.BIKE_IN)
 
 
-def parse_command(user_input: str) -> list[str]:
-    """Parse user's input into list of [tag] or [command, command args].
+# def parse_command(user_input: str) -> list[str]:
+#     """Parse user's input into list of [tag] or [command, command args].
 
-    Return:
-        [k.CMD_TAG_RETIRED,args] if a tag but is retired
-        [k.CMD_TAG_UNUSABLE,args] if a tag but otherwise not usable
-        [k.CMD_UNKNOWN,args] if not a tag & not a command
-    """
-    user_input = user_input.lower().strip("\\][ \t")
-    if not (user_input):
-        return []
-    # Special case - if user input starts with '/' or '?' add a space.
-    if user_input[0] in ["/", "?"]:
-        user_input = user_input[0] + " " + user_input[1:]
-    # Split to list, test to see if tag.
-    input_tokens = user_input.split()
-    # See if it matches tag syntax
-    maybetag = TagID(input_tokens[0])
-    if maybetag:
-        # This appears to be a tag
-        if maybetag in RETIRED_TAGS:
-            return [k.CMD_TAG_RETIRED] + input_tokens[1:]
-        # Is this tag usable?
-        if maybetag not in ALL_TAGS:
-            return [k.CMD_TAG_UNUSABLE] + input_tokens[1:]
-        # This appears to be a usable tag.
-        return [maybetag]
+#     Return:
+#         [k.CMD_TAG_RETIRED,args] if a tag but is retired
+#         [k.CMD_TAG_UNUSABLE,args] if a tag but otherwise not usable
+#         [k.CMD_UNKNOWN,args] if not a tag & not a command
+#     """
+#     user_input = user_input.lower().strip("\\][ \t")
+#     if not (user_input):
+#         return []
+#     # Special case - if user input starts with '/' or '?' add a space.
+#     if user_input[0] in ["/", "?"]:
+#         user_input = user_input[0] + " " + user_input[1:]
+#     # Split to list, test to see if tag.
+#     input_tokens = user_input.split()
+#     # See if it matches tag syntax
+#     maybetag = TagID(input_tokens[0])
+#     if maybetag:
+#         # This appears to be a tag
+#         if maybetag in RETIRED_TAGS:
+#             return [k.CMD_TAG_RETIRED] + input_tokens[1:]
+#         # Is this tag usable?
+#         if maybetag not in ALL_TAGS:
+#             return [k.CMD_TAG_UNUSABLE] + input_tokens[1:]
+#         # This appears to be a usable tag.
+#         return [maybetag]
 
-    # See if it is a recognized command.
-    # cfg.command_aliases is dict of lists of aliases keyed by
-    # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
-    command = None
-    for c, aliases in k.COMMANDS.items():
-        if input_tokens[0] in aliases:
-            command = c
-            break
-    # Is this an unrecognized command?
-    if not command:
-        return [k.CMD_UNKNOWN] + input_tokens[1:]
-    # We have a recognized command, return it with its args.
-    return [command] + input_tokens[1:]
+#     # See if it is a recognized command.
+#     # cfg.command_aliases is dict of lists of aliases keyed by
+#     # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
+#     command = None
+#     for c, aliases in k.COMMANDS.items():
+#         if input_tokens[0] in aliases:
+#             command = c
+#             break
+#     # Is this an unrecognized command?
+#     if not command:
+#         return [k.CMD_UNKNOWN] + input_tokens[1:]
+#     # We have a recognized command, return it with its args.
+#     return [command] + input_tokens[1:]
 
 
 def dump_data():
