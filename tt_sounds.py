@@ -140,16 +140,20 @@ class NoiseMaker:
 
         The sound_codes must be BIKE_IN, BIKE_OUT, or ALERT.
         """
-        if not cls.init_check():
+        if not cls.init_check() or not sound_codes:
             return
         soundfiles = []
         for code in sound_codes:
+            if not code:   # skip any non-codes
+                continue
             soundfiles.append(cls.get_sound_filepath(code))
         for sound in soundfiles:
             if not sound:   # skip any non-files
                 continue
             if not os.path.exists(sound):
                 ut.squawk(f"sound file {sound} not found")
+        if not soundfiles:
+            return
 
         # Try to play the sound, ignoring any or all errors
         command = [cls.player] + soundfiles

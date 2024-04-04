@@ -69,7 +69,8 @@ class CmdBits:
             self.args = self.tail.lower().split()
 
         # Test to see if a tag.
-        maybetag = TagID(parts[0])
+        first_token = parts[0].lower()
+        maybetag = TagID(first_token)
         if maybetag:
             # This appears to be a tag.  Usable?
             if maybetag in retired_tags:
@@ -85,7 +86,7 @@ class CmdBits:
             # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
             command = None
             for c, aliases in k.COMMANDS.items():
-                if parts[0] in aliases:
+                if first_token in aliases:
                     command = c
                     break
             # Is this an unrecognized command?
