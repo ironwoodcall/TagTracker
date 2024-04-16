@@ -64,6 +64,7 @@ WHAT_PERIOD_YEAR = "pY"
 WHAT_PERIOD_QUARTER = "pQ"
 WHAT_PERIOD_MONTH = "pM"
 WHAT_PERIOD_WEEK = "pW"
+WHAT_PERIOD_CUSTOM = "pC"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"

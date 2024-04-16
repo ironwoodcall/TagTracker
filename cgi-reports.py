@@ -352,6 +352,10 @@ elif what in [
     cc.WHAT_PERIOD_YEAR,
 ]:
     cgi_period_summaries.period_summary(database, what)
+elif what == cc.WHAT_PERIOD_CUSTOM:
+    date_start = query_params.get("date_start", [""])[0]
+    date_end = query_params.get("date_end", [""])[0]
+    cgi_period_summaries.period_summary(database,period_type=what,start_date=date_start,end_date=date_end)
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)

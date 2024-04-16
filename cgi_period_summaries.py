@@ -135,7 +135,7 @@ def period_summary(
         periods_list = [period_type]
 
     for period in periods_list:
-        if period not in all_periods:
+        if period not in all_periods or period != cc.WHAT_PERIOD_CUSTOM:
             print(f"<br><br><pre>unknown period '{period}'</pre><br><br>")
             continue
         _period_summary_table(ttdb, start_date, end_date, period, pages_back)
@@ -258,11 +258,15 @@ def _period_params(onedate, period_type) -> tuple[str, str, str]:
     return start_date, end_date, label
 
 
-def _period_summary_table_top(period_type):
+def _period_summary_table_top(period_type,start_date:str="",end_date:str=""):
     """Print the table def and header row for one period-summaries table."""
+    if period_type == cc.WHAT_PERIOD_CUSTOM:
+        name = f"{start_date} to {end_date}"
+    else:
+        name = PERIOD_NAMES[period_type]
     print("<table class='general_table'>")
     print(
-        f"<tr><th colspan=17>Summary of {PERIOD_NAMES[period_type]}</th></tr>"
+        f"<tr><th colspan=17>Summary of {name}</th></tr>"
     )
     print("<style>td {text-align: right;}</style>")
 
@@ -367,7 +371,7 @@ def _period_summary_table(
 
     if not period_rows:
         return
-    _period_summary_table_top(period_type)
+    _period_summary_table_top(period_type,range_start,range_end)
 
     for onerow in period_rows:
         onerow: PeriodRow
