@@ -135,7 +135,7 @@ def period_summary(
         periods_list = [period_type]
 
     for period in periods_list:
-        if period not in all_periods:
+        if period not in all_periods and period != cc.WHAT_PERIOD_CUSTOM:
             print(f"<br><br><pre>unknown period '{period}'</pre><br><br>")
             continue
         _period_summary_table(ttdb, start_date, end_date, period, pages_back)
@@ -185,11 +185,18 @@ def _fetch_period_summary_rows(
             if current_period is not None and current_period.days:
                 period_rows.append(current_period)  # Append the previous period
             current_period = PeriodRow()
-            (
-                current_period.start_date,
-                current_period.end_date,
-                current_period.label,
-            ) = _period_params(date, period_type=period_type)
+            if period_type == cc.WHAT_PERIOD_CUSTOM:
+                (
+                    current_period.start_date,
+                    current_period.end_date,
+                    current_period.label,
+                ) = (range_start,range_end,"Custom date span")
+            else:
+                (
+                    current_period.start_date,
+                    current_period.end_date,
+                    current_period.label,
+                ) = _period_params(date, period_type=period_type)
 
         # Aggregate statistics for the current period
         current_period.aggregate(row)
@@ -258,11 +265,15 @@ def _period_params(onedate, period_type) -> tuple[str, str, str]:
     return start_date, end_date, label
 
 
-def _period_summary_table_top(period_type):
+def _period_summary_table_top(period_type,start_date:str="",end_date:str=""):
     """Print the table def and header row for one period-summaries table."""
+    if period_type == cc.WHAT_PERIOD_CUSTOM:
+        name = f"{start_date} to {end_date}"
+    else:
+        name = PERIOD_NAMES[period_type]
     print("<table class='general_table'>")
     print(
-        f"<tr><th colspan=17>Summary of {PERIOD_NAMES[period_type]}</th></tr>"
+        f"<tr><th colspan=17>Summary of {name}</th></tr>"
     )
     print("<style>td {text-align: right;}</style>")
 
@@ -367,7 +378,7 @@ def _period_summary_table(
 
     if not period_rows:
         return
-    _period_summary_table_top(period_type)
+    _period_summary_table_top(period_type,range_start,range_end)
 
     for onerow in period_rows:
         onerow: PeriodRow
