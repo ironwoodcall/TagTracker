@@ -135,7 +135,7 @@ def period_summary(
         periods_list = [period_type]
 
     for period in periods_list:
-        if period not in all_periods or period != cc.WHAT_PERIOD_CUSTOM:
+        if period not in all_periods and period != cc.WHAT_PERIOD_CUSTOM:
             print(f"<br><br><pre>unknown period '{period}'</pre><br><br>")
             continue
         _period_summary_table(ttdb, start_date, end_date, period, pages_back)
