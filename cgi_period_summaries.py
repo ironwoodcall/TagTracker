@@ -190,7 +190,7 @@ def _fetch_period_summary_rows(
                     current_period.start_date,
                     current_period.end_date,
                     current_period.label,
-                ) = (range_start,range_end,"this is a label")
+                ) = (range_start,range_end,"Custom date span")
             else:
                 (
                     current_period.start_date,
