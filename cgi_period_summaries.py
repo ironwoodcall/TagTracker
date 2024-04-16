@@ -185,11 +185,18 @@ def _fetch_period_summary_rows(
             if current_period is not None and current_period.days:
                 period_rows.append(current_period)  # Append the previous period
             current_period = PeriodRow()
-            (
-                current_period.start_date,
-                current_period.end_date,
-                current_period.label,
-            ) = _period_params(date, period_type=period_type)
+            if period_type == cc.WHAT_PERIOD_CUSTOM:
+                (
+                    current_period.start_date,
+                    current_period.end_date,
+                    current_period.label,
+                ) = (range_start,range_end,"this is a label")
+            else:
+                (
+                    current_period.start_date,
+                    current_period.end_date,
+                    current_period.label,
+                ) = _period_params(date, period_type=period_type)
 
         # Aggregate statistics for the current period
         current_period.aggregate(row)
