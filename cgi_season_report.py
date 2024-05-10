@@ -215,7 +215,7 @@ def season_summary(ttdb: sqlite3.Connection):
 
     selected_year = ut.date_str("today")[:4]
 
-    all_days = cc.get_days_data(ttdb,min_date=f"{selected_year-01-01}",max_date=f"{selected_year-12-31}")
+    all_days = cc.get_days_data(ttdb,min_date=f"{selected_year}-01-01",max_date=f"{selected_year}-12-31")
     days_totals = cc.get_season_summary_data(ttdb, all_days, include_visit_stats=False)
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
@@ -223,7 +223,7 @@ def season_summary(ttdb: sqlite3.Connection):
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
     summaries_link = cc.selfref(what=cc.WHAT_PERIOD)
 
-    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary of all records')}</h1><br><br>")
+    print(f"<h1 style='display: inline;'>{cc.titleize(': Current Year Summary')}</h1><br><br>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
     totals_table(days_totals)
