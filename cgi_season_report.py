@@ -216,6 +216,8 @@ def season_summary(ttdb: sqlite3.Connection):
     selected_year = ut.date_str("today")[:4]
 
     all_days = cc.get_days_data(ttdb,min_date=f"{selected_year}-01-01",max_date=f"{selected_year}-12-31")
+    ut.squawk(f"{selected_year=}; {len(all_days)=}")
+
     days_totals = cc.get_season_summary_data(ttdb, all_days, include_visit_stats=False)
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
