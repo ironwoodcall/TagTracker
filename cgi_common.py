@@ -32,7 +32,8 @@ import urllib
 from datetime import datetime, timedelta
 
 from web_base_config import SITE_NAME
-#from tt_conf import SITE_NAME
+
+# from tt_conf import SITE_NAME
 from tt_time import VTime
 from tt_tag import TagID
 import tt_dbutil as db
@@ -41,6 +42,7 @@ import tt_util as ut
 # Set up debugging .. maybe
 if "TAGTRACKER_DEBUG" in os.environ:
     import cgitb
+
     cgitb.enable()
 
 
@@ -478,9 +480,7 @@ def get_days_data(
         where += f"{' AND' if where else ''} DAY.date <= '{max_date}'"
     where = f"WHERE{where}" if where else ""
 
-    dbrows = db.db_fetch(
-        ttdb,
-        f"""
+    sql = f"""
         SELECT
             DAY.date,
             DAY.weekday dow,
@@ -501,9 +501,11 @@ def get_days_data(
         GROUP BY DAY.date, DAY.time_open, DAY.time_closed, DAY.parked_regular, DAY.parked_oversize,
             DAY.parked_total, DAY.max_total, DAY.time_max_total, DAY.registrations, DAY.precip_mm,
             DAY.temp, DAY.sunset, DAY.leftover;
-        """,
-    )
+        """
+
+    dbrows = db.db_fetch(ttdb, sql)
     # There mught be nothing.
+    ##ut.squawk(f"{sql=}\n")
     if not dbrows:
         return [SingleDay()]
     # Look for properties in common (these are the ones we will copy over)
@@ -588,9 +590,11 @@ def get_visit_stats(
 
 
 def get_season_summary_data(
-    ttdb: sqlite3.Connection, season_dailies: list[SingleDay], include_visit_stats:bool=False
+    ttdb: sqlite3.Connection,
+    season_dailies: list[SingleDay],
+    include_visit_stats: bool = False,
 ) -> DaysSummary:
-    """Fetch whole-season data.
+    """Fetch whole-season data, limited to date range represented in season_dailies.
 
     If include_visit_stats is True then includes those, else they are undefined.
     """
@@ -602,10 +606,13 @@ def get_season_summary_data(
             return
         copy_properties(dbrows[0], target)
 
+    dates_list = [d.date for d in season_dailies]
+    where = f'where date >= "{min(dates_list)}" and date <= "{max(dates_list)}"'
+
     summ = DaysSummary()
     set_obj_from_sql(
         ttdb,
-        """
+        f"""
         select
             sum(parked_total) total_total_bikes,
             sum(parked_regular) total_regular_bikes,
@@ -619,18 +626,20 @@ def get_season_summary_data(
             sum(leftover) total_leftovers,
             max(leftover) max_leftovers,
             count(date) total_valet_days
-        from day;
+        from day
+        {where};
         """,
         summ,
     )
 
     set_obj_from_sql(
         ttdb,
-        """
+        f"""
             SELECT
                 parked_total as max_total_bikes,
                 date as max_total_bikes_date
             FROM day
+            {where}
             ORDER BY parked_total DESC, date ASC
             LIMIT 1;
         """,
@@ -639,11 +648,12 @@ def get_season_summary_data(
 
     set_obj_from_sql(
         ttdb,
-        """
+        f"""
             SELECT
                 max_total as max_max_bikes,
                 date as max_max_bikes_date
             FROM day
+            {where}
             ORDER BY max_total DESC, date ASC
             LIMIT 1;
         """,
@@ -671,8 +681,13 @@ def get_season_summary_data(
             summ.visits_median,
             summ.visits_modes,
             summ.visits_modes_occurences,
-        ) = 0, "","",[], 0
-
+        ) = (
+            0,
+            "",
+            "",
+            [],
+            0,
+        )
 
     return summ
 

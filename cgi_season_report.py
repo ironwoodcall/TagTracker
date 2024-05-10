@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-'''TagTracker whole-season overview report.
+"""TagTracker whole-season overview report.
 
 Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
@@ -21,7 +21,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-'''
+"""
 
 import sqlite3
 import tt_util as ut
@@ -36,7 +36,7 @@ BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
-def totals_table(totals: cc.DaysSummary):
+def totals_table(totals: cc.DaysSummary,table_title:str = 'Summary'):
     """Print a table of YTD totals."""
 
     most_parked_link = cc.selfref(
@@ -51,7 +51,7 @@ def totals_table(totals: cc.DaysSummary):
     print(
         f"""
         <table class='general_table'>
-          <tr><th colspan=2>Summary</th></tr>
+          <tr><th colspan=2>{table_title}</th></tr>
         {html_tr_start}Total bikes parked (visits){html_tr_mid}
           {totals.total_total_bikes:,}{html_tr_end}
         {html_tr_start}&nbsp;&nbsp;&nbsp;Regular bikes parked{html_tr_mid}
@@ -211,8 +211,14 @@ def mini_freq_tables(ttdb: sqlite3.Connection):
 
 
 def season_summary(ttdb: sqlite3.Connection):
-    """Print super-brief summary report."""
-    all_days = cc.get_days_data(ttdb)
+    """Print super-brief summary report of the current year."""
+
+    selected_year = ut.date_str("today")[:4]
+
+    all_days = cc.get_days_data(
+        ttdb, min_date=f"{selected_year}-01-01", max_date=f"{selected_year}-12-31"
+    )
+
     days_totals = cc.get_season_summary_data(ttdb, all_days, include_visit_stats=False)
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
@@ -220,10 +226,12 @@ def season_summary(ttdb: sqlite3.Connection):
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
     summaries_link = cc.selfref(what=cc.WHAT_PERIOD)
 
-    print(f"<h1 style='display: inline;'>{cc.titleize(': Summary of all records')}</h1><br><br>")
+    print(
+        f"<h1 style='display: inline;'>{cc.titleize(': Current Year Summary')}</h1><br><br>"
+    )
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
-    totals_table(days_totals)
+    totals_table(days_totals,table_title=f"{selected_year} Summary")
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##mini_freq_tables(ttdb)
@@ -271,7 +279,7 @@ def season_detail(
     """Print new version of the all-days default report."""
     all_days = cc.get_days_data(ttdb)
     cc.incorporate_blocks_data(ttdb, all_days)
-    days_totals = cc.get_season_summary_data(ttdb, all_days,include_visit_stats=True)
+    days_totals = cc.get_season_summary_data(ttdb, all_days, include_visit_stats=True)
     ##blocks_totals = cc.get_blocks_summary(all_days)
 
     # Sort the all_days ldataccording to the sort parameter
