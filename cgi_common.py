@@ -606,7 +606,7 @@ def get_season_summary_data(
             return
         copy_properties(dbrows[0], target)
 
-    dates_list = [d for d in season_dailies]
+    dates_list = [d.date for d in season_dailies]
     where = f'where date >= "{min(dates_list)}" and date <= "{max(dates_list)}"'
 
     summ = DaysSummary()
