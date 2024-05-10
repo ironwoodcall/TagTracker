@@ -505,7 +505,7 @@ def get_days_data(
 
     dbrows = db.db_fetch(ttdb, sql)
     # There mught be nothing.
-    ut.squawk(f"{sql=}\n")
+    ##ut.squawk(f"{sql=}\n")
     if not dbrows:
         return [SingleDay()]
     # Look for properties in common (these are the ones we will copy over)
@@ -594,7 +594,7 @@ def get_season_summary_data(
     season_dailies: list[SingleDay],
     include_visit_stats: bool = False,
 ) -> DaysSummary:
-    """Fetch whole-season data.
+    """Fetch whole-season data, limited to date range represented in season_dailies.
 
     If include_visit_stats is True then includes those, else they are undefined.
     """
@@ -606,10 +606,13 @@ def get_season_summary_data(
             return
         copy_properties(dbrows[0], target)
 
+    dates_list = [d for d in season_dailies]
+    where = f'where date >= "{min(dates_list)}" and date <= "{max(dates_list)}"'
+
     summ = DaysSummary()
     set_obj_from_sql(
         ttdb,
-        """
+        f"""
         select
             sum(parked_total) total_total_bikes,
             sum(parked_regular) total_regular_bikes,
@@ -623,18 +626,20 @@ def get_season_summary_data(
             sum(leftover) total_leftovers,
             max(leftover) max_leftovers,
             count(date) total_valet_days
-        from day;
+        from day
+        {where};
         """,
         summ,
     )
 
     set_obj_from_sql(
         ttdb,
-        """
+        f"""
             SELECT
                 parked_total as max_total_bikes,
                 date as max_total_bikes_date
             FROM day
+            {where}
             ORDER BY parked_total DESC, date ASC
             LIMIT 1;
         """,
@@ -643,11 +648,12 @@ def get_season_summary_data(
 
     set_obj_from_sql(
         ttdb,
-        """
+        f"""
             SELECT
                 max_total as max_max_bikes,
                 date as max_max_bikes_date
             FROM day
+            {where}
             ORDER BY max_total DESC, date ASC
             LIMIT 1;
         """,
