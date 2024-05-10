@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-'''TagTracker whole-season overview report.
+"""TagTracker whole-season overview report.
 
 Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
@@ -21,7 +21,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-'''
+"""
 
 import sqlite3
 import tt_util as ut
@@ -215,8 +215,9 @@ def season_summary(ttdb: sqlite3.Connection):
 
     selected_year = ut.date_str("today")[:4]
 
-    all_days = cc.get_days_data(ttdb,min_date=f"{selected_year}-01-01",max_date=f"{selected_year}-12-31")
-    ut.squawk(f"{selected_year=}; {len(all_days)=}")
+    all_days = cc.get_days_data(
+        ttdb, min_date=f"{selected_year}-01-01", max_date=f"{selected_year}-12-31"
+    )
 
     days_totals = cc.get_season_summary_data(ttdb, all_days, include_visit_stats=False)
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
@@ -225,7 +226,9 @@ def season_summary(ttdb: sqlite3.Connection):
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
     summaries_link = cc.selfref(what=cc.WHAT_PERIOD)
 
-    print(f"<h1 style='display: inline;'>{cc.titleize(': Current Year Summary')}</h1><br><br>")
+    print(
+        f"<h1 style='display: inline;'>{cc.titleize(': Current Year Summary')}</h1><br><br>"
+    )
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
     totals_table(days_totals)
@@ -276,7 +279,7 @@ def season_detail(
     """Print new version of the all-days default report."""
     all_days = cc.get_days_data(ttdb)
     cc.incorporate_blocks_data(ttdb, all_days)
-    days_totals = cc.get_season_summary_data(ttdb, all_days,include_visit_stats=True)
+    days_totals = cc.get_season_summary_data(ttdb, all_days, include_visit_stats=True)
     ##blocks_totals = cc.get_blocks_summary(all_days)
 
     # Sort the all_days ldataccording to the sort parameter
