@@ -36,7 +36,7 @@ BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
-def totals_table(totals: cc.DaysSummary):
+def totals_table(totals: cc.DaysSummary,table_title:str = 'Summary'):
     """Print a table of YTD totals."""
 
     most_parked_link = cc.selfref(
@@ -51,7 +51,7 @@ def totals_table(totals: cc.DaysSummary):
     print(
         f"""
         <table class='general_table'>
-          <tr><th colspan=2>Summary</th></tr>
+          <tr><th colspan=2>{table_title}</th></tr>
         {html_tr_start}Total bikes parked (visits){html_tr_mid}
           {totals.total_total_bikes:,}{html_tr_end}
         {html_tr_start}&nbsp;&nbsp;&nbsp;Regular bikes parked{html_tr_mid}
@@ -231,7 +231,7 @@ def season_summary(ttdb: sqlite3.Connection):
     )
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
-    totals_table(days_totals)
+    totals_table(days_totals,table_title=f"{selected_year} Summary")
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##mini_freq_tables(ttdb)
