@@ -37,6 +37,12 @@ import os
 import sys
 import signal
 import urllib.request
+import urllib.error
+import socket
+import random
+import string
+from html.parser import HTMLParser
+
 
 import tt_constants as k
 import client_base_config as cfg
@@ -187,7 +193,7 @@ class InternetMonitor:
         return len(cls._get_same_script_pids())
 
     @classmethod
-    def _check_internet(cls) -> bool:
+    def _OLD_check_internet(cls) -> bool:
         """Test if connected to the internet."""
         try:
             req = urllib.request.Request(
@@ -197,6 +203,55 @@ class InternetMonitor:
             return True
         except urllib.request.URLError:
             return False
+
+    @staticmethod
+    def _make_random_string(length=10) -> str:
+        """Generate a random string of fixed length."""
+        letters = string.ascii_lowercase
+        return ''.join(random.choice(letters) for i in range(length))
+
+    @staticmethod
+    def _extract_title(html: str) -> str:
+        """Extract the title from the HTML content."""
+
+        class TitleParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.in_title = False
+                self.title = ""
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "title":
+                    self.in_title = True
+
+            def handle_endtag(self, tag):
+                if tag == "title":
+                    self.in_title = False
+
+            def handle_data(self, data):
+                if self.in_title:
+                    self.title += data
+
+        parser = TitleParser()
+        parser.feed(html)
+        return parser.title
+
+
+
+    @classmethod
+    def _check_internet(cls) -> bool:
+        """Test if connected to the internet."""
+        try:
+            random_string = cls._make_random_string()
+            url = f"https://duckduckgo.com/?q={random_string}"
+            req = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
+
+            with urllib.request.urlopen(req, timeout=20) as response:
+                html = response.read().decode('utf-8')
+                return random_string in cls._extract_title(html)
+        except (urllib.error.HTTPError, urllib.error.URLError, socket.timeout):
+            return False
+
 
     @classmethod
     def run(cls):
