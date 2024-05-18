@@ -214,7 +214,7 @@ class InternetMonitor:
 
         Any URL is ok as long as the returned html contains the random string.
         """
-        return f"https://postman-echo.com/echo?query={random_string}"
+        return f"https://postman-echo.com/get?text={random_string}"
 
     @classmethod
     def _check_internet(cls) -> bool:
