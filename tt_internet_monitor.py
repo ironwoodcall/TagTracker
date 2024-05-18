@@ -37,6 +37,10 @@ import os
 import sys
 import signal
 import urllib.request
+import urllib.error
+import socket
+import random
+import string
 
 import tt_constants as k
 import client_base_config as cfg
@@ -187,7 +191,7 @@ class InternetMonitor:
         return len(cls._get_same_script_pids())
 
     @classmethod
-    def _check_internet(cls) -> bool:
+    def _OLD_check_internet(cls) -> bool:
         """Test if connected to the internet."""
         try:
             req = urllib.request.Request(
@@ -196,6 +200,34 @@ class InternetMonitor:
             urllib.request.urlopen(req, timeout=5)
             return True
         except urllib.request.URLError:
+            return False
+
+    @staticmethod
+    def _make_random_string(length=10) -> str:
+        """Generate a random string of fixed length."""
+        letters = string.ascii_lowercase
+        return "".join(random.choice(letters) for i in range(length))
+
+    @staticmethod
+    def _create_url(random_string: str) -> str:
+        """Create the URL with the random string as a query parameter.
+
+        Any URL is ok as long as the returned html contains the random string.
+        """
+        return f"https://postman-echo.com/echo?query={random_string}"
+
+    @classmethod
+    def _check_internet(cls) -> bool:
+        """Test if connected to the internet."""
+        try:
+            random_string = cls._make_random_string()
+            url = cls._create_url(random_string)
+            req = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                html = response.read().decode("utf-8")
+                return random_string in html
+        except (urllib.error.HTTPError, urllib.error.URLError, socket.timeout):
             return False
 
     @classmethod
