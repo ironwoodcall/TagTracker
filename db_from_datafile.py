@@ -58,7 +58,7 @@ import tt_dbutil
 
 # import tt_globals
 import tt_util as ut
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 
 from tt_event import Event
 from tt_time import VTime
@@ -306,7 +306,7 @@ def get_file_timestamp(file_path):
         return None
 
 
-def get_bike_type(tag: str, day: TrackerDay) -> str:
+def get_bike_type(tag: str, day: OldTrackerDay) -> str:
     if tag in day.regular:
         return REGULAR
     elif tag in day.oversize:
@@ -315,7 +315,7 @@ def get_bike_type(tag: str, day: TrackerDay) -> str:
         return ""
 
 
-def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
+def calc_day_stats(filename: str, day: OldTrackerDay) -> DayStats:
     """Figure out the stats for a DAY row."""
 
     row = DayStats(day.date)
@@ -505,7 +505,7 @@ def day_summary_into_db(
 
 def day_tags_context_into_db(
     file_info: FileInfo,
-    day: TrackerDay,
+    day: OldTrackerDay,
     day_summary: DayStats,
     batch: str,
     dbconx: sqlite3.Connection,
@@ -545,7 +545,7 @@ def day_tags_context_into_db(
 
 def day_visits_into_db(
     file_info: FileInfo,
-    day: TrackerDay,
+    day: OldTrackerDay,
     day_summary: DayStats,
     batch: str,
     dbconx: sqlite3.Connection,

@@ -26,14 +26,14 @@ import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 import tt_util as ut
 import tt_printer as pr
 import client_base_config as cfg
 import tt_reports as rep
 
 
-def notes_bit(day: TrackerDay) -> None:
+def notes_bit(day: OldTrackerDay) -> None:
     """Add a 'notes' section to a report."""
     pr.iprint()
 
@@ -45,7 +45,7 @@ def notes_bit(day: TrackerDay) -> None:
         pr.iprint("There are no notes yet today.", num_indents=2)
 
 
-def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
+def inout_summary(day: OldTrackerDay, as_of_when: VTime = VTime("")) -> None:
     """Print summary table of # of bikes in, out and still onsite."""
     # Count the totals
     visits = Stay.calc_stays(day, as_of_when=as_of_when)
@@ -89,7 +89,7 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
 
 
 def audit_report(
-    day: TrackerDay,
+    day: OldTrackerDay,
     args: list[str],
     include_notes: bool = True,
     include_returns: bool = False,

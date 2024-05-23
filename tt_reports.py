@@ -28,7 +28,7 @@ import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 import tt_util as ut
 from tt_event import Event
 import tt_block
@@ -60,7 +60,7 @@ def registrations_report(reg_count: int):
     reg.Registrations.display_current_count(reg_count=reg_count, num_indents=2)
 
 
-def recent(day: TrackerDay, args: list[str]) -> None:
+def recent(day: OldTrackerDay, args: list[str]) -> None:
     """Display a look back at recent activity.
 
     Args are: start_time, end_time
@@ -120,7 +120,7 @@ def recent(day: TrackerDay, args: list[str]) -> None:
             pr.iprint(format_one(atime, tag, False))
 
 
-def later_events_warning(day: TrackerDay, when: VTime) -> None:
+def later_events_warning(day: OldTrackerDay, when: VTime) -> None:
     """Warn about report that excludes later events.
 
     If  no later events, does nothing.
@@ -200,7 +200,7 @@ def simplified_taglist(tags: list[TagID] | str) -> str:
     return simple_str
 
 
-def csv_dump(day: TrackerDay, args) -> None:
+def csv_dump(day: OldTrackerDay, args) -> None:
     """Dump a few stats into csv for pasting into spreadsheets."""
     filename = (args + [None])[0]
     if not filename:
@@ -266,7 +266,7 @@ def csv_dump(day: TrackerDay, args) -> None:
             seq += 1
 
 
-def num_bikes_here(day: TrackerDay, as_of_when: VTime) -> int:
+def num_bikes_here(day: OldTrackerDay, as_of_when: VTime) -> int:
     """Count how many bikes are in at this time."""
     num_bikes = 0
     for atime in day.bikes_in.items():
@@ -275,7 +275,7 @@ def num_bikes_here(day: TrackerDay, as_of_when: VTime) -> int:
     return num_bikes
 
 
-def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
+def bike_check_ins_report(day: OldTrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
 
     as_of_when is HH:MM time, assumed to be a correct time.
@@ -453,7 +453,7 @@ def highwater_report(events: dict) -> None:
     one_line("Most combined:", events, max_total_time, 2)
 
 
-def full_chart(day: TrackerDay, as_of_when: str = "") -> None:
+def full_chart(day: OldTrackerDay, as_of_when: str = "") -> None:
     """Make chart of main stats by timeblock."""
     as_of_when = as_of_when if as_of_when else "24:00"
     if not day.bikes_in:
@@ -484,7 +484,7 @@ def full_chart(day: TrackerDay, as_of_when: str = "") -> None:
         )
 
 
-def busy_graph(day: TrackerDay, as_of_when: str = "") -> None:
+def busy_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of busyness."""
     in_marker = "+"  # OØ OX  <>  ↓↑
     out_marker = "x"
@@ -525,7 +525,7 @@ def busy_graph(day: TrackerDay, as_of_when: str = "") -> None:
         )
 
 
-def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
+def fullness_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
     """Make a quick & dirty graph of how full the site is."""
     regular_marker = "r"
     oversize_marker = "O"
@@ -562,7 +562,7 @@ def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
 
 
 def busy_report(
-    day: TrackerDay,
+    day: OldTrackerDay,
     events: dict[VTime, Event],
     as_of_when: VTime,
 ) -> None:
@@ -670,7 +670,7 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     )
 
 
-def day_end_report(day: TrackerDay, args: list, include_notes: bool = True) -> None:
+def day_end_report(day: OldTrackerDay, args: list, include_notes: bool = True) -> None:
     """Report summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
@@ -707,7 +707,7 @@ def day_end_report(day: TrackerDay, args: list, include_notes: bool = True) -> N
     registrations_report(day.registrations)
 
 
-def busyness_report(day: TrackerDay, args: list) -> None:
+def busyness_report(day: OldTrackerDay, args: list) -> None:
     """Report more summary statistics about visits, up to the given time.
 
     If not time given, calculates as of latest checkin/out of the day.
@@ -737,7 +737,7 @@ def busyness_report(day: TrackerDay, args: list) -> None:
     qstack_report(visits)
 
 
-def dataform_report(day: TrackerDay, args: list[str]) -> None:
+def dataform_report(day: OldTrackerDay, args: list[str]) -> None:
     """Print days activity in timeblocks.
 
     This is to match the (paper/google) data tracking sheets.

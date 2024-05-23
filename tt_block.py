@@ -23,7 +23,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import tt_constants as k
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 from tt_time import VTime
 from tt_event import Event
 
@@ -82,7 +82,7 @@ def block_end(atime: int|str) -> VTime:
     return VTime(end)
 
 
-def get_timeblock_list(day: TrackerDay, as_of_when: str) -> list[VTime]:
+def get_timeblock_list(day: OldTrackerDay, as_of_when: str) -> list[VTime]:
     """Build a list of timeblocks from beg of day until as_of_when.
 
     Latest block of the day will be the latest timeblock that
@@ -112,7 +112,7 @@ def get_timeblock_list(day: TrackerDay, as_of_when: str) -> list[VTime]:
     return timeblocks
 
 
-def calc_blocks(day: TrackerDay, as_of_when: str = None) -> dict[VTime, object]:
+def calc_blocks(day: OldTrackerDay, as_of_when: str = None) -> dict[VTime, object]:
     """Create a dictionary of Blocks {start:Block} for whole day."""
     if not as_of_when:
         as_of_when = day.latest_event("24:00")

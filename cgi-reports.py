@@ -120,8 +120,6 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     print(f"{df.HEADER_RETIRED}")
     ut.line_wrapper(" ".join(sorted(day.retired)), print_handler=pr.iprint)
     print(f"{df.HEADER_COLOURS}")
-    for col, name in day.colour_letters.items():
-        print(f"  {col},{name}")
 
 
 def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):

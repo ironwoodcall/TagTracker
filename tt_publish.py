@@ -28,7 +28,7 @@ import os
 import tt_constants as k
 from tt_time import VTime
 import tt_util as ut
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 import tt_datafile as df
 import tt_printer as pr
 import tt_reports as rep
@@ -68,7 +68,7 @@ class Publisher:
                 style=k.ERROR_STYLE,
             )
 
-    def publish(self, day: TrackerDay, as_of_when: str = "") -> None:
+    def publish(self, day: OldTrackerDay, as_of_when: str = "") -> None:
         """Publish."""
         if not self.able_to_publish:
             return
@@ -81,7 +81,7 @@ class Publisher:
         self.publish_reports(day, [as_of_when])
         self.last_publish = VTime("now")
 
-    def maybe_publish(self, day: TrackerDay, as_of_when: str = "") -> bool:
+    def maybe_publish(self, day: OldTrackerDay, as_of_when: str = "") -> bool:
         """Maybe publish.  Return T if did a publish."""
         if not self.able_to_publish:
             return
@@ -90,7 +90,7 @@ class Publisher:
         if time_since_last >= self.frequency:
             self.publish(day, as_of_when)
 
-    def publish_audit(self, day: TrackerDay, args: list[str]) -> None:
+    def publish_audit(self, day: OldTrackerDay, args: list[str]) -> None:
         """Publish the audit report."""
         if not self.able_to_publish:
             return
@@ -101,7 +101,7 @@ class Publisher:
         aud.audit_report(day, args, include_returns=True)
         pr.set_output()
 
-    def publish_datafile(self, day: TrackerDay, destination: str) -> bool:
+    def publish_datafile(self, day: OldTrackerDay, destination: str) -> bool:
         """Publish a copy of today's datafile.
         Returns False if failed.
         """
@@ -114,7 +114,7 @@ class Publisher:
         return df.write_datafile(filepath, content=content, make_bak=False)
 
     def publish_city_report(
-        self, day: TrackerDay, as_of_when: k.MaybeTime = "now"
+        self, day: OldTrackerDay, as_of_when: k.MaybeTime = "now"
     ) -> None:
         """Publish a report for daily insight to the City."""
         if not self.able_to_publish:
@@ -137,7 +137,7 @@ class Publisher:
         rep.full_chart(day, as_of_when=as_of_when)
         pr.set_output()
 
-    def publish_reports(self, day: TrackerDay, args: list = None) -> None:
+    def publish_reports(self, day: OldTrackerDay, args: list = None) -> None:
         """Publish reports to the PUBLISH directory."""
         if not self.able_to_publish:
             return

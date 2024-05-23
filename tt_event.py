@@ -22,7 +22,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 from tt_time import VTime
 
 
@@ -43,7 +43,7 @@ class Event:
 
     @staticmethod
     def calc_events(
-        day: TrackerDay, as_of_when: int|VTime = None
+        day: OldTrackerDay, as_of_when: int|VTime = None
     ) -> dict[VTime, "Event"]:
         """Create a dict of events keyed by HH:MM time.
 

@@ -31,7 +31,7 @@ import tt_trackerday
 
 
 def get_estimate_via_url(
-    day_data: tt_trackerday.TrackerDay,
+    day_data: tt_trackerday.OldTrackerDay,
     bikes_so_far: int,
     as_of_when="",
     dow: int = None,

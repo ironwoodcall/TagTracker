@@ -21,7 +21,7 @@ Copyright (c) 2023-2024 Julias Hocking & Todd Glover
 import tt_constants as k
 from tt_tag import TagID
 from tt_time import VTime
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 
 
 class RealTag:
@@ -29,8 +29,8 @@ class RealTag:
 
     Arguments:
         tag_string: a string that may or may not represent a valid TagID
-        config: a TrackerDay with (presumably) tags config info in it.
-            Only the tags config portion of the TrackerDay is used
+        config: a OldTrackerDay with (presumably) tags config info in it.
+            Only the tags config portion of the OldTrackerDay is used
             (.retired, .oversize, .regular sets of TagIDs)
 
     Attributes:
@@ -40,7 +40,7 @@ class RealTag:
 
     """
 
-    def __init__(self, tag_string: k.MaybeTag = "", config: TrackerDay = None):
+    def __init__(self, tag_string: k.MaybeTag = "", config: OldTrackerDay = None):
         self.type = None
         self.state = None
         self.tag = TagID(tag_string)
@@ -48,7 +48,7 @@ class RealTag:
             self.tag = ""
             return
         assert isinstance(
-            config, TrackerDay
+            config, OldTrackerDay
         ), f"bad config in call to RealTag({tag_string})"
         if self.tag in config.regular:
             self.type = k.REGULAR
@@ -65,8 +65,8 @@ class Stay(RealTag):
 
     Arguments:
         tag_string: a string that may or may not represent a valid TagID
-        config: a TrackerDay with (presumably) tags config info in it.
-            Only the tags config portion of the TrackerDay is used
+        config: a OldTrackerDay with (presumably) tags config info in it.
+            Only the tags config portion of the OldTrackerDay is used
             (.retired, .oversize, .regular sets of TagIDs)
 
     Attributes:
@@ -78,7 +78,7 @@ class Stay(RealTag):
     def __init__(
         self,
         tag_string: k.MaybeTag = "",
-        day: TrackerDay = None,
+        day: OldTrackerDay = None,
         as_of_when: k.MaybeTime = "now",
     ):
         """Create a Stay (ie a tag with activity)"""
@@ -116,7 +116,7 @@ class Stay(RealTag):
 
     @staticmethod
     def calc_stays(
-        day: TrackerDay, as_of_when: k.MaybeTime = "now"
+        day: OldTrackerDay, as_of_when: k.MaybeTime = "now"
     ) -> dict[TagID, "Stay"]:
         """Create a dict of stays keyed by tag as of as_of_when.
 

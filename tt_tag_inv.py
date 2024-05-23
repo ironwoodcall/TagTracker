@@ -35,7 +35,7 @@ import tt_printer as pr
 from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 #import client_base_config as cfg
 import tt_util as ut
 
@@ -48,7 +48,7 @@ def index_line(max_tag_num):
 
 
 def tag_inventory_matrix(
-    day: TrackerDay, as_of_when: str = "now", include_empty_groups: bool = True
+    day: OldTrackerDay, as_of_when: str = "now", include_empty_groups: bool = True
 ) -> None:
     """Print a matrix of status of all known tags.
 
@@ -120,7 +120,7 @@ def tag_inventory_matrix(
     pr.iprint()
 
 
-def colours_report(day: TrackerDay) -> None:
+def colours_report(day: OldTrackerDay) -> None:
     """List colours in use."""
     type_names = {
         k.UNKNOWN: "None",
@@ -163,7 +163,7 @@ def colours_report(day: TrackerDay) -> None:
         )
 
 
-def retired_report(day: TrackerDay) -> None:
+def retired_report(day: OldTrackerDay) -> None:
     """List retired tags."""
     pr.iprint()
     pr.iprint("Retired tags", style=k.SUBTITLE_STYLE)
@@ -177,7 +177,7 @@ def retired_report(day: TrackerDay) -> None:
 
 
 def tags_config_report(
-    day: TrackerDay, args: list, include_empty_groups: bool = True
+    day: OldTrackerDay, args: list, include_empty_groups: bool = True
 ) -> None:
     """Report the current tags configuration."""
     as_of_when = (args + ["now"])[0]

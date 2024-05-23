@@ -25,7 +25,7 @@ import sqlite3
 import sys
 import os
 from typing import Iterable
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 from tt_tag import TagID
 from tt_time import VTime
 
@@ -145,7 +145,7 @@ def db_latest(ttdb: sqlite3.Connection) -> str:
     return f"Latest DB: load={latest_load}; event={latest_event}"
 
 
-def db_tags_contexts( ttdb: sqlite3.Connection, whatdate: str, day:TrackerDay):
+def db_tags_contexts( ttdb: sqlite3.Connection, whatdate: str, day:OldTrackerDay):
     """Fetch tags contexts from database into 'day' object."""
 
     def string_to_frozenset(string) -> frozenset:
@@ -166,14 +166,14 @@ def db_tags_contexts( ttdb: sqlite3.Connection, whatdate: str, day:TrackerDay):
 
     # print(f"<pre>{day.regular=}</br>{day.oversize=}<br>{day.retired=}<br></pre>")
 
-def db2day(ttdb: sqlite3.Connection, whatdate: str) -> TrackerDay:
-    """Create one day's TrackerDay from the database."""
+def db2day(ttdb: sqlite3.Connection, whatdate: str) -> OldTrackerDay:
+    """Create one day's OldTrackerDay from the database."""
     # Do we have info about the day?  Need its open/close times
     curs = ttdb.cursor()
     rows = curs.execute(f"select time_open,time_closed,registrations from day where day.date = '{whatdate}'").fetchall()
     if not rows:
         return None
-    day = TrackerDay()
+    day = OldTrackerDay()
     day.date = whatdate
     day.opening_time = rows[0][0]
     day.closing_time = rows[0][1]

@@ -102,7 +102,7 @@ def calc_duration(hhmm_in: str, hhmm_out: str) -> str:
 def data_to_db(filename: str, args, batch, conn) -> None:
     """Record one datafile to the database.
 
-    Read the datafile in question into a TrackerDay object with
+    Read the datafile in question into a OldTrackerDay object with
     df.read_datafile()
 
     For the day, UPDATE or INSERT a row of day summary data into TABLE_DAYS

@@ -1,6 +1,6 @@
 """TagTracker by Julias Hocking.
 
-Functions to save and retrieve data (TrackerDay objects) in datafiles.
+Functions to save and retrieve data (OldTrackerDay objects) in datafiles.
 
 Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
@@ -39,7 +39,7 @@ import tt_constants as k
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
-from tt_trackerday import TrackerDay
+from tt_trackerday import OldTrackerDay
 import client_base_config as cfg
 
 # Header strings to use in datafile and tags- config file
@@ -115,7 +115,7 @@ def write_datafile(datafile: str, content: list[str], make_bak: bool) -> bool:
 
 def _read_time_or_date(
     line: str,
-    data: TrackerDay,
+    data: OldTrackerDay,
     err_count: int,
     err_msgs: list[str],
     filename: str,
@@ -128,7 +128,7 @@ def _read_time_or_date(
 
     Parameters:
         - line: The current line being processed.
-        - data: The TrackerDay object to update with the processed data.
+        - data: The OldTrackerDay object to update with the processed data.
         - err_msgs: A list to which any error messages will be appended.
         - filename: The name of the file being processed.
         - line_num: The line number of the current line.
@@ -209,11 +209,11 @@ def _read_error_msg(
 
 def read_datafile(
     filename: str, err_msgs: list[str], usable_tags: list[TagID] = None
-) -> TrackerDay:
-    """Fetch tag data from file into a TrackerDay object.
+) -> OldTrackerDay:
+    """Fetch tag data from file into a OldTrackerDay object.
 
     Read data from a pre-existing data file, returns the info in a
-    TrackerDay object.  If no file, TrackerDay will be mostly blank.
+    OldTrackerDay object.  If no file, OldTrackerDay will be mostly blank.
 
     err_msgs is the (presumably empty) list, to which any error messages
     will be appended.  If no messages are added, then it means this
@@ -224,7 +224,7 @@ def read_datafile(
     checking takes place.
     """
 
-    data = TrackerDay()
+    data = OldTrackerDay()
     errors = 0  # How many errors found reading datafile?
     section = None
     with open(filename, "r", encoding="utf-8") as f:
@@ -323,27 +323,7 @@ def read_datafile(
                 continue
 
             if section == k.COLOURS:
-                # Read the colour dictionary
-                bits = ut.splitline(line)
-                if len(bits) < 2:
-                    errors = _read_error_msg(
-                        f"Bad colour code '{line}",
-                        err_msgs,
-                        errs=errors,
-                        fname=filename,
-                        fline=line_num,
-                    )
-                    continue
-                if bits[0] in data.colour_letters:
-                    errors = _read_error_msg(
-                        f"Duplicate colour code '{bits[0]}",
-                        err_msgs,
-                        errs=errors,
-                        fname=filename,
-                        fline=line_num,
-                    )
-                    continue
-                data.colour_letters[bits[0]] = " ".join(bits[1:])
+                # Ignore the colour dictionary
                 continue
 
             if section in [k.REGULAR, k.OVERSIZE, k.RETIRED]:
@@ -476,14 +456,12 @@ def read_datafile(
 
     if errors:
         err_msgs.append(f"Found {errors} errors in datafile {filename}")
-    # If no colour dictionary, fake one up
-    if not data.colour_letters:
-        data.fill_colour_dict_gaps()
+
     # Return today's working data.
     return data
 
 
-def prep_datafile_info(data: TrackerDay) -> list[str]:
+def prep_datafile_info(data: OldTrackerDay) -> list[str]:
     """Prepare a list of lines to write to the datafile."""
     lines = []
     lines.append(
@@ -528,14 +506,11 @@ def prep_datafile_info(data: TrackerDay) -> list[str]:
         lines.append(" ".join(group).lower())
     lines.append(HEADER_RETIRED)
     lines.append(" ".join(data.retired).lower())
-    lines.append(HEADER_COLOURS)
-    for letter, name in data.colour_letters.items():
-        lines.append(f"{letter.lower()},{name}")
     lines.append("# Normal end of file")
     return lines
 
 
-def write_datafile_old(filename: str, data: TrackerDay) -> bool:
+def write_datafile_old(filename: str, data: OldTrackerDay) -> bool:
     """Write current data to today's data file.
 
     Return True if succeeded, False if failed.
