@@ -28,6 +28,7 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 import json
 import jsonschema
 from jsonschema import validate
+import re
 from typing import List, Dict
 
 from tt_tag import TagID
@@ -35,6 +36,7 @@ from tt_time import VTime
 import tt_util as ut
 from tt_biketag import BikeTag, BikeTagError
 from tt_bikevisit import BikeVisit
+from client_local_config import REGULAR_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
 
 
 class OldTrackerDay:
@@ -241,7 +243,7 @@ class TrackerDay:
         self.colour_letters: dict[str, str] = {}
         self.notes: list[str] = []
         self.biketags: dict[TagID, BikeTag] = {}
-        self.standard_tagids = None  # Are all tagids letter-letter-digits?
+        self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
 
     def all_tags(self) -> frozenset[TagID]:
@@ -277,7 +279,6 @@ class TrackerDay:
                 oversizes.add(tag)
         self.regular_tagids = frozenset(regulars)
         self.oversize_tagids = frozenset(oversizes)
-
 
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
         """Generate a list of logic error messages for OldTrackerDay object.
@@ -374,12 +375,24 @@ class TrackerDay:
 
     def earliest_event(self) -> VTime:
         """Return the earliest event of the day as HH:MM (or "" if none)."""
-        all_events = {
-            visit.time_in for bike in self.biketags.values() for visit in bike.visits
-        }
-        if not all_events:
-            return ""
-        return min(all_events)
+
+        earliest = ""
+        for b in self.biketags:
+            b:BikeTag
+            for v in b.visits:
+                v:BikeVisit
+                if not earliest or v.time_in < earliest:
+                    earliest = v.time_in
+                if not earliest or (v.time_out and v.time_out < earliest):
+                    earliest = v.time_out
+        return earliest
+        # if
+        # all_events = {
+        #     visit.time_in for bike in self.biketags.values() for visit in bike.visits
+        # }
+        # if not all_events:
+        #     return ""
+        # return min(all_events)
 
     def latest_event(self, as_of_when: VTime | int | None = None) -> VTime:
         """Return the latest event of the day at or before as_of_when.
@@ -526,11 +539,13 @@ class TrackerDay:
 
         schema = TrackerDay.load_schema()
         TrackerDay.validate_data(data, schema)
+
+        self.check_tagid_formats()
         return TrackerDay.from_dict(data, self.filepath)
 
     @staticmethod
     def load_schema() -> Dict:
-        with open("tagtracker_schema_v1.0.0.json", "r",encoding='utf-8') as file:
+        with open("tagtracker_schema_v1.0.0.json", "r", encoding="utf-8") as file:
             return json.load(file)
 
     @staticmethod
@@ -538,4 +553,37 @@ class TrackerDay:
         try:
             validate(instance=data, schema=schema)
         except jsonschema.exceptions.ValidationError as err:
-            raise TrackerDayError(f"Invalid data according to the schema: {err.message}")
+            raise TrackerDayError(
+                f"Invalid data according to the schema: {err.message}"
+            ) from err
+
+    def _parse_tag_ids(self, tag_string: str) -> set:
+        """Parse tag IDs from a string and return as a set."""
+        tag_ids = set()
+        for tag_id in re.split(r"[\s,]+", tag_string):
+            tag_ids.add(tag_id.strip())
+        return tag_ids
+
+    def set_taglists_from_config(self):
+        """Assign oversize, regular, and retired tag IDs from config."""
+        self.regular_tagids = self._parse_tag_ids(REGULAR_TAGS)
+        self.oversize_tagids = self._parse_tag_ids(OVERSIZE_TAGS)
+        self.retired_tagids = self._parse_tag_ids(RETIRED_TAGS)
+        self.check_tagid_formats()
+
+    def check_tagid_formats(self) -> bool:
+        """Check if all tag IDs conform."""
+        pattern = re.compile(r"^[a-zA-Z]{2}(\d{1,5})$")
+
+        for tag_id in self.regular_tagids | self.oversize_tagids | self.retired_tagids:
+            match = pattern.match(tag_id)
+            if not match:
+                self.tagids_conform = False
+                return False
+            number_part = int(match.group(1))
+            if not 0 <= number_part <= 15:
+                self.tagids_conform = False
+                return False
+
+        self.tagids_conform = True
+        return True

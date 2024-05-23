@@ -187,7 +187,7 @@ def unpack_day_data(today_data: td.OldTrackerDay) -> None:
     notes.Notes.load(today_data.notes)
 
 
-def initialize_today() -> bool:
+def initialize_today(datafile:str) -> bool:
     """Set up today's info from existing datafile or from configs.
 
     This does *not* /create/ the new datafile, just the data that
@@ -200,110 +200,62 @@ def initialize_today() -> bool:
         for text in msgs:
             pr.iprint(text, style=k.ERROR_STYLE)
 
-    if os.path.exists(DATA_FILEPATH):
+    today = td.TrackerDay(datafile)
+    if os.path.exists(datafile):
         # Read from existing datafile
-        error_msgs = []
-        today = df.read_datafile(DATA_FILEPATH, error_msgs)
-        if error_msgs:
-            handle_msgs(error_msgs)
+        try:
+            today.load_from_file()
+        except td.TrackerDayError as e:
+            handle_msgs(list(e.msgs))
             return False
-    else:
-        # Set up for a new day
-        today = td.OldTrackerDay()
-    # Add/check parts of the 'roday' object
-    if not today.date:
-        today.date = deduce_parking_date(today.date, DATA_FILEPATH)
+
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
     # then fetch the tag reference lists from tags config
-    if not (today.regular or today.oversize) or today.date == ut.date_str("today"):
-        tagconfig = get_taglists_from_config()
-        today.regular = tagconfig.regular
-        today.oversize = tagconfig.oversize
-        today.retired = tagconfig.retired
+    if not (today.regular_tagids or today.oversize_tagids) or today.date == ut.date_str("today"):
+        try:
+            today.set_taglists_from_config()
+        except td.TrackerDayError as e:
+            handle_msgs(list(e.args))
+            return False
 
-    # Back-compatibility edge case read from old tags.cfg FIXME: remove after cutover
-    old_config = "tags.cfg"
-    if not today.regular and not today.oversize and os.path.exists(old_config):
-        oldtagconfig = get_taglists_from_old_config(old_config)
-        today.regular = oldtagconfig.regular
-        today.oversize = oldtagconfig.oversize
-        today.retired = oldtagconfig.retired
-        today.fill_colour_dict_gaps()
+    # Add/check parts of the 'today' object
+    today.check_tagid_formats()
+
+    if not today.date:
+        today.date = deduce_parking_date(today.date, datafile)
+
+
+
+    # # Back-compatibility edge case read from old tags.cfg FIXME: remove after cutover
+    # old_config = "tags.cfg"
+    # if not today.regular and not today.oversize and os.path.exists(old_config):
+    #     oldtagconfig = get_taglists_from_old_config(old_config)
+    #     today.regular = oldtagconfig.regular
+    #     today.oversize = oldtagconfig.oversize
+    #     today.retired = oldtagconfig.retired
+    #     today.fill_colour_dict_gaps()
+
     # Set UC if needed (NB: datafiles are always LC)
     TagID.uc(cfg.TAGS_UPPERCASE)
-    # On success, set today's working data
-    unpack_day_data(today)
-    # Now do a consistency check.
-    errs = pack_day_data().lint_check(strict_datetimes=False)
-    if errs:
-        pr.iprint()
-        for msg in errs:
-            pr.iprint(msg, style=k.ERROR_STYLE)
+
+    try:
+        today.lint_check()
+    except td.TrackerDayError as e:
+        handle_msgs(list(e.args))
         error_exit()
+
     # In case doing a date that's not today, warn
     if PARKING_DATE != ut.date_str("today"):
         handle_msgs(
             [
-                f"Warning: Data is from {ut.date_str(PARKING_DATE,long_date=True)}, not today"
+                f"Warning: Data is from {ut.date_str(PARKING_DATE,long_date=True)}, "
+                "not today"
             ]
         )
     # Done
     return True
 
-
-# def initialize_today_old() -> bool:
-#     """Read today's info from datafile & maybe tags-config file."""
-#     # Does the file even exist? (If not we will just create it later)
-#     pathlib.Path(cfg.DATA_FOLDER).mkdir(exist_ok=True)  # make data folder if missing
-#     if not os.path.exists(DATA_FILEPATH):
-#         # pr.iprint(
-#         #     f"Creating datafile '{DATA_FILEPATH}'.",
-#         #     style=k.SUBTITLE_STYLE,
-#         # )
-#         today = td.OldTrackerDay()
-#     else:
-#         # Fetch data from file; errors go into error_msgs
-#         # pr.iprint(
-#         #     f"Using datafile '{DATA_FILEPATH}'.",
-#         #     style=k.SUBTITLE_STYLE,
-#         # )
-#         error_msgs = []
-#         today = df.read_datafile(DATA_FILEPATH, error_msgs)
-#         if error_msgs:
-#             pr.iprint()
-#             for text in error_msgs:
-#                 pr.iprint(text, style=k.ERROR_STYLE)
-#             return False
-#     # Figure out the date for this bunch of data
-#     if not today.date:
-#         today.date = deduce_parking_date(today.date, DATA_FILEPATH)
-#     # Find the tag reference lists (regular, oversize, etc).
-#     # If there's no tag reference lists, or it's today's date,
-#     # then fetch the tag reference lists from tags config
-#     if not (today.regular or today.oversize) or today.date == ut.date_str("today"):
-#         tagconfig = get_taglists_from_config()
-#         today.regular = tagconfig.regular
-#         today.oversize = tagconfig.oversize
-#         today.retired = tagconfig.retired
-#     # Set UC if needed (NB: datafiles are always LC)
-#     TagID.uc(cfg.TAGS_UPPERCASE)
-#     # On success, set today's working data
-#     unpack_day_data(today)
-#     # Now do a consistency check.
-#     errs = pack_day_data().lint_check(strict_datetimes=False)
-#     if errs:
-#         pr.iprint()
-#         for msg in errs:
-#             pr.iprint(msg, style=k.ERROR_STYLE)
-#         error_exit()
-#     # Done
-#     if PARKING_DATE != ut.date_str("today"):
-#         pr.iprint(
-#             f"Warning: Data is from {ut.date_str(PARKING_DATE,long_date=True)}, not today",
-#             style=k.WARNING_STYLE,
-#         )
-#     return True
 
 
 def delete_entry(  # pylint:disable=keyword-arg-before-vararg
@@ -1221,14 +1173,12 @@ if __name__ == "__main__":
     if not CUSTOM_DAT:
         DATA_FILEPATH = df.datafile_name(cfg.DATA_FOLDER)
 
-    today_data = td.TrackerDay(DATA_FILEPATH)
-    if os.path.exists(DATA_FILEPATH):
-        today_data.load_from_file()
-
     # Configure check in- and out-lists and operating hours from file
     pr.iprint()
-    if not initialize_today():  # only run main() if tags read successfully
+    today_data = initialize_today(DATA_FILEPATH)
+    if not today_data:  # only run main() if tags read successfully
         error_exit()
+
     lint_report(strict_datetimes=False)
     pr.iprint(
         f"Editing information for {ut.date_str(PARKING_DATE,long_date=True)}.",
