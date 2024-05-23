@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 
-"""TagTracker by Julias Hocking.
+"""This is the data entry module for the TagTracker suite.
 
-This is the data entry module for the TagTracker suite.
 Its configuration file is tagtracker_config.py.
 
-Copyright (C) 2023-2024 Julias Hocking & Todd Glover
+Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting
@@ -63,6 +62,23 @@ from tt_sounds import NoiseMaker
 import tt_audit_report as aud
 from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # import tt_default_hours
 
@@ -168,7 +184,6 @@ def unpack_day_data(today_data: td.OldTrackerDay) -> None:
     OVERSIZE_TAGS = today_data.oversize
     RETIRED_TAGS = today_data.retired
     ALL_TAGS = (NORMAL_TAGS | OVERSIZE_TAGS) - RETIRED_TAGS
-    TAG_COLOUR_NAMES = today_data.colour_letters
     notes.Notes.load(today_data.notes)
 
 
@@ -206,7 +221,7 @@ def initialize_today() -> bool:
         today.regular = tagconfig.regular
         today.oversize = tagconfig.oversize
         today.retired = tagconfig.retired
-        today.colour_letters = tagconfig.colour_letters
+
     # Back-compatibility edge case read from old tags.cfg FIXME: remove after cutover
     old_config = "tags.cfg"
     if not today.regular and not today.oversize and os.path.exists(old_config):
@@ -271,7 +286,6 @@ def initialize_today() -> bool:
 #         today.regular = tagconfig.regular
 #         today.oversize = tagconfig.oversize
 #         today.retired = tagconfig.retired
-#         today.colour_letters = tagconfig.colour_letters
 #     # Set UC if needed (NB: datafiles are always LC)
 #     TagID.uc(cfg.TAGS_UPPERCASE)
 #     # On success, set today's working data
@@ -1102,13 +1116,9 @@ def get_taglists_from_config() -> td.OldTrackerDay:
     """Read taglists from config module into tag lists part of a trackerday.
 
     In the trackerday object, only these will have meaning:
-    - .colour_letters
     - .regular
     - .oversize
     - .retired
-
-    'colour_letters' will be read from config but extended to include any
-    tag colours that are not listed in the regular/oversize/retired lists.
 
     """
 
@@ -1156,15 +1166,6 @@ def get_taglists_from_config() -> td.OldTrackerDay:
     day.oversize = frozenset(over)
     day.retired = frozenset(ret)
 
-    # Colour letters
-    day.colour_letters = cfg.TAG_COLOUR_NAMES
-    day.fill_colour_dict_gaps()
-    # # Extend for any missing colours
-    # tag_colours = set([x.colour for x in reg + over + ret])
-    # for colour in tag_colours:
-    #     if colour not in day.colour_letters:
-    #         day.colour_letters[colour] = f"Colour {colour.upper()}"
-
     return day
 
 
@@ -1174,12 +1175,6 @@ def get_taglists_from_config() -> td.OldTrackerDay:
 
 if __name__ == "__main__":
 
-    # Data file
-    DATA_FILEPATH = custom_datafile()
-    CUSTOM_DAT = bool(DATA_FILEPATH)
-    if not CUSTOM_DAT:
-        DATA_FILEPATH = df.datafile_name(cfg.DATA_FOLDER)
-
     # Set colour module's colour flag based on config
     pr.COLOUR_ACTIVE = cfg.USE_COLOUR
 
@@ -1187,7 +1182,7 @@ if __name__ == "__main__":
     echo_msg = ""
     if cfg.ECHO:
         if not cfg.ECHO_FOLDER:
-            echo_msg = "No echo folder set, settig echo off."
+            echo_msg = "No echo folder configured, setting echo off."
             pr.set_echo(False)
         elif not ut.writable_dir(cfg.ECHO_FOLDER):
             echo_msg = f"Echo folder '{cfg.ECHO_FOLDER}' missing or not writeable, setting echo off."
@@ -1217,18 +1212,18 @@ if __name__ == "__main__":
     # Check that sounds can work (if enabled).
     NoiseMaker.init_check()
 
-    # # Check for tags config file
-    # if not os.path.exists(cfg.TAG_CONFIG_FILE):
-    #     df.new_tag_config_file(cfg.TAG_CONFIG_FILE)
-    #     pr.iprint("No tags configuration file found.", style=k.WARNING_STYLE)
-    #     pr.iprint(
-    #         f"Creating new configuration file {cfg.TAG_CONFIG_FILE}",
-    #         style=k.WARNING_STYLE,
-    #     )
-    #     pr.iprint("Edit this file then re-rerun TagTracker.", style=k.WARNING_STYLE)
-    #     print("\n" * 3, "Exiting automatically in 15 seconds.")
-    #     time.sleep(15)
-    #     sys.exit()
+    # Start internet monitoring (if enabled in config)
+    InternetMonitorController.start_monitor()
+
+    # What Data file should we use?
+    DATA_FILEPATH = custom_datafile()
+    CUSTOM_DAT = bool(DATA_FILEPATH)
+    if not CUSTOM_DAT:
+        DATA_FILEPATH = df.datafile_name(cfg.DATA_FOLDER)
+
+    today_data = td.TrackerDay(DATA_FILEPATH)
+    if os.path.exists(DATA_FILEPATH):
+        today_data.load_from_file()
 
     # Configure check in- and out-lists and operating hours from file
     pr.iprint()
@@ -1239,9 +1234,6 @@ if __name__ == "__main__":
         f"Editing information for {ut.date_str(PARKING_DATE,long_date=True)}.",
         style=k.HIGHLIGHT_STYLE,
     )
-    # Start internet monitoring (if enabled in config)
-    InternetMonitorController.start_monitor()
-
     # Display data owner notice
     bits.data_owner_notice()
 
