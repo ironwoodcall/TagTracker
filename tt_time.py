@@ -17,7 +17,7 @@ Invocation:
 
 Invalid input results in a blank VTime object.
 
-Copyright (C) 2023-2024 Julias Hocking & Todd Glover
+Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting
@@ -38,69 +38,62 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 """
 import re
-import datetime
-
+from datetime import datetime
 
 class VTime(str):
-    _always_false = False
+    # Precompile regex pattern for valid formats with optional colon
+    TIME_PATTERN = re.compile(r'^(\d+):?(\d{2})$')
 
-    @staticmethod
-    def _time_int(maybe_time: str) -> int:
-        """Convert known-good string representation of time to int (or None)."""
-        r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
-        if not (r):
-            return None
-        h = int(r.group(1))
-        m = int(r.group(2))
-        as_int = h * 60 + m
-        # Test for an impossible time
-        if 0 <= h <= 24 and 0 <= m <= 59:
-            return as_int
-        return None
+    def __new__(cls, maybe_time, allow_large=False):
+        time_str,time_int = cls._convert_time(maybe_time, allow_large)
+        this = super().__new__(cls, time_str)
+        this.num = time_int
+        this.tidy = time_str.replace('0', '', 1) if time_str.startswith('0') else time_str
+        this.short = time_str[1:] if time_str.startswith('0') else time_str
+        this.original = str(maybe_time).strip()
+        return this
 
-    @staticmethod
-    def _find_time(maybe_time) -> str:
-        """Get tuple (str,int) representation of maybe_time."""
-        if isinstance(maybe_time, float):
-            maybe_time = round(maybe_time)
-        if isinstance(maybe_time, int):
-            if 0 <= maybe_time <= 60 * 24:
-                h = maybe_time // 60
-                m = maybe_time % 60
-                return (f"{h:02d}:{m:02d}", maybe_time)
+    @classmethod
+    def _convert_time(cls,maybe_time, allow_large=False) -> tuple[str,int]:
+        if isinstance(maybe_time,(int,float)):
+            # See if in range.
+            maybe_time = round(maybe_time) if isinstance(maybe_time,float) else maybe_time
+            if maybe_time < 0 or (not allow_large and maybe_time >= 1440):
+                return ('',None)
+            return cls._int_to_time(maybe_time),maybe_time
+
+        elif isinstance(maybe_time, str):
+            maybe_time = maybe_time.strip()
+            # Special case: "now" means use current time
+            if maybe_time.lower() == "now":
+                now = datetime.now()
+                hours, minutes = now.hour, now.minute
+                return f'{hours:02}:{minutes:02}', hours * 60 + minutes
+            # Pattern match for HH:MM
+            match = cls.TIME_PATTERN.match(maybe_time)
+            if match:
+                hours = int(match.group(1))
+                minutes = int(match.group(2))
             else:
-                return ("", None)
-        if not isinstance(maybe_time, str):
-            return ("", None)
-        if maybe_time.strip().lower() == "now":
-            timenow = datetime.datetime.today().strftime("%H:%M")
-            return (timenow, VTime._time_int(timenow))
-        # Candidate might be some kind of HHMM
-        as_int = VTime._time_int(maybe_time)
-        if as_int is None:
-            return ("", None)
-        return VTime._find_time(as_int)
+                return '',None
+            if hours > 24 and not allow_large or minutes > 59:
+                return '',None
+            return f'{hours:02}:{minutes:02}', hours*60+minutes
+        return '',None
 
-    def __new__(cls, maybe_time=""):
-        """Create a VTime string with its 'self' as canonical time."""
-        (self_string, self_int) = cls._find_time(maybe_time)
-        instance = super().__new__(cls, self_string)
-        instance.num = self_int
-        instance.original = str(maybe_time)
-        return instance
+    def __init__(self, maybe_time, allow_large=False): #pylint:disable=unused-argument
+        """This is here only so that IDE will know the structure of a VTime."""
+        if False: # pylint: disable=using-constant-test
+            self.num:int = None
+            self.short:str = None
+            self.tidy:str = None
+            self.original:str = None
 
-    def __init__(self, maybe_time=""):  # pylint:disable=unused-argument
-        # str.__init__()
-        # On entry, {self} is "" or a valid HH:MM time
-        if self._always_false:
-            self.original = ""
-            self.num = 0
-        if self and (self[0] == "0"):
-            self.tidy = f" {self[1:]}"
-            self.short = self[1:]
-        else:
-            self.tidy = self
-            self.short = self
+    @staticmethod
+    def _int_to_time(int_time) -> str:
+        hours = int_time // 60
+        minutes = int_time % 60
+        return f'{hours:02}:{minutes:02}'
 
     # Comparisons are between str representations of itself and other
     def __eq__(self, other) -> bool:
