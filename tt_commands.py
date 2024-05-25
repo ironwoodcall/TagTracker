@@ -7,466 +7,342 @@ Copyright (c) 2024 Todd Glover & Julias Hocking
     without the copyright-holder's written consent.
 
 
-    THESE ARE ROUGH NOTES
-
 """
-import re
-from datetime import datetime
 
-# Validation functions
-def is_valid_tag(tagid):
-    valid_tags = {"tag1", "tag2", "tag3"}  # Example set of valid tags
-    return tagid in valid_tags
+from tt_time import VTime
+from tt_tag import TagID
 
-class Validation:
-    def validate(self, value):
-        raise NotImplementedError("Subclasses should implement this method")
 
-class ChoiceValidation(Validation):
-    def __init__(self, choices):
-        self.choices = choices
+# Types of argument validations (arg_type)
+ARG_TAGS = "ARG_TAGS"
+ARG_TIME = "ARG_TIME"
+ARG_TOKEN = "ARG_TOKEN"
+ARG_TEXT = "ARG_TEXT"
+ARG_YESNO = "ARG_YESNO"
+ARG_INOUT = "ARG_INOUT"
 
-    def validate(self, value):
-        return value in self.choices
+class ArgConfig:
+    """Configuration for one argument for one command."""
+    def __init__(self, arg_type, optional=False, prompt=""):
+        self.arg_type = arg_type
+        self.optional = optional
+        self.prompt = prompt
 
-class TimeValidation(Validation):
-    def validate(self, value):
-        return value in ["morning", "afternoon", "evening"]
-
-class DateValidation(Validation):
-    def validate(self, value):
-        try:
-            datetime.strptime(value, "%Y-%m-%d")
-            return True
-        except ValueError:
-            return False
-
-# Command constants
-CMD_ADD = "CMD_ADD"
-CMD_REMOVE = "CMD_REMOVE"
-CMD_UPDATE = "CMD_UPDATE"
-CMD_NOTES = "CMD_NOTES"
-CMD_REG = "CMD_REG"
-CMD_HELP = "CMD_HELP"
-CMD_INOUT = "CMD_INOUT"
-
-CMD_NONE = "nothing"
-CMD_AUDIT = "audit"
-CMD_DELETE = "delete"
-CMD_EDIT = "edit"
-CMD_IN = "tag_in"
-CMD_OUT = "tag_out"
-CMD_INOUT = "tag_inout"
-# These ones can take arguments
-CMD_LOOKBACK = "lookback"
-CMD_QUERY = "query"
-CMD_STATS = "stats"
-CMD_BUSY = "busy"
-CMD_HOURS = "operating_hours"
-CMD_CSV = "csv"
-CMD_UPPERCASE = "uppercase"
-CMD_LOWERCASE = "lowercase"
-CMD_LINT = "lint"
-CMD_NOTES = "notes"
-CMD_REGISTRATION = "registration"
-CMD_DUMP = "dump"
-CMD_BUSY_CHART = "busy_chart"
-CMD_FULL_CHART = "full_chart"
-CMD_CHART = "chart"
-CMD_PUBLISH = "publish"
-CMD_TAGS = "tags"
-CMD_ESTIMATE = "estimate"
-CMD_EXIT = "exit"
-CMD_HELP = "help"
-
-# CommandConfig class
-class CommandConfig:
-    def __init__(self, command_constant, tokens, requires_tags=True, requires_args=False, validation=None, prompts=None):
-        self.command_constant = command_constant
-        self.tokens = tokens
-        self.requires_tags = requires_tags
-        self.requires_args = requires_args
-        self.validation = validation or []
-        self.prompts = prompts or []
-
-    def matches(self, name):
-        return name in self.tokens
-
-# Commands dictionary
-commands = [
-    CommandConfig(command_constant=CMD_ADD, tokens=["add", "a"], requires_tags=True, requires_args=False),
-    CommandConfig(command_constant=CMD_REMOVE, tokens=["remove", "rm"], requires_tags=True, requires_args=False),
-    CommandConfig(
-        command_constant=CMD_UPDATE,
-        tokens=["update", "upd"],
-        requires_tags=True,
-        requires_args=True,
-        validation=[
-            ChoiceValidation(["in", "out"]),
-            TimeValidation(),
-            DateValidation()
-        ],
-        prompts=[
-            "Enter 'in' or 'out': ",
-            "Enter a valid time (e.g., 'morning', 'afternoon', 'evening'): ",
-            "Enter a date (YYYY-MM-DD): "
-        ]
-    ),
-    CommandConfig(command_constant=CMD_NOTES, tokens=["notes"], requires_tags=False, requires_args=False),
-    CommandConfig(command_constant=CMD_REG, tokens=["reg"], requires_tags=False, requires_args=True),
-    CommandConfig(command_constant=CMD_HELP, tokens=["help"], requires_tags=False, requires_args=False),
-    # Add more commands as needed
-]
-
-def find_command(command_name):
-    for command in commands:
-        if command.matches(command_name):
-            return command
-    return None
-
-# Input sanitization
-def sanitize_input(user_input):
-    return user_input.strip().lower()
+# Status types for ParsedCommand
+PARSED_UNINITIALIZED = "PARSED_UNINITIALIZED"
+PARSED_EMPTY = "PARSED_EMPTY"
+PARSED_INCOMPLETE = "PARSED_INCOMPLETE"
+PARSED_OK = "PARSED_OK"
+PARSED_ERROR = "PARSED_ERROR"
+PARSED_CANCELLED = "PARSED_CANCELLED"
 
 class ParsedCommand:
-    def __init__(self, command=None, tagids=None, args=None, status="OK", message=""):
+    """The result of an attempt to parse an input string."""
+
+    def __init__(self, command=None, status=PARSED_UNINITIALIZED, message=""):
         self.command = command
-        self.tagids = tagids or []
-        self.args = args or []
+        self.result_args = []
         self.status = status
         self.message = message
+        if self.status not in {
+            PARSED_UNINITIALIZED,
+            PARSED_EMPTY,
+            PARSED_INCOMPLETE,
+            PARSED_OK,
+            PARSED_ERROR,
+        }:
+            raise ValueError(f"unknown status for ParsedCommand: '{self.status}")
 
-def parse_user_input(user_input):
-    parts = sanitize_input(user_input).split()
-    if not parts:
-        return ParsedCommand(status="Error", message="No command provided.")
+    def set_error(self, msg: str = "Parsing error."):
+        """Sets to error snextate with this message."""
+        self.status = PARSED_ERROR
+        self.message = msg
 
-    command_name = parts[0]
-    command_config = find_command(command_name)
-    if command_config is None:
-        return ParsedCommand(status="Error", message=f"Invalid command '{command_name}'.")
+    def dump(self):
+        """Print the contents of the object (for debugging basically)."""
+        print(f"  ParsedCommand.command      = '{self.command}'")
+        print(f"                .status      = '{self.status}'")
+        print(f"                .message     = '{self.message}'")
+        print(f"                .result_args = '{self.result_args}'")
 
-    tagids = []
-    additional_args = []
-
-    if command_config.requires_tags:
-        for part in parts[1:]:
-            if is_valid_tag(part):
-                tagids.append(part)
-            else:
-                additional_args.append(part)
-
-        if not tagids:
-            return ParsedCommand(status="Error", message="No tags provided.")
-    else:
-        additional_args = parts[1:]
-
-    if command_config.command_constant == CMD_NOTES:
-        notes_text = ' '.join(additional_args)
-        return ParsedCommand(command_config.command_constant, [], [notes_text])
-
-    if command_config.command_constant == CMD_REG:
-        if additional_args:
-            reg_arg = additional_args[0]
-            if re.match(r"^[+-=]\d+$", reg_arg):
-                return ParsedCommand(command_config.command_constant, [], [reg_arg])
-            else:
-                return ParsedCommand(status="Error", message=f"Invalid argument for 'reg': {reg_arg}")
-        else:
-            return ParsedCommand(command_config.command_constant, [], [])
-
-    if command_config.command_constant == CMD_HELP:
-        if additional_args:
-            return ParsedCommand(status="Error", message="'help' command does not take arguments.")
-        return ParsedCommand(command_config.command_constant, [], [])
-
-    if command_config.requires_args:
-        if len(additional_args) < len(command_config.validation):
-            additional_args = prompt_for_args(command_config, len(additional_args), additional_args)
-
-        if additional_args is None:
-            return ParsedCommand(status="Cancelled", message="Command cancelled.")
-
-    return ParsedCommand(command_config.command_constant, tagids, additional_args)
-
-def process_command(parsed_command):
-    if parsed_command.status == "Error":
-        print(parsed_command.message)
-        return
-    elif parsed_command.status == "Cancelled":
-        print("Command cancelled.")
-        return
-
-    command_name = parsed_command.command
-    tagids = parsed_command.tagids
-    args = parsed_command.args
-
-    if not args and find_command(command_name).requires_args:
-        print("Command requires additional arguments.")
-        return
-
-    # Implement command-specific processing here
-    if command_name == CMD_ADD:
-        print(f"Adding tags: {tagids}")
-    elif command_name == CMD_REMOVE:
-        print(f"Removing tags: {tagids}")
-    elif command_name == CMD_UPDATE:
-        print(f"Updating tags: {tagids} with arguments: {args}")
-    elif command_name == CMD_INOUT:
-        print(f"Processing inout command with tags: {tagids}")
-    elif command_name == CMD_NOTES:
-        print(f"Notes: {' '.join(args)}")
-    elif command_name == CMD_REG:
-        print(f"Register command with argument: {args[0] if args else 'None'}")
-    elif command_name == CMD_HELP:
-        print("Help command invoked.")
-    else:
-        print(f"Unknown command '{command_name}'.")
-
-
-def prompt_for_args(command_config, starting_index, existing_args):
-    args = existing_args.copy()
-    for i in range(starting_index, len(command_config.prompts)):
-        while True:
-            user_input = input(command_config.prompts[i]).strip()
-            if not user_input:
-                print("Command cancelled.")
-                return None
-            if command_config.validation[i].validate(user_input):
-                args.append(user_input)
-                break
-            else:
-                print("Invalid input. Please try again.")
-    return args
-
-
-# Main function
-def main():
-    while True:
-        user_input = input("Enter your command: ")
-        parsed_command = parse_user_input(user_input)
-        process_command(parsed_command)
-
-if __name__ == "__main__":
-    main()
-
-
-"""
-#-----------------------------------------
-import re
-from datetime import datetime
-
-# Validation functions
-def is_a_tag(tagid):
-    valid_tags = {"tag1", "tag2", "tag3"}  # Example set of valid tags
-    return tagid in valid_tags
-
-# Command constants
-CMD_ADD = "CMD_ADD"
-CMD_REMOVE = "CMD_REMOVE"
-CMD_UPDATE = "CMD_UPDATE"
-CMD_INOUT = "CMD_INOUT"
+# List of commands.  These are keys to COMMANDS dictionary
+CMD_EDIT = "EDIT"
+CMD_DELETE = "DELETE"
+CMD_BIKE_IN = "BIKE_IN"     # Explicit
+CMD_BIKE_OUT = "BIKE_OUT"   # Explicit
+CMD_BIKE_INOUT = "(GUESS_IN_OR_OUT)"    # Guess, but won't re-use a tag.
 CMD_NOTES = "CMD_NOTES"
-CMD_REG = "CMD_REG"
+CMD_REGISTRATIONS = "CMD_REGISTRATIONS"
 CMD_HELP = "CMD_HELP"
+CMD_RECENT = "RECENT"
+CMD_QUERY = "QUERY"
+CMD_STATS = "STATS"
+CMD_BUSY = "BUSY"
+CMD_HOURS = "HOURS"
+CMD_UPPERCASE = "UPPERCASE"
+CMD_LOWERCASE = "LOWERCASE"
+CMD_LINT = "LINT"
+CMD_NOTES = "NOTES"
+CMD_REGISTRATION = "REGISTRATION"
+CMD_DUMP = "DUMP"
+CMD_BUSY_CHART = "BUSY_CHART"
+CMD_FULL_CHART = "FULLNESS_CHART"
+CMD_CHART = "CHART"
+CMD_PUBLISH = "PUBLISH"
+CMD_TAGS = "TAGS"
+CMD_ESTIMATE = "ESTIMATE"
+CMD_EXIT = "EXIT"
+CMD_HELP = "HELP"
 
-# Base Validation class and subclasses
-class Validation:
-    def validate(self, value):
-        raise NotImplementedError("Subclasses should implement this method")
+# CmdConfig class
+class CmdConfig:
+    """This is the parsing configuration for one command."""
+    def __init__(self, invoke, arg_configs=None):
+        self.invoke = invoke
+        self.arg_configs = arg_configs or []
 
-class ChoiceValidation(Validation):
-    def __init__(self, choices):
-        self.choices = choices
+    def matches(self, invocation):
+        """Return whether the 'invocation' is an invocation word for the command."""
+        return invocation in self.invoke
 
-    def validate(self, value):
-        return value in self.choices
 
-class VTimeValidation(Validation):
-    def validate(self, value):
-        return value in ["morning", "afternoon", "evening"]
-
-class DateValidation(Validation):
-    def validate(self, value):
-        try:
-            datetime.strptime(value, "%Y-%m-%d")
-            return True
-        except ValueError:
-            return False
-
-# CommandConfig class
-class CommandConfig:
-    def __init__(self, command_constant, tokens, requires_tags=True, requires_args=False, validation=None, prompts=None):
-        self.command_constant = command_constant
-        self.tokens = tokens
-        self.requires_tags = requires_tags
-        self.requires_args = requires_args
-        self.validation = validation or []
-        self.prompts = prompts or []
-
-    def matches(self, name):
-        return name in self.tokens
-
-# ParsedCommand class
-class ParsedCommand:
-    def __init__(self, command, tagids, args):
-        self.command = command
-        self.tagids = tagids
-        self.args = args
-
-# Commands dictionary
-commands = [
-    CommandConfig(command_constant=CMD_ADD, tokens=["add", "a"], requires_tags=True, requires_args=False),
-    CommandConfig(command_constant=CMD_REMOVE, tokens=["remove", "rm"], requires_tags=True, requires_args=False),
-    CommandConfig(
-        command_constant=CMD_UPDATE,
-        tokens=["update", "upd"],
-        requires_tags=True,
-        requires_args=True,
-        validation=[
-            ChoiceValidation(["in", "out"]),
-            VTimeValidation(),
-            DateValidation()
-        ],
-        prompts=[
-            "Enter 'in' or 'out': ",
-            "Enter a valid time (e.g., 'morning', 'afternoon', 'evening'): ",
-            "Enter a date (YYYY-MM-DD): "
-        ]
+# Command configurations dictionary
+# Optional args may not precede mandatory args.
+COMMANDS = {
+    CMD_QUERY: CmdConfig(
+        invoke=["/", "?", "q", "query"],
+        arg_configs=[ArgConfig(ARG_TAGS, optional=False, prompt="Query what tag(s)? ")],
     ),
-    CommandConfig(command_constant=CMD_NOTES, tokens=["notes"], requires_tags=False, requires_args=False),
-    CommandConfig(command_constant=CMD_REG, tokens=["reg"], requires_tags=False, requires_args=False),
-    CommandConfig(command_constant=CMD_HELP, tokens=["help"], requires_tags=False, requires_args=False),
-    # Add more commands as needed
-]
+    CMD_DELETE: CmdConfig(
+        invoke=["d", "del", "delete"],
+        arg_configs=[
+            ArgConfig(
+                ARG_TAGS, optional=False, prompt="Delete check in/out for what tag(s)? "
+            ),
+            ArgConfig(ARG_INOUT, optional=False, prompt="Enter 'in' or 'out': "),
+            ArgConfig(ARG_YESNO, optional=False, prompt="Enter 'y' to confirm: "),
+        ],
+    ),
+    CMD_EDIT: CmdConfig(
+        invoke=["edit", "ed", "e"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Edit what tag(s)? "),
+            ArgConfig(ARG_INOUT, optional=False, prompt="Edit visit 'in' or 'out': "),
+            ArgConfig(
+                ARG_TIME, optional=False, prompt="New time (HHMM or 'now'): "
+            ),
+        ],
+    ),
+    # InOut means guess whether to do BIKE_IN or BIKE_OUT.
+    # It is invoked by typing one or more tags without a keyword.
+    CMD_BIKE_INOUT: CmdConfig(
+        invoke=["inout" ],
+        arg_configs=[
+            # ArgConfig(ARG_TAGS, optional=False, prompt="Edit what tag(s)? "),
+            ArgConfig(ARG_TAGS, optional=False),
+        ],
+    ),
+    CMD_RECENT: CmdConfig(
+        invoke=["recent", "rec"],
+        arg_configs=[
+            ArgConfig(ARG_TIME, optional=True),
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CMD_NOTES: CmdConfig(
+        invoke=["notes","note","n"],
+        arg_configs=[ArgConfig(ARG_TEXT, optional=True, prompt="")],
+    ),
+    # Registrations:  e.g. r or r + 1 or r +1... so 2 args
+    CMD_REGISTRATIONS: CmdConfig(
+        invoke=["reg","registrations","registration","r"],
+        arg_configs=[
+            ArgConfig(ARG_TOKEN, optional=True),
+            ArgConfig(ARG_TOKEN, optional=True),
+        ],
+    ),
+    CMD_HELP: CmdConfig(invoke=["h", "help"]),
+    CMD_EXIT: CmdConfig(invoke=["x", "ex", "exit"]),
+    # Add more COMMANDS as needed
+}
 
-def find_command(command_name):
-    for command in commands:
-        if command.matches(command_name):
+
+def find_command(command_invocation):
+    """Find the command constant (e.g. CMD_EDIT) from a user input."""
+    for command, conf in COMMANDS.items():
+        if conf.matches(command_invocation):
             return command
     return None
 
-def parse_user_input(user_input):
-    parts = user_input.split()
-    if not parts:
-        return "Error: No command provided."
 
-    # Check if the first token is a tag, if so, prepend "inout"
-    if is_a_tag(parts[0]):
-        user_input = "inout " + user_input
-        parts = user_input.split()
+def get_input(prompt: str = None) -> str:
+    """Prompt the user for input."""
+    prompt = prompt or "Enter a command: "
+    return input(prompt).strip()
 
-    command_name = parts[0]
-    command_config = find_command(command_name)
-    if command_config is None:
-        return f"Error: Invalid command '{command_name}'."
 
-    tagids = []
-    additional_args = []
+def subprompt(prompt: str) -> str:
+    """Prompt user for information to complete an incomplete command."""
+    return input(prompt).strip()
 
-    if command_config.requires_tags:
-        for part in parts[1:]:
-            if is_a_tag(part):
-                tagids.append(part)
-            else:
-                additional_args.append(part)
 
-        if not tagids:
-            return "Error: No tags provided."
-    else:
-        additional_args = parts[1:]
+def _tokenize(user_str: str) -> list[str]:
+    """Break user_str into whitespace-separated tokens."""
+    return user_str.strip().lower().split()
 
-    if command_config.command_constant == CMD_NOTES:
-        # Everything after 'notes' is the argument
-        notes_text = ' '.join(additional_args)
-        return ParsedCommand(command_config.command_constant, [], [notes_text])
 
-    if command_config.command_constant == CMD_REG:
-        # Check if argument is valid (+n, -n, =n)
-        if additional_args:
-            reg_arg = additional_args[0]
-            if re.match(r"^[+-=]\d+$", reg_arg):
-                return ParsedCommand(command_config.command_constant, [], [reg_arg])
-            else:
-                return f"Error: Invalid argument for 'reg': {reg_arg}"
+def _subprompt_text(current: ParsedCommand) -> str:
+    """Return the prompt string for the next argument needed."""
+    cmd_conf = COMMANDS[current.command]
+    s = cmd_conf.arg_configs[len(current.result_args)].prompt
+    return s
+
+
+def _chunkize_for_one_arg(
+    arg_parts: list[str],
+    arg_conf: ArgConfig,
+    parsed: ParsedCommand,
+):
+    """Removes member(s) of arg_parts according to arg_conf into parsed.
+
+    If fails mandatory validation, status & message in parsed is updated.
+
+    If runs out of input args then status is PARSED_INCOMPLETE if the arg is
+    mandatory (so can prompt for more input) or PARSED_OK if optional.
+
+    Returns False if ParsedCommand has gone to error state, else True.
+    """
+
+    # Out of input to process?
+    if not arg_parts:
+        parsed.status = PARSED_OK if arg_conf.optional else PARSED_INCOMPLETE
+        return True
+
+    if arg_conf.arg_type == ARG_INOUT:
+        if arg_parts[0].lower() in {"in", "out", "i", "o"}:
+            parsed.result_args.append(arg_parts[0])
+            if arg_parts:
+                del arg_parts[0]
         else:
-            return ParsedCommand(command_config.command_constant, [], [])
+            parsed.status = PARSED_ERROR
+            parsed.message = (
+                f"Unrecognized parameter '{arg_parts[0]}' (must be 'in' or 'out')."
+            )
+    elif arg_conf.arg_type == ARG_YESNO:
+        if arg_parts[0].lower() in {"yes", "no", "y", "n"}:
+            parsed.result_args.append(arg_parts[0])
+            if arg_parts:
+                del arg_parts[0]
+        else:
+            parsed.status = PARSED_ERROR
+            parsed.message = (
+                f"Unrecognized parameter '{arg_parts[0]}' (must be 'yes' or 'no')."
+            )
+    elif arg_conf.arg_type == ARG_TIME:
+        t = VTime(arg_parts[0])
+        if t:
+            parsed.result_args.append(t)
+            if arg_parts:
+                del arg_parts[0]
+        else:
+            parsed.status = PARSED_ERROR
+            parsed.message = f"Unrecognized time parameter '{arg_parts[0]}'."
+    elif arg_conf.arg_type == ARG_TOKEN:
+        parsed.result_args.append(arg_parts[0])
+        if arg_parts:
+            del arg_parts[0]
+    elif arg_conf.arg_type == ARG_TEXT:
+        # All the remaining tokens
+        parsed.result_args.append(" ".join(arg_parts))
+        arg_parts.clear()
 
-    if command_config.command_constant == CMD_HELP:
-        # Help command takes no arguments
-        if additional_args:
-            return "Error: 'help' command does not take arguments."
-        return ParsedCommand(command_config.command_constant, [], [])
-
-    if command_config.requires_args:
-        if len(additional_args) < len(command_config.validation):
-            additional_args = prompt_for_args(command_config, len(additional_args), additional_args)
-
-    if additional_args is None:
-        return "Command cancelled."
-
-    return ParsedCommand(command_config.command_constant, tagids, additional_args)
-
-def prompt_for_args(command_config, starting_index, existing_args):
-    args = existing_args.copy()
-    for i in range(starting_index, len(command_config.prompts)):
-        while True:
-            user_input = input(command_config.prompts[i]).strip()
-            if not user_input:
-                print("Command cancelled.")
-                return None
-            if command_config.validation[i].validate(user_input):
-                args.append(user_input)
-                break
+    elif arg_conf.arg_type == ARG_TAGS:
+        tagslist = []
+        while arg_parts:
+            tag = TagID(arg_parts[0])
+            if tag:
+                tagslist.append(tag)
+                del arg_parts[0]
             else:
-                print("Invalid input. Please try again.")
-    return args
+                break
+        if tagslist:
+            parsed.result_args.append(tagslist)
+        else:
+            parsed.status = PARSED_ERROR
+            parsed.message = f"Unrecognized tag parameter '{arg_parts[0]}'"
 
-def process_command(parsed_command):
-    if isinstance(parsed_command, str):
-        print(parsed_command)
-        return
-
-    command_name = parsed_command.command
-    tagids = parsed_command.tagids
-    args = parsed_command.args
-
-    if not args and find_command(command_name).requires_args:
-        print("Command cancelled.")
-        return
-
-    # Implement command-specific processing here
-    if command_name == CMD_ADD:
-        print(f"Adding tags: {tagids}")
-    elif command_name == CMD_REMOVE:
-        print(f"Removing tags: {tagids}")
-    elif command_name == CMD_UPDATE:
-        print(f"Updating tags: {tagids} with arguments: {args}")
-    elif command_name == CMD_INOUT:
-        print(f"Processing inout command with tags: {tagids}")
-    elif command_name == CMD_NOTES:
-        print(f"Notes: {' '.join(args)}")
-    elif command_name == CMD_REG:
-        print(f"Register command with argument: {args[0] if args else 'None'}")
-    elif command_name == CMD_HELP:
-        print("Help command invoked.")
     else:
-        print(f"Unknown command '{command_name}'.")
+        raise ValueError(f"Unrecognized arg_type '{arg_conf.arg_type}'")
 
-# Example usage
-user_input = "tag1 tag2"
-parsed_command = parse_user_input(user_input)
-process_command(parsed_command)
+    return parsed.status != PARSED_ERROR
 
-user_input = "notes This is a note"
-parsed_command = parse_user_input(user_input)
-process_command(parsed_command)
+def _parse_user_command(user_str: str) -> ParsedCommand:
+    """Parses user_str as a full command line."""
 
-user_input = "reg +5"
-parsed_command = parse_user_input(user_input)
-process_command(parsed_command)
+    # print(f"  _parse_user_command has {user_str=}")
+    if not user_str:
+        return ParsedCommand(status=PARSED_EMPTY)
 
-user_input = "help"
-parsed_command = parse_user_input(user_input)
-process_command(parsed_command)
-"""
+    # Special case: If first chr is '/' make it a 'query' command
+    if user_str[0] == "/":
+        user_str = "query " + user_str[1:]
+
+
+    # Break into parts
+    parts = _tokenize(user_str)
+    if not parts:
+        return ParsedCommand(status=PARSED_EMPTY)
+
+    # Special case: if first token is a tag, prepend 'inout' command.
+    if TagID(parts[0]):
+        parts.insert(0,COMMANDS[CMD_BIKE_INOUT].invoke[0])
+
+    # What command is this?
+    what_command = find_command(parts[0])
+    if not what_command:
+        return ParsedCommand(status=PARSED_ERROR, message="Unrecognized command.")
+    cmd_config = COMMANDS[what_command]
+
+    arg_parts = parts[1:]  # These are the potential arguments
+
+    # This command takes some arguments
+    parsed = ParsedCommand(command=what_command)
+    parsed.status = PARSED_OK  # FIXME: Ugh? But works?
+    for this_arg_config in cmd_config.arg_configs:
+        if not _chunkize_for_one_arg(arg_parts, this_arg_config, parsed):
+            break
+
+    # There should now be no arg_parts left
+    if parsed.status == PARSED_OK and arg_parts:
+        parsed.status = PARSED_ERROR
+        parsed.message = f"Extra text at end of command: '{' '.join(arg_parts)}'."
+
+    return parsed
+
+
+def fetch_user_command() -> ParsedCommand:
+    """Get a completed command (or nothing) from user."""
+    user_input = get_input()
+    result = _parse_user_command(user_input)
+    while result.status == PARSED_INCOMPLETE:
+        # Need more args. Get the subprompt for the next arg
+        subprompt_text = _subprompt_text(result)
+        # Repeat the parsing using what had before + new input
+        subprompt_input = subprompt(subprompt_text)
+        if subprompt_input:
+            user_input = user_input + " " + subprompt_input
+            result = _parse_user_command(user_input)
+        else:
+            # Cancelled (no input)
+            result.status = PARSED_CANCELLED
+    return result
+
+if __name__ == "__main__":
+    while True:
+        # user_input = input("Enter your command: ")
+        print()
+        parsed_command = fetch_user_command()
+        parsed_command.dump()
+        if parsed_command.command == CMD_EXIT and parsed_command.status == PARSED_OK:
+            print("exiting")
+            break
