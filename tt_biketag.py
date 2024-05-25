@@ -15,6 +15,7 @@ Copyright (c) 2024 Todd Glover & Julias Hocking
 from tt_tag import TagID
 from tt_time import VTime
 from tt_bikevisit import BikeVisit
+from tt_constants import REGULAR,OVERSIZE,UNKNOWN
 
 
 class BikeTagError(Exception):
@@ -35,22 +36,24 @@ class BikeTag:
     UNUSED = "_unused_"
     RETIRED = "_retired_"
 
-    all_tags: dict[str, "BikeTag"] = {}
+    # all_biketags: dict[str, "BikeTag"] = {}
 
-    def __new__(cls, tagid: TagID, bike_type: str):
-        if tagid in cls.all_tags:
-            return cls.all_tags[tagid]
+    def __new__(cls, tagid: TagID, bike_type: str=UNKNOWN):
+        # if tagid in cls.all_biketags:
+        #     return cls.all_biketags[tagid]
         instance = super(BikeTag, cls).__new__(cls)
         return instance
 
-    def __init__(self, tagid: TagID, bike_type: str):
-        if tagid in BikeTag.all_tags:
-            return
+    def __init__(self, tagid: TagID, bike_type: str=UNKNOWN):
+        # if tagid in BikeTag.all_biketags:
+        #     return
         self.tagid = tagid
         self.status = self.UNUSED
         self.visits: list[BikeVisit] = []
         self.bike_type = bike_type
-        BikeTag.all_tags[tagid] = self
+        if self.bike_type not in (REGULAR,OVERSIZE,UNKNOWN):
+            raise BikeTagError(f"Unknown bike type '{bike_type}' for {tagid}")
+        # BikeTag.all_biketags[tagid] = self
 
     # Lower-level methods
 
@@ -66,10 +69,10 @@ class BikeTag:
             self.status = self.DONE
 
     def latest_visit(self) -> BikeVisit:
+        """Return latest of the biketag's visit, if any."""
         if self.visits:
             return self.visits[-1]
-        else:
-            raise BikeTagError("No visits available")
+        return None
 
     # Higher-level command-fulfillment methods
 

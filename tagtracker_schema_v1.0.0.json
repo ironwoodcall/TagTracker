@@ -12,11 +12,11 @@
         "type": "string",
         "format": "date"
       },
-      "opening_hours": {
+      "opening_time": {
         "type": "string",
         "format": "time"
       },
-      "closing_hours": {
+      "closing_time": {
         "type": "string",
         "format": "time"
       },
@@ -75,5 +75,5 @@
         "type": "integer"
       }
     },
-    "required": ["site_name", "date", "opening_hours", "closing_hours", "total_regular", "total_oversize", "total_parked"]
+    "required": ["site_name", "date", "opening_time", "closing_time"]
   }

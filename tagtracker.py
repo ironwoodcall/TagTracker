@@ -64,22 +64,6 @@ from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # import tt_default_hours
 
 # pylint: enable=wrong-import-position
@@ -148,46 +132,46 @@ def deduce_parking_date(current_guess: str, filename: str) -> str:
     return ut.date_str("today")
 
 
-def pack_day_data() -> td.OldTrackerDay:
-    """Create a OldTrackerDay object loaded with today's data."""
-    # Pack info into OldTrackerDay object
-    day = td.OldTrackerDay()
-    day.date = PARKING_DATE
-    day.opening_time = OPENING_TIME
-    day.closing_time = CLOSING_TIME
-    day.registrations = reg.Registrations.num_registrations
-    day.bikes_in = check_ins
-    day.bikes_out = check_outs
-    day.regular = NORMAL_TAGS
-    day.oversize = OVERSIZE_TAGS
-    day.retired = RETIRED_TAGS
-    day.notes = notes.Notes.fetch()
-    return day
+# def pack_day_data() -> td.OldTrackerDay:
+#     """Create a OldTrackerDay object loaded with today's data."""
+#     # Pack info into OldTrackerDay object
+#     day = td.OldTrackerDay()
+#     day.date = PARKING_DATE
+#     day.opening_time = OPENING_TIME
+#     day.closing_time = CLOSING_TIME
+#     day.registrations = reg.Registrations.num_registrations
+#     day.bikes_in = check_ins
+#     day.bikes_out = check_outs
+#     day.regular = NORMAL_TAGS
+#     day.oversize = OVERSIZE_TAGS
+#     day.retired = RETIRED_TAGS
+#     day.notes = notes.Notes.fetch()
+#     return day
 
 
-def unpack_day_data(today_data: td.OldTrackerDay) -> None:
-    """Set globals from a OldTrackerDay data object."""
-    # pylint: disable=global-statement
-    global PARKING_DATE, OPENING_TIME, CLOSING_TIME
-    global check_ins, check_outs
-    global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
-    global ALL_TAGS
-    global TAG_COLOUR_NAMES
-    # pylint: enable=global-statement
-    PARKING_DATE = today_data.date
-    OPENING_TIME = VTime(today_data.opening_time)
-    CLOSING_TIME = VTime(today_data.closing_time)
-    reg.Registrations.set_num_registrations(today_data.registrations)
-    check_ins = today_data.bikes_in
-    check_outs = today_data.bikes_out
-    NORMAL_TAGS = today_data.regular
-    OVERSIZE_TAGS = today_data.oversize
-    RETIRED_TAGS = today_data.retired
-    ALL_TAGS = (NORMAL_TAGS | OVERSIZE_TAGS) - RETIRED_TAGS
-    notes.Notes.load(today_data.notes)
+# def unpack_day_data(today_data: td.OldTrackerDay) -> None:
+#     """Set globals from a OldTrackerDay data object."""
+#     # pylint: disable=global-statement
+#     global PARKING_DATE, OPENING_TIME, CLOSING_TIME
+#     global check_ins, check_outs
+#     global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
+#     global ALL_TAGS
+#     global TAG_COLOUR_NAMES
+#     # pylint: enable=global-statement
+#     PARKING_DATE = today_data.date
+#     OPENING_TIME = VTime(today_data.opening_time)
+#     CLOSING_TIME = VTime(today_data.closing_time)
+#     reg.Registrations.set_num_registrations(today_data.registrations)
+#     check_ins = today_data.bikes_in
+#     check_outs = today_data.bikes_out
+#     NORMAL_TAGS = today_data.regular
+#     OVERSIZE_TAGS = today_data.oversize
+#     RETIRED_TAGS = today_data.retired
+#     ALL_TAGS = (NORMAL_TAGS | OVERSIZE_TAGS) - RETIRED_TAGS
+#     notes.Notes.load(today_data.notes)
 
 
-def initialize_today(datafile:str) -> bool:
+def initialize_today(datafile: str) -> bool:
     """Set up today's info from existing datafile or from configs.
 
     This does *not* /create/ the new datafile, just the data that
@@ -204,7 +188,7 @@ def initialize_today(datafile:str) -> bool:
     if os.path.exists(datafile):
         # Read from existing datafile
         try:
-            today.load_from_file()
+            today.load_from_file(datafile)
         except td.TrackerDayError as e:
             handle_msgs(list(e.msgs))
             return False
@@ -212,7 +196,9 @@ def initialize_today(datafile:str) -> bool:
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
     # then fetch the tag reference lists from tags config
-    if not (today.regular_tagids or today.oversize_tagids) or today.date == ut.date_str("today"):
+    if not (today.regular_tagids or today.oversize_tagids) or today.date == ut.date_str(
+        "today"
+    ):
         try:
             today.set_taglists_from_config()
         except td.TrackerDayError as e:
@@ -224,8 +210,6 @@ def initialize_today(datafile:str) -> bool:
 
     if not today.date:
         today.date = deduce_parking_date(today.date, datafile)
-
-
 
     # # Back-compatibility edge case read from old tags.cfg FIXME: remove after cutover
     # old_config = "tags.cfg"
@@ -255,7 +239,6 @@ def initialize_today(datafile:str) -> bool:
         )
     # Done
     return True
-
 
 
 def delete_entry(  # pylint:disable=keyword-arg-before-vararg
@@ -356,7 +339,9 @@ def delete_entry(  # pylint:disable=keyword-arg-before-vararg
     pr.iprint("Deleted.", style=k.ANSWER_STYLE)
 
 
-def query_one_tag(maybe_tag: str, day: td.OldTrackerDay, multi_line: bool = False) -> None:
+def query_one_tag(
+    maybe_tag: str, day: td.OldTrackerDay, multi_line: bool = False
+) -> None:
     """Print a summary of one tag's status.
 
     If multi_line is true, then this *may* print the status on multiple lines;
@@ -814,7 +799,7 @@ def estimate(args: list[str]) -> None:
 
     pr.iprint()
     pr.iprint("Estimating...")
-    #time.sleep(1)
+    # time.sleep(1)
     message_lines = tt_call_estimator.get_estimate_via_url(pack_day_data(), *args[:4])
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
@@ -958,7 +943,7 @@ def main():
         # Flush any echo buffer
         pr.echo_flush()
     # Exiting; one last  publishing
-    #save()
+    # save()
     publishment.publish(pack_day_data())
 
 

@@ -56,7 +56,7 @@ class Event:
         if as_of_when is None:
             # Set as_of_when to be the time of the latest checkout of the day.
             if day.bikes_in:
-                as_of_when = day.latest_event()
+                as_of_when = day.latest_event('24:00')
             else:
                 as_of_when = "now"
         as_of_when = VTime(as_of_when)

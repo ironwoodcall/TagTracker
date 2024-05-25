@@ -35,6 +35,7 @@ from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
 from tt_biketag import BikeTag, BikeTagError
+from tt_constants import REGULAR, OVERSIZE, UNKNOWN
 from tt_bikevisit import BikeVisit
 from client_local_config import REGULAR_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
 
@@ -47,7 +48,7 @@ class OldTrackerDay:
         self.date = ""
         self.opening_time = VTime("")
         self.closing_time = VTime("")
-        self.registrations = 0  # FIXME: better 0 or None?
+        self.registrations = 0
         self.bikes_in = {}
         self.bikes_out = {}
         self.regular = frozenset()
@@ -236,7 +237,7 @@ class TrackerDay:
         self.date = ""
         self.opening_time = VTime("")
         self.closing_time = VTime("")
-        self.registrations = 0  # FIXME: better 0 or None?
+        self.registrations = 0
         self.regular_tagids = frozenset()
         self.oversize_tagids = frozenset()
         self.retired_tagids = frozenset()
@@ -245,6 +246,7 @@ class TrackerDay:
         self.biketags: dict[TagID, BikeTag] = {}
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
+        self.site_name = ""
 
     def all_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
@@ -281,7 +283,7 @@ class TrackerDay:
         self.oversize_tagids = frozenset(oversizes)
 
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
-        """Generate a list of logic error messages for OldTrackerDay object.
+        """Generate a list of logic error messages for TrackerDay object.
 
         If no errors found returns []
         If errors, returns list of error message strings.
@@ -308,24 +310,16 @@ class TrackerDay:
                     msgs.append(f"Bad tag '{tag}' in {listname}")
             return msgs
 
-        def bad_times(biketags: dict[TagID, BikeTag], listname: str) -> list[str]:
-            """Get list of errors about mal-formed time values in biketags."""
+        def bad_times() -> list[str]:
+            """Get list of errors about mal-formed time values in visits."""
             msgs = []
-            for tag, bike in biketags.items():
-                latest_visit = bike.latest_visit()
-                if (
-                    not isinstance(latest_visit.time_in, VTime)
-                    or not latest_visit.time_in
-                ):
+            for v in self.all_visits():
+                v: BikeVisit
+                if not isinstance(v.time_in, VTime) or not v.time_in:
+                    msgs.append(f"Bad time_in '{v.time_in}' in a visit of '{v.tagid}'")
+                if v.time_out and not isinstance(v.time_out, VTime):
                     msgs.append(
-                        f"Bad time '{latest_visit.time_in}' in {listname} with key '{tag}'"
-                    )
-                if latest_visit.time_out and (
-                    not isinstance(latest_visit.time_out, VTime)
-                    or not latest_visit.time_out
-                ):
-                    msgs.append(
-                        f"Bad time '{latest_visit.time_out}' in {listname} with key '{tag}'"
+                        f"Bad time_out '{v.time_out}' in a visit of '{v.tagid}'"
                     )
             return msgs
 
@@ -351,22 +345,56 @@ class TrackerDay:
         errors += bad_tags(list(self.regular_tagids), "regular-tags")
         errors += bad_tags(list(self.oversize_tagids), "oversize-tags")
         errors += bad_tags(list(self.biketags.keys()), "biketags")
-        errors += bad_times(self.biketags, "biketags")
+        errors += bad_times()
         # Look for duplicates in regular and oversize tags lists
         if len(self.regular_tagids | self.oversize_tagids) != len(
             self.regular_tagids
         ) + len(self.oversize_tagids):
             errors.append("Size mismatch between regular+oversize tags and their union")
-        # Look for bike checked out but not in, or check-in later than check-out
-        for tag, bike in self.biketags.items():
-            if bike.status == BikeTag.DONE:
-                latest_visit = bike.latest_visit()
-                if latest_visit.time_out < latest_visit.time_in:
-                    errors.append(f"Bike {tag} check-out earlier than check-in")
+        # Look for BikeTag inconsistencies:
+        #   - DONE biketag with 0 visits or an unfinished visit
+        #   - UNUSED or RETIRED biketag with visits
+        #   - IN_USE biketag with a non-null last visit
+        #   - any visit other than last_visit having a null time_out
+
+        for tagid, biketag in self.biketags.items():
+            latest_visit = biketag.latest_visit()
+
+            # DONE biketag with 0 visits or an unfinished visit
+            if biketag.status == BikeTag.DONE:
+                if len(biketag.visits) == 0:
+                    errors.append(f"BikeTag {tagid} is DONE but has 0 visits.")
+                elif latest_visit and not latest_visit.time_out:
+                    errors.append(
+                        f"BikeTag {tagid} is DONE but has an unfinished visit."
+                    )
+
+            # UNUSED or RETIRED biketag with visits
+            if biketag.status in (BikeTag.UNUSED, BikeTag.RETIRED):
+                if len(biketag.visits) > 0:
+                    errors.append(
+                        f"BikeTag {tagid} is {biketag.status} but has visits."
+                    )
+
+            # IN_USE biketag with a non-null last visit
+            if biketag.status == BikeTag.IN_USE:
+                if latest_visit and latest_visit.time_out:
+                    errors.append(
+                        f"BikeTag {tagid} is IN_USE but has a non-null last visit."
+                    )
+
+            # Any visit other than latest_visit having a null time_out
+            for visit in biketag.visits[:-1]:  # Check all visits except the last one
+                if not visit.time_out:
+                    errors.append(
+                        f"BikeTag {tagid} has a visit with time_in {visit.time_in} other than the last visit that has a null time_out."
+                    )
+
         # Bikes that are not in the list of allowed bikes
-        _allowed_tags = self.regular_tagids | self.oversize_tagids
-        _used_tags = self.biketags.keys()
-        for tag in _used_tags:
+        _allowed_tags = (
+            self.regular_tagids | self.oversize_tagids
+        ) - self.retired_tagids
+        for tag in self.biketags:
             if tag not in _allowed_tags:
                 errors.append(f"Tag {tag} not in use (not regular nor oversized)")
             if tag in self.retired_tagids:
@@ -374,64 +402,49 @@ class TrackerDay:
         return errors
 
     def earliest_event(self) -> VTime:
-        """Return the earliest event of the day as HH:MM (or "" if none)."""
+        """Return the earliest event of the day as HH:MM (or "" if none).
 
-        earliest = ""
-        for b in self.biketags:
-            b:BikeTag
-            for v in b.visits:
-                v:BikeVisit
-                if not earliest or v.time_in < earliest:
-                    earliest = v.time_in
-                if not earliest or (v.time_out and v.time_out < earliest):
-                    earliest = v.time_out
-        return earliest
-        # if
-        # all_events = {
-        #     visit.time_in for bike in self.biketags.values() for visit in bike.visits
-        # }
-        # if not all_events:
-        #     return ""
-        # return min(all_events)
+        It will for now be a time_in not a time_out until such time as
+        bikes are kept past midnight, which is a whole other can of worms.
+        """
+
+        return min(
+            [visit.time_in for visit in self.all_visits()]
+            + [visit.time_out for visit in self.all_visits() if visit.time_out],
+            default="",
+        )
+
 
     def latest_event(self, as_of_when: VTime | int | None = None) -> VTime:
         """Return the latest event of the day at or before as_of_when.
 
         If no events in the time period, return "".
         If as_of_when is blank or None, then this will use the whole day.
+        FIXME: ought as_of_when default to 'now'?
         """
+        as_of_when = as_of_when or "now"
+        as_of_when = VTime(as_of_when)
         if not as_of_when:
-            as_of_when = VTime("24:00")
-        else:
-            as_of_when = VTime(as_of_when)
-            if not as_of_when:
-                return ""
+            return ""
+
         events = {
-            visit.time_in
-            for bike in self.biketags.values()
-            for visit in bike.visits
-            if visit.time_in <= as_of_when
+            visit.time_in for visit in self.all_visits() if visit.time_in <= as_of_when
         } | {
             visit.time_out
-            for bike in self.biketags.values()
-            for visit in bike.visits
+            for visit in self.all_visits()
             if visit.time_out and visit.time_out <= as_of_when
         }
-        # Anything?
-        if not events:
-            return ""
+
         # Find latest event of the day
-        latest = max(events)
+        latest = max(events, default="")
         return latest
 
     def num_later_events(self, after_when: VTime | int | None = None) -> int:
         """Get count of events that are later than after_when."""
+        after_when = after_when or "now"
+        after_when = VTime(after_when)
         if not after_when:
-            after_when = VTime("now")
-        else:
-            after_when = VTime(after_when)
-            if not after_when:
-                return ""
+            return ""
 
         events = {
             visit.time_in
@@ -446,102 +459,107 @@ class TrackerDay:
         }
         return len(events)
 
-    @staticmethod
-    def create_biketags_from_visits(visits: list[BikeVisit]) -> list[BikeTag]:
-        """Create a list of BikeTag objects from a list of BikeVisit objects.
-
-        This needs better FIXME colour detection (R/O/ret). Right now
-        it guesses, which is no good.
-
-        This is something I would need when reading a datafile.
-        """
-        biketags = {}
-        for visit in visits:
-            if visit.tagid not in biketags:
-                biketags[visit.tagid] = BikeTag(
-                    visit.tagid, TrackerDay.guess_tag_type(visit.tagid)
-                )
-            biketags[visit.tagid].visits.append(visit)
-        return list(biketags.values())
-
-    @staticmethod
-    def create_visits_from_biketags(biketags: list[BikeTag]) -> list[BikeVisit]:
-        """Create a list of BikeVisit objects from a list of BikeTag objects.
-
-        Will need this to write a datafile, which is a list of visits, not tags.
-        """
+    def all_visits(self) -> list[BikeVisit]:
+        """Create a list of BikeVisit objects from a list of BikeTag objects."""
 
         visits = []
-        for biketag in biketags:
-            visits.extend(biketag.visits)
+        for biketag in self.biketags.values():
+            if biketag.visits:
+                visits += biketag.visits
+        # Sort visits on their sequence number
+        visits = sorted(visits, key=lambda visit: visit.seq)
+
         return visits
 
-    def to_dict(self) -> Dict:
+    def _day_to_json_dict(self) -> Dict:
         bike_visits = []
-        for biketag in self.biketags.values():
-            for visit in biketag.visits:
-                bike_visits.append(
-                    {
-                        "time_in": visit.time_in.to_str(),
-                        "time_out": visit.time_out.to_str() if visit.time_out else "",
-                        "tagid": visit.tagid,
-                    }
-                )
+        for visit in self.all_visits():
+            bike_visits.append(
+                {
+                    "sequence_id": visit.seq,
+                    "time_in": visit.time_in,
+                    "time_out": visit.time_out,
+                    "tagid": visit.tagid,
+                }
+            )
         return {
             "date": self.date,
             "opening_time": self.opening_time,
             "closing_time": self.closing_time,
             "registrations": self.registrations,
             "bike_visits": bike_visits,
-            "regular_tagids": list(self.regular_tagids),
-            "oversize_tagids": list(self.oversize_tagids),
-            "retired_tagids": list(self.retired_tagids),
+            "regular_tagids": sorted(list(self.regular_tagids)),
+            "oversize_tagids": sorted(list(self.oversize_tagids)),
+            "retired_tagids": sorted(list(self.retired_tagids)),
             "notes": self.notes,
+            "site_name": self.site_name,
         }
 
     @staticmethod
-    def from_dict(data: Dict, filepath: str) -> "TrackerDay":
-        tracker_day = TrackerDay(filepath)
-        tracker_day.date = data["date"]
-        tracker_day.opening_time = VTime(data["opening_time"])
-        tracker_day.closing_time = VTime(data["closing_time"])
-        tracker_day.registrations = data["registrations"]
-        tracker_day.regular_tagids = frozenset(data["regular_tagids"])
-        tracker_day.oversize_tagids = frozenset(data["oversize_tagids"])
-        tracker_day.retired_tagids = frozenset(data["retired_tagids"])
-        tracker_day.notes = data["notes"]
+    def _day_from_json_dict(data: Dict, filepath: str) -> "TrackerDay":
+        day = TrackerDay(filepath)
+        day.date = data["date"]
+        day.opening_time = VTime(data["opening_time"])
+        day.closing_time = VTime(data["closing_time"])
+        day.registrations = int(data["registrations"])
+        try:
+            day.registrations = int(day.registrations)
+        except ValueError as e:
+            raise TrackerDayError(
+                f"Bad registration value in file: {day.registrations}'. Error {e}"
+            ) from e
+        day.notes = data["notes"]
+        day.site_name = data["site_name"]
 
+        day.regular_tagids = frozenset(data["regular_tagids"])
+        day.oversize_tagids = frozenset(data["oversize_tagids"])
+        day.retired_tagids = frozenset(data["retired_tagids"])
+
+        # Check the formats of the tagids
+        day.check_tagid_formats()
+
+        # Initialize all the BikeTags
+        for t in day.regular_tagids:
+            day.biketags[t] = BikeTag(t, REGULAR)
+        for t in day.oversize_tagids:
+            day.biketags[t] = BikeTag(t, OVERSIZE)
+        for t in day.biketags.values():
+            t.status = BikeTag.UNUSED
+        for t in day.retired_tagids:
+            if t not in day.biketags:
+                day.biketags[t] = BikeTag(t, UNKNOWN)
+            day.biketags[t].status = BikeTag.RETIRED
+
+        # Add the visits
         for visit_data in data["bike_visits"]:
-            tagid = visit_data["tagid"]
+            tagid = TagID(visit_data["tagid"])
             time_in = VTime(visit_data["time_in"])
-            time_out = VTime(visit_data["time_out"]) if visit_data["time_out"] else None
-            visit = BikeVisit(tagid, time_in)
-            visit.time_out = time_out
+            time_out = VTime(visit_data["time_out"])
+            day.biketags[tagid].start_visit(time_in)
+            if time_out:
+                day.biketags[tagid].finish_visit(time_out)
 
-            if tagid not in tracker_day.biketags:
-                bike_type = "R" if tagid in tracker_day.regular_tagids else "O"
-                tracker_day.biketags[tagid] = BikeTag(tagid, bike_type)
-            tracker_day.biketags[tagid].visits.append(visit)
-
-        return tracker_day
+        return day
 
     def save_to_file(self) -> None:
-        data = self.to_dict()
+        data = self._day_to_json_dict()
         schema = self.load_schema()
         self.validate_data(data, schema)
 
         with open(self.filepath, "w", encoding="utf-8") as file:
             json.dump(data, file, indent=4)
 
-    def load_from_file(self) -> "TrackerDay":
-        with open(self.filepath, "r", encoding="utf-8") as file:
+    @staticmethod
+    def load_from_file(filepath) -> "TrackerDay":
+        with open(filepath, "r", encoding="utf-8") as file:
             data = json.load(file)
 
         schema = TrackerDay.load_schema()
         TrackerDay.validate_data(data, schema)
 
-        self.check_tagid_formats()
-        return TrackerDay.from_dict(data, self.filepath)
+        loaded_day = TrackerDay._day_from_json_dict(data, filepath)
+        loaded_day.check_tagid_formats()
+        return loaded_day
 
     @staticmethod
     def load_schema() -> Dict:
@@ -587,3 +605,35 @@ class TrackerDay:
 
         self.tagids_conform = True
         return True
+
+
+def old_to_new(old: OldTrackerDay) -> TrackerDay:
+    """Convert an old Trackerday to a new one."""
+
+    new = TrackerDay("")
+    new.date = old.date
+    new.opening_time = old.opening_time
+    new.closing_time = old.closing_time
+    new.registrations = old.registrations
+    new.notes = old.notes
+    # Tag reference lists
+    new.regular_tagids = old.regular
+    new.oversize_tagids = old.oversize
+    new.retired_tagids = old.retired
+    # Biketags dict
+    for t in new.regular_tagids:
+        new.biketags[t] = BikeTag(t, REGULAR)
+    for t in new.oversize_tagids:
+        new.biketags[t] = BikeTag(t, OVERSIZE)
+    for t in new.retired_tagids:
+        if t not in new.biketags:
+            new.biketags[t] = BikeTag(t, UNKNOWN)
+        new.biketags[t].status = BikeTag.RETIRED
+
+    # Add visits to the tags
+    for tagid, time_in in old.bikes_in.items():
+        new.biketags[tagid].start_visit(time_in)
+    for tagid, time_out in old.bikes_out.items():
+        new.biketags[tagid].finish_visit(time_out)
+
+    return new

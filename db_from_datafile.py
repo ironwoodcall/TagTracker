@@ -367,7 +367,7 @@ def calc_day_stats(filename: str, day: OldTrackerDay) -> DayStats:
         row.time_close = day.closing_time
     else:  # guess with bike check-ins
         row.time_open = day.earliest_event()
-        row.time_close = day.latest_event()
+        row.time_close = day.latest_event('24:00')
     if not row.time_close:
         msg = "Can not find or guess a closing time"
         Statuses.files[filename].set_bad(msg)

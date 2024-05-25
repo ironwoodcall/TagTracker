@@ -216,7 +216,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
         time_close = data.closing_time
     else:  # guess with bike check-ins
         time_open = data.earliest_event()
-        time_close = data.latest_event()
+        time_close = data.latest_event('24:00')
 
     # Find int day of week
     date_bits = re.match(tt_constants.DATE_FULL_RE, date)
