@@ -138,7 +138,7 @@ def colours_report(day: OldTrackerDay) -> None:
     # Dictionary of how many tags are of each colour.
     tag_count = dict(zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)]))
     # Count and categorize the tags (all available for use)
-    for tag in day.all_tags():
+    for tag in day.all_usable_tags():
         code = tag.colour.lower()
         if code not in colours:
             ut.squawk(f"bad colour for {tag}: '{code}' in colours_report()")

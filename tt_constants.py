@@ -195,68 +195,43 @@ TAG_INV_BIKE_OUT = ("Ou", PROMPT_STYLE)
 TAG_INV_RETIRED = ("Re", WARNING_STYLE)
 TAG_INV_ERROR = ("!?", ERROR_STYLE)
 
-# Command keys and aliases.
-CMD_AUDIT = "audit"
-CMD_DELETE = "delete"
-CMD_EDIT = "edit"
-CMD_EXIT = "exit"
-CMD_BLOCK = "block"
-CMD_HELP = "help"
-CMD_LOOKBACK = "lookback"
-CMD_QUERY = "query"
-CMD_STATS = "stats"
-CMD_BUSY = "busy"
-CMD_HOURS = "operating_hours"
-CMD_CSV = "csv"
-CMD_UPPERCASE = "uppercase"
-CMD_LOWERCASE = "lowercase"
-CMD_LINT = "lint"
-CMD_NOTES = "notes"
-CMD_REGISTRATION = "registration"
-CMD_DUMP = "dump"
-CMD_BUSY_CHART = "busy_chart"
-CMD_FULL_CHART = "full_chart"
-CMD_CHART = "chart"
-CMD_PUBLISH = "publish"
-CMD_TAGS = "tags"
-CMD_ESTIMATE = "estimate"
 
-COMMANDS = {}
-COMMANDS[CMD_AUDIT] = ["audit", "a", "aud"]
-COMMANDS[CMD_DELETE] = ["del", "delete", "d"]
-COMMANDS[CMD_EDIT] = ["edit", "e", "ed"]
-COMMANDS[CMD_EXIT] = ["quit", "exit", "stop", "x", "bye"]
-COMMANDS[CMD_BLOCK] = ["log", "l", "form", "f"]
-COMMANDS[CMD_HELP] = ["help", "h"]
-COMMANDS[CMD_LOOKBACK] = ["recent", "rec"]
-COMMANDS[CMD_QUERY] = ["query", "q", "?", "/"]
-COMMANDS[CMD_STATS] = ["s", "stat", "stats", "statistics"]
-COMMANDS[CMD_BUSY] = ["b", "busy", "busyness", "business"]
-COMMANDS[CMD_HOURS] = ["hour", "hours", "v"]
-COMMANDS[CMD_CSV] = ["csv"]
-COMMANDS[CMD_UPPERCASE] = ["uc", "uppercase", "upper"]
-COMMANDS[CMD_LOWERCASE] = ["lc", "lowercase", "lower"]
-COMMANDS[CMD_LINT] = ["consistency", "consistent", "cons", "con"]
-COMMANDS[CMD_DUMP] = ["dump"]
-COMMANDS[CMD_BUSY_CHART] = [
-    "chart-busy",
-    "graph-busy",
-    "busy-chart",
-    "busy-graph",
-]
-COMMANDS[CMD_FULL_CHART] = [
-    "chart-full",
-    "graph-full",
-    "full-chart",
-    "full-graph",
-]
-COMMANDS[CMD_CHART] = ["chart", "c"]
-COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
-COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
-COMMANDS[CMD_NOTES] = ["note", "notes", "n"]
-COMMANDS[CMD_REGISTRATION] = ["registrations", "register", "reg", "r"]
-COMMANDS[CMD_ESTIMATE] = ["est", "estimate", "guess"]
-# These are for commands that are not recognized so *maybe* are a tag
-CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
-CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)
-CMD_TAG_UNUSABLE = "tag_unusable" + chr(12345)
+# COMMANDS = {}
+# COMMANDS[CMD_AUDIT] = ["audit", "a", "aud"]
+# COMMANDS[CMD_DELETE] = ["del", "delete", "d"]
+# COMMANDS[CMD_EDIT] = ["edit", "e", "ed"]
+# COMMANDS[CMD_EXIT] = ["quit", "exit", "stop", "x", "bye"]
+# COMMANDS[CMD_BLOCK] = ["log", "l", "form", "f"]
+# COMMANDS[CMD_HELP] = ["help", "h"]
+# COMMANDS[CMD_LOOKBACK] = ["recent", "rec"]
+# COMMANDS[CMD_QUERY] = ["query", "q", "?", "/"]
+# COMMANDS[CMD_STATS] = ["s", "stat", "stats", "statistics"]
+# COMMANDS[CMD_BUSY] = ["b", "busy", "busyness", "business"]
+# COMMANDS[CMD_HOURS] = ["hour", "hours", "v"]
+# COMMANDS[CMD_CSV] = ["csv"]
+# COMMANDS[CMD_UPPERCASE] = ["uc", "uppercase", "upper"]
+# COMMANDS[CMD_LOWERCASE] = ["lc", "lowercase", "lower"]
+# COMMANDS[CMD_LINT] = ["consistency", "consistent", "cons", "con"]
+# COMMANDS[CMD_DUMP] = ["dump"]
+# COMMANDS[CMD_BUSY_CHART] = [
+#     "chart-busy",
+#     "graph-busy",
+#     "busy-chart",
+#     "busy-graph",
+# ]
+# COMMANDS[CMD_FULL_CHART] = [
+#     "chart-full",
+#     "graph-full",
+#     "full-chart",
+#     "full-graph",
+# ]
+# COMMANDS[CMD_CHART] = ["chart", "c"]
+# COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
+# COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
+# COMMANDS[CMD_NOTES] = ["note", "notes", "n"]
+# COMMANDS[CMD_REGISTRATION] = ["registrations", "register", "reg", "r"]
+# COMMANDS[CMD_ESTIMATE] = ["est", "estimate", "guess"]
+# # These are for commands that are not recognized so *maybe* are a tag
+# CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
+# CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)
+# CMD_TAG_UNUSABLE = "tag_unusable" + chr(12345)

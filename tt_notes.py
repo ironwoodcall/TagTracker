@@ -71,7 +71,7 @@ class Notes:
 
     @classmethod
     def find(cls, pattern: str) -> list[str]:
-        """Return list of notes that match 'pattern' (not a regex)."""
+        """Return list of notes that contain 'pattern' (not a regex)."""
         results = []
         re_pat = re.compile(r"\b" + pattern + r"\b", flags=re.IGNORECASE)
         results = [line for line in cls._notes if re_pat.search(line)]

@@ -57,7 +57,7 @@ class OldTrackerDay:
         self.colour_letters = {}
         self.notes = []
 
-    def all_tags(self) -> frozenset[TagID]:
+    def all_usable_tags(self) -> frozenset[TagID]:
         """Return list of all usable tags."""
         return frozenset((self.regular | self.oversize) - self.retired)
 
@@ -248,7 +248,7 @@ class TrackerDay:
         self.filepath = filepath
         self.site_name = ""
 
-    def all_tags(self) -> frozenset[TagID]:
+    def all_usable_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
         return frozenset(
             [

@@ -44,10 +44,13 @@ if sys.version_info < (3, 10):
 # pylint: disable=wrong-import-position
 import tt_constants as k
 from tt_tag import TagID
-from tt_realtag import Stay
+
+# from tt_realtag import Stay
 from tt_time import VTime
 import tt_util as ut
-import tt_trackerday as td
+from tt_trackerday import TrackerDay, TrackerDayError
+from tt_bikevisit import BikeVisit
+from tt_biketag import BikeTag, BikeTagError
 import client_base_config as cfg
 import tt_printer as pr
 import tt_datafile as df
@@ -55,7 +58,15 @@ import tt_reports as rep
 import tt_publish as pub
 import tt_tag_inv as inv
 import tt_notes as notes
-from tt_cmdparse import CmdBits
+
+# from tt_cmdparse import CmdBits
+from tt_commands import (
+    CmdKeys,
+    ParsedCommand,
+    get_parsed_command,
+    PARSED_OK,
+    PARSED_CANCELLED,
+)
 import tt_call_estimator
 import tt_registrations as reg
 from tt_sounds import NoiseMaker
@@ -184,12 +195,12 @@ def initialize_today(datafile: str) -> bool:
         for text in msgs:
             pr.iprint(text, style=k.ERROR_STYLE)
 
-    today = td.TrackerDay(datafile)
+    today = TrackerDay(datafile)
     if os.path.exists(datafile):
         # Read from existing datafile
         try:
             today.load_from_file(datafile)
-        except td.TrackerDayError as e:
+        except TrackerDayError as e:
             handle_msgs(list(e.msgs))
             return False
 
@@ -201,7 +212,7 @@ def initialize_today(datafile: str) -> bool:
     ):
         try:
             today.set_taglists_from_config()
-        except td.TrackerDayError as e:
+        except TrackerDayError as e:
             handle_msgs(list(e.args))
             return False
 
@@ -225,7 +236,7 @@ def initialize_today(datafile: str) -> bool:
 
     try:
         today.lint_check()
-    except td.TrackerDayError as e:
+    except TrackerDayError as e:
         handle_msgs(list(e.args))
         error_exit()
 
@@ -241,102 +252,169 @@ def initialize_today(datafile: str) -> bool:
     return True
 
 
-def delete_entry(  # pylint:disable=keyword-arg-before-vararg
-    maybe_target: str = "",
-    maybe_what: str = "",
-    maybe_confirm: str = "",
-    *extra,
-) -> None:
-    """Perform tag entry deletion dialogue.
+def delete_event(args: list, today: TrackerDay) -> bool:
+    """Possibly delete an event in most recent visit. Return True if data has changed.
 
-    Delete syntax is:
-        delete <tag> <in|out|both> <confirm>
+    Will only delete from the most recent visit for the tag(s)
+
+    On entry:
+        args is list:
+            0: list of one or more syntactically correct tagids
+            1: what event: "in","out","i" or "o" (or "both"/"b")
+            2: a confirmation "yes","y","n" or "no"
+        today: is the current day's data
+
+    Error/cancellation conditions, for each tag
+        confirmation is not "yes"
+        tagid not of a usable tag
+        no visits with that tagid
+        request is for "in" when there is already an "out"
+        request is for "out" when there is no "out"
+        request is for "both" when there is only "in" (maybe do that anyway)
+
     """
+    data_changed = False
+    if args[2] != "y":
+        pr.iprint("Delete cancelled.", style=k.HIGHLIGHT_STYLE)
+        return data_changed
+    for tagid in args[0]:
+        if tagid not in today.all_usable_tags():
+            pr.iprint(f"Tag '{tagid}' not available for use.", style=k.WARNING_STYLE)
+            continue
+        try:
+            biketag: BikeTag = today.biketags[tagid]
+            if not biketag:
+                pr.iprint(f"Tag '{tagid}' not used yet today.", style=k.WARNING_STYLE)
+                continue
+            visit: BikeVisit = biketag.latest_visit()
+            if args[1] == "i":
+                if visit.time_out:
+                    pr.iprint(
+                        f"Can't delete '{tagid}' checkin, latest visit has a checkout.",
+                        style=k.WARNING_STYLE,
+                    )
+                else:
+                    biketag.delete_in()
+                    pr.iprint(
+                        f"Deleted check-in for latest {tagid} visit.",
+                        style=k.ANSWER_STYLE,
+                    )
+                    data_changed = True
+            elif args[1] == "o":
+                if not visit.time_out:
+                    pr.iprint(
+                        f"Can't delete '{tagid}' checkout, latest visit has no checkout.",
+                        style=k.WARNING_STYLE,
+                    )
+                else:
+                    biketag.delete_out()
+                    pr.iprint(
+                        f"Deleted check-out for latest {tagid} visit.",
+                        style=k.ANSWER_STYLE,
+                    )
+                    data_changed = True
+        except (BikeTagError, TrackerDayError) as e:
+            pr.iprint(e, style=k.WARNING_STYLE)
 
-    def arg_prompt(maybe: str, prompt: str, optional: bool = False) -> str:
-        """Prompt for one command argument (token)."""
-        if optional or maybe:
-            maybe = "" if maybe is None else f"{maybe}".strip().lower()
-            return maybe
-        pr.iprint(
-            f"{prompt} {cfg.CURSOR}",
-            style=k.SUBPROMPT_STYLE,
-            end="",
-        )
-        return pr.tt_inp().strip().lower()
+    return data_changed
 
-    def nogood(msg: str = "", syntax: bool = True, severe: bool = True) -> None:
-        """Print the nogood msg + syntax msg."""
-        style = k.WARNING_STYLE if severe else k.HIGHLIGHT_STYLE
-        if msg:
-            pr.iprint(msg, style=style)
-        if syntax:
-            pr.iprint(
-                "Syntax: delete <tag> <in|out|both> <y|n|!>",
-                style=style,
-            )
 
-    def cancel():
-        """Give a 'delete cancelled' message."""
-        nogood("Delete cancelled", syntax=False, severe=False)
+# def old_delete_entry(  # pylint:disable=keyword-arg-before-vararg
+#     maybe_target: str = "",
+#     maybe_what: str = "",
+#     maybe_confirm: str = "",
+#     *extra,
+# ) -> None:
+#     """Perform tag entry deletion dialogue.
 
-    if extra:
-        nogood("", syntax=True, severe=True)
-        return
+#     Delete syntax is:
+#         delete <tag> <in|out|both> <confirm>
+#     """
 
-    ##(maybe_target, maybe_what, maybe_confirm) = (args + ["", "", ""])[:3]
-    # What tag are we to delete parts of?
-    maybe_target = arg_prompt(maybe_target, "Delete entries for what tag?")
-    if not maybe_target:
-        cancel()
-        return
-    target = TagID(maybe_target)
-    if not target:
-        nogood(f"'{maybe_target}' is not a tag", syntax=False)
-        return
-    if target not in ALL_TAGS:
-        nogood(f"'{maybe_target}' is not a tag in use", syntax=False)
-        return
-    if target not in check_ins:
-        nogood(f"Tag {target} not checked in or out, nothing to do.", syntax=False)
-        return
-    # Special case: "!" after what without a space
-    if maybe_what and maybe_what[-1] == "!" and not maybe_confirm:
-        maybe_what = maybe_what[:-1]
-        maybe_confirm = "!"
-    # Find out what kind of checkin/out we are to delete
-    what = arg_prompt(maybe_what, "Delete check-IN, check-OUT or BOTH (i/o/b)?")
-    if not what:
-        cancel()
-        return
-    if what not in ["i", "in", "o", "out", "b", "both"]:
-        nogood("Must indicate in, out or both")
-        return
-    if what in ["i", "in"] and target in check_outs:
-        nogood(
-            f"Bike {target} checked out.  Can't delete check-in "
-            "for a returned bike without check-out too",
-            syntax=False,
-        )
-        return
-    # Get a confirmation
-    confirm = arg_prompt(maybe_confirm, "Are you sure (y/N)?")
-    if confirm not in ["n", "no", "!", "y", "yes"]:
-        nogood(
-            f"Confirmation must be 'y' or 'n', not '{confirm}'",
-            severe=True,
-            syntax=True,
-        )
-        return
-    if confirm not in ["y", "yes", "!"]:
-        cancel()
-        return
-    # Perform the delete
-    if what in ["b", "both", "o", "out"] and target in check_outs:
-        check_outs.pop(target)
-    if what in ["b", "both", "i", "in"] and target in check_ins:
-        check_ins.pop(target)
-    pr.iprint("Deleted.", style=k.ANSWER_STYLE)
+#     def arg_prompt(maybe: str, prompt: str, optional: bool = False) -> str:
+#         """Prompt for one command argument (token)."""
+#         if optional or maybe:
+#             maybe = "" if maybe is None else f"{maybe}".strip().lower()
+#             return maybe
+#         pr.iprint(
+#             f"{prompt} {cfg.CURSOR}",
+#             style=k.SUBPROMPT_STYLE,
+#             end="",
+#         )
+#         return pr.tt_inp().strip().lower()
+
+#     def nogood(msg: str = "", syntax: bool = True, severe: bool = True) -> None:
+#         """Print the nogood msg + syntax msg."""
+#         style = k.WARNING_STYLE if severe else k.HIGHLIGHT_STYLE
+#         if msg:
+#             pr.iprint(msg, style=style)
+#         if syntax:
+#             pr.iprint(
+#                 "Syntax: delete <tag> <in|out|both> <y|n|!>",
+#                 style=style,
+#             )
+
+#     def cancel():
+#         """Give a 'delete cancelled' message."""
+#         nogood("Delete cancelled", syntax=False, severe=False)
+
+#     if extra:
+#         nogood("", syntax=True, severe=True)
+#         return
+
+#     ##(maybe_target, maybe_what, maybe_confirm) = (args + ["", "", ""])[:3]
+#     # What tag are we to delete parts of?
+#     maybe_target = arg_prompt(maybe_target, "Delete entries for what tag?")
+#     if not maybe_target:
+#         cancel()
+#         return
+#     target = TagID(maybe_target)
+#     if not target:
+#         nogood(f"'{maybe_target}' is not a tag", syntax=False)
+#         return
+#     if target not in ALL_TAGS:
+#         nogood(f"'{maybe_target}' is not a tag in use", syntax=False)
+#         return
+#     if target not in check_ins:
+#         nogood(f"Tag {target} not checked in or out, nothing to do.", syntax=False)
+#         return
+#     # Special case: "!" after what without a space
+#     if maybe_what and maybe_what[-1] == "!" and not maybe_confirm:
+#         maybe_what = maybe_what[:-1]
+#         maybe_confirm = "!"
+#     # Find out what kind of checkin/out we are to delete
+#     what = arg_prompt(maybe_what, "Delete check-IN, check-OUT or BOTH (i/o/b)?")
+#     if not what:
+#         cancel()
+#         return
+#     if what not in ["i", "in", "o", "out", "b", "both"]:
+#         nogood("Must indicate in, out or both")
+#         return
+#     if what in ["i", "in"] and target in check_outs:
+#         nogood(
+#             f"Bike {target} checked out.  Can't delete check-in "
+#             "for a returned bike without check-out too",
+#             syntax=False,
+#         )
+#         return
+#     # Get a confirmation
+#     confirm = arg_prompt(maybe_confirm, "Are you sure (y/N)?")
+#     if confirm not in ["n", "no", "!", "y", "yes"]:
+#         nogood(
+#             f"Confirmation must be 'y' or 'n', not '{confirm}'",
+#             severe=True,
+#             syntax=True,
+#         )
+#         return
+#     if confirm not in ["y", "yes", "!"]:
+#         cancel()
+#         return
+#     # Perform the delete
+#     if what in ["b", "both", "o", "out"] and target in check_outs:
+#         check_outs.pop(target)
+#     if what in ["b", "both", "i", "in"] and target in check_ins:
+#         check_ins.pop(target)
+#     pr.iprint("Deleted.", style=k.ANSWER_STYLE)
 
 
 def query_one_tag(
@@ -717,9 +795,9 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
 #     """Parse user's input into list of [tag] or [command, command args].
 
 #     Return:
-#         [k.CMD_TAG_RETIRED,args] if a tag but is retired
-#         [k.CMD_TAG_UNUSABLE,args] if a tag but otherwise not usable
-#         [k.CMD_UNKNOWN,args] if not a tag & not a command
+#         [CmdKeys.CMD_TAG_RETIRED,args] if a tag but is retired
+#         [CmdKeys.CMD_TAG_UNUSABLE,args] if a tag but otherwise not usable
+#         [CmdKeys.CMD_UNKNOWN,args] if not a tag & not a command
 #     """
 #     user_input = user_input.lower().strip("\\][ \t")
 #     if not (user_input):
@@ -734,10 +812,10 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
 #     if maybetag:
 #         # This appears to be a tag
 #         if maybetag in RETIRED_TAGS:
-#             return [k.CMD_TAG_RETIRED] + input_tokens[1:]
+#             return [CmdKeys.CMD_TAG_RETIRED] + input_tokens[1:]
 #         # Is this tag usable?
 #         if maybetag not in ALL_TAGS:
-#             return [k.CMD_TAG_UNUSABLE] + input_tokens[1:]
+#             return [CmdKeys.CMD_TAG_UNUSABLE] + input_tokens[1:]
 #         # This appears to be a usable tag.
 #         return [maybetag]
 
@@ -751,7 +829,7 @@ def tag_check(tag: TagID, cmd_tail: str) -> None:
 #             break
 #     # Is this an unrecognized command?
 #     if not command:
-#         return [k.CMD_UNKNOWN] + input_tokens[1:]
+#         return [CmdKeys.CMD_UNKNOWN] + input_tokens[1:]
 #     # We have a recognized command, return it with its args.
 #     return [command] + input_tokens[1:]
 
@@ -823,7 +901,123 @@ def bikes_on_hand_reminder() -> None:
         )
 
 
-def main():
+def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
+    """Process the command.  Return True if data has (probably) changed."""
+
+    if cmd_bits.status != PARSED_OK:
+        ut.squawk(f"Unexpected {parsed.status=}")
+        return False
+
+    cmd = cmd_bits.command
+    args = cmd_bits.result_args
+
+
+    data_changed = False
+    # Easy things
+    if cmd == CmdKeys.CMD_EXIT:
+        return
+    elif cmd == CmdKeys.CMD_HELP:
+        bits.show_help()
+
+    # Things that change data
+    elif cmd == CmdKeys.CMD_DELETE:
+        # Delete a check-in or check-out
+        data_changed = delete_event(args,today)
+    elif cmd == CmdKeys.CMD_BIKE_IN:
+        # Check a bike in, possibly reusing a tag.
+        pass
+    elif cmd == CmdKeys.CMD_BIKE_OUT:
+        # Check a bike out. Hard to imagine anyone even using this command.
+        pass
+    elif cmd == CmdKeys.CMD_BIKE_INOUT:
+        # Guess whether to check a bike in or out; will not reuse a tag.
+        pass
+    elif cmd == CmdKeys.CMD_EDIT:
+        # Edit most recent check-in or check-out of tag(s).
+        # FIXME: (edit) think through logic on this carefully. Currently,
+        # 'edit' can create a new check-in.  This would be ambiguous
+        # in a tag-reuse scenario, so perhaps edit can only alter
+        # events, not create them.
+        # FIXME: (edit) If there is a completed visit (1) and an in-progress
+        # visit (2), can I edit check-out of (1), or only check-in of (2)?
+
+
+
+    if cmd_bits.command == CmdKeys.CMD_EDIT:
+        multi_edit(cmd_bits.result_args)
+        data_changed = True
+    elif cmd_bits.command == CmdKeys.CMD_AUDIT:
+        aud.audit_report(pack_day_data(), cmd_bits.result_args, include_returns=False)
+        publishment.publish_audit(pack_day_data(), cmd_bits.result_args)
+    elif cmd_bits.command == CmdKeys.CMD_LOOKBACK:
+        rep.recent(pack_day_data(), cmd_bits.result_args)
+    elif cmd_bits.command == CmdKeys.CMD_TAGS:
+        inv.tags_config_report(pack_day_data(), cmd_bits.result_args, False)
+    elif cmd_bits.command == CmdKeys.CMD_QUERY:
+        query_tag(cmd_bits.result_args)
+    elif cmd_bits.command == CmdKeys.CMD_STATS:
+        rep.day_end_report(pack_day_data(), cmd_bits.result_args)
+        # Force publication when do day-end reports
+        publishment.publish(pack_day_data())
+        ##last_published = maybe_publish(last_published, force=True)
+    elif cmd_bits.command == CmdKeys.CMD_BUSY:
+        rep.busyness_report(pack_day_data(), cmd_bits.result_args)
+    elif cmd_bits.command == CmdKeys.CMD_CHART:
+        rep.full_chart(pack_day_data())
+    elif cmd_bits.command == CmdKeys.CMD_BUSY_CHART:
+        rep.busy_graph(pack_day_data())
+    elif cmd_bits.command == CmdKeys.CMD_FULL_CHART:
+        rep.fullness_graph(pack_day_data())
+    elif cmd_bits.command == CmdKeys.CMD_DUMP:
+        dump_data()
+    elif cmd_bits.command == CmdKeys.CMD_LINT:
+        lint_report(strict_datetimes=True)
+    elif cmd_bits.command == CmdKeys.CMD_REGISTRATIONS:
+        if reg.Registrations.process_registration(cmd_bits.tail):
+            data_changed = True
+    elif cmd_bits.command == CmdKeys.CMD_NOTES:
+        if cmd_bits.result_args:
+            notes.Notes.add(cmd_bits.tail)
+            pr.iprint("Noted.")
+        else:
+            bits.show_notes(notes.Notes, header=True, styled=False)
+    elif cmd_bits.command == CmdKeys.CMD_ESTIMATE:
+        estimate(cmd_bits.result_args)
+    elif cmd_bits.command == CmdKeys.CMD_PUBLISH:
+        publishment.publish_reports(pack_day_data(), cmd_bits.result_args)
+    elif cmd_bits.command == CmdKeys.CMD_HOURS:
+        operating_hours_command()
+        data_changed = True
+    elif (
+        cmd_bits.command == CmdKeys.CMD_UPPERCASE
+        or cmd_bits.command == CmdKeys.CMD_LOWERCASE
+    ):
+        set_tag_case(cmd_bits.command == CmdKeys.CMD_UPPERCASE)
+    # Check for bad input
+    elif not TagID(cmd_bits.command):
+        # This is not a tag
+        if cmd_bits.command == CmdKeys.CMD_UNKNOWN or len(cmd_bits.result_args) > 0:
+            NoiseMaker.play(k.ALERT)
+            msg = "Unrecognized command, enter 'h' for help"
+        elif cmd_bits.command == CmdKeys.CMD_TAG_RETIRED:
+            msg = f"Tag '{TagID(user_str)}' is retired"
+        elif cmd_bits.command == CmdKeys.CMD_TAG_UNUSABLE:
+            msg = f"System not configured to use tag '{TagID(user_str)}'"
+        else:
+            # Should never get to this point
+            msg = "Surprised by unrecognized command"
+        pr.iprint()
+        pr.iprint(msg, style=k.WARNING_STYLE)
+
+    else:
+        # This is a tag
+        tag_check(cmd_bits.command, cmd_bits.tail)
+        data_changed = True
+
+    return data_changed
+
+
+def main(today: TrackerDay):
     """Run main program loop and dispatcher."""
     done = False
     todays_date = ut.date_str("today")
@@ -833,110 +1027,32 @@ def main():
         bikes_on_hand_reminder()
         # Allow tag notes for this next command
         pr.print_tag_notes("", reset=True)
-        # Prompt
-        if cfg.INCLUDE_TIME_IN_PROMPT:
-            pr.iprint(f"{VTime('now').short}", end="")
-        pr.iprint(f"Bike tag or command {cfg.CURSOR}", style=k.PROMPT_STYLE, end="")
-        user_str = pr.tt_inp()
         # Break command into tokens, parse as command
-        cmd_bits = CmdBits(user_str, RETIRED_TAGS, ALL_TAGS)
-        ##FIXME tokens = parse_command(user_str)
+        cmd_bits = get_parsed_command()
+
         # If midnight has passed then need to restart
         if midnight_passed(todays_date):
-            if not cmd_bits.command or cmd_bits.command != k.CMD_EXIT:
+            if not cmd_bits.command or cmd_bits.command != CmdKeys.CMD_EXIT:
                 midnight_message()
             done = True
             continue
         # If null input, just ignore
-        if not cmd_bits.command:
+        if not cmd_bits.status == PARSED_CANCELLED:
             continue  # No input, ignore
-        ##FIXME (cmd, *args) = tokens
-        # Dispatcher
-        data_dirty = False
-        if cmd_bits.command == k.CMD_EDIT:
-            multi_edit(cmd_bits.args)
-            data_dirty = True
-        elif cmd_bits.command == k.CMD_AUDIT:
-            aud.audit_report(pack_day_data(), cmd_bits.args, include_returns=False)
-            publishment.publish_audit(pack_day_data(), cmd_bits.args)
-        elif cmd_bits.command == k.CMD_DELETE:
-            delete_entry(*cmd_bits.args)
-            data_dirty = True
-        elif cmd_bits.command == k.CMD_EXIT:
-            done = True
-        elif cmd_bits.command == k.CMD_BLOCK:
-            rep.dataform_report(pack_day_data(), cmd_bits.args)
-        elif cmd_bits.command == k.CMD_HELP:
-            bits.show_help()
-        elif cmd_bits.command == k.CMD_LOOKBACK:
-            rep.recent(pack_day_data(), cmd_bits.args)
-        elif cmd_bits.command == k.CMD_TAGS:
-            inv.tags_config_report(pack_day_data(), cmd_bits.args, False)
-        elif cmd_bits.command == k.CMD_QUERY:
-            query_tag(cmd_bits.args)
-        elif cmd_bits.command == k.CMD_STATS:
-            rep.day_end_report(pack_day_data(), cmd_bits.args)
-            # Force publication when do day-end reports
-            publishment.publish(pack_day_data())
-            ##last_published = maybe_publish(last_published, force=True)
-        elif cmd_bits.command == k.CMD_BUSY:
-            rep.busyness_report(pack_day_data(), cmd_bits.args)
-        elif cmd_bits.command == k.CMD_CHART:
-            rep.full_chart(pack_day_data())
-        elif cmd_bits.command == k.CMD_BUSY_CHART:
-            rep.busy_graph(pack_day_data())
-        elif cmd_bits.command == k.CMD_FULL_CHART:
-            rep.fullness_graph(pack_day_data())
-        elif cmd_bits.command == k.CMD_CSV:
-            rep.csv_dump(pack_day_data(), cmd_bits.args)
-        elif cmd_bits.command == k.CMD_DUMP:
-            dump_data()
-        elif cmd_bits.command == k.CMD_LINT:
-            lint_report(strict_datetimes=True)
-        elif cmd_bits.command == k.CMD_REGISTRATION:
-            if reg.Registrations.process_registration(cmd_bits.tail):
-                data_dirty = True
-        elif cmd_bits.command == k.CMD_NOTES:
-            if cmd_bits.args:
-                notes.Notes.add(cmd_bits.tail)
-                pr.iprint("Noted.")
-            else:
-                bits.show_notes(notes.Notes, header=True, styled=False)
-        elif cmd_bits.command == k.CMD_ESTIMATE:
-            estimate(cmd_bits.args)
-        elif cmd_bits.command == k.CMD_PUBLISH:
-            publishment.publish_reports(pack_day_data(), cmd_bits.args)
-        elif cmd_bits.command == k.CMD_HOURS:
-            operating_hours_command()
-            data_dirty = True
-        elif cmd_bits.command == k.CMD_UPPERCASE or cmd_bits.command == k.CMD_LOWERCASE:
-            set_tag_case(cmd_bits.command == k.CMD_UPPERCASE)
-        # Check for bad input
-        elif not TagID(cmd_bits.command):
-            # This is not a tag
-            if cmd_bits.command == k.CMD_UNKNOWN or len(cmd_bits.args) > 0:
-                NoiseMaker.play(k.ALERT)
-                msg = "Unrecognized command, enter 'h' for help"
-            elif cmd_bits.command == k.CMD_TAG_RETIRED:
-                msg = f"Tag '{TagID(user_str)}' is retired"
-            elif cmd_bits.command == k.CMD_TAG_UNUSABLE:
-                msg = f"System not configured to use tag '{TagID(user_str)}'"
-            else:
-                # Should never get to this point
-                msg = "Surprised by unrecognized command"
-            pr.iprint()
-            pr.iprint(msg, style=k.WARNING_STYLE)
 
-        else:
-            # This is a tag
-            tag_check(cmd_bits.command, cmd_bits.tail)
-            data_dirty = True
-        # If anything has becomne "24:00" change it to "23:59"
-        if data_dirty:
+        # Dispatcher
+        # Each command can take the ParsedCommand as its argument
+        # Or, the dispatcher
+        data_changed = False
+        if cmd_bits.command != CmdKeys.CMD_EXIT:
+            data_changed = process_command(cmd_bits)
+
+        # If any time has becomne "24:00" change it to "23:59" (I forget why)
+        if data_changed:
             fix_2400_events()
         # Save if anything has changed
-        if data_dirty:
-            data_dirty = False
+        if data_changed:
+            data_changed = False
             save()
             publishment.maybe_publish(pack_day_data())
             ##last_published = maybe_publish(last_published)
@@ -1180,7 +1296,7 @@ if __name__ == "__main__":
         save()
 
     # Start tracking tags
-    main()
+    main(today_data)
 
     pr.set_echo(False)
 # ==========================================

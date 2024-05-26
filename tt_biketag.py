@@ -97,7 +97,7 @@ class BikeTag:
         if self.status == self.DONE:
             v = self.latest_visit()
             if v.time_in >= time:
-                raise BikeTagError("time_in must be less than time")
+                raise BikeTagError(f"Tag {self.tagid}: checkout time must be later than check-in time {v.time_in}.")
             v.time_out = time
         elif self.status == self.IN_USE:
             v = self.latest_visit()
@@ -111,10 +111,11 @@ class BikeTag:
         if self.status == self.IN_USE:
             if self.visits:
                 self.visits.pop()
+                self.status = self.DONE if self.visits else self.UNUSED
             else:
-                raise BikeTagError("No visits to delete")
+                raise BikeTagError(f"Tag {self.tagid} has no visits to delete.")
         else:
-            raise BikeTagError("Invalid state for delete_in")
+            raise BikeTagError(f"Bike {self.tagid} is not currently checked in.")
 
     def delete_out(self):
         if self.status == self.DONE:
