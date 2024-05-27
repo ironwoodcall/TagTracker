@@ -77,6 +77,7 @@ class CmdKeys:
     CMD_NOTES = "NOTES"
     CMD_REGISTRATIONS = "CMD_REGISTRATIONS"
     CMD_RECENT = "RECENT"
+    CMD_AUDIT = "AUDIT"
     CMD_QUERY = "QUERY"
     CMD_STATS = "STATS"
     CMD_BUSY = "BUSY"
@@ -147,6 +148,7 @@ COMMANDS = {
         invoke=["in","i", "reuse","check-in","checkin" ],
         arg_configs=[
             ArgConfig(ARG_TAGS, optional=False,prompt="Check in bike(s) using what tag(s)? "),
+            ArgConfig(ARG_TIME, optional=True),
         ],
     ),
     # This is the command to check a bike (only) out.
@@ -154,6 +156,7 @@ COMMANDS = {
         invoke=["out","o", "check-out","checkout" ],
         arg_configs=[
             ArgConfig(ARG_TAGS, optional=False,prompt="Check out bike(s) having what tag(s)? "),
+            ArgConfig(ARG_TIME, optional=True),
         ],
     ),
     CmdKeys.CMD_RECENT: CmdConfig(
@@ -286,11 +289,16 @@ def _chunkize_for_one_arg(
         while arg_parts:
             tag = TagID(arg_parts[0])
             if tag:
+                # Check for and remove duplicate
+                if tag in tagslist:
+                    parsed.message = f"Ignoring duplicate tagid '{tag.original}'."
+                    continue
                 tagslist.append(tag)
                 del arg_parts[0]
             else:
                 break
         if tagslist:
+
             parsed.result_args.append(tagslist)
         else:
             parsed.status = PARSED_ERROR

@@ -232,9 +232,9 @@ class TrackerDayError(Exception):
 class TrackerDay:
     """One day's worth of tracker info and its context."""
 
-    def __init__(self, filepath: str) -> None:
+    def __init__(self, filepath: str,site_name:str="") -> None:
         """Initialize blank."""
-        self.date = ""
+        self.date = ut.date_str("today")
         self.opening_time = VTime("")
         self.closing_time = VTime("")
         self.registrations = 0
@@ -246,7 +246,7 @@ class TrackerDay:
         self.biketags: dict[TagID, BikeTag] = {}
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
-        self.site_name = ""
+        self.site_name = site_name or "default"
 
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
@@ -258,6 +258,20 @@ class TrackerDay:
             ]
         )
         ##return frozenset((self.regular_tagids | self.oversize_tagids) - self.retired_tagids)
+
+    def fix_2400_events(self):
+        """Change any 24:00 events to 23:59, warn, return Tags changed."""
+        changed = 0
+        for visit in self.all_visits():
+            visit:BikeVisit
+            if visit.time_in == "24:00":
+                visit.time_in = VTime("23:59")
+                changed += 1
+            if visit.time_out == "24:00":
+                visit.time_out = VTime("23:59")
+                changed += 1
+        return changed
+
 
     @staticmethod
     def guess_tag_type(tag: TagID) -> str:
@@ -515,9 +529,6 @@ class TrackerDay:
         day.oversize_tagids = frozenset(data["oversize_tagids"])
         day.retired_tagids = frozenset(data["retired_tagids"])
 
-        # Check the formats of the tagids
-        day.check_tagid_formats()
-
         # Initialize all the BikeTags
         for t in day.regular_tagids:
             day.biketags[t] = BikeTag(t, REGULAR)
@@ -542,12 +553,18 @@ class TrackerDay:
         return day
 
     def save_to_file(self) -> None:
+        """Save to the file.  Any errors in writing are considered catastrophic."""
         data = self._day_to_json_dict()
         schema = self.load_schema()
         self.validate_data(data, schema)
 
-        with open(self.filepath, "w", encoding="utf-8") as file:
-            json.dump(data, file, indent=4)
+        # Any failure to write is a critical error
+        try:
+            with open(self.filepath, "w", encoding="utf-8") as file:
+                json.dump(data, file, indent=4)
+        except Exception:
+            print(f"\n\nCRITICAL ERROR: Unable to save data to file {self.filepath}\n\n")
+            raise
 
     @staticmethod
     def load_from_file(filepath) -> "TrackerDay":
@@ -558,7 +575,7 @@ class TrackerDay:
         TrackerDay.validate_data(data, schema)
 
         loaded_day = TrackerDay._day_from_json_dict(data, filepath)
-        loaded_day.check_tagid_formats()
+        loaded_day.check_tagids_conformity()
         return loaded_day
 
     @staticmethod
@@ -587,10 +604,13 @@ class TrackerDay:
         self.regular_tagids = self._parse_tag_ids(REGULAR_TAGS)
         self.oversize_tagids = self._parse_tag_ids(OVERSIZE_TAGS)
         self.retired_tagids = self._parse_tag_ids(RETIRED_TAGS)
-        self.check_tagid_formats()
+        self.check_tagids_conformity()
 
-    def check_tagid_formats(self) -> bool:
-        """Check if all tag IDs conform."""
+    def check_tagids_conformity(self) -> bool:
+        """Check if all tag IDs conform to standard pattern.
+
+        Sets flag in TrackerDay object, returns a courtesy boolean as well.
+        """
         pattern = re.compile(r"^[a-zA-Z]{2}(\d{1,5})$")
 
         for tag_id in self.regular_tagids | self.oversize_tagids | self.retired_tagids:

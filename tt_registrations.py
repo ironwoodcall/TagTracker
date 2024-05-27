@@ -50,7 +50,7 @@ class Registrations:
         cls.num_registrations = num_registrations
 
     @classmethod
-    def process_registration(cls, user_input: str):
+    def process_registration(cls, args:list):
         """Set registration value based on a user command.
 
         Returns True if the count has changed, False otherwise.

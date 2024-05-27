@@ -77,6 +77,7 @@ class BikeTag:
     # Higher-level command-fulfillment methods
 
     def check_in(self, time: VTime):
+        """Check bike(s) in.  """
         self.edit_in(time)
 
     def check_out(self, time: VTime):
@@ -84,6 +85,7 @@ class BikeTag:
             self.finish_visit(time)
 
     def edit_in(self, time: VTime):
+        """Apply bike_time as a check-in time for this tag."""
         if self.status == self.UNUSED:
             self.start_visit(time)
             self.status = self.IN_USE
@@ -91,7 +93,7 @@ class BikeTag:
             latest_visit = self.latest_visit()
             latest_visit.time_in = time
         else:
-            raise BikeTagError("Invalid state for edit_in")
+            raise BikeTagError(f"Invalid state '{self.status}' for edit_in of '{self.tagid}'.")
 
     def edit_out(self, time: VTime):
         if self.status == self.DONE:

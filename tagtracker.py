@@ -48,6 +48,7 @@ from tt_tag import TagID
 # from tt_realtag import Stay
 from tt_time import VTime
 import tt_util as ut
+import tt_trackerday as td
 from tt_trackerday import TrackerDay, TrackerDayError
 from tt_bikevisit import BikeVisit
 from tt_biketag import BikeTag, BikeTagError
@@ -66,6 +67,7 @@ from tt_commands import (
     get_parsed_command,
     PARSED_OK,
     PARSED_CANCELLED,
+    COMMANDS,
 )
 import tt_call_estimator
 import tt_registrations as reg
@@ -86,18 +88,18 @@ import tt_main_bits as bits
 # except ImportError:
 #    pass
 
-# Initialize open/close globals
-# (These are all represented in OldTrackerDay attributes or methods)
-OPENING_TIME = ""
-CLOSING_TIME = ""
-PARKING_DATE = ""
-NORMAL_TAGS = []
-OVERSIZE_TAGS = []
-RETIRED_TAGS = []
-ALL_TAGS = []
-TAG_COLOUR_NAMES = {}
-check_ins = {}
-check_outs = {}
+# # Initialize open/close globals
+# # (These are all represented in OldTrackerDay attributes or methods)
+# OPENING_TIME = ""
+# CLOSING_TIME = ""
+# PARKING_DATE = ""
+# NORMAL_TAGS = []
+# OVERSIZE_TAGS = []
+# RETIRED_TAGS = []
+# ALL_TAGS = []
+# TAG_COLOUR_NAMES = {}
+# check_ins = {}
+# check_outs = {}
 
 
 # The assignments below are unneccessary but stop pylint from whining.
@@ -105,28 +107,29 @@ publishment = None
 DATA_FILEPATH = ""
 
 
-def fix_2400_events() -> list[TagID]:
-    """Change any 24:00 events to 23:59, warn, return Tags changed."""
-    changed = []
-    for tag, atime in check_ins.items():
-        if atime == "24:00":
-            check_ins[tag] = VTime("23:59")
-            changed.append(tag)
-    for tag, atime in check_outs.items():
-        if atime == "24:00":
-            check_outs[tag] = VTime("23:59")
-            changed.append(tag)
-    changed = list(set(changed))  # Remove duplicates.
-    if changed:
-        pr.iprint(
-            f"(Time for {rep.simplified_taglist(changed)} adjusted to 23:59)",
-            style=k.WARNING_STYLE,
-        )
-    return changed
+def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
+    """Pretty-print a check-in or check-out message.
+
+    This makes a one-line message only about the most recent visit.
+    """
+    if inout == k.BIKE_IN:
+        basemsg = f"Bike {tag} checked in"
+        basemsg = f"{basemsg} at {when.short}" if when else basemsg
+        finalmsg = f"{basemsg:40} <---in---  "
+    elif inout == k.BIKE_OUT:
+        basemsg = f"Bike {tag} checked out"
+        basemsg = f"{basemsg} at {when.short}" if when else basemsg
+        finalmsg = f"{basemsg:55} ---out--->  "
+    else:
+        ut.squawk(f"bad call to called print_tag_inout({tag}, {inout})")
+        return
+    # Print
+    pr.iprint(finalmsg, style=k.ANSWER_STYLE)
+    NoiseMaker.play(inout)
 
 
-def deduce_parking_date(current_guess: str, filename: str) -> str:
-    """Guess what date the current data is for.
+def deduce_parking_date(filename: str) -> str:
+    """Guess what date the current data is for based on the filename.
 
     Logic:
         If current_guess is set (presumably read from the contents
@@ -135,121 +138,95 @@ def deduce_parking_date(current_guess: str, filename: str) -> str:
         the datafile, it is used.
         Else today's date is used.
     """
-    if current_guess:
-        return current_guess
+
     r = k.DATE_PART_RE.search(filename)
     if r:
         return f"{int(r.group(2)):04d}-{int(r.group(3)):02d}-" f"{int(r.group(4)):02d}"
     return ut.date_str("today")
 
 
-# def pack_day_data() -> td.OldTrackerDay:
-#     """Create a OldTrackerDay object loaded with today's data."""
-#     # Pack info into OldTrackerDay object
-#     day = td.OldTrackerDay()
-#     day.date = PARKING_DATE
-#     day.opening_time = OPENING_TIME
-#     day.closing_time = CLOSING_TIME
-#     day.registrations = reg.Registrations.num_registrations
-#     day.bikes_in = check_ins
-#     day.bikes_out = check_outs
-#     day.regular = NORMAL_TAGS
-#     day.oversize = OVERSIZE_TAGS
-#     day.retired = RETIRED_TAGS
-#     day.notes = notes.Notes.fetch()
-#     return day
+def pack_day_data() -> td.OldTrackerDay:
+    # FIXME: remove
+    return td.OldTrackerDay()
 
 
-# def unpack_day_data(today_data: td.OldTrackerDay) -> None:
-#     """Set globals from a OldTrackerDay data object."""
-#     # pylint: disable=global-statement
-#     global PARKING_DATE, OPENING_TIME, CLOSING_TIME
-#     global check_ins, check_outs
-#     global NORMAL_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
-#     global ALL_TAGS
-#     global TAG_COLOUR_NAMES
-#     # pylint: enable=global-statement
-#     PARKING_DATE = today_data.date
-#     OPENING_TIME = VTime(today_data.opening_time)
-#     CLOSING_TIME = VTime(today_data.closing_time)
-#     reg.Registrations.set_num_registrations(today_data.registrations)
-#     check_ins = today_data.bikes_in
-#     check_outs = today_data.bikes_out
-#     NORMAL_TAGS = today_data.regular
-#     OVERSIZE_TAGS = today_data.oversize
-#     RETIRED_TAGS = today_data.retired
-#     ALL_TAGS = (NORMAL_TAGS | OVERSIZE_TAGS) - RETIRED_TAGS
-#     notes.Notes.load(today_data.notes)
+def unpack_day_data(_: td.OldTrackerDay):
+    # FIXME: remove
+    pass
 
 
-def initialize_today(datafile: str) -> bool:
-    """Set up today's info from existing datafile or from configs.
 
-    This does *not* /create/ the new datafile, just the data that
-    will go into it.
+def edit_event(args: list, today: TrackerDay) -> bool:
+    """Possibly edit a check in or check-out for one or more tags' latest visit.
+
+    Will only edit events from the most recent visit for the tag(s).
+
+    This can not be used to create a new check-in or check-out event
+    (unlike earlier version of TagTracker). Use 'IN' or 'OUT' command
+    with [time] argument for that.
+
+    Its actions are restricted to the check in/out for the most recent
+    visit with any given tagid, otherwise the intentino of the command
+    would be ambiguous.
+
+    On entry:
+        args is list:
+            0: list of one or more syntactically correct tagids
+            1: what event: "i" or "o"
+            2: a new time for the event
+        today: is the current day's data
+
+    Error conditions
+        unusable time
+        tagid not of a usable tag
+        request is to edit an "in" when biketag status != IN_USE or DONE
+        request is to edit an "out" when status != DONE
+
     """
+    which = args[1]  # "i" or "o"
+    if which not in {"i", "o"}:
+        ut.squawk(f"Unexpected in/out value '{which}'")
+        return False
+    bike_time = args[2]
+    if not bits.check_bike_time_reasonable(bike_time=bike_time, day=today):
+        return False
 
-    def handle_msgs(msgs: list[str]):
-        """Print a list of warning/error messages."""
-        pr.iprint()
-        for text in msgs:
-            pr.iprint(text, style=k.ERROR_STYLE)
-
-    today = TrackerDay(datafile)
-    if os.path.exists(datafile):
-        # Read from existing datafile
+    data_changed = False
+    for tagid in args[0]:
+        tagid: TagID
         try:
-            today.load_from_file(datafile)
-        except TrackerDayError as e:
-            handle_msgs(list(e.msgs))
-            return False
+            if not bits.check_tagid_usable(tagid, today):
+                continue
 
-    # Find the tag reference lists (regular, oversize, etc).
-    # If there's no tag reference lists, or it's today's date,
-    # then fetch the tag reference lists from tags config
-    if not (today.regular_tagids or today.oversize_tagids) or today.date == ut.date_str(
-        "today"
-    ):
-        try:
-            today.set_taglists_from_config()
-        except TrackerDayError as e:
-            handle_msgs(list(e.args))
-            return False
+            biketag = today.biketags[tagid]
+            if which == "i":
+                if biketag.status not in {biketag.IN_USE, biketag.DONE}:
+                    pr.iprint(
+                        f"Tag {tagid.original} has no check-in to edit.",
+                        style=k.WARNING_STYLE,
+                    )
+                    NoiseMaker.play(k.ALERT)
+                    continue
+                biketag.edit_in(bike_time)
+                data_changed = True
+                print_tag_inout(tagid, k.BIKE_IN)
 
-    # Add/check parts of the 'today' object
-    today.check_tagid_formats()
+            elif which == "o":
+                if biketag.status != biketag.DONE:
+                    pr.iprint(
+                        f"Tag {tagid.original} has no check-out available to edit.",
+                        style=k.WARNING_STYLE,
+                    )
+                    NoiseMaker.play(k.ALERT)
+                    continue
+                biketag.edit_out(bike_time)
+                data_changed = True
+                print_tag_inout(tagid, k.BIKE_OUT)
 
-    if not today.date:
-        today.date = deduce_parking_date(today.date, datafile)
-
-    # # Back-compatibility edge case read from old tags.cfg FIXME: remove after cutover
-    # old_config = "tags.cfg"
-    # if not today.regular and not today.oversize and os.path.exists(old_config):
-    #     oldtagconfig = get_taglists_from_old_config(old_config)
-    #     today.regular = oldtagconfig.regular
-    #     today.oversize = oldtagconfig.oversize
-    #     today.retired = oldtagconfig.retired
-    #     today.fill_colour_dict_gaps()
-
-    # Set UC if needed (NB: datafiles are always LC)
-    TagID.uc(cfg.TAGS_UPPERCASE)
-
-    try:
-        today.lint_check()
-    except TrackerDayError as e:
-        handle_msgs(list(e.args))
-        error_exit()
-
-    # In case doing a date that's not today, warn
-    if PARKING_DATE != ut.date_str("today"):
-        handle_msgs(
-            [
-                f"Warning: Data is from {ut.date_str(PARKING_DATE,long_date=True)}, "
-                "not today"
-            ]
-        )
-    # Done
-    return True
+        except (BikeTagError, TrackerDayError) as e:
+            pr.iprint(e, style=k.WARNING_STYLE)
+            NoiseMaker.play(k.ALERT)
+    return data_changed
 
 
 def delete_event(args: list, today: TrackerDay) -> bool:
@@ -260,12 +237,12 @@ def delete_event(args: list, today: TrackerDay) -> bool:
     On entry:
         args is list:
             0: list of one or more syntactically correct tagids
-            1: what event: "in","out","i" or "o" (or "both"/"b")
-            2: a confirmation "yes","y","n" or "no"
+            1: what event: "i" or "o" (or "both"/"b")
+            2: a confirmation "y" or "n"
         today: is the current day's data
 
     Error/cancellation conditions, for each tag
-        confirmation is not "yes"
+        confirmation is not "yes" (affects all tags)
         tagid not of a usable tag
         no visits with that tagid
         request is for "in" when there is already an "out"
@@ -278,13 +255,13 @@ def delete_event(args: list, today: TrackerDay) -> bool:
         pr.iprint("Delete cancelled.", style=k.HIGHLIGHT_STYLE)
         return data_changed
     for tagid in args[0]:
-        if tagid not in today.all_usable_tags():
-            pr.iprint(f"Tag '{tagid}' not available for use.", style=k.WARNING_STYLE)
+        if not bits.check_tagid_usable(tagid, today):
             continue
         try:
             biketag: BikeTag = today.biketags[tagid]
-            if not biketag:
+            if biketag.status == biketag.UNUSED:
                 pr.iprint(f"Tag '{tagid}' not used yet today.", style=k.WARNING_STYLE)
+                NoiseMaker.play(k.ALERT)
                 continue
             visit: BikeVisit = biketag.latest_visit()
             if args[1] == "i":
@@ -293,6 +270,7 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                         f"Can't delete '{tagid}' checkin, latest visit has a checkout.",
                         style=k.WARNING_STYLE,
                     )
+                    NoiseMaker.play(k.ALERT)
                 else:
                     biketag.delete_in()
                     pr.iprint(
@@ -306,6 +284,8 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                         f"Can't delete '{tagid}' checkout, latest visit has no checkout.",
                         style=k.WARNING_STYLE,
                     )
+                    NoiseMaker.play(k.ALERT)
+
                 else:
                     biketag.delete_out()
                     pr.iprint(
@@ -315,106 +295,165 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                     data_changed = True
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
+            NoiseMaker.play(k.ALERT)
 
     return data_changed
 
 
-# def old_delete_entry(  # pylint:disable=keyword-arg-before-vararg
-#     maybe_target: str = "",
-#     maybe_what: str = "",
-#     maybe_confirm: str = "",
-#     *extra,
-# ) -> None:
-#     """Perform tag entry deletion dialogue.
+def check_in(args: list, today: TrackerDay) -> bool:
+    """Check bike(s) in.
 
-#     Delete syntax is:
-#         delete <tag> <in|out|both> <confirm>
-#     """
+    On entry:
+        args[0] is a list of syntactically correct tag(s)
+        args[1] if present is a time to assign to the check-in
+        today is the data for today
+    On exit:
+        error messages will have een given
+        bikes will have been (maybe) checked in
+        return is True if the data has changed.
 
-#     def arg_prompt(maybe: str, prompt: str, optional: bool = False) -> str:
-#         """Prompt for one command argument (token)."""
-#         if optional or maybe:
-#             maybe = "" if maybe is None else f"{maybe}".strip().lower()
-#             return maybe
-#         pr.iprint(
-#             f"{prompt} {cfg.CURSOR}",
-#             style=k.SUBPROMPT_STYLE,
-#             end="",
-#         )
-#         return pr.tt_inp().strip().lower()
+    Errors to check for:
+        - not a usable tag
+        - tag already checked in
+        - time is earlier than previous visit's check-out
+        - time is super-early or super-late (> 1.5 hours outside open/close)
 
-#     def nogood(msg: str = "", syntax: bool = True, severe: bool = True) -> None:
-#         """Print the nogood msg + syntax msg."""
-#         style = k.WARNING_STYLE if severe else k.HIGHLIGHT_STYLE
-#         if msg:
-#             pr.iprint(msg, style=style)
-#         if syntax:
-#             pr.iprint(
-#                 "Syntax: delete <tag> <in|out|both> <y|n|!>",
-#                 style=style,
-#             )
 
-#     def cancel():
-#         """Give a 'delete cancelled' message."""
-#         nogood("Delete cancelled", syntax=False, severe=False)
+    """
 
-#     if extra:
-#         nogood("", syntax=True, severe=True)
-#         return
+    bike_time = VTime(args[1]) if len(args) > 1 else VTime("now")
+    if not bits.check_bike_time_reasonable(bike_time=bike_time, day=today):
+        return False
 
-#     ##(maybe_target, maybe_what, maybe_confirm) = (args + ["", "", ""])[:3]
-#     # What tag are we to delete parts of?
-#     maybe_target = arg_prompt(maybe_target, "Delete entries for what tag?")
-#     if not maybe_target:
-#         cancel()
-#         return
-#     target = TagID(maybe_target)
-#     if not target:
-#         nogood(f"'{maybe_target}' is not a tag", syntax=False)
-#         return
-#     if target not in ALL_TAGS:
-#         nogood(f"'{maybe_target}' is not a tag in use", syntax=False)
-#         return
-#     if target not in check_ins:
-#         nogood(f"Tag {target} not checked in or out, nothing to do.", syntax=False)
-#         return
-#     # Special case: "!" after what without a space
-#     if maybe_what and maybe_what[-1] == "!" and not maybe_confirm:
-#         maybe_what = maybe_what[:-1]
-#         maybe_confirm = "!"
-#     # Find out what kind of checkin/out we are to delete
-#     what = arg_prompt(maybe_what, "Delete check-IN, check-OUT or BOTH (i/o/b)?")
-#     if not what:
-#         cancel()
-#         return
-#     if what not in ["i", "in", "o", "out", "b", "both"]:
-#         nogood("Must indicate in, out or both")
-#         return
-#     if what in ["i", "in"] and target in check_outs:
-#         nogood(
-#             f"Bike {target} checked out.  Can't delete check-in "
-#             "for a returned bike without check-out too",
-#             syntax=False,
-#         )
-#         return
-#     # Get a confirmation
-#     confirm = arg_prompt(maybe_confirm, "Are you sure (y/N)?")
-#     if confirm not in ["n", "no", "!", "y", "yes"]:
-#         nogood(
-#             f"Confirmation must be 'y' or 'n', not '{confirm}'",
-#             severe=True,
-#             syntax=True,
-#         )
-#         return
-#     if confirm not in ["y", "yes", "!"]:
-#         cancel()
-#         return
-#     # Perform the delete
-#     if what in ["b", "both", "o", "out"] and target in check_outs:
-#         check_outs.pop(target)
-#     if what in ["b", "both", "i", "in"] and target in check_ins:
-#         check_ins.pop(target)
-#     pr.iprint("Deleted.", style=k.ANSWER_STYLE)
+    data_changed = False
+    for tagid in args[0]:
+        tagid: TagID
+        try:
+            if not bits.check_tagid_usable(tagid, today):
+                continue
+            biketag = today.biketags[tagid]
+            if biketag.status == biketag.IN_USE:
+                pr.iprint(
+                    f"Tag {tagid.original} already checked in.", style=k.WARNING_STYLE
+                )
+                NoiseMaker.play(k.ALERT)
+                continue
+            # Check this bike out at this time
+            biketag.edit_in(bike_time)
+            data_changed = True
+            print_tag_inout(tagid, k.BIKE_IN)
+        except (BikeTagError, TrackerDayError) as e:
+            pr.iprint(e, style=k.WARNING_STYLE)
+            NoiseMaker.play(k.ALERT)
+    return data_changed
+
+
+def check_out(args: list, today: TrackerDay) -> bool:
+    """Check bike(s) out.
+
+    On entry:
+        args[0] is a list of syntactically correct tag(s)
+        args[1] if present is a time to assign to the check-out
+        today is the data for today
+    On exit:
+        error messages will have een given
+        bikes will have been (maybe) checked out
+        return is True if the data has changed.
+
+    Errors to check for:
+        - not a usable tag
+        - latest visit for this tag is not checked in
+        - time is earlier than check-in
+        - time is super-early or super-late (> 1.5 hours outside open/close)
+
+    """
+
+    bike_time = VTime(args[1]) if len(args) > 1 else VTime("now")
+    if not bits.check_bike_time_reasonable(bike_time=bike_time, day=today):
+        return False
+
+    data_changed = False
+    for tagid in args[0]:
+        tagid: TagID
+        try:
+            if not bits.check_tagid_usable(tagid, today):
+                continue
+            biketag = today.biketags[tagid]
+            if biketag.status != biketag.IN_USE:
+                pr.iprint(
+                    f"Tag {tagid.original} not checked in.", style=k.WARNING_STYLE
+                )
+                NoiseMaker.play(k.ALERT)
+                continue
+            # Check this bike in at this time
+            biketag.edit_out(bike_time)
+            data_changed = True
+            print_tag_inout(tagid, k.BIKE_OUT)
+        except (BikeTagError, TrackerDayError) as e:
+            pr.iprint(e, style=k.WARNING_STYLE)
+            NoiseMaker.play(k.ALERT)
+
+    return data_changed
+
+
+def guess_check_in_or_out(args: list, today: TrackerDay) -> bool:
+    """Check bike(s) in or out, guessing which is appropriate.
+
+    On entry:
+        args[0] is a list of syntactically correct tag(s)
+        today is the data for today
+    On exit:
+        error messages will have been given
+        bikes will have been (maybe) checked in or out
+        return is True if the data has changed.
+
+    Overview:
+        If a tag is IN_USE, will check it out.
+        If a tag is UNUSED, will check it in.
+        If a tag is DONE, will error w/message to use "IN" to reuse tag.
+
+    Errors to check for:
+        - not a usable tag
+        - DONE
+        - latest visit for this tag is not checked in
+        - time is earlier than check-in
+        - time is super-early or super-late (> 1.5 hours outside open/close)
+
+    """
+
+    bike_time = VTime("now")
+    if not bits.check_bike_time_reasonable(bike_time=bike_time, day=today):
+        # In addition to default error message, add something helpful
+        pr.iprint(
+            f"Use {COMMANDS[CmdKeys.CMD_BIKE_IN].invoke[0].upper()} [tag] [time] or "
+            "{COMMANDS[CmdKeys.CMD_BIKE_OUT].invoke[0].upper()} [tag] [time].",
+            style=k.WARNING_STYLE,
+        )
+        return False
+
+    data_changed = False
+    for tagid in args[0]:
+        tagid: TagID
+        try:
+            if not bits.check_tagid_usable(tagid, today):
+                continue
+            biketag = today.biketags[tagid]
+            if biketag.status == biketag.DONE:
+                pr.iprint(
+                    f"Tag {tagid.original} not avilable for use.", style=k.WARNING_STYLE
+                )
+                NoiseMaker.play(k.ALERT)
+                continue
+            if biketag.status == biketag.UNUSED:
+                # Check in.
+                data_changed = check_in([[tagid], bike_time], today=today)
+            elif biketag.status == biketag.IN_USE:
+                data_changed = check_in([[tagid], bike_time], today=today)
+        except (BikeTagError, TrackerDayError) as e:
+            pr.iprint(e, style=k.WARNING_STYLE)
+            NoiseMaker.play(k.ALERT)
+
+    return data_changed
 
 
 def query_one_tag(
@@ -520,318 +559,15 @@ def query_tag(targets: list[str], multi_line: bool = None) -> None:
         query_one_tag(maybe_tag, day, multi_line=multi_line)
 
 
-def operating_hours_command() -> None:
-    """Respond to the 'hours' command."""
-    global OPENING_TIME, CLOSING_TIME  # pylint: disable=global-statement
-    OPENING_TIME, CLOSING_TIME = bits.get_operating_hours(OPENING_TIME, CLOSING_TIME)
-
-
-def multi_edit(args: list[str]):
-    """Perform Dialog to correct a tag's check in/out time.
-
-    Command syntax: edit [tag-list] [in|out] [time]
-    Where:
-        tag-list is a comma or whitespace-separated list of tags
-        inout is 'in', 'i', 'out', 'o'
-        time is a valid time (including 'now')
-    """
-
-    def prompt_for_stuff(prompt: str):
-        pr.iprint(f"{prompt} {cfg.CURSOR}", style=k.SUBPROMPT_STYLE, end="")
-        return pr.tt_inp().lower()
-
-    def error(msg: str, severe: bool = True) -> None:
-        if severe:
-            pr.iprint(msg, style=k.WARNING_STYLE)
-        else:
-            pr.iprint(msg, style=k.HIGHLIGHT_STYLE)
-
-    def cancel():
-        error("Edit cancelled", severe=False)
-
-    class TokenSet:
-        """Local class to hold parsed portions of command."""
-
-        def __init__(self, token_str: str) -> None:
-            """Break token_str into token portions."""
-            # In future this might do hyphenated tag lists
-            #       - num_tokens is total of tokens in that list
-            #       - add elements to taglist as long as look like tags
-            #       - next element if present is INOUT
-            #       - next element if present is TIME
-            #       - remaining elements are REMAINDER
-            parts = ut.splitline(token_str)
-            self.num_tokens = len(parts)
-            self.tags = []  # valid Tags (though possibly not available)
-            self.inout_str = ""  # what the user said
-            self.inout_value = k.BADVALUE  # ork.BIKE_IN,k.BIKE_OUT
-            self.atime_str = ""  # What the user said
-            self.atime_value = k.BADVALUE  # A valid time, ork.BADVALUE
-            self.remainder = []  # whatever is left (hopefully nothing)
-            if self.num_tokens == 0:
-                return
-            # Break into tags list and other list
-            done_tags = False
-            for part in parts:
-                tag = TagID(part)
-                if done_tags or not tag:
-                    self.remainder.append(part)
-                else:
-                    self.tags.append(tag)
-            # Anything left over?
-            if not self.remainder:
-                return
-            # Is next part IN/OUT?
-            self.inout_str = self.remainder[0]
-            self.remainder = self.remainder[1:]
-            if self.inout_str.lower() in ["i", "in"]:
-                self.inout_value = k.BIKE_IN
-            elif self.inout_str.lower() in ["o", "out"]:
-                self.inout_value = k.BIKE_OUT
-            else:
-                return
-            # Anything left over?
-            if not self.remainder:
-                return
-            # Next part a time value?
-            self.atime_str = self.remainder[0]
-            self.remainder = self.remainder[1:]
-            atime = VTime(self.atime_str)
-            if not atime:
-                return
-            self.atime_value = atime
-            # All done here
-            return
-
-    def edit_processor(maybe_tag: TagID, inout: str, target_time: VTime) -> str:
-        """Execute one edit command with all its args known.
-
-        On entry:
-            tag: is a valid tag id (though possibly not usable)
-            inout: isk.BIKE_IN ork.BIKE_OUT
-            target_time: is a valid Time
-        On exit, either:
-            tag has been changed, msg delivered; returnsk.BIKE_IN ork.BIKE_OUT; or
-            no change, error msg delivered, returns ""
-        """
-
-        def success(tag: TagID, inout_str: str, newtime: VTime) -> None:
-            """Print change message. inout_str is 'in' or 'out."""
-            inoutflag = k.BIKE_IN if inout_str == "in" else k.BIKE_OUT
-            print_tag_inout(tag, inoutflag, newtime)
-
-        # Error conditions to test for
-        # Unusable tag (not known, retired)
-        # For checking in:
-        #   Existing Out is earler than target time
-        # For checking out:
-        #   Not yet checked in
-        #   Existing In later than target_time
-
-        tag = TagID(maybe_tag)
-        if not tag.valid:
-            error(f"String '{tag.original}' is not a valid tag ID")
-            return ""
-        if tag in RETIRED_TAGS:
-            error(f"Tag '{tag}' is marked as retired")
-            return ""
-        if tag not in ALL_TAGS:
-            error(f"Tag '{tag}' not available for use")
-            return ""
-        if inout == k.BIKE_IN and tag in check_outs and check_outs[tag] < target_time:
-            error(f"Tag '{tag}' has check-out time earlier than {target_time}")
-            return ""
-        if inout == k.BIKE_OUT:
-            if tag not in check_ins:
-                error(f"Tag '{tag}' not checked in")
-                return ""
-            if check_ins[tag] > target_time:
-                error(f"Tag '{tag}' has checked in later than {target_time.short}")
-                return ""
-        # Have checked for errors, can now commit the change
-        if inout == k.BIKE_IN:
-            check_ins[tag] = target_time
-            success(tag, "in", target_time)
-        elif inout == k.BIKE_OUT:
-            check_outs[tag] = target_time
-            success(tag, "out", target_time)
-        else:
-            ut.squawk(f"Bad inout in call to edit_processor: '{inout}'")
-            return ""
-        return inout
-
-    syntax = "Syntax: edit [tag(s)] [in|out] [time|'now']"
-    # Turn all the args into a string, discarding the 'edit' at the front
-
-    argstring = " ".join(args)
-    cmd = TokenSet(argstring)
-    if cmd.num_tokens > 0 and not cmd.tags:
-        error(f"Bad input. {syntax}")
+def set_tag_case(want_uppercase: bool) -> None:
+    """Set tags to be uppercase or lowercase depending on 'command'."""
+    ##global UC_TAGS  # pylint: disable=global-statement
+    case_str = "upper case" if want_uppercase else "lower case"
+    if TagID.uc() == want_uppercase:
+        pr.iprint(f"Tags already {case_str}.", style=k.WARNING_STYLE)
         return
-    if not cmd.tags:
-        response = prompt_for_stuff("Set time for which bike tag(s)?")
-        if not response:
-            cancel()
-            return
-        argstring += " " + response
-        cmd = TokenSet(argstring)
-        if not cmd.tags:
-            error("Bad tag values", severe=True)
-            return
-    # At this point we know we have tags
-    while not cmd.inout_str:
-        response = prompt_for_stuff("Set bike check-IN or OUT (i/o)?")
-        if not response:
-            cancel()
-            return
-        argstring += " " + response
-        cmd = TokenSet(argstring)
-    if cmd.inout_value not in [k.BIKE_IN, k.BIKE_OUT]:
-        error(f"Must specify IN or OUT, not '{cmd.inout_str}'. " f"{syntax}")
-        return
-    # Now we know we have tags and an INOUT
-    while not cmd.atime_str:
-        response = prompt_for_stuff("Set to what time?")
-        if not response:
-            cancel()
-            return
-        argstring += " " + response
-        cmd = TokenSet(argstring)
-    if cmd.atime_value == k.BADVALUE:
-        error(f"Bad time '{cmd.atime_str}', " f"must be HHMM or 'now'. {syntax}")
-        return
-    # That should be the whole command, with nothing left over.
-    if cmd.remainder:
-        error("Bad input at end " f"'{' '.join(cmd.remainder)}'. {syntax}")
-        return
-    # Now we have a list of maybe-ish Tags, a usable INOUT and a usable Time
-    inouts = []
-    for tag in cmd.tags:
-        inouts.append(edit_processor(tag, cmd.inout_value, cmd.atime_value))
-    # Play the sounds for this
-    NoiseMaker.play(*inouts)
-
-
-def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
-    """Pretty-print a tag-in or tag-out message."""
-    if inout == k.BIKE_IN:
-        basemsg = f"Bike {tag} checked in"
-        basemsg = f"{basemsg} at {when.short}" if when else basemsg
-        finalmsg = f"{basemsg:40} <---in---  "
-    elif inout == k.BIKE_OUT:
-        basemsg = f"Bike {tag} checked out"
-        basemsg = f"{basemsg} at {when.short}" if when else basemsg
-        finalmsg = f"{basemsg:55} ---out--->  "
-    else:
-        ut.squawk(f"bad call to called print_tag_inout({tag}, {inout})")
-        return
-    # Print
-    pr.iprint(finalmsg, style=k.ANSWER_STYLE)
-
-
-def tag_check(tag: TagID, cmd_tail: str) -> None:
-    """Check a tag in or out.
-
-    This processes a prompt that's just a tag ID.
-    """
-
-    # Has to be only the tag, no extra text
-    if cmd_tail:
-        pr.iprint("Error: Extra text following tag name", style=k.WARNING_STYLE)
-        return
-
-    pr.print_tag_notes(tag)
-
-    if tag in RETIRED_TAGS:  # if retired print specific retirement message
-        pr.iprint(f"{tag} is retired", style=k.WARNING_STYLE)
-    else:  # must not be retired so handle as normal
-        if tag in check_ins:
-            if tag in check_outs:  # if tag has checked in & out
-                query_tag([tag], multi_line=False)
-                NoiseMaker.play(k.ALERT)
-                pr.iprint(
-                    f"Bike {tag} already checked out. "
-                    "To change check out time, use 'edit' command.",
-                    style=k.WARNING_STYLE,
-                )
-                # sure = pr.tt_inp().lower() in ["y", "yes"]
-                # if sure:
-                #     multi_edit([tag, "o", VTime("now")])
-                # else:
-                #     pr.iprint("Cancelled", style=k.WARNING_STYLE)
-            else:  # checked in only
-                # How long ago checked in? Maybe ask operator to confirm.
-                rightnow = VTime("now")
-                time_diff_mins = rightnow.num - VTime(check_ins[tag]).num
-                if time_diff_mins < 0:
-                    query_tag([tag], multi_line=False)
-                    pr.iprint(
-                        "Check-in is in the future; check out cancelled",
-                        style=k.WARNING_STYLE,
-                    )
-                    return
-                if time_diff_mins < cfg.CHECK_OUT_CONFIRM_TIME:
-                    NoiseMaker.play(k.ALERT)
-                    query_tag([tag], multi_line=False)
-                    pr.iprint(
-                        "Do you want to check it out? " f"(y/N) {cfg.CURSOR}",
-                        style=k.SUBPROMPT_STYLE,
-                        end="",
-                    )
-                    sure = pr.tt_inp().lower() in ["yes", "y"]
-                else:  # don't check for long visits
-                    sure = True
-                if sure:
-                    multi_edit([tag, "o", rightnow])
-                else:
-                    pr.iprint("Cancelled bike check out", style=k.WARNING_STYLE)
-        else:  # if string is in neither dict
-            check_ins[tag] = VTime("now")
-            print_tag_inout(tag, k.BIKE_IN)
-            NoiseMaker.play(k.BIKE_IN)
-
-
-# def parse_command(user_input: str) -> list[str]:
-#     """Parse user's input into list of [tag] or [command, command args].
-
-#     Return:
-#         [CmdKeys.CMD_TAG_RETIRED,args] if a tag but is retired
-#         [CmdKeys.CMD_TAG_UNUSABLE,args] if a tag but otherwise not usable
-#         [CmdKeys.CMD_UNKNOWN,args] if not a tag & not a command
-#     """
-#     user_input = user_input.lower().strip("\\][ \t")
-#     if not (user_input):
-#         return []
-#     # Special case - if user input starts with '/' or '?' add a space.
-#     if user_input[0] in ["/", "?"]:
-#         user_input = user_input[0] + " " + user_input[1:]
-#     # Split to list, test to see if tag.
-#     input_tokens = user_input.split()
-#     # See if it matches tag syntax
-#     maybetag = TagID(input_tokens[0])
-#     if maybetag:
-#         # This appears to be a tag
-#         if maybetag in RETIRED_TAGS:
-#             return [CmdKeys.CMD_TAG_RETIRED] + input_tokens[1:]
-#         # Is this tag usable?
-#         if maybetag not in ALL_TAGS:
-#             return [CmdKeys.CMD_TAG_UNUSABLE] + input_tokens[1:]
-#         # This appears to be a usable tag.
-#         return [maybetag]
-
-#     # See if it is a recognized command.
-#     # cfg.command_aliases is dict of lists of aliases keyed by
-#     # canonical command name (e.g. {"edit":["ed","e","edi"], etc})
-#     command = None
-#     for c, aliases in k.COMMANDS.items():
-#         if input_tokens[0] in aliases:
-#             command = c
-#             break
-#     # Is this an unrecognized command?
-#     if not command:
-#         return [CmdKeys.CMD_UNKNOWN] + input_tokens[1:]
-#     # We have a recognized command, return it with its args.
-#     return [command] + input_tokens[1:]
+    TagID.uc(want_uppercase)
+    pr.iprint(f" Tags will now show in {case_str}. ", style=k.ANSWER_STYLE)
 
 
 def dump_data():
@@ -905,13 +641,19 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
     """Process the command.  Return True if data has (probably) changed."""
 
     if cmd_bits.status != PARSED_OK:
-        ut.squawk(f"Unexpected {parsed.status=}")
+        ut.squawk(f"Unexpected {cmd_bits.status=}")
         return False
 
+    # Even though 'OK', there might still be a message (e.g. warning of duplicate
+    # tagids in list)
+    if cmd_bits.message:
+        pr.iprint(cmd_bits.message, style=k.WARNING_STYLE)
+
+    # These are for convenience
     cmd = cmd_bits.command
     args = cmd_bits.result_args
 
-
+    # Assume no change in data unless we find out otherwise.
     data_changed = False
     # Easy things
     if cmd == CmdKeys.CMD_EXIT:
@@ -919,47 +661,59 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
     elif cmd == CmdKeys.CMD_HELP:
         bits.show_help()
 
-    # Things that change data
+    # Things that can change data
     elif cmd == CmdKeys.CMD_DELETE:
         # Delete a check-in or check-out
-        data_changed = delete_event(args,today)
+        data_changed = delete_event(args=args, today=today)
     elif cmd == CmdKeys.CMD_BIKE_IN:
         # Check a bike in, possibly reusing a tag.
-        pass
+        data_changed = check_in(args=args, today=today)
     elif cmd == CmdKeys.CMD_BIKE_OUT:
         # Check a bike out. Hard to imagine anyone even using this command.
-        pass
+        data_changed = check_out(args=args, today=today)
     elif cmd == CmdKeys.CMD_BIKE_INOUT:
         # Guess whether to check a bike in or out; will not reuse a tag.
-        pass
+        data_changed = guess_check_in_or_out(args=args, today=today)
     elif cmd == CmdKeys.CMD_EDIT:
-        # Edit most recent check-in or check-out of tag(s).
-        # FIXME: (edit) think through logic on this carefully. Currently,
-        # 'edit' can create a new check-in.  This would be ambiguous
-        # in a tag-reuse scenario, so perhaps edit can only alter
-        # events, not create them.
-        # FIXME: (edit) If there is a completed visit (1) and an in-progress
-        # visit (2), can I edit check-out of (1), or only check-in of (2)?
+        data_changed = edit_event(args=args, today=today)
 
+    elif cmd_bits.command == CmdKeys.CMD_REGISTRATIONS:
+        # FIXME: should really adjust the count in trackerday
+        # so that don't have to do side-effect changes to it
+        # when change one day to another.
+        if reg.Registrations.process_registration("".join(args)):
+            today.registrations = reg.Registrations.num_registrations
+            data_changed = True
 
+    elif cmd_bits.command == CmdKeys.CMD_NOTES:
+        if cmd_bits.result_args:
+            # FIXME: Notes needs to be a list in TrackerDay
+            # not a standalone thingy.
+            notes.Notes.add(cmd_bits.tail)
+            pr.iprint("Noted.")
+        else:
+            bits.show_notes(notes.Notes, header=True, styled=False)
 
-    if cmd_bits.command == CmdKeys.CMD_EDIT:
-        multi_edit(cmd_bits.result_args)
-        data_changed = True
+    elif cmd_bits.command == CmdKeys.CMD_HOURS:
+        # FIXME: this is done but needs testing
+        data_changed = bits.confirm_hours(today=today)
+
+    # Information and reports
+    elif cmd_bits.command == CmdKeys.CMD_QUERY:
+        query_tag(cmd_bits.result_args)
     elif cmd_bits.command == CmdKeys.CMD_AUDIT:
         aud.audit_report(pack_day_data(), cmd_bits.result_args, include_returns=False)
         publishment.publish_audit(pack_day_data(), cmd_bits.result_args)
-    elif cmd_bits.command == CmdKeys.CMD_LOOKBACK:
+    elif cmd_bits.command == CmdKeys.CMD_RECENT:
         rep.recent(pack_day_data(), cmd_bits.result_args)
     elif cmd_bits.command == CmdKeys.CMD_TAGS:
         inv.tags_config_report(pack_day_data(), cmd_bits.result_args, False)
-    elif cmd_bits.command == CmdKeys.CMD_QUERY:
-        query_tag(cmd_bits.result_args)
     elif cmd_bits.command == CmdKeys.CMD_STATS:
         rep.day_end_report(pack_day_data(), cmd_bits.result_args)
         # Force publication when do day-end reports
         publishment.publish(pack_day_data())
         ##last_published = maybe_publish(last_published, force=True)
+
     elif cmd_bits.command == CmdKeys.CMD_BUSY:
         rep.busyness_report(pack_day_data(), cmd_bits.result_args)
     elif cmd_bits.command == CmdKeys.CMD_CHART:
@@ -972,52 +726,26 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
         dump_data()
     elif cmd_bits.command == CmdKeys.CMD_LINT:
         lint_report(strict_datetimes=True)
-    elif cmd_bits.command == CmdKeys.CMD_REGISTRATIONS:
-        if reg.Registrations.process_registration(cmd_bits.tail):
-            data_changed = True
-    elif cmd_bits.command == CmdKeys.CMD_NOTES:
-        if cmd_bits.result_args:
-            notes.Notes.add(cmd_bits.tail)
-            pr.iprint("Noted.")
-        else:
-            bits.show_notes(notes.Notes, header=True, styled=False)
     elif cmd_bits.command == CmdKeys.CMD_ESTIMATE:
         estimate(cmd_bits.result_args)
+
+    # Things that operate on the larger environment
     elif cmd_bits.command == CmdKeys.CMD_PUBLISH:
-        publishment.publish_reports(pack_day_data(), cmd_bits.result_args)
-    elif cmd_bits.command == CmdKeys.CMD_HOURS:
-        operating_hours_command()
-        data_changed = True
-    elif (
-        cmd_bits.command == CmdKeys.CMD_UPPERCASE
-        or cmd_bits.command == CmdKeys.CMD_LOWERCASE
-    ):
-        set_tag_case(cmd_bits.command == CmdKeys.CMD_UPPERCASE)
-    # Check for bad input
-    elif not TagID(cmd_bits.command):
-        # This is not a tag
-        if cmd_bits.command == CmdKeys.CMD_UNKNOWN or len(cmd_bits.result_args) > 0:
-            NoiseMaker.play(k.ALERT)
-            msg = "Unrecognized command, enter 'h' for help"
-        elif cmd_bits.command == CmdKeys.CMD_TAG_RETIRED:
-            msg = f"Tag '{TagID(user_str)}' is retired"
-        elif cmd_bits.command == CmdKeys.CMD_TAG_UNUSABLE:
-            msg = f"System not configured to use tag '{TagID(user_str)}'"
-        else:
-            # Should never get to this point
-            msg = "Surprised by unrecognized command"
-        pr.iprint()
-        pr.iprint(msg, style=k.WARNING_STYLE)
+        # FIXME: this call is ok, still need to adjust publish_*
+        publishment.publish_reports(day=today, args=args)
+
+    elif cmd in {CmdKeys.CMD_UPPERCASE, CmdKeys.CMD_LOWERCASE}:
+        # Change to uc or lc tags
+        set_tag_case(cmd == CmdKeys.CMD_UPPERCASE)
 
     else:
-        # This is a tag
-        tag_check(cmd_bits.command, cmd_bits.tail)
-        data_changed = True
+        # Should never get to this point
+        ut.squawk(f"Surprised by unrecognized command {cmd}")
 
     return data_changed
 
 
-def main(today: TrackerDay):
+def main_loop(today: TrackerDay):
     """Run main program loop and dispatcher."""
     done = False
     todays_date = ut.date_str("today")
@@ -1045,26 +773,33 @@ def main(today: TrackerDay):
         # Or, the dispatcher
         data_changed = False
         if cmd_bits.command != CmdKeys.CMD_EXIT:
-            data_changed = process_command(cmd_bits)
+            data_changed = process_command(cmd_bits=cmd_bits, today=today)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
-        if data_changed:
-            fix_2400_events()
+        if data_changed and today.fix_2400_events():
+            pr.iprint(
+                "(Changed time 24:00 to 23:59 in visits.)",
+                style=k.WARNING_STYLE,
+            )
+
         # Save if anything has changed
         if data_changed:
             data_changed = False
-            save()
+            today.save_to_file()
             publishment.maybe_publish(pack_day_data())
             ##last_published = maybe_publish(last_published)
         # Flush any echo buffer
         pr.echo_flush()
     # Exiting; one last  publishing
-    # save()
     publishment.publish(pack_day_data())
 
 
 def custom_datafile() -> str:
-    """Return custom datafilename from command line arg or ""."""
+    """Return filepath of  custom datafilename specified.
+
+    Returns custom filepath if given, "" if not.
+    File is checked to exist.
+    """
     if len(sys.argv) <= 1:
         return ""
     # Custom datafile name or location
@@ -1075,17 +810,6 @@ def custom_datafile() -> str:
         error_exit()
     # This is the custom datafile & it exists
     return file
-
-
-def save():
-    """Save today's data in the datafile."""
-    # Create the datafile content
-    day = pack_day_data()
-    content = df.prep_datafile_info(day)
-    # Store the data
-    if not df.write_datafile(DATA_FILEPATH, content, make_bak=True):
-        ut.squawk("CRITICAL ERROR. Can not continue")
-        error_exit()
 
 
 def error_exit() -> None:
@@ -1099,17 +823,6 @@ def error_exit() -> None:
     exit()
 
 
-def set_tag_case(want_uppercase: bool) -> None:
-    """Set tags to be uppercase or lowercase depending on 'command'."""
-    ##global UC_TAGS  # pylint: disable=global-statement
-    case_str = "upper case" if want_uppercase else "lower case"
-    if TagID.uc() == want_uppercase:
-        pr.iprint(f"Tags already {case_str}.", style=k.WARNING_STYLE)
-        return
-    TagID.uc(want_uppercase)
-    pr.iprint(f" Tags will now show in {case_str}. ", style=k.ANSWER_STYLE)
-
-
 def lint_report(strict_datetimes: bool = True) -> None:
     """Check tag lists and event lists for consistency."""
     errs = pack_day_data().lint_check(strict_datetimes)
@@ -1119,7 +832,11 @@ def lint_report(strict_datetimes: bool = True) -> None:
     # else:
     #     pr.iprint("No inconsistencies found", style=k.HIGHLIGHT_STYLE)
     # And while we're at it, fix up any times that are set to "24:00"
-    fix_2400_events()
+    if today.fix_2400_events():
+        pr.iprint(
+            "(Changed time 24:00 to 23:59 in visits.)",
+            style=k.WARNING_STYLE,
+        )
 
 
 def midnight_message():
@@ -1221,12 +938,72 @@ def get_taglists_from_config() -> td.OldTrackerDay:
 
     return day
 
+def set_up_today() -> TrackerDay:
+    """Initialize today's tracking data."""
+
+    datafilepath = custom_datafile()
+    datafilepath = datafilepath or df.datafile_name(cfg.DATA_FOLDER)
+    if os.path.exists(datafilepath):
+        day = TrackerDay.load_from_file(datafilepath)
+    else:
+        day = TrackerDay(datafilepath)
+    # Just in case there's no date, guess it from the filename
+    if not day.date:
+        day.date = deduce_parking_date(datafilepath)
+
+    # Set the site name
+    day.site_name = day.site_name or cfg.SITE_NAME
+
+    # Find the tag reference lists (regular, oversize, etc).
+    # If there's no tag reference lists, or it's today's date,
+    # then fetch the tag reference lists from tags config
+    if day.date == ut.date_str("today") or (
+        not day.regular_tagids and not day.oversize_tagids
+    ):
+        try:
+            day.set_taglists_from_config()
+        except TrackerDayError as e:
+            pr.iprint()
+            for text in e.args:
+                pr.iprint(text, style=k.ERROR_STYLE)
+            error_exit()
+
+    try:
+        day.lint_check()
+    except TrackerDayError as e:
+        pr.iprint()
+        for text in e.args:
+            pr.iprint(text, style=k.ERROR_STYLE)
+        error_exit()
+
+
+
+    lint_report(strict_datetimes=False)
+    pr.iprint(
+        f"Editing {day.site_name} site bike parking data for {ut.date_str(day.date,long_date=True)}.",
+        style=k.HIGHLIGHT_STYLE,
+    )
+    # In case doing a date that's not today, warn
+    if day.date != ut.date_str("today"):
+        pr.iprint("Warning: Data is from today.date, not today", style=k.ERROR_STYLE)
+
+    # Get/set operating hours
+    bits.confirm_hours(day)
+
+    # Save
+    day.save_to_file()
+
+    return day
+
+
 
 # ---------------------------------------------
 # STARTUP
 
 
 if __name__ == "__main__":
+
+    # Set up TagTracker system
 
     # Set colour module's colour flag based on config
     pr.COLOUR_ACTIVE = cfg.USE_COLOUR
@@ -1264,39 +1041,22 @@ if __name__ == "__main__":
     publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     # Check that sounds can work (if enabled).
     NoiseMaker.init_check()
-
     # Start internet monitoring (if enabled in config)
     InternetMonitorController.start_monitor()
 
-    # What Data file should we use?
-    DATA_FILEPATH = custom_datafile()
-    CUSTOM_DAT = bool(DATA_FILEPATH)
-    if not CUSTOM_DAT:
-        DATA_FILEPATH = df.datafile_name(cfg.DATA_FOLDER)
 
-    # Configure check in- and out-lists and operating hours from file
-    pr.iprint()
-    today_data = initialize_today(DATA_FILEPATH)
-    if not today_data:  # only run main() if tags read successfully
-        error_exit()
+    # Initialize today's tracking data
+    today_data = set_up_today()
 
-    lint_report(strict_datetimes=False)
-    pr.iprint(
-        f"Editing information for {ut.date_str(PARKING_DATE,long_date=True)}.",
-        style=k.HIGHLIGHT_STYLE,
-    )
     # Display data owner notice
     bits.data_owner_notice()
 
-    # Get/set operating hours
-    hours_changed, OPENING_TIME, CLOSING_TIME = bits.confirm_hours(
-        PARKING_DATE, OPENING_TIME, CLOSING_TIME
-    )
-    if hours_changed:
-        save()
+    # Set UC if needed (NB: datafiles are always LC)
+    TagID.uc(cfg.TAGS_UPPERCASE)
 
     # Start tracking tags
-    main(today_data)
+    main_loop(today_data)
 
+    # Finished, turn off echo
     pr.set_echo(False)
 # ==========================================

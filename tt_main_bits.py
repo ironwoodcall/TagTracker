@@ -22,14 +22,18 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+from tt_tag import TagID
 import tt_printer as pr
 import tt_util as ut
 import client_base_config as cfg
 from tt_time import VTime
 import tt_constants as k
 import tt_default_hours
+from tt_trackerday import TrackerDay
+from tt_sounds import NoiseMaker
 
 # Import pyfiglet if it's available.
+# (To create ascii art splash screen.)
 try:
     import random
     import pyfiglet
@@ -163,28 +167,27 @@ def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
             pr.iprint(line, style=k.NORMAL_STYLE)
 
 
-def confirm_hours(
-    date: k.MaybeDate, current_open: k.MaybeTime, current_close: k.MaybeTime
-) -> tuple[bool, VTime, VTime]:
+def confirm_hours(today: TrackerDay) -> bool:
+    #     date: k.MaybeDate, current_open: k.MaybeTime, current_close: k.MaybeTime
+    # ) -> tuple[bool, VTime, VTime]:
     """Get/set operating hours.
 
     Returns flag True if values have changed
-    and new (or unchanged) open and close times as as tuple:
-        changed:bool, open:VTime, closed:VTime
 
     Logic:
     - On entry, current_open/close are either times or ""
     - If "", sets from defaults
     - Prompts user for get/confirm
-    - Returns result tuple
+    - Changes values in TrackerDay
 
     """
-    maybe_open, maybe_close = (current_open, current_close)
+    maybe_open = today.opening_time
+    maybe_close = today.closing_time
     if not maybe_open or not maybe_close:
         # Set any blank value from config'd defaults
-        default_open, default_close = tt_default_hours.get_default_hours(date)
-        maybe_open = maybe_open if maybe_open else default_open
-        maybe_close = maybe_close if maybe_close else default_close
+        default_open, default_close = tt_default_hours.get_default_hours(today.date)
+        maybe_open = maybe_open or default_open
+        maybe_close = maybe_close or default_close
 
     # Prompt user to get/confirm times
     done = False
@@ -198,11 +201,12 @@ def confirm_hours(
         else:
             done = True
     # Has anything changed?
-    return (
-        bool(new_open != current_open or new_close != current_close),
-        new_open,
-        new_close,
-    )
+    data_changed = bool(new_open != today.opening_time or new_close != today.closing_time)
+    # Save the changed
+    today.opening_time = new_open
+    today.closing_time = new_close
+    # Done, return whether data has changed
+    return data_changed
 
 
 def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]:
@@ -246,6 +250,47 @@ def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]
     opening = get_one_time(opening, "opening")
     closing = get_one_time(closing, "closing")
     return opening, closing
+
+
+def check_bike_time_reasonable(bike_time: VTime, day: TrackerDay) -> bool:
+    """Check if 'bike_time' is reasonably close to operating hours.
+
+    Will give an error message if not.
+
+    Returns True if seems reasonable, False otherwise.
+    If operating hours not set, returns True.
+    """
+
+    opening = VTime(day.opening_time)
+    closing = VTime(day.closing_time)
+    if not opening or not closing:
+        return True
+
+    TOLERANCE = 90  # minutes
+
+    if bike_time < opening.num - TOLERANCE or bike_time > closing.num + TOLERANCE:
+        pr.iprint(
+            f"Time ({bike_time.short}) is too far outside open hours.",
+            style=k.WARNING_STYLE,
+        )
+        NoiseMaker.play(k.ALERT)
+        return False
+    return True
+
+
+def check_tagid_usable(tagid: TagID, today: TrackerDay) -> bool:
+    """Checks if tagid is usable, error msg if not.
+
+    In this context, usable means REGULAR or OVERSIZE and
+    not RETIRED.
+
+    Returns True if usable, False if not.
+    """
+    if tagid not in today.all_usable_tags():
+        pr.iprint(f"Tag {tagid.original} not available for use.", style=k.WARNING_STYLE)
+        NoiseMaker.play(k.ALERT)
+        return False
+    return True
 
 
 def data_owner_notice():

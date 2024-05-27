@@ -54,6 +54,9 @@ INTERNET_MONITORING_FREQUENCY = 10
 # Files and folder locations
 DATA_FOLDER = "../data"  # Folder to keep datafiles in
 DATA_BASENAME = "bikeparking_"  # Files will be {BASENAME}YY-MM-DD.dat
+
+# Site name identifier goes into the datafile, used in aggregation
+SITE_NAME = "default"
 # Where and how often to publish reports
 REPORTS_FOLDER = ""
 PUBLISH_FREQUENCY = 15  # minutes. "0" means do not publish

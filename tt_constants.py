@@ -32,13 +32,6 @@ MaybeTime = str
 MaybeDate = str
 
 # Constants to use as dictionary keys.
-# E.g. rather than something[this_time]["tag"] = "whatever",
-# could instead be something[this_time][TAG_KEY] = "whatever"
-# The values of these constants aren't important as long as they're unique.
-# By using these rather than string values, the lint checker in the
-# editor can pick up missing or misspelled items, as can Python itself.
-# These all have a non-ASCII chr (→) at the beginning to make it unlikely
-# that their values would ever get typed or otherwise be non-unique
 
 TAG = chr(0x2192) + "tag"
 BIKE_IN = chr(0x2192) + "bike_in"
@@ -65,21 +58,6 @@ OFF = chr(0x2192) + "off"
 ALERT = chr(0x2192) + "alert"
 CHEER = chr(0x2192) + "cheer"
 
-# Here's how I really want to do it, but then pylint won't know they're defined
-# for keyword in [
-#    "TAG", "TIME",
-#    "BIKE_IN","BIKE_OUT","INOUT",
-#    "REGULAR","OVERSIZE","RETIRED",
-#    "TOTAL","COUNT",
-#    "IGNORE",
-#    "COLOURS",
-#    "BADVALUE",
-#    "UPPERCASE","LOWERCASE",
-#   "UNKNOWN",
-#    "ON","OFF"
-# ]:
-#   globals()[keyword] = chr(0x2192) + keyword.lower()
-
 # Date re checks for date that might be in another string
 _DATE_RE = r"(2[0-9][0-9][0-9])[/-]([01]?[0-9])[/-]([0123]?[0-9])"
 # Match a date within another string
@@ -90,7 +68,6 @@ DATE_FULL_RE = re.compile(r"^ *" + _DATE_RE + " *$")
 # How long a single time block is (minutes) - for charts/stats etc
 BLOCK_DURATION = 30
 
-
 # Help message.  Colour styles will be applied as:
 #       First non-blank line will be in TITLE_STYLE, after which
 #       lines that are flush left will be in SUBTITLE_STYLE; and
@@ -99,30 +76,37 @@ HELP_MESSAGE = """
 TagTracker Commands
 
 To enter and change tracking data
-  Check bike in or out         :   <tag> (eg “wa3”)
-  Edit check in/out times      :   edit / e
-  Delete a check in/out        :   delete / del  / d
-  Change operating hours       :   hours
-  View/add operator notes      :   note / n
-  View/set bike registrations  :   registrations / reg / r
+  Check bike in (can reuse tag):  IN|USE <tag(s)> [time]
+  Check bike out               :  OUT <tag(s)> [time]
+  Guess about check in or out  :  <tag(s)>
+  Edit check in/out times      :  EDIT <tag(s)> <in|out> <time>
+  Delete a check in/out        :  DELETE <tag(s)> <in|out> <yes>
+  Change operating hours       :  HOURS
+  View/add operator notes      :  NOTE [note text]
+  View/set bike registrations  :  REGISTER [+n|-n|=n]
 
 Information and reports
-  Show info about one tag      :   query / q / ?
-  Show recent activity         :   recent / rec
-  Show audit info              :   audit / a
-  Show day-end stats report    :   stat  / s
-  Show site busy-ness report   :   busy / b
-  Show data as on paper form   :   form / f
-  Show tag configurations      :   tags / t
-  Show chart of all activity   :   chart / c
-  Estimate further bikes       :   estimate / est / guess
+  Show info about one tag      :   QUERY <tag(s)>
+  Show recent activity         :   RECENT [time] [time]
+  Show audit info              :   AUDIT [time]
+  Show day-end stats report    :   STATS [time]
+  Show site busy-ness report   :   BUSY
+  Show data as on paper form   :   FORM
+  Show tag configurations      :   TAGS
+  Show chart of all activity   :   CHART
+  Estimate further bikes       :   ESTIMATE
 
 Other
-  Show this list of commands   :   help  /  h
-  Set tag display to UPPERCASE :   uppercase / uc
-  Set tag display to lowercase :   lowercase / lc
-  Send reports to shared drive :   publish / pub
-  Exit                         :   exit / x
+  Show this list of commands   :   HELP
+  Set tag display to UPPERCASE :   UC | UPPERCASE
+  Set tag display to lowercase :   LC | LOWECASE
+  Send reports to shared drive :   PUBLISH
+  Exit                         :   EXIT | x
+
+Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
+Parameters in angle brackets are mandatory, square brackets optional.
+Any <tag> parameter can be a single tag, or a list of tags.
+Time is in 24 hour time (eg '14:00' or '1400') or the word "now".
 """
 
 

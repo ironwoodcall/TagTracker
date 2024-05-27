@@ -26,6 +26,7 @@ import tt_util as ut
 import tt_time
 import client_base_config as cfg
 
+# FIXME: make this instance-centric & part of a TrackerDay
 
 class Notes:
     """Keep tagtracker operator notes."""
