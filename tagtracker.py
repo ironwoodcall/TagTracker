@@ -55,10 +55,11 @@ from tt_biketag import BikeTag, BikeTagError
 import client_base_config as cfg
 import tt_printer as pr
 import tt_datafile as df
-import tt_reports as rep
 import tt_publish as pub
-import tt_tag_inv as inv
-import tt_notes as notes
+# import tt_audit_report as aud
+# import tt_reports as rep
+# import tt_tag_inv as inv
+# import tt_notes as notes
 
 # from tt_cmdparse import CmdBits
 from tt_commands import (
@@ -72,39 +73,11 @@ from tt_commands import (
 import tt_call_estimator
 import tt_registrations as reg
 from tt_sounds import NoiseMaker
-import tt_audit_report as aud
 from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
 
-
-# import tt_default_hours
-
-# pylint: enable=wrong-import-position
-
-
-# Local connfiguration
-# try:
-#    import tt_local_config  # pylint:disable=unused-import
-# except ImportError:
-#    pass
-
-# # Initialize open/close globals
-# # (These are all represented in OldTrackerDay attributes or methods)
-# OPENING_TIME = ""
-# CLOSING_TIME = ""
-# PARKING_DATE = ""
-# NORMAL_TAGS = []
-# OVERSIZE_TAGS = []
-# RETIRED_TAGS = []
-# ALL_TAGS = []
-# TAG_COLOUR_NAMES = {}
-# check_ins = {}
-# check_outs = {}
-
-
 # The assignments below are unneccessary but stop pylint from whining.
 publishment = None
-DATA_FILEPATH = ""
 
 
 def print_tag_inout(tag: TagID, inout: str, when: VTime = VTime("")) -> None:
@@ -339,7 +312,7 @@ def check_in(args: list, today: TrackerDay) -> bool:
                 NoiseMaker.play(k.ALERT)
                 continue
             # Check this bike out at this time
-            biketag.edit_in(bike_time)
+            biketag.check_in(bike_time)
             data_changed = True
             print_tag_inout(tagid, k.BIKE_IN)
         except (BikeTagError, TrackerDayError) as e:
@@ -456,107 +429,29 @@ def guess_check_in_or_out(args: list, today: TrackerDay) -> bool:
     return data_changed
 
 
-def query_one_tag(
-    maybe_tag: str, day: td.OldTrackerDay, multi_line: bool = False
-) -> None:
-    """Print a summary of one tag's status.
-
-    If multi_line is true, then this *may* print the status on multiple lines;
-    otherwise will always put it on a single line.
-
-    If there are notes for the tag, that will always be on a new line.
-    """
-    tagid = TagID(maybe_tag)
-    if not tagid:
-        pr.iprint(
-            f"Input '{tagid.original}' is not a tag name",
-            style=k.WARNING_STYLE,
-        )
-        return
-
-    # Any notes on the tag:
-    pr.print_tag_notes(tagid)
-
-    tag = Stay(tagid, day, as_of_when="24:00")
-    if not tag.state:
-        pr.iprint(
-            f"Tag {tag.tag} is not available",
-            style=k.WARNING_STYLE,
-        )
-        return
-    if tag.state == k.RETIRED:
-        pr.iprint(f"Tag {tag.tag} is retired", style=k.WARNING_STYLE)
-        return
-    if tag.state == k.BIKE_OUT:
-        if multi_line:
-            pr.iprint(
-                f"{tag.time_in.tidy}  " f"{tag.tag} checked in",
-                style=k.ANSWER_STYLE,
-            )
-            pr.iprint(
-                f"{tag.time_out.tidy}  " f"{tag.tag} checked out",
-                style=k.ANSWER_STYLE,
-            )
-        else:
-            pr.iprint(
-                f"Tag {tag.tag} bike in at {tag.time_in.short}; "
-                f"out at {tag.time_out.short}",
-                style=k.ANSWER_STYLE,
-            )
-        return
-    if tag.state == k.BIKE_IN:
-        # Bike has come in sometime today but gone out
-        dur = VTime("now").num - tag.time_in.num
-        if multi_line:
-            pr.iprint(
-                f"{tag.time_in.tidy}  " f"{tag.tag} checked in",
-                style=k.ANSWER_STYLE,
-            )
-            pr.iprint(f"       {tag.tag} not checked out", style=k.ANSWER_STYLE)
-        else:
-            if dur >= 60:
-                dur_str = f"(onsite for {VTime(dur).short})"
-            elif dur >= 0:
-                dur_str = f"(onsite for {dur} minutes)"
-            else:
-                # a future time
-                dur_str = f"({VTime(abs(dur)).short} in the future)"
-
-            pr.iprint(
-                f"Tag {tag.tag} bike in at {tag.time_in.short} {dur_str}",
-                style=k.ANSWER_STYLE,
-            )
-
-        return
-    if tag.state == k.USABLE:
-        pr.iprint(
-            f"Tag {tag.tag} not used yet today",
-            style=k.ANSWER_STYLE,
-        )
-        return
-    pr.iprint(f"Tag {tag.tag} has unknown state", style=k.ERROR_STYLE)
-
-
-def query_tag(targets: list[str], multi_line: bool = None) -> None:
-    """Query one or more tags"""
-    if len(targets) == 0:
-        # Have to prompt
-        pr.iprint(
-            f"Query which tags? (tag name) {cfg.CURSOR}",
-            style=k.SUBPROMPT_STYLE,
-            end="",
-        )
-        targets = ut.splitline(pr.tt_inp())
-        if not targets:
-            pr.iprint("Query cancelled", style=k.HIGHLIGHT_STYLE)
-            return
-    day = pack_day_data()
+def query_command(day:TrackerDay,targets: list[TagID]) -> None:
+    """Query one or more tags."""
     pr.iprint()
-    if multi_line is None:
-        multi_line = len(targets) == 1
+    for tagid in targets:
+        msgs = []
+        biketag:BikeTag = day.biketags[tagid]
+        if biketag.status == biketag.UNUSED:
+            msgs = [f"Tag {tagid} not used yet today."]
+        elif biketag.status == biketag.RETIRED:
+            msgs = [f"Tag {tagid} is retired."]
+        else:
+            msgs = []
+            for i,visit in enumerate(biketag.visits,start=1):
+                visit:BikeVisit
+                msg = f"Tag {tagid} visit {i}: bike in at {visit.time_in.short}; "
+                if visit.time_out:
+                    msg += f"out at {visit.time_out.short}"
+                else:
+                    msg += "still on-site."
+                msgs.append(msg)
 
-    for maybe_tag in targets:
-        query_one_tag(maybe_tag, day, multi_line=multi_line)
+        for msg in msgs:
+            pr.iprint(msg,style=k.ANSWER_STYLE)
 
 
 def set_tag_case(want_uppercase: bool) -> None:
@@ -570,10 +465,26 @@ def set_tag_case(want_uppercase: bool) -> None:
     pr.iprint(f" Tags will now show in {case_str}. ", style=k.ANSWER_STYLE)
 
 
-def dump_data():
-    """For debugging. Dump current contents of core data structures."""
+def dump_data_command(today:TrackerDay,args:list):
+    """For debugging. Dump current contents of TrackerDay object.
+
+    on entry:
+        today is TrackerDay object of this day's data
+        args[0] if present might be the string 'full'
+    """
+
+    if args and args[0] not in ["full","f","detailed","detail"]:
+        pr.iprint(f"Unknown parameter '{args[0]}'\nDUMP [full]")
+        return
+    detailed = bool(args)
+
     pr.iprint()
-    pr.iprint("    cfg   ", num_indents=0, style=k.ERROR_STYLE)
+    pr.iprint("TrackerDay:", num_indents=0, style=k.ERROR_STYLE)
+    info = today.dump(detailed=detailed)
+    for l in info:
+        pr.iprint(l)
+
+    pr.iprint("Config:", num_indents=0, style=k.ERROR_STYLE)
     for var in vars(cfg):
         if var[0] == "_":
             continue
@@ -590,15 +501,6 @@ def dump_data():
         if isinstance(value, (str, dict, list, frozenset, set, float, int)):
             pr.iprint(f"{var} {type(value)}:  ", style=k.ANSWER_STYLE, end="")
             pr.iprint(value)
-    if check_ins:
-        pr.iprint()
-        pr.iprint(f"{type(list(check_ins.keys())[0])=}")
-        pr.iprint(f"{type(list(check_outs.keys())[0])=}")
-        pr.iprint(f"{type(list(NORMAL_TAGS)[0])=}")
-    pr.iprint()
-    pr.iprint("  notes")
-    for x in notes.Notes.fetch():
-        pr.iprint(f"     {x}")
 
 
 def estimate(args: list[str]) -> None:
@@ -626,10 +528,10 @@ def estimate(args: list[str]) -> None:
     pr.iprint()
 
 
-def bikes_on_hand_reminder() -> None:
+def bikes_on_hand_reminder(day:TrackerDay) -> None:
     """Remind how many bikes should be present, if close to closing time."""
-    if VTime(CLOSING_TIME).num - VTime("now").num < 60:  # last hour
-        bikes_on_hand = len(check_ins) - len(check_outs)
+    if day.closing_time.num - VTime("now").num < 60:  # last hour
+        bikes_on_hand = day.bikes_on_hand()
         pr.iprint(
             f"There should currently be {bikes_on_hand} {ut.plural(bikes_on_hand,'bike')}"
             " here.",
@@ -685,14 +587,14 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
             today.registrations = reg.Registrations.num_registrations
             data_changed = True
 
-    elif cmd_bits.command == CmdKeys.CMD_NOTES:
-        if cmd_bits.result_args:
-            # FIXME: Notes needs to be a list in TrackerDay
-            # not a standalone thingy.
-            notes.Notes.add(cmd_bits.tail)
-            pr.iprint("Noted.")
-        else:
-            bits.show_notes(notes.Notes, header=True, styled=False)
+    # elif cmd_bits.command == CmdKeys.CMD_NOTES:
+    #     if cmd_bits.result_args:
+    #         # FIXME: Notes needs to be a list in TrackerDay
+    #         # not a standalone thingy.
+    #         notes.Notes.add(cmd_bits.tail)
+    #         pr.iprint("Noted.")
+    #     else:
+    #         bits.show_notes(notes.Notes, header=True, styled=False)
 
     elif cmd_bits.command == CmdKeys.CMD_HOURS:
         # FIXME: this is done but needs testing
@@ -700,39 +602,43 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
 
     # Information and reports
     elif cmd_bits.command == CmdKeys.CMD_QUERY:
-        query_tag(cmd_bits.result_args)
-    elif cmd_bits.command == CmdKeys.CMD_AUDIT:
-        aud.audit_report(pack_day_data(), cmd_bits.result_args, include_returns=False)
-        publishment.publish_audit(pack_day_data(), cmd_bits.result_args)
-    elif cmd_bits.command == CmdKeys.CMD_RECENT:
-        rep.recent(pack_day_data(), cmd_bits.result_args)
-    elif cmd_bits.command == CmdKeys.CMD_TAGS:
-        inv.tags_config_report(pack_day_data(), cmd_bits.result_args, False)
-    elif cmd_bits.command == CmdKeys.CMD_STATS:
-        rep.day_end_report(pack_day_data(), cmd_bits.result_args)
-        # Force publication when do day-end reports
-        publishment.publish(pack_day_data())
-        ##last_published = maybe_publish(last_published, force=True)
+        # Done. FIXME
+        query_command(day=today,targets=args[0])
 
-    elif cmd_bits.command == CmdKeys.CMD_BUSY:
-        rep.busyness_report(pack_day_data(), cmd_bits.result_args)
-    elif cmd_bits.command == CmdKeys.CMD_CHART:
-        rep.full_chart(pack_day_data())
-    elif cmd_bits.command == CmdKeys.CMD_BUSY_CHART:
-        rep.busy_graph(pack_day_data())
-    elif cmd_bits.command == CmdKeys.CMD_FULL_CHART:
-        rep.fullness_graph(pack_day_data())
-    elif cmd_bits.command == CmdKeys.CMD_DUMP:
-        dump_data()
+    # elif cmd_bits.command == CmdKeys.CMD_AUDIT:
+    #     aud.audit_report(pack_day_data(), cmd_bits.result_args, include_returns=False)
+    #     publishment.publish_audit(pack_day_data(), cmd_bits.result_args)
+    # elif cmd_bits.command == CmdKeys.CMD_RECENT:
+    #     rep.recent(pack_day_data(), cmd_bits.result_args)
+    # elif cmd_bits.command == CmdKeys.CMD_TAGS:
+    #     inv.tags_config_report(pack_day_data(), cmd_bits.result_args, False)
+    # elif cmd_bits.command == CmdKeys.CMD_STATS:
+    #     rep.day_end_report(pack_day_data(), cmd_bits.result_args)
+    #     # Force publication when do day-end reports
+    #     publishment.publish(pack_day_data())
+    #     ##last_published = maybe_publish(last_published, force=True)
+
+    # elif cmd_bits.command == CmdKeys.CMD_BUSY:
+    #     rep.busyness_report(pack_day_data(), cmd_bits.result_args)
+    # elif cmd_bits.command == CmdKeys.CMD_CHART:
+    #     rep.full_chart(pack_day_data())
+    # elif cmd_bits.command == CmdKeys.CMD_BUSY_CHART:
+    #     rep.busy_graph(pack_day_data())
+    # elif cmd_bits.command == CmdKeys.CMD_FULL_CHART:
+    #     rep.fullness_graph(pack_day_data())
+    elif cmd == CmdKeys.CMD_DUMP:
+        # Done. Probably. FIXME
+        dump_data_command(today=today,args=args)
     elif cmd_bits.command == CmdKeys.CMD_LINT:
-        lint_report(strict_datetimes=True)
-    elif cmd_bits.command == CmdKeys.CMD_ESTIMATE:
-        estimate(cmd_bits.result_args)
+        # FIXME: this is done
+        lint_report(today=today,strict_datetimes=True)
+    # elif cmd_bits.command == CmdKeys.CMD_ESTIMATE:
+    #     estimate(cmd_bits.result_args)
 
-    # Things that operate on the larger environment
-    elif cmd_bits.command == CmdKeys.CMD_PUBLISH:
-        # FIXME: this call is ok, still need to adjust publish_*
-        publishment.publish_reports(day=today, args=args)
+    # # Things that operate on the larger environment
+    # elif cmd_bits.command == CmdKeys.CMD_PUBLISH:
+    #     # FIXME: this call is ok, still need to adjust publish_*
+    #     publishment.publish_reports(day=today, args=args)
 
     elif cmd in {CmdKeys.CMD_UPPERCASE, CmdKeys.CMD_LOWERCASE}:
         # Change to uc or lc tags
@@ -746,18 +652,18 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
 
 
 def main_loop(today: TrackerDay):
-    """Run main program loop and dispatcher."""
+    """Run main program command loop."""
+
     done = False
     todays_date = ut.date_str("today")
     while not done:
         pr.iprint()
         # Nag about bikes expected to be present if close to closing time
-        bikes_on_hand_reminder()
+        bikes_on_hand_reminder(day=today)
         # Allow tag notes for this next command
         pr.print_tag_notes("", reset=True)
         # Break command into tokens, parse as command
         cmd_bits = get_parsed_command()
-
         # If midnight has passed then need to restart
         if midnight_passed(todays_date):
             if not cmd_bits.command or cmd_bits.command != CmdKeys.CMD_EXIT:
@@ -765,20 +671,22 @@ def main_loop(today: TrackerDay):
             done = True
             continue
         # If null input, just ignore
-        if not cmd_bits.status == PARSED_CANCELLED:
+        if cmd_bits.status == PARSED_CANCELLED:
             continue  # No input, ignore
 
         # Dispatcher
         # Each command can take the ParsedCommand as its argument
         # Or, the dispatcher
         data_changed = False
-        if cmd_bits.command != CmdKeys.CMD_EXIT:
+        if cmd_bits.command == CmdKeys.CMD_EXIT:
+            done = True
+        else:
             data_changed = process_command(cmd_bits=cmd_bits, today=today)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
         if data_changed and today.fix_2400_events():
             pr.iprint(
-                "(Changed time 24:00 to 23:59 in visits.)",
+                "(Changed any '24:00' check-in/out times to '23:59'.)",
                 style=k.WARNING_STYLE,
             )
 
@@ -823,20 +731,17 @@ def error_exit() -> None:
     exit()
 
 
-def lint_report(strict_datetimes: bool = True) -> None:
-    """Check tag lists and event lists for consistency."""
-    errs = pack_day_data().lint_check(strict_datetimes)
+def lint_report(today:TrackerDay,strict_datetimes: bool = True) -> bool:
+    """Check tag lists and event lists for consistency.
+
+    Returns True if errors were detected.
+    """
+    errs = today.lint_check(strict_datetimes)
     if errs:
         for msg in errs:
             pr.iprint(msg, style=k.WARNING_STYLE)
-    # else:
-    #     pr.iprint("No inconsistencies found", style=k.HIGHLIGHT_STYLE)
-    # And while we're at it, fix up any times that are set to "24:00"
-    if today.fix_2400_events():
-        pr.iprint(
-            "(Changed time 24:00 to 23:59 in visits.)",
-            style=k.WARNING_STYLE,
-        )
+
+    return bool(errs)
 
 
 def midnight_message():
@@ -861,82 +766,25 @@ def midnight_passed(today_is: str) -> bool:
     return True
 
 
-def get_taglists_from_old_config(old_config_file: str) -> td.OldTrackerDay:
-    """Read tag lists (oversize, etc) from tag config file."""
-    # Lists of normal, oversize, retired tags
-    # Return a OldTrackerDay object, though its bikes_in/out are meaningless.
-    errs = []
-    day = df.read_datafile(old_config_file, errs)
-    if errs:
-        print(f"Errors in file, {errs=}")
-        error_exit()
-    pr.iprint()
-    pr.iprint(
-        f"Using tag configurations from deprecated '{old_config_file}' configuration file.",
-        style=k.ERROR_STYLE,
-    )
-    pr.iprint(
-        "Please define tag configurations in client_local_config.py.",
-        style=k.ERROR_STYLE,
-    )
-    return day
-
-
-def get_taglists_from_config() -> td.OldTrackerDay:
-    """Read taglists from config module into tag lists part of a trackerday.
-
-    In the trackerday object, only these will have meaning:
-    - .regular
-    - .oversize
-    - .retired
-
-    """
-
-    def tokenize(s: str) -> list:
-        """Break a string into a list of tokens."""
-        lst = [x.split(",") for x in s.split()]  # split on whitespace & commas
-        lst = [item for sublist in lst for item in sublist]  # flatten
-        lst = [item for item in lst if item]  # discard empty members
-        lst = list(set(lst))  # remove duplicates
-        return lst
-
-    def tagize(
-        lst: list[k.MaybeTag], what_am_i: str, exclude: list[TagID] = None
-    ) -> bool | list[TagID]:
-        """Make a list of tags based on the tokens.
-
-        Returns a list of tags and an error flag showing if there were errors.
-        Prints error messages for any bad tags or tags in the 'exclude' list.
-        'what_am_i' is used in error messages to describe what 'lst' is.
-
-        """
-        new_list = []
-        exclude = exclude if exclude else []
-        errors = False
-        for maybe in lst:
-            t = TagID(maybe)
-            if not t or t in exclude:
-                if not errors:
-                    print(f"Error(s) in {what_am_i} list:")
-                errors = True
-                print(
-                    f"  {maybe} {'already differently defined' if t else 'not a tag'}"
-                )
-                continue
-            new_list.append(t)
-        return new_list, errors
-
-    reglr, reg_errors = tagize(tokenize(cfg.REGULAR_TAGS), "Regular Tags")
-    over, over_errors = tagize(tokenize(cfg.OVERSIZE_TAGS), "Oversize Tags", reglr)
-    ret, ret_errors = tagize(tokenize(cfg.RETIRED_TAGS), "Retired Tags")
-    if reg_errors or over_errors or ret_errors:
-        error_exit()
-    day = td.OldTrackerDay()
-    day.regular = frozenset(reglr)
-    day.oversize = frozenset(over)
-    day.retired = frozenset(ret)
-
-    return day
+# def get_taglists_from_old_config(old_config_file: str) -> td.OldTrackerDay:
+#     """Read tag lists (oversize, etc) from tag config file."""
+#     # Lists of normal, oversize, retired tags
+#     # Return a OldTrackerDay object, though its bikes_in/out are meaningless.
+#     errs = []
+#     day = df.read_datafile(old_config_file, errs)
+#     if errs:
+#         print(f"Errors in file, {errs=}")
+#         error_exit()
+#     pr.iprint()
+#     pr.iprint(
+#         f"Using tag configurations from deprecated '{old_config_file}' configuration file.",
+#         style=k.ERROR_STYLE,
+#     )
+#     pr.iprint(
+#         "Define tag configurations in client_local_config.py.",
+#         style=k.ERROR_STYLE,
+#     )
+#     return day
 
 def set_up_today() -> TrackerDay:
     """Initialize today's tracking data."""
@@ -968,38 +816,25 @@ def set_up_today() -> TrackerDay:
                 pr.iprint(text, style=k.ERROR_STYLE)
             error_exit()
 
-    try:
-        day.lint_check()
-    except TrackerDayError as e:
-        pr.iprint()
-        for text in e.args:
-            pr.iprint(text, style=k.ERROR_STYLE)
-        error_exit()
-
-
-
-    lint_report(strict_datetimes=False)
     pr.iprint(
         f"Editing {day.site_name} site bike parking data for {ut.date_str(day.date,long_date=True)}.",
         style=k.HIGHLIGHT_STYLE,
     )
     # In case doing a date that's not today, warn
     if day.date != ut.date_str("today"):
-        pr.iprint("Warning: Data is from today.date, not today", style=k.ERROR_STYLE)
+        pr.iprint(f"Warning: Data is from {day.date}, not today", style=k.ERROR_STYLE)
 
     # Get/set operating hours
     bits.confirm_hours(day)
+
+    # Look for inconsistencies
+    if lint_report(today=day ,strict_datetimes=True):
+        error_exit()
 
     # Save
     day.save_to_file()
 
     return day
-
-
-
-# ---------------------------------------------
-# STARTUP
-
 
 if __name__ == "__main__":
 

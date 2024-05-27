@@ -113,7 +113,6 @@ class OldTrackerDay:
         - valet date, opening and closing are well-formed
         - valet opening time < closing time
         """
-
         def bad_tags(taglist: list[TagID], listname: str) -> list[str]:
             """Get list of err msgs about poorly formed tags in taglist."""
             msgs = []
@@ -175,6 +174,8 @@ class OldTrackerDay:
                 errors.append(f"Tag {tag} not in use (not regular nor oversized)")
             if tag in self.retired:
                 errors.append(f"Tag {tag} is marked as retired")
+
+
         return errors
 
     def earliest_event(self) -> VTime:
@@ -315,27 +316,7 @@ class TrackerDay:
         - valet opening time < closing time
         """
 
-        def bad_tags(taglist: list[TagID], listname: str) -> list[str]:
-            """Get list of err msgs about poorly formed tags in taglist."""
-            msgs = []
-            for tag in taglist:
-                tag: TagID
-                if not isinstance(tag, TagID) or not tag.valid:
-                    msgs.append(f"Bad tag '{tag}' in {listname}")
-            return msgs
-
-        def bad_times() -> list[str]:
-            """Get list of errors about mal-formed time values in visits."""
-            msgs = []
-            for v in self.all_visits():
-                v: BikeVisit
-                if not isinstance(v.time_in, VTime) or not v.time_in:
-                    msgs.append(f"Bad time_in '{v.time_in}' in a visit of '{v.tagid}'")
-                if v.time_out and not isinstance(v.time_out, VTime):
-                    msgs.append(
-                        f"Bad time_out '{v.time_out}' in a visit of '{v.tagid}'"
-                    )
-            return msgs
+        # ut.squawk("&&&" + str(self))
 
         errors = []
         # Look for missing or bad times and dates
@@ -355,16 +336,38 @@ class TrackerDay:
                     f"Opening time '{self.opening_time}' is not "
                     f"earlier than closing time '{self.closing_time}'"
                 )
-        # Look for poorly formed times and tags
-        errors += bad_tags(list(self.regular_tagids), "regular-tags")
-        errors += bad_tags(list(self.oversize_tagids), "oversize-tags")
-        errors += bad_tags(list(self.biketags.keys()), "biketags")
-        errors += bad_times()
-        # Look for duplicates in regular and oversize tags lists
-        if len(self.regular_tagids | self.oversize_tagids) != len(
-            self.regular_tagids
-        ) + len(self.oversize_tagids):
-            errors.append("Size mismatch between regular+oversize tags and their union")
+
+        # This seems to (sadly) repeat what I had previously written furhter below.
+        for tagid,biketag in self.biketags.items():
+            tagid:TagID
+            biketag:BikeTag
+            # ut.squawk("&&&" + f"{tagid=},{biketag.status=},{biketag.visits=}")
+            if not tagid:
+                errors.append( "No tagid for a BikeTag")
+            if tagid != TagID(tagid) or biketag.tagid != TagID(biketag.tagid):
+                errors.append( f"Poorly formed tagid for Biketag '{tagid}'")
+            if tagid != biketag.tagid:
+                errors.append(f"BikeTag {tagid} key does not match object tagid {biketag.tagid}")
+            if biketag.visits and biketag.status == biketag.RETIRED:
+                errors.append(f"Biketag {tagid} has visits but status is RETIRED.")
+            # Check that visits have good tagids and they match
+            for i,v in enumerate(biketag.visits,0):
+                v:BikeVisit
+                if v.tagid != tagid:
+                    errors.append(f"BikeTag {tagid} vist {i} tagid {v.tagid} does not match." )
+                if v.time_in != VTime(v.time_in) or v.time_out != VTime(v.time_out):
+                    errors.append(f"BikeTag {tagid} vist {i} has bad time(s): '{v.time_in}'/'{v.time_out}'." )
+                if v.time_in == "24:00" or v.time_out == "24:00":
+                    errors.append(f"BikeTag {tagid} visit {i} has a time == '24:00'.")
+            if biketag.visits:
+                v = biketag.latest_visit()
+                if biketag.status == biketag.DONE and not v.time_out:
+                    errors.append(f"BikeTag {tagid} is DONE but has no time_out." )
+                elif biketag.status == biketag.IN_USE and v.time_out:
+                    errors.append(f"BikeTag {tagid} is IN_USE but has a time_out." )
+                elif biketag.status == biketag.UNUSED:
+                    errors.append(f"BikeTag {tagid} is UNUSED but has visit(s)." )
+
         # Look for BikeTag inconsistencies:
         #   - DONE biketag with 0 visits or an unfinished visit
         #   - UNUSED or RETIRED biketag with visits
@@ -394,7 +397,7 @@ class TrackerDay:
             if biketag.status == BikeTag.IN_USE:
                 if latest_visit and latest_visit.time_out:
                     errors.append(
-                        f"BikeTag {tagid} is IN_USE but has a non-null last visit."
+                        f"BikeTag {tagid} is IN_USE but has a non-empty last visit check-out."
                     )
 
             # Any visit other than latest_visit having a null time_out
@@ -405,14 +408,14 @@ class TrackerDay:
                     )
 
         # Bikes that are not in the list of allowed bikes
-        _allowed_tags = (
-            self.regular_tagids | self.oversize_tagids
-        ) - self.retired_tagids
-        for tag in self.biketags:
-            if tag not in _allowed_tags:
-                errors.append(f"Tag {tag} not in use (not regular nor oversized)")
-            if tag in self.retired_tagids:
-                errors.append(f"Tag {tag} is marked as retired")
+        _allowed_tags = self.all_usable_tags()
+        for tag,biketag in self.biketags.items():
+            if biketag.status == biketag.RETIRED:
+                if tag not in self.retired_tagids:
+                    errors.append(f"Tag {tag} is RETIRED but not in retired list.")
+            elif tag not in _allowed_tags:
+                errors.append(f"Tag {tag} is status available but not so in config'd lists")
+
         return errors
 
     def earliest_event(self) -> VTime:
@@ -542,6 +545,7 @@ class TrackerDay:
             day.biketags[t].status = BikeTag.RETIRED
 
         # Add the visits
+        # FIXME: set the biketag.status fields
         for visit_data in data["bike_visits"]:
             tagid = TagID(visit_data["tagid"])
             time_in = VTime(visit_data["time_in"])
@@ -574,6 +578,8 @@ class TrackerDay:
         schema = TrackerDay.load_schema()
         TrackerDay.validate_data(data, schema)
 
+
+
         loaded_day = TrackerDay._day_from_json_dict(data, filepath)
         loaded_day.check_tagids_conformity()
         return loaded_day
@@ -596,7 +602,8 @@ class TrackerDay:
         """Parse tag IDs from a string and return as a set."""
         tag_ids = set()
         for tag_id in re.split(r"[\s,]+", tag_string):
-            tag_ids.add(tag_id.strip())
+            if tag_id.strip():
+                tag_ids.add(tag_id.strip())
         return tag_ids
 
     def set_taglists_from_config(self):
@@ -626,6 +633,48 @@ class TrackerDay:
         self.tagids_conform = True
         return True
 
+    def __repr__(self):
+
+        return "\n".join(self.dump(detailed=False))
+
+    def bikes_on_hand(self) -> int:
+        """How many bikes are present."""
+        return len([visit for visit in self.all_visits() if not visit.time_out])
+
+    def dump(self,detailed:bool=False) -> list[str]:
+        """Get info about this object."""
+
+        info = [f"TrackerDay for '{self.date}','{self.opening_time}'-'{self.closing_time}'"]
+        info.append(f"    BikeVisits: {len(self.all_visits())}")
+        info.append(f"    BikeTags: {len(self.biketags)}")
+
+        statuses = [b.status for b in self.biketags.values()]
+        status_counts = {}
+        for status in (BikeTag.UNUSED,BikeTag.IN_USE,BikeTag.DONE,BikeTag.RETIRED):
+            status_counts[status] = len([s for s in statuses if s == status])
+        info.append("        Statuses: " + ", ".join([f"{count} {status}" for status,count in status_counts.items()]))
+
+        types = [b.bike_type for b in self.biketags.values()]
+        type_counts = {}
+        for t in set(types):
+            type_counts[t] = len([k for k in types if k == t])
+        info.append("        Bike types: " + ", ".join([f"{count} {typ}" for typ,count in type_counts.items()]))
+
+        if not detailed:
+            return info
+
+        info.append("Detailed info now.... FIXME:")
+
+        return info
+
+
+def new_to_old(new:TrackerDay) -> OldTrackerDay:
+    """Perform a lossy conversion from new to old.
+
+    Some visits may be lost in th process, as this will
+    use only the most recent visit for any tag.
+    """
+    return None
 
 def old_to_new(old: OldTrackerDay) -> TrackerDay:
     """Convert an old Trackerday to a new one."""

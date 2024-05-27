@@ -59,14 +59,13 @@ HEADER_COLOURS = "Colour codes:"
 HEADER_NOTES = "Notes:"
 HEADER_REGISTRATIONS = "Registrations:"
 
-
 def datafile_name(folder: str, whatdate: str = "today") -> str:
     """Return the name of the data file (datafile) to read/write."""
     # Use default filename
     date = ut.date_str(whatdate)
     if not date:
         return ""
-    return f"{folder}/{cfg.DATA_BASENAME}{date}.dat"
+    return f"{folder}/{cfg.DATA_BASENAME}{date}.json"
 
 
 def write_datafile(datafile: str, content: list[str], make_bak: bool) -> bool:

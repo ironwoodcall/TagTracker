@@ -15,7 +15,7 @@ Copyright (c) 2024 Todd Glover & Julias Hocking
 from tt_tag import TagID
 from tt_time import VTime
 from tt_bikevisit import BikeVisit
-from tt_constants import REGULAR,OVERSIZE,UNKNOWN
+from tt_constants import REGULAR, OVERSIZE, UNKNOWN
 
 
 class BikeTagError(Exception):
@@ -31,27 +31,27 @@ class BikeTag:
 
     """
 
-    IN_USE = "_in_"
-    DONE = "_done"
-    UNUSED = "_unused_"
-    RETIRED = "_retired_"
+    IN_USE = "IN_USE"
+    DONE = "DONE"
+    UNUSED = "UNUSED"
+    RETIRED = "RETIRED"
 
     # all_biketags: dict[str, "BikeTag"] = {}
 
-    def __new__(cls, tagid: TagID, bike_type: str=UNKNOWN):
+    def __new__(cls, tagid: TagID, bike_type: str = UNKNOWN):
         # if tagid in cls.all_biketags:
         #     return cls.all_biketags[tagid]
         instance = super(BikeTag, cls).__new__(cls)
         return instance
 
-    def __init__(self, tagid: TagID, bike_type: str=UNKNOWN):
+    def __init__(self, tagid: TagID, bike_type: str = UNKNOWN):
         # if tagid in BikeTag.all_biketags:
         #     return
         self.tagid = tagid
         self.status = self.UNUSED
         self.visits: list[BikeVisit] = []
         self.bike_type = bike_type
-        if self.bike_type not in (REGULAR,OVERSIZE,UNKNOWN):
+        if self.bike_type not in (REGULAR, OVERSIZE, UNKNOWN):
             raise BikeTagError(f"Unknown bike type '{bike_type}' for {tagid}")
         # BikeTag.all_biketags[tagid] = self
 
@@ -74,37 +74,69 @@ class BikeTag:
             return self.visits[-1]
         return None
 
+    def previous_check_out(self) -> VTime:
+        """Get the check-out time from the next-to-last
+        visit.  If no visit, return "00:00".
+        """
+        if len(self.visits) > 1:
+            return self.visits[-2].time_out
+        else:
+            return VTime(0)
+
     # Higher-level command-fulfillment methods
 
-    def check_in(self, time: VTime):
-        """Check bike(s) in.  """
-        self.edit_in(time)
+    def check_in(self, bike_time: VTime):
+        """Check bike(s) in.
+
+        Can check in at the given time if:
+            - is DONE or UNUSED
+            - is not earlier that prior check-out
+
+        """
+        if self.status not in {self.DONE,self.UNUSED}:
+            raise BikeTagError(f"Tag {self.tagid} is already checked in or is retired.")
+        if self.status == self.DONE and bike_time < self.latest_visit().time_out:
+            raise BikeTagError(
+                f"Proposed check-in of {bike_time.short} for tag {self.tagid} "
+                "is earlier than prior check-out."
+            )
+        self.start_visit(bike_time)
 
     def check_out(self, time: VTime):
         if self.status == self.IN_USE:
             self.finish_visit(time)
 
-    def edit_in(self, time: VTime):
-        """Apply bike_time as a check-in time for this tag."""
-        if self.status == self.UNUSED:
-            self.start_visit(time)
-            self.status = self.IN_USE
-        elif self.status in [self.IN_USE, self.DONE] and len(self.visits) == 1:
+    def edit_in(self, bike_time: VTime):
+        """Apply bike_time check in to the most recent time for this tag."""
+        # No visit underway -- make a new visit.
+        if self.status in {self.UNUSED, self.RETIRED}:
+            raise BikeTagError(f"Tag {self.tagid} has no check-in to edit.")
+        elif self.status in [self.IN_USE, self.DONE]:
             latest_visit = self.latest_visit()
-            latest_visit.time_in = time
+            if bike_time < self.previous_check_out():
+                raise BikeTagError(
+                    f"Proposed check-in of {bike_time.short} for tag {self.tagid} "
+                    "is earlier than prior check-out."
+                )
+            # Ok to edit the time_in
+            latest_visit.time_in = bike_time
         else:
-            raise BikeTagError(f"Invalid state '{self.status}' for edit_in of '{self.tagid}'.")
+            raise BikeTagError(
+                f"Invalid state '{self.status}' for edit_in of '{self.tagid}'."
+            )
 
     def edit_out(self, time: VTime):
         if self.status == self.DONE:
             v = self.latest_visit()
             if v.time_in >= time:
-                raise BikeTagError(f"Tag {self.tagid}: checkout time must be later than check-in time {v.time_in}.")
+                raise BikeTagError(
+                    f"Tag {self.tagid}: Checkout time {time} must be later than check-in time {v.time_in}."
+                )
             v.time_out = time
         elif self.status == self.IN_USE:
             v = self.latest_visit()
             if v.time_in >= time:
-                raise BikeTagError("time_in must be less than time")
+                raise BikeTagError(f"Check-out time {time} for {self.tagid} must be later than check-in time.")
             self.finish_visit(time)
         else:
             raise BikeTagError("Invalid state for edit_out")

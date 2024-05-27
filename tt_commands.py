@@ -23,12 +23,15 @@ ARG_TEXT = "ARG_TEXT"
 ARG_YESNO = "ARG_YESNO"
 ARG_INOUT = "ARG_INOUT"
 
+
 class ArgConfig:
     """Configuration for one argument for one command."""
+
     def __init__(self, arg_type, optional=False, prompt=""):
         self.arg_type = arg_type
         self.optional = optional
         self.prompt = prompt
+
 
 # Status types for ParsedCommand
 PARSED_UNINITIALIZED = "PARSED_UNINITIALIZED"
@@ -37,6 +40,7 @@ PARSED_INCOMPLETE = "PARSED_INCOMPLETE"
 PARSED_OK = "PARSED_OK"
 PARSED_ERROR = "PARSED_ERROR"
 PARSED_CANCELLED = "PARSED_CANCELLED"
+
 
 class ParsedCommand:
     """The result of an attempt to parse an input string."""
@@ -56,7 +60,7 @@ class ParsedCommand:
             raise ValueError(f"unknown status for ParsedCommand: '{self.status}")
 
     def set_error(self, msg: str = "Parsing error."):
-        """Sets to error snextate with this message."""
+        """Sets to error state with this message."""
         self.status = PARSED_ERROR
         self.message = msg
 
@@ -67,13 +71,14 @@ class ParsedCommand:
         print(f"                .message     = '{self.message}'")
         print(f"                .result_args = '{self.result_args}'")
 
+
 # List of commands.  These are keys to COMMANDS dictionary
 class CmdKeys:
     CMD_EDIT = "EDIT"
     CMD_DELETE = "DELETE"
-    CMD_BIKE_IN = "BIKE_IN"     # Explicit
-    CMD_BIKE_OUT = "BIKE_OUT"   # Explicit
-    CMD_BIKE_INOUT = "(GUESS_IN_OR_OUT)"    # Guess, but won't re-use a tag.
+    CMD_BIKE_IN = "BIKE_IN"  # Explicit
+    CMD_BIKE_OUT = "BIKE_OUT"  # Explicit
+    CMD_BIKE_INOUT = "(GUESS_IN_OR_OUT)"  # Guess, but won't re-use a tag.
     CMD_NOTES = "NOTES"
     CMD_REGISTRATIONS = "CMD_REGISTRATIONS"
     CMD_RECENT = "RECENT"
@@ -95,9 +100,11 @@ class CmdKeys:
     CMD_EXIT = "EXIT"
     CMD_HELP = "HELP"
 
+
 # CmdConfig class
 class CmdConfig:
     """This is the parsing configuration for one command."""
+
     def __init__(self, invoke, arg_configs=None):
         self.invoke = invoke
         self.arg_configs = arg_configs or []
@@ -112,7 +119,7 @@ class CmdConfig:
 # NB: Always have the canonical invocation as the first member of the 'invoke' list.
 COMMANDS = {
     CmdKeys.CMD_QUERY: CmdConfig(
-        invoke=["query","/", "?", "q"],
+        invoke=["query", "/", "?", "q"],
         arg_configs=[ArgConfig(ARG_TAGS, optional=False, prompt="Query what tag(s)? ")],
     ),
     CmdKeys.CMD_DELETE: CmdConfig(
@@ -130,32 +137,40 @@ COMMANDS = {
         arg_configs=[
             ArgConfig(ARG_TAGS, optional=False, prompt="Edit what tag(s)? "),
             ArgConfig(ARG_INOUT, optional=False, prompt="Edit visit 'in' or 'out': "),
-            ArgConfig(
-                ARG_TIME, optional=False, prompt="New time (HHMM or 'now'): "
-            ),
+            ArgConfig(ARG_TIME, optional=False, prompt="New time (HHMM or 'now'): "),
         ],
     ),
     # InOut means guess whether to do BIKE_IN or BIKE_OUT.
     # It is invoked by typing one or more tags without a keyword.
     CmdKeys.CMD_BIKE_INOUT: CmdConfig(
-        invoke=["inout" ],
+        invoke=["inout"],
         arg_configs=[
-            ArgConfig(ARG_TAGS, optional=False,prompt="Check in or out bikes with what tag(s)? "),
+            ArgConfig(
+                ARG_TAGS,
+                optional=False,
+                prompt="Check in or out bikes with what tag(s)? ",
+            ),
         ],
     ),
     # This is the command to check a bike in, possibly reusing a tag.
     CmdKeys.CMD_BIKE_IN: CmdConfig(
-        invoke=["in","i", "reuse","check-in","checkin" ],
+        invoke=["in", "i", "reuse", "check-in", "checkin"],
         arg_configs=[
-            ArgConfig(ARG_TAGS, optional=False,prompt="Check in bike(s) using what tag(s)? "),
+            ArgConfig(
+                ARG_TAGS, optional=False, prompt="Check in bike(s) using what tag(s)? "
+            ),
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
     # This is the command to check a bike (only) out.
     CmdKeys.CMD_BIKE_OUT: CmdConfig(
-        invoke=["out","o", "check-out","checkout" ],
+        invoke=["out", "o", "check-out", "checkout"],
         arg_configs=[
-            ArgConfig(ARG_TAGS, optional=False,prompt="Check out bike(s) having what tag(s)? "),
+            ArgConfig(
+                ARG_TAGS,
+                optional=False,
+                prompt="Check out bike(s) having what tag(s)? ",
+            ),
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
@@ -166,19 +181,21 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
+    CmdKeys.CMD_DUMP: CmdConfig(
+        invoke=["dump"], arg_configs=[ArgConfig(ARG_TOKEN, optional=True)]
+    ),
     CmdKeys.CMD_NOTES: CmdConfig(
-        invoke=["note","notes","n"],
+        invoke=["note", "notes", "n"],
         arg_configs=[ArgConfig(ARG_TEXT, optional=True, prompt="")],
     ),
     # Registrations:  e.g. r or r + 1 or r +1... so 2 args total.
     CmdKeys.CMD_REGISTRATIONS: CmdConfig(
-        invoke=["registrations","registration","reg","r"],
+        invoke=["registrations", "registration", "reg", "r"],
         arg_configs=[
             ArgConfig(ARG_TOKEN, optional=True),
             ArgConfig(ARG_TOKEN, optional=True),
         ],
     ),
-
     CmdKeys.CMD_HELP: CmdConfig(invoke=["help", "h"]),
     CmdKeys.CMD_EXIT: CmdConfig(invoke=["exit", "ex", "x"]),
     # Add more COMMANDS!!!
@@ -196,7 +213,7 @@ def find_command(command_invocation):
 def prompt_user() -> str:
     """Prompt the user for input."""
     # Prompt
-    pr.iprint() # blank line above the prompt
+    pr.iprint()  # blank line above the prompt
     if cfg.INCLUDE_TIME_IN_PROMPT:
         pr.iprint(f"{VTime('now').short}", end="")
     pr.iprint(f"Bike tag or command {cfg.CURSOR}", style=k.PROMPT_STYLE, end="")
@@ -309,6 +326,7 @@ def _chunkize_for_one_arg(
 
     return parsed.status != PARSED_ERROR
 
+
 def _parse_user_command(user_str: str) -> ParsedCommand:
     """Parses user_str as a full command line."""
 
@@ -320,7 +338,6 @@ def _parse_user_command(user_str: str) -> ParsedCommand:
     if user_str[0] == "/":
         user_str = "query " + user_str[1:]
 
-
     # Break into parts
     parts = _tokenize(user_str)
     if not parts:
@@ -328,7 +345,7 @@ def _parse_user_command(user_str: str) -> ParsedCommand:
 
     # Special case: if first token is a tag, prepend 'inout' command.
     if TagID(parts[0]):
-        parts.insert(0,COMMANDS[CmdKeys.CMD_BIKE_INOUT].invoke[0])
+        parts.insert(0, COMMANDS[CmdKeys.CMD_BIKE_INOUT].invoke[0])
 
     # What command is this?
     what_command = find_command(parts[0])
@@ -370,11 +387,12 @@ def get_parsed_command() -> ParsedCommand:
             # Cancelled (no input)
             result.status = PARSED_CANCELLED
     if result.status == PARSED_CANCELLED:
-        pr.iprint("Cancelled",style=k.WARNING_STYLE)
+        pr.iprint("Cancelled", style=k.WARNING_STYLE)
     elif result.status == PARSED_ERROR:
-        pr.iprint(result.message,style=k.WARNING_STYLE)
+        pr.iprint(result.message, style=k.WARNING_STYLE)
 
     return result
+
 
 if __name__ == "__main__":
     while True:
@@ -382,6 +400,9 @@ if __name__ == "__main__":
         print()
         parsed_command = get_parsed_command()
         parsed_command.dump()
-        if parsed_command.command == CmdKeys.CMD_EXIT and parsed_command.status == PARSED_OK:
+        if (
+            parsed_command.command == CmdKeys.CMD_EXIT
+            and parsed_command.status == PARSED_OK
+        ):
             print("exiting")
             break

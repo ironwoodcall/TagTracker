@@ -33,16 +33,16 @@ MaybeDate = str
 
 # Constants to use as dictionary keys.
 
-TAG = chr(0x2192) + "tag"
+TAG = chr(0x2192) + "TAGID"
 BIKE_IN = chr(0x2192) + "bike_in"
 BIKE_OUT = chr(0x2192) + "bike_out"
 INOUT = chr(0x2192) + "inout"
 NOTES = chr(0x2192) + "notes"
-REGULAR = chr(0x2192) + "regular"
-OVERSIZE = chr(0x2192) + "oversize"
-MIXED = chr(0x2192) + "mixed"
-RETIRED = chr(0x2192) + "retired"
-USABLE = chr(0x2192) + "usable"
+REGULAR = chr(0x2192) + "REGULAR"
+OVERSIZE = chr(0x2192) + "OVERSIZE"
+MIXED = chr(0x2192) + "MIXED"
+RETIRED = chr(0x2192) + "RETIRED"
+USABLE = chr(0x2192) + "USABLE"
 TOTAL = chr(0x2192) + "total"
 COUNT = chr(0x2192) + "count"
 TIME = chr(0x2192) + "time"
@@ -52,7 +52,7 @@ COLOURS = chr(0x2192) + "colours"
 BADVALUE = chr(0x2192) + "badvalue"
 UPPERCASE = chr(0x2192) + "uppercase"
 LOWERCASE = chr(0x2192) + "lowercase"
-UNKNOWN = chr(0x2192) + "unknown"
+UNKNOWN = chr(0x2192) + "UNKNOWN"
 ON = chr(0x2192) + "on"
 OFF = chr(0x2192) + "off"
 ALERT = chr(0x2192) + "alert"
@@ -95,6 +95,7 @@ Information and reports
   Show tag configurations      :   TAGS
   Show chart of all activity   :   CHART
   Estimate further bikes       :   ESTIMATE
+  Detailed dump of today data  :   DUMP [full]
 
 Other
   Show this list of commands   :   HELP
