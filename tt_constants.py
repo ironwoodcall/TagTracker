@@ -68,47 +68,6 @@ DATE_FULL_RE = re.compile(r"^ *" + _DATE_RE + " *$")
 # How long a single time block is (minutes) - for charts/stats etc
 BLOCK_DURATION = 30
 
-# Help message.  Colour styles will be applied as:
-#       First non-blank line will be in TITLE_STYLE, after which
-#       lines that are flush left will be in SUBTITLE_STYLE; and
-#       all other lines will be in NORMAL_STYLE
-HELP_MESSAGE = """
-TagTracker Commands
-
-To enter and change tracking data
-  Check bike in (can reuse tag):  IN|USE <tag(s)> [time]
-  Check bike out               :  OUT <tag(s)> [time]
-  Guess about check in or out  :  <tag(s)>
-  Edit check in/out times      :  EDIT <tag(s)> <in|out> <time>
-  Delete a check in/out        :  DELETE <tag(s)> <in|out> <yes>
-  Change operating hours       :  HOURS
-  View/add operator notes      :  NOTE [note text]
-  View/set bike registrations  :  REGISTER [+n|-n|=n]
-
-Information and reports
-  Show info about one tag      :   QUERY <tag(s)>
-  Show recent activity         :   RECENT [time] [time]
-  Show audit info              :   AUDIT [time]
-  Show day-end stats report    :   STATS [time]
-  Show site busy-ness report   :   BUSY
-  Show data as on paper form   :   FORM
-  Show tag configurations      :   TAGS
-  Show chart of all activity   :   CHART
-  Estimate further bikes       :   ESTIMATE
-  Detailed dump of today data  :   DUMP [full]
-
-Other
-  Show this list of commands   :   HELP
-  Set tag display to UPPERCASE :   UC | UPPERCASE
-  Set tag display to lowercase :   LC | LOWECASE
-  Send reports to shared drive :   PUBLISH
-  Exit                         :   EXIT | x
-
-Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
-Parameters in angle brackets are mandatory, square brackets optional.
-Any <tag> parameter can be a single tag, or a list of tags.
-Time is in 24 hour time (eg '14:00' or '1400') or the word "now".
-"""
 
 
 # Styles related to colour
@@ -180,43 +139,3 @@ TAG_INV_BIKE_OUT = ("Ou", PROMPT_STYLE)
 TAG_INV_RETIRED = ("Re", WARNING_STYLE)
 TAG_INV_ERROR = ("!?", ERROR_STYLE)
 
-
-# COMMANDS = {}
-# COMMANDS[CMD_AUDIT] = ["audit", "a", "aud"]
-# COMMANDS[CMD_DELETE] = ["del", "delete", "d"]
-# COMMANDS[CMD_EDIT] = ["edit", "e", "ed"]
-# COMMANDS[CMD_EXIT] = ["quit", "exit", "stop", "x", "bye"]
-# COMMANDS[CMD_BLOCK] = ["log", "l", "form", "f"]
-# COMMANDS[CMD_HELP] = ["help", "h"]
-# COMMANDS[CMD_LOOKBACK] = ["recent", "rec"]
-# COMMANDS[CMD_QUERY] = ["query", "q", "?", "/"]
-# COMMANDS[CMD_STATS] = ["s", "stat", "stats", "statistics"]
-# COMMANDS[CMD_BUSY] = ["b", "busy", "busyness", "business"]
-# COMMANDS[CMD_HOURS] = ["hour", "hours", "v"]
-# COMMANDS[CMD_CSV] = ["csv"]
-# COMMANDS[CMD_UPPERCASE] = ["uc", "uppercase", "upper"]
-# COMMANDS[CMD_LOWERCASE] = ["lc", "lowercase", "lower"]
-# COMMANDS[CMD_LINT] = ["consistency", "consistent", "cons", "con"]
-# COMMANDS[CMD_DUMP] = ["dump"]
-# COMMANDS[CMD_BUSY_CHART] = [
-#     "chart-busy",
-#     "graph-busy",
-#     "busy-chart",
-#     "busy-graph",
-# ]
-# COMMANDS[CMD_FULL_CHART] = [
-#     "chart-full",
-#     "graph-full",
-#     "full-chart",
-#     "full-graph",
-# ]
-# COMMANDS[CMD_CHART] = ["chart", "c"]
-# COMMANDS[CMD_PUBLISH] = ["pub", "publish"]
-# COMMANDS[CMD_TAGS] = ["tag", "tags", "t"]
-# COMMANDS[CMD_NOTES] = ["note", "notes", "n"]
-# COMMANDS[CMD_REGISTRATION] = ["registrations", "register", "reg", "r"]
-# COMMANDS[CMD_ESTIMATE] = ["est", "estimate", "guess"]
-# # These are for commands that are not recognized so *maybe* are a tag
-# CMD_UNKNOWN = "unknown" + chr(12345)  # special value to mean unrecognized command
-# CMD_TAG_RETIRED = "tag_retired" + chr(12345)  # For a tag that's retired (not a command)
-# CMD_TAG_UNUSABLE = "tag_unusable" + chr(12345)

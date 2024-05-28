@@ -128,27 +128,6 @@ def splash_top_default():
             style=k.ANSWER_STYLE,
         )
 
-
-def show_help():
-    """Show help_message with colour style highlighting.
-
-    Prints first non-blank line as title;
-    lines that are flush-left as subtitles;
-    other lines in normal style.
-    """
-    title_done = False
-    for line in k.HELP_MESSAGE.split("\n"):
-        if not line:
-            pr.iprint()
-        elif not title_done:
-            title_done = True
-            pr.iprint(line, style=k.TITLE_STYLE)
-        elif line[0] != " ":
-            pr.iprint(line, style=k.SUBTITLE_STYLE)
-        else:
-            pr.iprint(line, style=k.NORMAL_STYLE)
-
-
 def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
     """Print notes."""
     notes_list = notes_obj.fetch()
@@ -268,14 +247,15 @@ def check_bike_time_reasonable(bike_time: VTime, day: TrackerDay) -> bool:
 
     TOLERANCE = 90  # minutes
 
-    if bike_time < opening.num - TOLERANCE or bike_time > closing.num + TOLERANCE:
-        pr.iprint(
-            f"Time ({bike_time.short}) is too far outside open hours.",
-            style=k.WARNING_STYLE,
-        )
-        NoiseMaker.play(k.ALERT)
-        return False
-    return True
+    if opening.num - TOLERANCE <= bike_time.num <= closing.num + TOLERANCE:
+        return True
+
+    pr.iprint(
+        f"Time ({bike_time.short}) is too far outside open hours ({opening.short}-{closing}).",
+        style=k.WARNING_STYLE,
+    )
+    NoiseMaker.play(k.ALERT)
+    return False
 
 
 def check_tagid_usable(tagid: TagID, today: TrackerDay) -> bool:
@@ -286,11 +266,16 @@ def check_tagid_usable(tagid: TagID, today: TrackerDay) -> bool:
 
     Returns True if usable, False if not.
     """
-    if tagid not in today.all_usable_tags():
-        pr.iprint(f"Tag {tagid.original} not available for use.", style=k.WARNING_STYLE)
-        NoiseMaker.play(k.ALERT)
-        return False
-    return True
+    if tagid in today.all_usable_tags():
+        return True
+
+    if tagid in today.retired_tagids:
+        msg = f"Tag {tagid} is retired."
+    else:
+        msg = f"No tag '{tagid.original}' available today."
+    pr.iprint(msg, style=k.WARNING_STYLE)
+    NoiseMaker.play(k.ALERT)
+    return False
 
 
 def data_owner_notice():

@@ -158,3 +158,42 @@ class BikeTag:
             self.status = self.IN_USE
         else:
             raise BikeTagError("Invalid state for delete_out")
+
+    def status_as_at(self, as_of_when: str = ""):
+        """Return the status as of a particular time."""
+        # Return RETIRED status if the current status is RETIRED
+        if self.status == self.RETIRED:
+            return self.RETIRED
+
+        # Return UNUSED if there are no visits or the first visit is after the given time
+        if not self.visits or self.visits[0].time_in > as_of_when:
+            return self.UNUSED
+
+        # Iterate through to see if this is IN_USE
+        for i, visit in enumerate(self.visits):
+            if visit.time_in < as_of_when and visit.time_out and as_of_when < visit.time_out:
+                return self.IN_USE
+            if visit.time_in < as_of_when and not visit.time_out:
+                return self.IN_USE
+        # Not in use, so must be DONE
+        return self.DONE
+
+        # # Iterate over visits to determine the status at the given time
+        # for i, visit in enumerate(self.visits):
+        #     if visit.time_in <= as_of_when:
+        #         # If there's no time_out, the status is IN_USE
+        #         if not visit.time_out:
+        #             return self.IN_USE
+
+        #         # If time_out is after or equal to as_of_when, check further conditions
+        #         if visit.time_out >= as_of_when:
+        #             # If it's the last visit, the status is DONE
+        #             if i == len(self.visits) - 1:
+        #                 return self.DONE
+
+        #             # If the next visit's time_in is after as_of_when, the status is DONE
+        #             if as_of_when < self.visits[i + 1].time_in:
+        #                 return self.DONE
+
+        # # If no conditions match, return the default status (assuming IN_USE as default)
+        # return self.IN_USE

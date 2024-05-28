@@ -74,31 +74,32 @@ class ParsedCommand:
 
 # List of commands.  These are keys to COMMANDS dictionary
 class CmdKeys:
-    CMD_EDIT = "EDIT"
-    CMD_DELETE = "DELETE"
-    CMD_BIKE_IN = "BIKE_IN"  # Explicit
-    CMD_BIKE_OUT = "BIKE_OUT"  # Explicit
-    CMD_BIKE_INOUT = "(GUESS_IN_OR_OUT)"  # Guess, but won't re-use a tag.
-    CMD_NOTES = "NOTES"
-    CMD_REGISTRATIONS = "CMD_REGISTRATIONS"
-    CMD_RECENT = "RECENT"
     CMD_AUDIT = "AUDIT"
-    CMD_QUERY = "QUERY"
-    CMD_STATS = "STATS"
+    CMD_BIKE_IN = "BIKE_IN"  # Explicit
+    CMD_BIKE_INOUT = "BIKE_INOUT"  # Guess, but won't re-use a tag.
+    CMD_BIKE_OUT = "BIKE_OUT"  # Explicit
     CMD_BUSY = "BUSY"
-    CMD_HOURS = "HOURS"
-    CMD_UPPERCASE = "UPPERCASE"
-    CMD_LOWERCASE = "LOWERCASE"
-    CMD_LINT = "LINT"
-    CMD_DUMP = "DUMP"
     CMD_BUSY_CHART = "BUSY_CHART"
-    CMD_FULL_CHART = "FULLNESS_CHART"
     CMD_CHART = "CHART"
-    CMD_PUBLISH = "PUBLISH"
-    CMD_TAGS = "TAGS"
+    CMD_DELETE = "DELETE"
+    CMD_DUMP = "DUMP"
+    CMD_EDIT = "EDIT"
     CMD_ESTIMATE = "ESTIMATE"
     CMD_EXIT = "EXIT"
+    CMD_DATAFORM = "DATAFORM"
+    CMD_FULL_CHART = "FULLNESS_CHART"
     CMD_HELP = "HELP"
+    CMD_HOURS = "HOURS"
+    CMD_LINT = "LINT"
+    CMD_LOWERCASE = "LOWERCASE"
+    CMD_NOTES = "NOTES"
+    CMD_PUBLISH = "PUBLISH"
+    CMD_QUERY = "QUERY"
+    CMD_RECENT = "RECENT"
+    CMD_REGISTRATIONS = "REGISTRATIONS"
+    CMD_STATS = "STATS"
+    CMD_TAGS = "TAGS"
+    CMD_UPPERCASE = "UPPERCASE"
 
 
 # CmdConfig class
@@ -118,26 +119,20 @@ class CmdConfig:
 # Optional args may not precede mandatory args.
 # NB: Always have the canonical invocation as the first member of the 'invoke' list.
 COMMANDS = {
-    CmdKeys.CMD_QUERY: CmdConfig(
-        invoke=["query", "/", "?", "q"],
-        arg_configs=[ArgConfig(ARG_TAGS, optional=False, prompt="Query what tag(s)? ")],
-    ),
-    CmdKeys.CMD_DELETE: CmdConfig(
-        invoke=["delete", "del", "d"],
+    CmdKeys.CMD_AUDIT: CmdConfig(
+        invoke=["audit", "a", "aud"],
         arg_configs=[
-            ArgConfig(
-                ARG_TAGS, optional=False, prompt="Delete check in/out for what tag(s)? "
-            ),
-            ArgConfig(ARG_INOUT, optional=False, prompt="Enter 'in' or 'out': "),
-            ArgConfig(ARG_YESNO, optional=False, prompt="Enter 'y' to confirm: "),
+            ArgConfig(ARG_TIME, optional=True),
         ],
     ),
-    CmdKeys.CMD_EDIT: CmdConfig(
-        invoke=["edit", "ed", "e"],
+    # This is the command to check a bike in, possibly reusing a tag.
+    CmdKeys.CMD_BIKE_IN: CmdConfig(
+        invoke=["in", "i", "reuse", "check-in", "checkin"],
         arg_configs=[
-            ArgConfig(ARG_TAGS, optional=False, prompt="Edit what tag(s)? "),
-            ArgConfig(ARG_INOUT, optional=False, prompt="Edit visit 'in' or 'out': "),
-            ArgConfig(ARG_TIME, optional=False, prompt="New time (HHMM or 'now'): "),
+            ArgConfig(
+                ARG_TAGS, optional=False, prompt="Check in bike(s) using what tag(s)? "
+            ),
+            ArgConfig(ARG_TIME, optional=True),
         ],
     ),
     # InOut means guess whether to do BIKE_IN or BIKE_OUT.
@@ -152,16 +147,6 @@ COMMANDS = {
             ),
         ],
     ),
-    # This is the command to check a bike in, possibly reusing a tag.
-    CmdKeys.CMD_BIKE_IN: CmdConfig(
-        invoke=["in", "i", "reuse", "check-in", "checkin"],
-        arg_configs=[
-            ArgConfig(
-                ARG_TAGS, optional=False, prompt="Check in bike(s) using what tag(s)? "
-            ),
-            ArgConfig(ARG_TIME, optional=True),
-        ],
-    ),
     # This is the command to check a bike (only) out.
     CmdKeys.CMD_BIKE_OUT: CmdConfig(
         invoke=["out", "o", "check-out", "checkout"],
@@ -174,6 +159,78 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
+    CmdKeys.CMD_BUSY: CmdConfig(
+        invoke=["busy", "b"],
+        arg_configs=[
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_BUSY_CHART: CmdConfig(
+        invoke=["busy-chart", "busy_chart"],
+        arg_configs=[
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_CHART: CmdConfig(
+        invoke=["chart", "c", "ch"],
+        arg_configs=[
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_DATAFORM: CmdConfig(
+        invoke=["dataform", "form"],
+        arg_configs=[
+            ArgConfig(ARG_TIME, optional=True),
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_DELETE: CmdConfig(
+        invoke=["delete", "del", "d"],
+        arg_configs=[
+            ArgConfig(
+                ARG_TAGS, optional=False, prompt="Delete check in/out for what tag(s)? "
+            ),
+            ArgConfig(ARG_INOUT, optional=False, prompt="Enter 'in' or 'out': "),
+            ArgConfig(ARG_YESNO, optional=False, prompt="Enter 'y' to confirm: "),
+        ],
+    ),
+    CmdKeys.CMD_DUMP: CmdConfig(
+        invoke=["dump"], arg_configs=[ArgConfig(ARG_TOKEN, optional=True)]
+    ),
+    CmdKeys.CMD_EDIT: CmdConfig(
+        invoke=["edit", "ed", "e"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Edit what tag(s)? "),
+            ArgConfig(ARG_INOUT, optional=False, prompt="Edit visit 'in' or 'out': "),
+            ArgConfig(ARG_TIME, optional=False, prompt="New time (HHMM or 'now'): "),
+        ],
+    ),
+    CmdKeys.CMD_ESTIMATE: CmdConfig(invoke=["estimate", "est"]),
+    CmdKeys.CMD_EXIT: CmdConfig(invoke=["exit", "ex", "x"]),
+    CmdKeys.CMD_FULL_CHART: CmdConfig(
+        invoke=["fullness-chart", "full-chart", "fullness_chart", "full_chart"],
+        arg_configs=[
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_HELP: CmdConfig(
+        invoke=["help", "h"],
+        arg_configs=[
+            ArgConfig(ARG_TOKEN, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_HOURS: CmdConfig(invoke=["hours", "hour", "open"]),
+    CmdKeys.CMD_LINT: CmdConfig(invoke=["lint"]),
+    CmdKeys.CMD_LOWERCASE: CmdConfig(invoke=["lc", "lowercase"]),
+    CmdKeys.CMD_NOTES: CmdConfig(
+        invoke=["note", "notes", "n"],
+        arg_configs=[ArgConfig(ARG_TEXT, optional=True, prompt="")],
+    ),
+    CmdKeys.CMD_PUBLISH: CmdConfig(invoke=["publish", "pub"]),
+    CmdKeys.CMD_QUERY: CmdConfig(
+        invoke=["query", "q", "?", "/"],
+        arg_configs=[ArgConfig(ARG_TAGS, optional=False, prompt="Query what tag(s)? ")],
+    ),
     CmdKeys.CMD_RECENT: CmdConfig(
         invoke=["recent", "rec"],
         arg_configs=[
@@ -181,24 +238,22 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
-    CmdKeys.CMD_DUMP: CmdConfig(
-        invoke=["dump"], arg_configs=[ArgConfig(ARG_TOKEN, optional=True)]
-    ),
-    CmdKeys.CMD_NOTES: CmdConfig(
-        invoke=["note", "notes", "n"],
-        arg_configs=[ArgConfig(ARG_TEXT, optional=True, prompt="")],
-    ),
     # Registrations:  e.g. r or r + 1 or r +1... so 2 args total.
     CmdKeys.CMD_REGISTRATIONS: CmdConfig(
-        invoke=["registrations", "registration", "reg", "r"],
+        invoke=["registrations", "registration", "register", "reg", "r"],
         arg_configs=[
             ArgConfig(ARG_TOKEN, optional=True),
             ArgConfig(ARG_TOKEN, optional=True),
         ],
     ),
-    CmdKeys.CMD_HELP: CmdConfig(invoke=["help", "h"]),
-    CmdKeys.CMD_EXIT: CmdConfig(invoke=["exit", "ex", "x"]),
-    # Add more COMMANDS!!!
+    CmdKeys.CMD_STATS: CmdConfig(
+        invoke=["statistics", "stats", "s"],
+        arg_configs=[
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_TAGS: CmdConfig(invoke=["tags", "tag", "t"]),
+    CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
 }
 
 
@@ -207,7 +262,7 @@ def find_command(command_invocation):
     for command, conf in COMMANDS.items():
         if conf.matches(command_invocation):
             return command
-    return None
+    return ""
 
 
 def prompt_user() -> str:

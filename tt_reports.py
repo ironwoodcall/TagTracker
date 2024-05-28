@@ -366,7 +366,8 @@ def visit_statistics_report(visits: dict) -> None:
             durations_list, category_width=MODE_ROUND_TO_NEAREST
         )
         modes_str = ",".join(modes)
-        modes_str = f"{modes_str}  ({mode_occurences} occurences; {MODE_ROUND_TO_NEAREST} minute categories)"
+        modes_str = (f"{modes_str}  ({mode_occurences} occurences; "
+        "{MODE_ROUND_TO_NEAREST} minute categories)")
         one_line("Mode visit:", modes_str)
 
     def make_tags_str(tags: list[TagID]) -> str:
