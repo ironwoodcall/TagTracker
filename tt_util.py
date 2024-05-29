@@ -29,10 +29,9 @@ import re
 import collections
 import random
 import string
-
+import client_base_config as cfg
 from tt_time import VTime
 from tt_tag import TagID
-
 
 def find_on_path(filename):
     """Check if filename exists, including anywhere in system PATH.
@@ -63,7 +62,7 @@ def top_level_script() -> str:
     whether or not it is being called by the tagtracker desktop
     (data entry) script."""
 
-    frame = sys._getframe()
+    frame = sys._getframe() #pylint: disable=protected-access
     while frame.f_back:
         frame = frame.f_back
     top = frame.f_globals.get("__file__", None)
@@ -71,22 +70,27 @@ def top_level_script() -> str:
     return top
 
 
-def squawk(whatever: str = "") -> None:
+def squawk(whatever: str = "",yes_print_this:bool=True) -> str:
     """Print whatever with file & linenumber in front of it.
 
     This is intended for programming errors not prettiness.
+
+    Will only print if yes_print_this is True. (This flag is meant
+    to allow squawk to be sensitive to a DEBUG flag)
 
     Additional caller info:
         caller_path = f.f_globals['__file__'] (though fails if squawk()
             called from interpreter, as __file__ not in globals at that point)
         caller_file = os.path.basename(caller_path)
     """
+    if not yes_print_this:
+        return
+
     f = sys._getframe(1)  # pylint:disable=protected-access
     caller_module = f.f_globals["__name__"]
     caller_function = f.f_code.co_name
     caller_line_no = f.f_lineno
     print(f"{caller_module}:{caller_function}():{caller_line_no}: {whatever}")
-
 
 def decomment(string: str) -> str:
     """Remove any part of the string that starts with '#'."""

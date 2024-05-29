@@ -14,15 +14,17 @@ from tt_tag import TagID
 import tt_printer as pr
 import client_base_config as cfg
 import tt_constants as k
+import tt_sounds
+from tt_util import squawk
 
 # Types of argument validations (arg_type)
-ARG_TAGS = "ARG_TAGS"
-ARG_TIME = "ARG_TIME"
-ARG_TOKEN = "ARG_TOKEN"
-ARG_TEXT = "ARG_TEXT"
-ARG_YESNO = "ARG_YESNO"
-ARG_INOUT = "ARG_INOUT"
-
+ARG_TAGS = "ARG_TAGS"       # Returns list of 1+ TagID()
+ARG_TIME = "ARG_TIME"       # Returns valid VTime()
+ARG_TOKEN = "ARG_TOKEN"     # Returns any whitespace-delimited token
+ARG_TEXT = "ARG_TEXT"       # Returns all remaining tokens, space separated
+ARG_YESNO = "ARG_YESNO"     # Returns "y" or "n"
+ARG_INOUT = "ARG_INOUT"     # Returns "i" or "o"
+ARG_ONOFF = "ARG_ONOFF"     # Returns True or False
 
 class ArgConfig:
     """Configuration for one argument for one command."""
@@ -81,6 +83,7 @@ class CmdKeys:
     CMD_BUSY = "BUSY"
     CMD_BUSY_CHART = "BUSY_CHART"
     CMD_CHART = "CHART"
+    CMD_DEBUG = "DEBUG"
     CMD_DELETE = "DELETE"
     CMD_DUMP = "DUMP"
     CMD_EDIT = "EDIT"
@@ -184,6 +187,12 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
+    CmdKeys.CMD_DEBUG: CmdConfig(
+        invoke=["debug","deb"],
+        arg_configs=[
+            ArgConfig(ARG_ONOFF, optional=False,prompt="on or off? "),
+        ],
+    ),
     CmdKeys.CMD_DELETE: CmdConfig(
         invoke=["delete", "del", "d"],
         arg_configs=[
@@ -229,7 +238,9 @@ COMMANDS = {
     CmdKeys.CMD_PUBLISH: CmdConfig(invoke=["publish", "pub"]),
     CmdKeys.CMD_QUERY: CmdConfig(
         invoke=["query", "q", "?", "/"],
-        arg_configs=[ArgConfig(ARG_TAGS, optional=False, prompt="Query what tag(s)? ")],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Query what tag(s)? "),
+        ],
     ),
     CmdKeys.CMD_RECENT: CmdConfig(
         invoke=["recent", "rec"],
@@ -279,7 +290,7 @@ def prompt_user() -> str:
 def subprompt_user(prompt: str) -> str:
     """Prompt user for information to complete an incomplete command."""
     pr.iprint(
-        f"{prompt} {cfg.CURSOR}",
+        f"   {prompt} ",
         style=k.SUBPROMPT_STYLE,
         end="",
     )
@@ -297,7 +308,6 @@ def _subprompt_text(current: ParsedCommand) -> str:
     s = cmd_conf.arg_configs[len(current.result_args)].prompt
     return s
 
-
 def _chunkize_for_one_arg(
     arg_parts: list[str],
     arg_conf: ArgConfig,
@@ -312,6 +322,8 @@ def _chunkize_for_one_arg(
 
     Returns False if ParsedCommand has gone to error state, else True.
     """
+
+    squawk(f"{arg_parts=}",cfg.DEBUG)
 
     # Out of input to process?
     if not arg_parts:
@@ -331,6 +343,17 @@ def _chunkize_for_one_arg(
     elif arg_conf.arg_type == ARG_YESNO:
         if arg_parts[0].lower() in {"yes", "no", "y", "n"}:
             parsed.result_args.append(arg_parts[0][0])
+            if arg_parts:
+                del arg_parts[0]
+        else:
+            parsed.status = PARSED_ERROR
+            parsed.message = (
+                f"Unrecognized parameter '{arg_parts[0]}' (must be 'yes' or 'no')."
+            )
+    elif arg_conf.arg_type == ARG_ONOFF:
+        test = arg_parts[0].lower()
+        if test in {"on", "off", "true", "false", "yes", "no", "y", "n"}:
+            parsed.result_args.append(test in {"on","true","yes"})
             if arg_parts:
                 del arg_parts[0]
         else:
@@ -385,7 +408,7 @@ def _chunkize_for_one_arg(
 def _parse_user_command(user_str: str) -> ParsedCommand:
     """Parses user_str as a full command line."""
 
-    # print(f"  _parse_user_command has {user_str=}")
+    squawk(f"  _parse_user_command has {user_str=}",cfg.DEBUG)
     if not user_str:
         return ParsedCommand(status=PARSED_EMPTY)
 
@@ -402,20 +425,31 @@ def _parse_user_command(user_str: str) -> ParsedCommand:
     if TagID(parts[0]):
         parts.insert(0, COMMANDS[CmdKeys.CMD_BIKE_INOUT].invoke[0])
 
+
     # What command is this?
     what_command = find_command(parts[0])
     if not what_command:
-        return ParsedCommand(status=PARSED_ERROR, message="Unrecognized command.")
-
+        return ParsedCommand(
+            status=PARSED_ERROR, message="Unrecognized command. Enter 'help' for help."
+        )
     cmd_config = COMMANDS[what_command]
-
     arg_parts = parts[1:]  # These are the potential arguments
-
-    # This command takes some arguments
     parsed = ParsedCommand(command=what_command)
-    parsed.status = PARSED_OK  # FIXME: Ugh? But works?
+
+
+    # Parse arguments to this command.
+    # Want to go through the arg configs until we know
+    # we are in error, are out out args
+    parsed.status = PARSED_OK  # Assume ok
     for this_arg_config in cmd_config.arg_configs:
-        if not _chunkize_for_one_arg(arg_parts, this_arg_config, parsed):
+        this_arg_config: ArgConfig
+        # if not this_arg_config.optional:
+        # parsed.status = PARSED_INCOMPLETE   # FIXME: needed?
+        # _chunkize returns with status set
+        # if not _chunkize_for_one_arg(arg_parts, this_arg_config, parsed):
+        _chunkize_for_one_arg(arg_parts, this_arg_config, parsed)
+        squawk(f"returns from _chunkuze with {parsed.status=}",cfg.DEBUG)
+        if parsed.status in (PARSED_ERROR,PARSED_INCOMPLETE):
             break
 
     # There should now be no arg_parts left
@@ -445,6 +479,7 @@ def get_parsed_command() -> ParsedCommand:
         pr.iprint("Cancelled", style=k.WARNING_STYLE)
     elif result.status == PARSED_ERROR:
         pr.iprint(result.message, style=k.WARNING_STYLE)
+        tt_sounds.NoiseMaker.play(k.ALERT)
 
     return result
 

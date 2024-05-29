@@ -2,10 +2,13 @@
     "//": "Schema for TagTracker daily data file",
     "//": "Copyright 2024 Todd Glover",
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "type": "object",
     "properties": {
       "site_name": {
+        "type": "string"
+      },
+      "site_label": {
         "type": "string"
       },
       "date": {
@@ -75,5 +78,5 @@
         "type": "integer"
       }
     },
-    "required": ["site_name", "date", "opening_time", "closing_time"]
+    "required": ["site_name", "site_label","date", "opening_time", "closing_time"]
   }

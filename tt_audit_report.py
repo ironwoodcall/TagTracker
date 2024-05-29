@@ -47,47 +47,45 @@ import tt_reports as rep
 #         pr.iprint("There are no notes yet today.", num_indents=2)
 
 
-# def inout_summary(day: OldTrackerDay, as_of_when: VTime = VTime("")) -> None:
-#     """Print summary table of # of bikes in, out and still onsite."""
-#     # Count the totals
-#     visits = Stay.calc_stays(day, as_of_when=as_of_when)
-#     bikes_on_hand = [v.tag for v in visits.values() if v.still_here]
-#     ##print(' '.join(bikes_on_hand))
-#     num_bikes_on_hand = len(bikes_on_hand)
-#     regular_in = 0
-#     regular_out = 0
-#     oversize_in = 0
-#     oversize_out = 0
-#     for v in visits.values():
-#         if v.type == k.REGULAR:
-#             regular_in += 1
-#             if not v.still_here:
-#                 regular_out += 1
-#         elif v.type == k.OVERSIZE:
-#             oversize_in += 1
-#             if not v.still_here:
-#                 oversize_out += 1
+def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
+    """Print summary table of # of bikes in, out and still onsite."""
+    # # Count the totals
 
-#     sum_in = regular_in + oversize_in
-#     sum_out = regular_out + oversize_out
-#     sum_on_hand = regular_in + oversize_in - regular_out - oversize_out
+    total_in, regular_in, oversize_in = day.num_bikes_parked(as_of_when)
+    total_out, regular_out, oversize_out = day.num_bikes_returned(as_of_when)
+    # for biketag in day.biketags.values():
+    #     regular_in += len([v for v in biketag.visits if v.time_in <= as_of_when if biketag.bike_type == k.REGULAR])
+    #     oversize_in += len([v for v in biketag.visits if v.time_in <= as_of_when if biketag.bike_type == k.OVERSIZE])
+    #     regular_out += len([v for v in biketag.visits if as_of_when <= v.time_out if biketag.bike_type == k.REGULAR])
+    #     oversize_out += len([v for v in biketag.visits if as_of_when <= v.time_out if biketag.bike_type == k.OVERSIZE])
+    # total_in = regular_in + oversize_in
+    # total_out = regular_out + oversize_out
 
-#     # Print summary of bikes in/out/here
-#     pr.iprint()
-#     pr.iprint("Summary             Regular Oversize Total", style=k.SUBTITLE_STYLE)
-#     pr.iprint(
-#         f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}" f"    {sum_in:4d}"
-#     )
-#     pr.iprint(
-#         f"Bikes returned out:   {regular_out:4d}    {oversize_out:4d}"
-#         f"    {sum_out:4d}"
-#     )
-#     pr.iprint(
-#         f"Bikes onsite:         {(regular_in-regular_out):4d}"
-#         f"    {(oversize_in-oversize_out):4d}    {sum_on_hand:4d}"
-#     )
-#     if sum_on_hand != num_bikes_on_hand:
-#         ut.squawk(f"inout_summary() {num_bikes_on_hand=} != {sum_on_hand=}")
+    # Count bikes currently onsite
+    regular_onsite = 0
+    oversize_onsite = 0
+    for tagid in day.tags_in_use(as_of_when=as_of_when):
+        if day.biketags[tagid].bike_type == k.REGULAR:
+            regular_onsite += 1
+        else:
+            oversize_onsite += 1
+    total_onsite = regular_onsite + oversize_onsite
+    ut.squawk(f"{total_onsite=}, {day.num_tags_in_use(as_of_when)=}",cfg.DEBUG)
+
+    # Print summary of bikes in/out/here
+    pr.iprint()
+    pr.iprint("Summary             Regular Oversize Total", style=k.SUBTITLE_STYLE)
+    pr.iprint(
+        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}" f"    {total_in:4d}"
+    )
+    pr.iprint(
+        f"Bikes returned out:   {regular_out:4d}    {oversize_out:4d}"
+        f"    {total_out:4d}"
+    )
+    pr.iprint(
+        f"Bikes onsite:         {(regular_onsite):4d}"
+        f"    {(oversize_onsite):4d}    {total_onsite:4d}"
+    )
 
 
 def audit_report(
@@ -127,7 +125,7 @@ def audit_report(
     # rep.later_events_warning(day, as_of_when)
 
     # Summary of bikes in a& bikes out
-    # inout_summary(day, as_of_when)
+    inout_summary(day, as_of_when)
 
     # Want list of biketags on hand and those returned but not reused
     tags_in_use = day.tags_in_use(as_of_when=as_of_when)
@@ -173,7 +171,7 @@ def audit_report(
     # Bikes returned out -- tags matrix.
     if include_returns:
         pr.iprint()
-        pr.iprint("Bikes returned", style=k.SUBTITLE_STYLE)
+        pr.iprint("Tags available for re-use", style=k.SUBTITLE_STYLE)
         for prefix in sorted(prefixes_returned_out.keys()):
             numbers = prefixes_returned_out[prefix]
             line = f"{prefix:3>} "

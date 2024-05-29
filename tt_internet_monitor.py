@@ -41,6 +41,7 @@ import urllib.error
 import socket
 import random
 import string
+import http.client
 
 import tt_constants as k
 import client_base_config as cfg
@@ -227,7 +228,12 @@ class InternetMonitor:
             with urllib.request.urlopen(req, timeout=10) as response:
                 html = response.read().decode("utf-8")
                 return random_string in html
-        except (urllib.error.HTTPError, urllib.error.URLError, socket.timeout):
+        except (
+            urllib.error.HTTPError,
+            urllib.error.URLError,
+            socket.timeout,
+            http.client.RemoteDisconnected,
+        ):
             return False
 
     @classmethod

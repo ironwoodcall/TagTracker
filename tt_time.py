@@ -48,7 +48,7 @@ class VTime(str):
         time_str,time_int = cls._convert_time(maybe_time, allow_large)
         this = super().__new__(cls, time_str)
         this.num = time_int
-        this.tidy = time_str.replace('0', '', 1) if time_str.startswith('0') else time_str
+        this.tidy = time_str.replace('0', ' ', 1) if time_str.startswith('0') else time_str
         this.short = time_str[1:] if time_str.startswith('0') else time_str
         this.original = str(maybe_time).strip()
         return this

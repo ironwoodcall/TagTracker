@@ -59,7 +59,8 @@ import tt_publish as pub
 import tt_help
 
 import tt_audit_report as aud
-# import tt_reports as rep
+
+import tt_reports as rep
 # import tt_tag_inv as inv
 # import tt_notes as notes
 
@@ -70,6 +71,7 @@ from tt_commands import (
     get_parsed_command,
     PARSED_OK,
     PARSED_CANCELLED,
+    PARSED_EMPTY,
     COMMANDS,
 )
 import tt_call_estimator
@@ -506,20 +508,18 @@ def dump_data_command(today: TrackerDay, args: list):
             pr.iprint(value)
 
 
-def estimate(args: list[str]) -> None:
+def estimate(today:TrackerDay) -> None:
     """Estimate how many more bikes.
-    Args:
-        bikes_so_far: default current bikes so far
-        as_of_when: default right now
-        dow: default today (else 1..7 or a date)
-        closing_time: default - today's closing time
+    # Args:
+    #     bikes_so_far: default current bikes so far
+    #     as_of_when: default right now
+    #     dow: default today (else 1..7 or a date)
+    #     closing_time: default - today's closing time
     """
-    args += [""] * 4
-
     pr.iprint()
     pr.iprint("Estimating...")
     # time.sleep(1)
-    message_lines = tt_call_estimator.get_estimate_via_url(pack_day_data(), *args[:4])
+    message_lines = tt_call_estimator.get_estimate_via_url(today)
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
     pr.iprint()
@@ -534,7 +534,7 @@ def estimate(args: list[str]) -> None:
 def bikes_on_hand_reminder(day: TrackerDay) -> None:
     """Remind how many bikes should be present, if close to closing time."""
     if day.closing_time.num - VTime("now").num < 60:  # last hour
-        num_bikes = day.tags_in_use("now")
+        num_bikes = len(day.tags_in_use("now"))
         pr.iprint(
             f"There should currently be {num_bikes} {ut.plural(num_bikes,'bike')}"
             " here.",
@@ -545,10 +545,13 @@ def bikes_on_hand_reminder(day: TrackerDay) -> None:
 def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
     """Process the command.  Return True if data has (probably) changed."""
 
-    #ut.squawk(f"Entering process_command: {cmd_bits.status=},{cmd_bits.command=},{cmd_bits.result_args=}")
+    if cmd_bits.status == PARSED_EMPTY:
+        return False
 
     if cmd_bits.status != PARSED_OK:
-        ut.squawk(f"Unexpected {cmd_bits.status=},{cmd_bits.command=},{cmd_bits.result_args=}")
+        ut.squawk(
+            f"Unexpected {cmd_bits.status=},{cmd_bits.command=},{cmd_bits.result_args=}"
+        )
         return False
 
     # Even though 'OK', there might still be a message (e.g. warning of duplicate
@@ -569,6 +572,9 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
         tt_help.help_command(args)
 
     # Things that can change data
+    elif cmd == CmdKeys.CMD_DEBUG:
+        cfg.DEBUG = args[0]
+        pr.iprint(f"DEBUG is now {cfg.DEBUG}")
     elif cmd == CmdKeys.CMD_DELETE:
         # Delete a check-in or check-out
         data_changed = delete_event(args=args, today=today)
@@ -613,8 +619,8 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
     elif cmd_bits.command == CmdKeys.CMD_AUDIT:
         aud.audit_report(today, cmd_bits.result_args, include_returns=True)
         publishment.publish_audit(pack_day_data(), cmd_bits.result_args)
-    # elif cmd_bits.command == CmdKeys.CMD_RECENT:
-    #     rep.recent(pack_day_data(), cmd_bits.result_args)
+    elif cmd_bits.command == CmdKeys.CMD_RECENT:
+        rep.recent(today, args)
     # elif cmd_bits.command == CmdKeys.CMD_TAGS:
     #     inv.tags_config_report(pack_day_data(), cmd_bits.result_args, False)
     # elif cmd_bits.command == CmdKeys.CMD_STATS:
@@ -636,9 +642,9 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
         dump_data_command(today=today, args=args)
     elif cmd_bits.command == CmdKeys.CMD_LINT:
         # FIXME: this is done
-        lint_report(today=today, strict_datetimes=True,chatty=True)
-    # elif cmd_bits.command == CmdKeys.CMD_ESTIMATE:
-    #     estimate(cmd_bits.result_args)
+        lint_report(today=today, strict_datetimes=True, chatty=True)
+    elif cmd_bits.command == CmdKeys.CMD_ESTIMATE:
+         estimate(today=today)
 
     # # Things that operate on the larger environment
     # elif cmd_bits.command == CmdKeys.CMD_PUBLISH:
@@ -676,7 +682,7 @@ def main_loop(today: TrackerDay):
             done = True
             continue
         # If null input, just ignore
-        if cmd_bits.status == PARSED_CANCELLED:
+        if cmd_bits.status != PARSED_OK:
             continue  # No input, ignore
 
         # Dispatcher
@@ -685,7 +691,7 @@ def main_loop(today: TrackerDay):
         data_changed = False
         if cmd_bits.command == CmdKeys.CMD_EXIT:
             done = True
-        else:
+        elif cmd_bits.status == PARSED_OK:
             data_changed = process_command(cmd_bits=cmd_bits, today=today)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
@@ -736,7 +742,9 @@ def error_exit() -> None:
     exit()
 
 
-def lint_report(today: TrackerDay, strict_datetimes: bool = True,chatty:bool=False) -> bool:
+def lint_report(
+    today: TrackerDay, strict_datetimes: bool = True, chatty: bool = False
+) -> bool:
     """Check tag lists and event lists for consistency.
 
     If chatty, does this as a report - otherwise as an eruption of errors.
@@ -753,7 +761,7 @@ def lint_report(today: TrackerDay, strict_datetimes: bool = True,chatty:bool=Fal
         for msg in errs:
             pr.iprint(msg, style=style)
     elif chatty:
-        pr.iprint("Lint check found no inconsistencies.",style=k.SUBTITLE_STYLE)
+        pr.iprint("Lint check found no inconsistencies.", style=k.SUBTITLE_STYLE)
 
     return bool(errs)
 
@@ -809,7 +817,9 @@ def set_up_today() -> TrackerDay:
     if os.path.exists(datafilepath):
         day = TrackerDay.load_from_file(datafilepath)
     else:
-        day = TrackerDay(datafilepath)
+        day = TrackerDay(
+            datafilepath, site_label=cfg.SITE_LABEL, site_name=cfg.SITE_NAME
+        )
     # Just in case there's no date, guess it from the filename
     if not day.date:
         day.date = deduce_parking_date(datafilepath)
@@ -832,7 +842,7 @@ def set_up_today() -> TrackerDay:
             error_exit()
 
     pr.iprint(
-        f"Editing {day.site_name} site bike parking data for {ut.date_str(day.date,long_date=True)}.",
+        f"Editing {day.site_name} bike parking data for {ut.date_str(day.date,long_date=True)}.",
         style=k.HIGHLIGHT_STYLE,
     )
     # In case doing a date that's not today, warn

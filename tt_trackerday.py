@@ -55,6 +55,8 @@ class OldTrackerDay:
         self.retired = frozenset()
         self.colour_letters = {}
         self.notes = []
+        self.site_label = ""
+        self.site_name = ""
 
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return list of all usable tags."""
@@ -234,8 +236,13 @@ class TrackerDay:
 
     REGULAR_KEYWORD = "regular"
     OVERSIZE_KEYWORD = "oversize"
+    OPERATING_HOURS_TOLERANCE = (
+        90  # Minutes to allow checkin/out to exceed operating hours
+    )
 
-    def __init__(self, filepath: str, site_name: str = "") -> None:
+    def __init__(
+        self, filepath: str, site_name: str = "", site_label: str = ""
+    ) -> None:
         """Initialize blank."""
         self.date = ut.date_str("today")
         self.opening_time = VTime("")
@@ -249,7 +256,8 @@ class TrackerDay:
         self.biketags: dict[TagID, BikeTag] = {}
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
-        self.site_name = site_name or "default"
+        self.site_label = site_label or "default"
+        self.site_name = site_name or "Default Site"
 
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
@@ -274,6 +282,16 @@ class TrackerDay:
                 visit.time_out = VTime("23:59")
                 changed += 1
         return changed
+
+    def bike_time_reasonable(self, inout_time: VTime) -> bool:
+        """Checks if inout_time is reasonably close to operating hours."""
+        if not self.opening_time or not self.closing_time:
+            return True
+        return (
+            self.opening_time.num - self.OPERATING_HOURS_TOLERANCE
+            <= inout_time.num
+            <= self.closing_time.num + self.OPERATING_HOURS_TOLERANCE
+        )
 
     @staticmethod
     def guess_tag_type(tag: TagID) -> str:
@@ -527,14 +545,17 @@ class TrackerDay:
         return len(events)
 
     def all_visits(self) -> list[BikeVisit]:
-        """Create a list of BikeVisit objects from a list of BikeTag objects."""
+        """Create a list of BikeVisit objects from a list of BikeTag objects.
+
+        List will always be sorted by the time_in of the visits.
+        """
 
         visits = []
         for biketag in self.biketags.values():
             if biketag.visits:
                 visits += biketag.visits
-        # Sort visits on their sequence number
-        visits = sorted(visits, key=lambda visit: visit.seq)
+        # Sort visits on their time in
+        visits = sorted(visits, key=lambda visit: visit.time_in)
 
         return visits
 
@@ -569,6 +590,7 @@ class TrackerDay:
             "retired_tagids": sorted(list(self.retired_tagids)),
             "notes": self.notes,
             "site_name": self.site_name,
+            "site_label": self.site_label,
         }
 
     @staticmethod
@@ -704,12 +726,60 @@ class TrackerDay:
 
         return "\n".join(self.dump(detailed=False))
 
+    def num_bikes_parked(self, as_of_when: str = "") -> int:
+        """Number of bikes parked as of as_of_when.
+
+        Returns (total,regular,oversize).
+        """
+        as_of_when = VTime(as_of_when or "now")
+
+        regular_in = 0
+        oversize_in = 0
+        for biketag in self.biketags.values():
+            regular_in += len(
+                [
+                    v
+                    for v in biketag.visits
+                    if v.time_in <= as_of_when and biketag.bike_type == REGULAR
+                ]
+            )
+            oversize_in += len(
+                [
+                    v
+                    for v in biketag.visits
+                    if v.time_in <= as_of_when and biketag.bike_type == OVERSIZE
+                ]
+            )
+        total_in = regular_in + oversize_in
+        return total_in, regular_in, oversize_in
+
+    def num_bikes_returned(self, as_of_when: str = "") -> int:
+        """Number of bikes returned as of as_of_when.
+
+        Returns (total,regular,oversize).
+
+        A bike has been returned if it has checked out before now.
+        """
+        as_of_when = VTime(as_of_when or "now")
+
+        regular_out = 0
+        oversize_out = 0
+        for biketag in self.biketags.values():
+            for visit in biketag.visits:
+                if visit.time_out and visit.time_out < as_of_when:
+                    if biketag.bike_type == REGULAR:
+                        regular_out += 1
+                    else:
+                        oversize_out += 1
+
+        total_out = regular_out + oversize_out
+        return total_out, regular_out, oversize_out
+
     def num_tags_in_use(self, as_of_when: str = "") -> int:
         """Number of bikes present."""
         return len(self.tags_in_use(as_of_when))
 
-
-    def tags_in_use(self,as_of_when:str = "") -> list[TagID]:
+    def tags_in_use(self, as_of_when: str = "") -> list[TagID]:
         """List of bikes that are are present as of as_of_when.
 
         Critical to this working is the constraint that a tagid will
@@ -717,31 +787,20 @@ class TrackerDay:
         """
 
         as_of_when = VTime(as_of_when or "now")
-        return [b.tagid for b in self.biketags.values() if b.status_as_at(as_of_when) == BikeTag.IN_USE]
-        # as_of_when = as_of_when or "now"
-        # as_of_when = VTime(as_of_when)
-        # tagids = []
-        # for b in self.biketags.values():
-        #     b:BikeTag
-        #     if b.status_as_at(as_of_when) == BikeTag.IN_USE:
-        #         tagids.append(b.tagid)
-        # return tagids
+        return [
+            b.tagid
+            for b in self.biketags.values()
+            if b.status_as_at(as_of_when) == BikeTag.IN_USE
+        ]
 
-
-    def tags_done(self,as_of_when:str = "") -> list:
+    def tags_done(self, as_of_when: str = "") -> list:
         """List of tagids of biketags that are in a 'DONE' state as_of_when."""
         as_of_when = VTime(as_of_when or "now")
-        return [b.tagid for b in self.biketags.values() if b.status_as_at(as_of_when) == BikeTag.DONE]
-
-
-        # as_of_when = as_of_when or "now"
-        # as_of_when = VTime(as_of_when)
-        # tagids = []
-        # for b in self.biketags.values():
-        #     b:BikeTag
-        #     if b.status_as_at(as_of_when) == BikeTag.DONE:
-        #         tagids.append(b.tagid)
-        # return tagids
+        return [
+            b.tagid
+            for b in self.biketags.values()
+            if b.status_as_at(as_of_when) == BikeTag.DONE
+        ]
 
     def dump(self, detailed: bool = False) -> list[str]:
         """Get info about this object."""

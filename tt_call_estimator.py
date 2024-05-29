@@ -31,8 +31,8 @@ import tt_trackerday
 
 
 def get_estimate_via_url(
-    day_data: tt_trackerday.OldTrackerDay,
-    bikes_so_far: int,
+    day: tt_trackerday.TrackerDay,
+    bikes_so_far: int=None,
     as_of_when="",
     dow: int = None,
     closing_time="",
@@ -42,14 +42,13 @@ def get_estimate_via_url(
     This is presumably what one would call if the database
     is not on the same machine.
     """
-    if not bikes_so_far:
-        bikes_so_far = len(day_data.bikes_in)
-    if not as_of_when:
-        as_of_when = VTime("now")
+    as_of_when = VTime(as_of_when or "now")
+    if bikes_so_far is None:
+        bikes_so_far,_,_ = day.num_bikes_parked(as_of_when)
     if not dow:
         dow = ut.dow_int("today")
         if not closing_time:
-            closing_time = day_data.closing_time
+            closing_time = day.closing_time
 
     if not cfg.ESTIMATOR_URL_BASE:
         return ["No estimator URL defined"]

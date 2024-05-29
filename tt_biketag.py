@@ -93,7 +93,7 @@ class BikeTag:
             - is not earlier that prior check-out
 
         """
-        if self.status not in {self.DONE,self.UNUSED}:
+        if self.status not in {self.DONE, self.UNUSED}:
             raise BikeTagError(f"Tag {self.tagid} is already checked in or is retired.")
         if self.status == self.DONE and bike_time < self.latest_visit().time_out:
             raise BikeTagError(
@@ -136,7 +136,9 @@ class BikeTag:
         elif self.status == self.IN_USE:
             v = self.latest_visit()
             if v.time_in >= time:
-                raise BikeTagError(f"Check-out time {time} for {self.tagid} must be later than check-in time.")
+                raise BikeTagError(
+                    f"Check-out time {time} for {self.tagid} must be later than check-in time."
+                )
             self.finish_visit(time)
         else:
             raise BikeTagError("Invalid state for edit_out")
@@ -170,8 +172,12 @@ class BikeTag:
             return self.UNUSED
 
         # Iterate through to see if this is IN_USE
-        for i, visit in enumerate(self.visits):
-            if visit.time_in < as_of_when and visit.time_out and as_of_when < visit.time_out:
+        for visit in self.visits:
+            if (
+                visit.time_in < as_of_when
+                and visit.time_out
+                and as_of_when < visit.time_out
+            ):
                 return self.IN_USE
             if visit.time_in < as_of_when and not visit.time_out:
                 return self.IN_USE

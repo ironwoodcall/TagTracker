@@ -28,7 +28,7 @@ import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
 from tt_realtag import Stay
-from tt_trackerday import OldTrackerDay
+from tt_trackerday import TrackerDay, OldTrackerDay
 import tt_util as ut
 from tt_event import Event
 import tt_block
@@ -53,14 +53,29 @@ MODE_ROUND_TO_NEAREST = 30  # mins
 BUSIEST_RANKS = 4
 
 
-def registrations_report(reg_count: int):
-    """Display current count of registrations."""
-    pr.iprint()
-    pr.iprint("Bike registrations", style=k.SUBTITLE_STYLE)
-    reg.Registrations.display_current_count(reg_count=reg_count, num_indents=2)
+def _events_in_period(
+    day: TrackerDay, start: VTime, end: VTime
+) -> list[tuple[VTime, str, str]]:
+    """Make a list of all the events in a time period.
+
+    Returns sorted list of tuples (time, tag_description, check_in):
+        time: is the time of the event
+        tag_description: is the TagID + a visit counter
+        check_in: is True if checking in, False if checking out
+    """
+    event_list = []
+    for biketag in day.biketags.values():
+        for i, visit in enumerate(biketag.visits):
+            if start <= visit.time_in <= end:
+                event_list.append((visit.time_in, f"{biketag.tagid}:{i}", True))
+            if visit.time_out and start <= visit.time_out <= end:
+                event_list.append((visit.time_in, f"{biketag.tagid}:{i}", False))
+
+    event_list.sort(key=lambda event: event[0])
+    return event_list
 
 
-def recent(day: OldTrackerDay, args: list[str]) -> None:
+def recent(day: TrackerDay, args: list[VTime]) -> None:
     """Display a look back at recent activity.
 
     Args are: start_time, end_time
@@ -73,7 +88,7 @@ def recent(day: OldTrackerDay, args: list[str]) -> None:
         """Format one line of output."""
         in_tag = f"{tag}" if check_in else ""
         out_tag = "" if check_in else f"{tag}"
-        return f"{atime.tidy}   {in_tag:<5s} {out_tag:<5s}"
+        return f"{atime.tidy}    {in_tag:<7s}  {out_tag:<7s}"
 
     (start_time, end_time) = (args + [None, None])[:2]
     if not start_time and not end_time:
@@ -85,7 +100,7 @@ def recent(day: OldTrackerDay, args: list[str]) -> None:
     else:
         start_time = VTime(start_time)
         end_time = VTime(end_time)
-    # ANything we can work with?
+    # Anything we can work with?
     if not start_time or not end_time or start_time > end_time:
         pr.iprint(
             "Can not make sense of the given start/end times",
@@ -98,26 +113,30 @@ def recent(day: OldTrackerDay, args: list[str]) -> None:
         f"Recent activity (from {start_time.short} to {end_time.short})",
         style=k.TITLE_STYLE,
     )
+    pr.iprint(
+        "The number following the tag shows which of the tag's visits this event represents.",
+        style=k.SUBTITLE_STYLE,
+    )
     pr.iprint()
-    pr.iprint("Time  BikeIn BikeOut", style=k.SUBTITLE_STYLE)
+    pr.iprint("Time     BikeIn   BikeOut", style=k.SUBTITLE_STYLE)
     # Collect & print any bike-in/bike-out events in the time period.
-    events = Event.calc_events(day, end_time)
-    current_block_end = None
-    for atime in sorted(events.keys()):
-        # Ignore events outside the desired time range.
-        if not (start_time <= atime <= end_time):
-            continue
-        # Possibly put a line between blocks of activity.
+    events = _events_in_period(day, start_time, end_time)
+
+    current_block_end = None  # block ends are for putting divider lines
+    for event_time, tag_desc, check_in in events:
         if not current_block_end:
-            current_block_end = tt_block.block_end(atime)
-        if atime > current_block_end:
-            pr.iprint(f"{tt_block.block_start(atime).tidy}-------------")
-            current_block_end = tt_block.block_end(atime)
-        # Print all the activity that happened at this time.
-        for tag in sorted(events[atime].bikes_in):
-            pr.iprint(format_one(atime, tag, True))
-        for tag in sorted(events[atime].bikes_out):
-            pr.iprint(format_one(atime, tag, False))
+            current_block_end = tt_block.block_end(event_time)
+        if event_time > current_block_end:
+            pr.iprint(f"{tt_block.block_start(event_time).tidy} --------------------")
+            current_block_end = tt_block.block_end(event_time)
+        pr.iprint(format_one(event_time, tag_desc, check_in))
+
+
+def registrations_report(reg_count: int):
+    """Display current count of registrations."""
+    pr.iprint()
+    pr.iprint("Bike registrations", style=k.SUBTITLE_STYLE)
+    reg.Registrations.display_current_count(reg_count=reg_count, num_indents=2)
 
 
 def later_events_warning(day: OldTrackerDay, when: VTime) -> None:
@@ -366,8 +385,10 @@ def visit_statistics_report(visits: dict) -> None:
             durations_list, category_width=MODE_ROUND_TO_NEAREST
         )
         modes_str = ",".join(modes)
-        modes_str = (f"{modes_str}  ({mode_occurences} occurences; "
-        "{MODE_ROUND_TO_NEAREST} minute categories)")
+        modes_str = (
+            f"{modes_str}  ({mode_occurences} occurences; "
+            "{MODE_ROUND_TO_NEAREST} minute categories)"
+        )
         one_line("Mode visit:", modes_str)
 
     def make_tags_str(tags: list[TagID]) -> str:
@@ -654,7 +675,8 @@ def qstack_report(visits: dict[TagID:Stay]) -> None:
     queue_proportion = queueish / (queueish + stackish + neutralish)
     stack_proportion = stackish / (queueish + stackish + neutralish)
     pr.iprint(
-        f"The {total_possible_compares} compares of today's {len(visits)} " "visits are:"
+        f"The {total_possible_compares} compares of today's {len(visits)} "
+        "visits are:"
     )
     pr.iprint(
         f"{(queue_proportion):0.3f} queue-like (overlapping visits)",

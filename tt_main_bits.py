@@ -48,9 +48,9 @@ def splash():
     if not splash_top_pyfiglet():
         splash_top_default()
     pr.iprint()
-    pr.iprint("TagTracker by Julias Hocking")
     pr.iprint(f"Version: {ut.get_version()}")
     pr.iprint("See github.com/ironwoodcall/tagtracker for version details.")
+    pr.iprint()
 
 
 def splash_top_pyfiglet():
@@ -240,18 +240,12 @@ def check_bike_time_reasonable(bike_time: VTime, day: TrackerDay) -> bool:
     If operating hours not set, returns True.
     """
 
-    opening = VTime(day.opening_time)
-    closing = VTime(day.closing_time)
-    if not opening or not closing:
-        return True
-
-    TOLERANCE = 90  # minutes
-
-    if opening.num - TOLERANCE <= bike_time.num <= closing.num + TOLERANCE:
+    if day.bike_time_reasonable(bike_time):
         return True
 
     pr.iprint(
-        f"Time ({bike_time.short}) is too far outside open hours ({opening.short}-{closing}).",
+        f"Time ({bike_time.short}) is too far outside open hours "
+        f"({day.opening_time.short}-{day.closing_time.short}).",
         style=k.WARNING_STYLE,
     )
     NoiseMaker.play(k.ALERT)
