@@ -34,6 +34,8 @@ import client_base_config as cfg
 import tt_reports as rep
 
 
+DEFAULT_RETIRED_TAG_STR = " ●"
+
 # def notes_bit(day: OldTrackerDay) -> None:
 #     """Add a 'notes' section to a report."""
 #     pr.iprint()
@@ -92,6 +94,7 @@ def audit_report(
     args: list[str],
     include_notes: bool = True,
     include_returns: bool = False,
+    retired_tag_str:str = DEFAULT_RETIRED_TAG_STR
 ) -> None:
     """Create & display audit report as at a particular time.
 
@@ -144,12 +147,11 @@ def audit_report(
             returns_by_colour[colour_code] += len(numbers)
 
     NO_ITEM_STR = "  "  # what to show when there's no tag
-    RETIRED_TAG_STR = " ●"
     pr.iprint()
     # Bikes still; onsite
     pr.iprint(
         f"Bikes still onsite at {as_of_when.short}"
-        f" ({RETIRED_TAG_STR} --> retired tag)",
+        f" ({retired_tag_str} --> retired tag)",
         style=k.SUBTITLE_STYLE,
     )
     for prefix in sorted(prefixes_on_hand.keys()):
@@ -159,7 +161,7 @@ def audit_report(
             if i in numbers:
                 s = f"{i:02d}"
             elif TagID(f"{prefix}{i}") in day.retired_tagids:
-                s = RETIRED_TAG_STR
+                s = retired_tag_str
             else:
                 s = NO_ITEM_STR
             line = f"{line} {s}"
@@ -180,7 +182,7 @@ def audit_report(
                 if i in numbers:
                     s = f"{i:02d}"
                 elif TagID(f"{prefix}{i}") in day.retired_tagids:
-                    s = RETIRED_TAG_STR
+                    s = retired_tag_str
                 else:
                     s = NO_ITEM_STR
                 line = f"{line} {s}"

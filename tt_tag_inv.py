@@ -35,17 +35,31 @@ import client_base_config as cfg
 import tt_printer as pr
 from tt_time import VTime
 from tt_tag import TagID
+
 # from tt_realtag import Stay
 from tt_trackerday import TrackerDay
-#import client_base_config as cfg
+
+# import client_base_config as cfg
 import tt_util as ut
+
+
+# These are the symbols & styles used in the tag inventory matrix.
+# Each is a tuple of (symbol,style).
+# Each symbol should be 2 characters wide.  Warning if using fancy unicode
+# that those characters come in various widths, platform-dependent.
+TAG_INV_UNKNOWN = ("  ", k.NORMAL_STYLE)
+TAG_INV_AVAILABLE = (" -", k.NORMAL_STYLE)
+TAG_INV_BIKE_IN = ("In", k.ANSWER_STYLE)
+TAG_INV_BIKE_OUT = ("Ou", k.PROMPT_STYLE)
+TAG_INV_RETIRED = ("Rt", k.WARNING_STYLE)
+TAG_INV_ERROR = ("!?", k.ERROR_STYLE)
 
 
 def _index_line(max_tag_num):
     """Print an index line for the matrix."""
-    pr.iprint("    ", style=k.HIGHLIGHT_STYLE, end="",num_indents=1)
+    pr.iprint("    ", style=k.HIGHLIGHT_STYLE, end="", num_indents=1)
     for i in range(0, max_tag_num + 1):
-        pr.iprint(f"   {i:02d}", style=k.HIGHLIGHT_STYLE, end="",num_indents=0)
+        pr.iprint(f"   {i:02d}", style=k.HIGHLIGHT_STYLE, end="", num_indents=0)
 
 
 def tag_inventory_matrix(
@@ -69,10 +83,10 @@ def tag_inventory_matrix(
     pr.iprint()
     pr.iprint(f"Tags status {as_of_when.as_at}", style=k.TITLE_STYLE)
     pr.iprint(
-        f"Key: '{k.TAG_INV_AVAILABLE[0]}'=Unused today; "
-        f"'{k.TAG_INV_BIKE_IN[0]}'=Bike In; "
-        f"'{k.TAG_INV_BIKE_OUT[0]}'=Bike Out (tag can be re-used); "
-        f"'{k.TAG_INV_RETIRED[0]}'=Retired",
+        f"Key: '{TAG_INV_AVAILABLE[0]}'=Unused today; "
+        f"'{TAG_INV_BIKE_IN[0]}'=Bike In; "
+        f"'{TAG_INV_BIKE_OUT[0]}'=Bike Out (tag can be re-used); "
+        f"'{TAG_INV_RETIRED[0]}'=Retired",
         style=k.NORMAL_STYLE,
     )
     pr.iprint()
@@ -99,39 +113,38 @@ def tag_inventory_matrix(
         for i in range(0, max_tag_num + 1):
             tagid = TagID(f"{prefix}{i}")
             if tagid not in day.biketags:
-                tag_states.append(k.TAG_INV_UNKNOWN)
+                tag_states.append(TAG_INV_UNKNOWN)
                 continue
             this_biketag = day.biketags[tagid]
             if not this_biketag:
-                tag_states.append(k.TAG_INV_UNKNOWN)
+                tag_states.append(TAG_INV_UNKNOWN)
                 continue
             tag_status = this_biketag.status_as_at(as_of_when)
             # this_tag = Stay(f"{prefix}{i}", day, as_of_when)
             if not tag_status:
-                tag_states.append(k.TAG_INV_UNKNOWN)
+                tag_states.append(TAG_INV_UNKNOWN)
             elif tag_status in {this_biketag.UNUSED}:
-                tag_states.append(k.TAG_INV_AVAILABLE)
+                tag_states.append(TAG_INV_AVAILABLE)
             elif tag_status == this_biketag.IN_USE:
-                tag_states.append(k.TAG_INV_BIKE_IN)
+                tag_states.append(TAG_INV_BIKE_IN)
             elif tag_status == this_biketag.DONE:
-                tag_states.append(k.TAG_INV_BIKE_OUT)
+                tag_states.append(TAG_INV_BIKE_OUT)
             elif tag_status == this_biketag.RETIRED:
-                tag_states.append(k.TAG_INV_RETIRED)
+                tag_states.append(TAG_INV_RETIRED)
             else:
-                tag_states.append(k.TAG_INV_ERROR)
+                tag_states.append(TAG_INV_ERROR)
 
         # Are there any used tags in this row?
         this_prefix_used = any(
-            x[0] in [k.TAG_INV_BIKE_IN[0], k.TAG_INV_BIKE_OUT[0]]
-            for x in tag_states
+            x[0] in [TAG_INV_BIKE_IN[0], TAG_INV_BIKE_OUT[0]] for x in tag_states
         )
-        ut.squawk(f"{prefix=},{ [k.TAG_INV_BIKE_IN[0], k.TAG_INV_BIKE_OUT[0]]=}",cfg.DEBUG)
-        ut.squawk(f"{this_prefix_used=},{[x[0] for x in tag_states]=}",cfg.DEBUG)
+        ut.squawk(f"{prefix=},{ [TAG_INV_BIKE_IN[0], TAG_INV_BIKE_OUT[0]]=}", cfg.DEBUG)
+        ut.squawk(f"{this_prefix_used=},{[x[0] for x in tag_states]=}", cfg.DEBUG)
         if this_prefix_used or include_empty_groups:
             pr.iprint(f"{prefix:3s} ", style=k.HIGHLIGHT_STYLE, end="")
             for tup in tag_states:
-                pr.iprint("   ",style=k.NORMAL_STYLE,end="",num_indents=0)
-                pr.iprint(tup[0], style=tup[1], end="",num_indents=0)
+                pr.iprint("   ", style=k.NORMAL_STYLE, end="", num_indents=0)
+                pr.iprint(tup[0], style=tup[1], end="", num_indents=0)
             pr.iprint()
 
     _index_line(max_tag_num)

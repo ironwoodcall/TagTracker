@@ -62,7 +62,7 @@ DATA_FOLDER = "../data"  # Folder to keep datafiles in
 # (DATA_BASENAME is set following import of local config, below)
 
 # Where and how often to publish reports
-REPORTS_FOLDER = ""
+REPORTS_FOLDER = "../reports"
 PUBLISH_FREQUENCY = 15  # minutes. "0" means do not publish
 
 # Echo captures full transcripts of a day's TT session

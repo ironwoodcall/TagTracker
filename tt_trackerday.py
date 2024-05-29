@@ -643,21 +643,30 @@ class TrackerDay:
 
         return day
 
-    def save_to_file(self) -> None:
-        """Save to the file.  Any errors in writing are considered catastrophic."""
+    def save_to_file(self,custom_filepath:str="") -> None:
+        """Save to the file.
+
+        With defulat filepath, any errors in writing are considered catastrophic.
+        For others, report the error and return False.
+        """
+        what_filepath = custom_filepath or self.filepath
         data = self._day_to_json_dict()
         schema = self.load_schema()
         self.validate_data(data, schema)
 
         # Any failure to write is a critical error
         try:
-            with open(self.filepath, "w", encoding="utf-8") as file:
+            with open(what_filepath, "w", encoding="utf-8") as file:
                 json.dump(data, file, indent=4)
         except Exception:
-            print(
-                f"\n\nCRITICAL ERROR: Unable to save data to file {self.filepath}\n\n"
-            )
-            raise
+            if custom_filepath:
+                return False
+            else:
+                print(
+                    f"\n\nCRITICAL ERROR: Unable to save data to file {what_filepath}\n\n"
+                )
+                raise
+        return True
 
     @staticmethod
     def load_from_file(filepath) -> "TrackerDay":

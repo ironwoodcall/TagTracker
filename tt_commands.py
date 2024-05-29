@@ -359,8 +359,8 @@ def _chunkize_for_one_arg(
             )
     elif arg_conf.arg_type == ARG_ONOFF:
         test = arg_parts[0].lower()
-        if test in {"on", "off", "true", "false", "yes", "no", "y", "n"}:
-            parsed.result_args.append(test in {"on", "true", "yes"})
+        if test in {"on", "off", "true", "false", "yes", "no", "y", "n","+","-"}:
+            parsed.result_args.append(test in {"on", "true", "yes","y","t","+"})
             if arg_parts:
                 del arg_parts[0]
         else:

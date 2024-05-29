@@ -28,7 +28,7 @@ import os
 import tt_constants as k
 from tt_time import VTime
 import tt_util as ut
-from tt_trackerday import OldTrackerDay
+from tt_trackerday import TrackerDay
 import tt_datafile as df
 import tt_printer as pr
 import tt_reports as rep
@@ -68,10 +68,11 @@ class Publisher:
                 style=k.ERROR_STYLE,
             )
 
-    def publish(self, day: OldTrackerDay, as_of_when: str = "") -> None:
+    def publish(self, day: TrackerDay, as_of_when: str = "") -> None:
         """Publish."""
         if not self.able_to_publish:
             return
+        ut.squawk(f"{type(day)=}, {day.date=}",cfg.DEBUG)
         if not self.publish_datafile(day, self.destination):
             pr.iprint("ERROR PUBLISHING DATAFILE", style=k.ERROR_STYLE)
             pr.iprint("REPORT PUBLISHING TURNED OFF", style=k.ERROR_STYLE)
@@ -81,7 +82,7 @@ class Publisher:
         self.publish_reports(day, [as_of_when])
         self.last_publish = VTime("now")
 
-    def maybe_publish(self, day: OldTrackerDay, as_of_when: str = "") -> bool:
+    def maybe_publish(self, day: TrackerDay, as_of_when: str = "") -> bool:
         """Maybe publish.  Return T if did a publish."""
         if not self.able_to_publish:
             return
@@ -90,7 +91,7 @@ class Publisher:
         if time_since_last >= self.frequency:
             self.publish(day, as_of_when)
 
-    def publish_audit(self, day: OldTrackerDay, args: list[str]) -> None:
+    def publish_audit(self, day: TrackerDay, args: list[str]) -> None:
         """Publish the audit report."""
         if not self.able_to_publish:
             return
@@ -98,46 +99,49 @@ class Publisher:
         fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
         if not pr.set_output(fullfn):
             return
-        aud.audit_report(day, args, include_returns=True)
+        aud.audit_report(day, args, include_returns=True,retired_tag_str="<>")
         pr.set_output()
 
-    def publish_datafile(self, day: OldTrackerDay, destination: str) -> bool:
+    def publish_datafile(self, day: TrackerDay, folder: str) -> bool:
         """Publish a copy of today's datafile.
         Returns False if failed.
         """
         if not self.able_to_publish:
             return
-        filepath = df.datafile_name(destination, day.date)
+        filepath = df.datafile_name(folder, day.date)
+        ut.squawk(f"Preparing to save to  {filepath=} based on {folder=} and {day.date=}",cfg.DEBUG)
         if not filepath:
             return False
-        content = df.prep_datafile_info(day)
-        return df.write_datafile(filepath, content=content, make_bak=False)
+        return day.save_to_file(filepath)
 
     def publish_city_report(
-        self, day: OldTrackerDay, as_of_when: k.MaybeTime = "now"
+        self, day: TrackerDay, as_of_when: str = ""
     ) -> None:
         """Publish a report for daily insight to the City."""
+        as_of_when = VTime(as_of_when or "now")
         if not self.able_to_publish:
             return
-        as_of_when: VTime = VTime(as_of_when)
         fullfn = os.path.join(cfg.REPORTS_FOLDER, "city.txt")
         if not pr.set_output(fullfn):
             return
         pr.iprint(f"Overall bike parking report for {day.date}")
         pr.iprint(f"Generated {ut.date_str('today')} {ut.get_time()}")
 
-        rep.day_end_report(day, [as_of_when])
+        aud.audit_report(day,as_of_when)
         pr.iprint()
-        rep.busyness_report(day, [as_of_when])
-        pr.iprint()
-        rep.busy_graph(day, as_of_when=as_of_when)
-        pr.iprint()
-        rep.fullness_graph(day, as_of_when=as_of_when)
-        pr.iprint()
-        rep.full_chart(day, as_of_when=as_of_when)
+        # FIXME - re-enable
+        # rep.day_end_report(day, [as_of_when])
+        # pr.iprint()
+        # rep.busyness_report(day, [as_of_when])
+        # pr.iprint()
+        # rep.busy_graph(day, as_of_when=as_of_when)
+        # pr.iprint()
+        # rep.fullness_graph(day, as_of_when=as_of_when)
+        # pr.iprint()
+        # rep.full_chart(day, as_of_when=as_of_when)
         pr.set_output()
 
-    def publish_reports(self, day: OldTrackerDay, args: list = None) -> None:
+    def publish_reports(self, day: TrackerDay, args: list = None) -> None:
         """Publish reports to the PUBLISH directory."""
         if not self.able_to_publish:
             return
@@ -146,14 +150,16 @@ class Publisher:
             as_of_when = "now"
         as_of_when: VTime = VTime(as_of_when)
         self.publish_audit(day, [as_of_when])
-        self.publish_city_report(day, as_of_when=as_of_when)
+        # FIXME - re-enable
+        # self.publish_city_report(day, as_of_when=as_of_when)
 
         fn = "day_end.txt"
         day_end_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
         if not pr.set_output(day_end_fn):
             return
 
-        pr.iprint(ut.date_str(day.date, long_date=True))
-        pr.iprint(f"Report generated {ut.date_str('today')} {VTime('now')}")
-        rep.day_end_report(day, [as_of_when])
+        # FIXME - re-enable
+        # pr.iprint(ut.date_str(day.date, long_date=True))
+        # pr.iprint(f"Report generated {ut.date_str('today')} {VTime('now')}")
+        # rep.day_end_report(day, [as_of_when])
         pr.set_output()

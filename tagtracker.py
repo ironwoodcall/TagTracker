@@ -610,7 +610,7 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
 
     elif cmd_bits.command == CmdKeys.CMD_AUDIT:
         aud.audit_report(today, cmd_bits.result_args, include_returns=True)
-        publishment.publish_audit(pack_day_data(), cmd_bits.result_args)
+        publishment.publish_audit(today, cmd_bits.result_args)
     elif cmd_bits.command == CmdKeys.CMD_RECENT:
         rep.recent(today, args)
 
@@ -715,12 +715,12 @@ def main_loop(today: TrackerDay):
         if data_changed:
             data_changed = False
             today.save_to_file()
-            publishment.maybe_publish(pack_day_data())
+            publishment.maybe_publish(today)
             ##last_published = maybe_publish(last_published)
         # Flush any echo buffer
         pr.echo_flush()
     # Exiting; one last  publishing
-    publishment.publish(pack_day_data())
+    publishment.publish(today)
 
 
 def custom_datafile() -> str:
