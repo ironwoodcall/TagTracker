@@ -25,7 +25,6 @@ Copyright (C) 2023-2024 Julias Hocking and Todd Glover
 import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
-from tt_realtag import Stay
 from tt_trackerday import TrackerDay
 from tt_biketag import BikeTag
 from tt_bikevisit import BikeVisit
@@ -122,7 +121,7 @@ def audit_report(
         f"Audit report for {day.date} {as_of_when.as_at}",
         style=k.TITLE_STYLE,
     )
-    # rep.later_events_warning(day, as_of_when)
+    rep.later_events_warning(day, as_of_when)
 
     # Summary of bikes in a& bikes out
     inout_summary(day, as_of_when)

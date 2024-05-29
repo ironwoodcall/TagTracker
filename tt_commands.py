@@ -18,13 +18,14 @@ import tt_sounds
 from tt_util import squawk
 
 # Types of argument validations (arg_type)
-ARG_TAGS = "ARG_TAGS"       # Returns list of 1+ TagID()
-ARG_TIME = "ARG_TIME"       # Returns valid VTime()
-ARG_TOKEN = "ARG_TOKEN"     # Returns any whitespace-delimited token
-ARG_TEXT = "ARG_TEXT"       # Returns all remaining tokens, space separated
-ARG_YESNO = "ARG_YESNO"     # Returns "y" or "n"
-ARG_INOUT = "ARG_INOUT"     # Returns "i" or "o"
-ARG_ONOFF = "ARG_ONOFF"     # Returns True or False
+ARG_TAGS = "ARG_TAGS"  # Returns list of 1+ TagID()
+ARG_TIME = "ARG_TIME"  # Returns valid VTime()
+ARG_TOKEN = "ARG_TOKEN"  # Returns any whitespace-delimited token
+ARG_TEXT = "ARG_TEXT"  # Returns all remaining tokens, space separated
+ARG_YESNO = "ARG_YESNO"  # Returns "y" or "n"
+ARG_INOUT = "ARG_INOUT"  # Returns "i" or "o"
+ARG_ONOFF = "ARG_ONOFF"  # Returns True or False
+
 
 class ArgConfig:
     """Configuration for one argument for one command."""
@@ -188,9 +189,9 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_DEBUG: CmdConfig(
-        invoke=["debug","deb"],
+        invoke=["debug", "deb"],
         arg_configs=[
-            ArgConfig(ARG_ONOFF, optional=False,prompt="on or off? "),
+            ArgConfig(ARG_ONOFF, optional=False, prompt="on or off? "),
         ],
     ),
     CmdKeys.CMD_DELETE: CmdConfig(
@@ -263,7 +264,12 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
-    CmdKeys.CMD_TAGS: CmdConfig(invoke=["tags", "tag", "t"]),
+    CmdKeys.CMD_TAGS: CmdConfig(
+        invoke=["tags", "tag", "t"],
+        arg_configs=[
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
 }
 
@@ -308,6 +314,7 @@ def _subprompt_text(current: ParsedCommand) -> str:
     s = cmd_conf.arg_configs[len(current.result_args)].prompt
     return s
 
+
 def _chunkize_for_one_arg(
     arg_parts: list[str],
     arg_conf: ArgConfig,
@@ -323,7 +330,7 @@ def _chunkize_for_one_arg(
     Returns False if ParsedCommand has gone to error state, else True.
     """
 
-    squawk(f"{arg_parts=}",cfg.DEBUG)
+    squawk(f"{arg_parts=}", cfg.DEBUG)
 
     # Out of input to process?
     if not arg_parts:
@@ -353,7 +360,7 @@ def _chunkize_for_one_arg(
     elif arg_conf.arg_type == ARG_ONOFF:
         test = arg_parts[0].lower()
         if test in {"on", "off", "true", "false", "yes", "no", "y", "n"}:
-            parsed.result_args.append(test in {"on","true","yes"})
+            parsed.result_args.append(test in {"on", "true", "yes"})
             if arg_parts:
                 del arg_parts[0]
         else:
@@ -408,7 +415,7 @@ def _chunkize_for_one_arg(
 def _parse_user_command(user_str: str) -> ParsedCommand:
     """Parses user_str as a full command line."""
 
-    squawk(f"  _parse_user_command has {user_str=}",cfg.DEBUG)
+    squawk(f"  _parse_user_command has {user_str=}", cfg.DEBUG)
     if not user_str:
         return ParsedCommand(status=PARSED_EMPTY)
 
@@ -425,7 +432,6 @@ def _parse_user_command(user_str: str) -> ParsedCommand:
     if TagID(parts[0]):
         parts.insert(0, COMMANDS[CmdKeys.CMD_BIKE_INOUT].invoke[0])
 
-
     # What command is this?
     what_command = find_command(parts[0])
     if not what_command:
@@ -435,7 +441,6 @@ def _parse_user_command(user_str: str) -> ParsedCommand:
     cmd_config = COMMANDS[what_command]
     arg_parts = parts[1:]  # These are the potential arguments
     parsed = ParsedCommand(command=what_command)
-
 
     # Parse arguments to this command.
     # Want to go through the arg configs until we know
@@ -448,8 +453,8 @@ def _parse_user_command(user_str: str) -> ParsedCommand:
         # _chunkize returns with status set
         # if not _chunkize_for_one_arg(arg_parts, this_arg_config, parsed):
         _chunkize_for_one_arg(arg_parts, this_arg_config, parsed)
-        squawk(f"returns from _chunkuze with {parsed.status=}",cfg.DEBUG)
-        if parsed.status in (PARSED_ERROR,PARSED_INCOMPLETE):
+        squawk(f"returns from _chunkuze with {parsed.status=}", cfg.DEBUG)
+        if parsed.status in (PARSED_ERROR, PARSED_INCOMPLETE):
             break
 
     # There should now be no arg_parts left

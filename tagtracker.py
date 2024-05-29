@@ -61,7 +61,7 @@ import tt_help
 import tt_audit_report as aud
 
 import tt_reports as rep
-# import tt_tag_inv as inv
+import tt_tag_inv as inv
 # import tt_notes as notes
 
 # from tt_cmdparse import CmdBits
@@ -598,14 +598,6 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
             today.registrations = reg.Registrations.num_registrations
             data_changed = True
 
-    # elif cmd_bits.command == CmdKeys.CMD_NOTES:
-    #     if cmd_bits.result_args:
-    #         # FIXME: Notes needs to be a list in TrackerDay
-    #         # not a standalone thingy.
-    #         notes.Notes.add(cmd_bits.tail)
-    #         pr.iprint("Noted.")
-    #     else:
-    #         bits.show_notes(notes.Notes, header=True, styled=False)
 
     elif cmd_bits.command == CmdKeys.CMD_HOURS:
         # FIXME: this is done but needs testing
@@ -621,13 +613,35 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
         publishment.publish_audit(pack_day_data(), cmd_bits.result_args)
     elif cmd_bits.command == CmdKeys.CMD_RECENT:
         rep.recent(today, args)
-    # elif cmd_bits.command == CmdKeys.CMD_TAGS:
-    #     inv.tags_config_report(pack_day_data(), cmd_bits.result_args, False)
+
+    elif cmd_bits.command == CmdKeys.CMD_TAGS:
+        inv.tags_config_report(today, args, False)
+
+
+    # elif cmd_bits.command == CmdKeys.CMD_NOTES:
+    #     if cmd_bits.result_args:
+    #         # FIXME: Notes needs to be a list in TrackerDay
+    #         # not a standalone thingy.
+    #         notes.Notes.add(cmd_bits.tail)
+    #         pr.iprint("Noted.")
+    #     else:
+    #         bits.show_notes(notes.Notes, header=True, styled=False)
+
+
+
+    # # Things that operate on the larger environment
+    # elif cmd_bits.command == CmdKeys.CMD_PUBLISH:
+    #     # FIXME: this call is ok, still need to adjust publish_*
+    #     publishment.publish_reports(day=today, args=args)
+
+
+
     # elif cmd_bits.command == CmdKeys.CMD_STATS:
     #     rep.day_end_report(pack_day_data(), cmd_bits.result_args)
     #     # Force publication when do day-end reports
     #     publishment.publish(pack_day_data())
     #     ##last_published = maybe_publish(last_published, force=True)
+
 
     # elif cmd_bits.command == CmdKeys.CMD_BUSY:
     #     rep.busyness_report(pack_day_data(), cmd_bits.result_args)
@@ -646,10 +660,6 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
     elif cmd_bits.command == CmdKeys.CMD_ESTIMATE:
          estimate(today=today)
 
-    # # Things that operate on the larger environment
-    # elif cmd_bits.command == CmdKeys.CMD_PUBLISH:
-    #     # FIXME: this call is ok, still need to adjust publish_*
-    #     publishment.publish_reports(day=today, args=args)
 
     elif cmd in {CmdKeys.CMD_UPPERCASE, CmdKeys.CMD_LOWERCASE}:
         # Change to uc or lc tags

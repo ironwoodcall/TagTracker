@@ -27,7 +27,7 @@ import statistics
 import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
-from tt_realtag import Stay
+# from tt_realtag import Stay
 from tt_trackerday import TrackerDay, OldTrackerDay
 import tt_util as ut
 from tt_event import Event
@@ -139,15 +139,14 @@ def registrations_report(reg_count: int):
     reg.Registrations.display_current_count(reg_count=reg_count, num_indents=2)
 
 
-def later_events_warning(day: OldTrackerDay, when: VTime) -> None:
+def later_events_warning(day: TrackerDay, when: VTime="") -> None:
     """Warn about report that excludes later events.
 
     If  no later events, does nothing.
     """
-    when = VTime(when)
-    if not when:
-        return
-    # Buid the message
+    when = VTime(when or "now")
+
+    # Build the message
     later_events = day.num_later_events(when)
     if not later_events:
         return
@@ -165,7 +164,7 @@ def simplified_taglist(tags: list[TagID] | str) -> str:
 
     # FIXME: not adjusting this one to VTime/TagID yet, may not need to
     def hyphenize(nums: list[int]) -> str:
-        """Convert a list of ints into a hypenated list."""
+        """Convert a list of ints into a hyphenated list."""
         # Warning: dark magic.
         # Build lists of sequences from the sorted list.
         # starts is list of starting values of sequences.
@@ -219,79 +218,79 @@ def simplified_taglist(tags: list[TagID] | str) -> str:
     return simple_str
 
 
-def csv_dump(day: OldTrackerDay, args) -> None:
-    """Dump a few stats into csv for pasting into spreadsheets."""
-    filename = (args + [None])[0]
-    if not filename:
-        ##pr.iprint("usage: csv <filename>",style=k.WARNING_STYLE)
-        pr.iprint("Printing to screen.", style=k.WARNING_STYLE)
+# def csv_dump(day: OldTrackerDay, args) -> None:
+#     """Dump a few stats into csv for pasting into spreadsheets."""
+#     filename = (args + [None])[0]
+#     if not filename:
+#         ##pr.iprint("usage: csv <filename>",style=k.WARNING_STYLE)
+#         pr.iprint("Printing to screen.", style=k.WARNING_STYLE)
 
-    def time_hrs(atime) -> str:
-        """Return atime (str or int) as a string of decimal hours."""
-        hrs = ut.time_int(atime) / 60
-        return f"{hrs:0.3}"
+#     def time_hrs(atime) -> str:
+#         """Return atime (str or int) as a string of decimal hours."""
+#         hrs = ut.time_int(atime) / 60
+#         return f"{hrs:0.3}"
 
-    as_of_when = "24:00"
+#     as_of_when = "24:00"
 
-    events = Event.calc_events(day, as_of_when)
-    # detailed fullness
-    pr.iprint()
-    print("Time, Regular, Oversize, Total")
-    for atime in sorted(events.keys()):
-        ev = events[atime]
-        print(
-            f"{time_hrs(atime)},{ev.num_here_regular},"
-            f"{ev.num_here_oversize},{ev.num_here_total}"
-        )
+#     events = Event.calc_events(day, as_of_when)
+#     # detailed fullness
+#     pr.iprint()
+#     print("Time, Regular, Oversize, Total")
+#     for atime in sorted(events.keys()):
+#         ev = events[atime]
+#         print(
+#             f"{time_hrs(atime)},{ev.num_here_regular},"
+#             f"{ev.num_here_oversize},{ev.num_here_total}"
+#         )
 
-    # block, ins, outs, num_bikes_here
-    blocks_ins = dict(
-        zip(
-            tt_block.get_timeblock_list(day, as_of_when),
-            [0 for _ in range(0, 100)],
-        )
-    )
-    blocks_outs = blocks_ins.copy()
-    blocks_heres = blocks_ins.copy()
-    for atime, ev in events.items():
-        start = tt_block.block_start(atime)  # Which block?
-        blocks_ins[start] += ev.num_ins
-        blocks_outs[start] += ev.num_outs
-    prev_here = 0
-    for atime in sorted(blocks_heres.keys()):
-        blocks_heres[atime] = prev_here + blocks_ins[atime] - blocks_outs[atime]
-        prev_here = blocks_heres[atime]
-    pr.iprint()
-    print("Time period,Incoming,Outgoing,Onsite")
-    for atime in sorted(blocks_ins.keys()):
-        print(f"{atime},{blocks_ins[atime]},{blocks_outs[atime]},{blocks_heres[atime]}")
-    pr.iprint()
+#     # block, ins, outs, num_bikes_here
+#     blocks_ins = dict(
+#         zip(
+#             tt_block.get_timeblock_list(day, as_of_when),
+#             [0 for _ in range(0, 100)],
+#         )
+#     )
+#     blocks_outs = blocks_ins.copy()
+#     blocks_heres = blocks_ins.copy()
+#     for atime, ev in events.items():
+#         start = tt_block.block_start(atime)  # Which block?
+#         blocks_ins[start] += ev.num_ins
+#         blocks_outs[start] += ev.num_outs
+#     prev_here = 0
+#     for atime in sorted(blocks_heres.keys()):
+#         blocks_heres[atime] = prev_here + blocks_ins[atime] - blocks_outs[atime]
+#         prev_here = blocks_heres[atime]
+#     pr.iprint()
+#     print("Time period,Incoming,Outgoing,Onsite")
+#     for atime in sorted(blocks_ins.keys()):
+#         print(f"{atime},{blocks_ins[atime]},{blocks_outs[atime]},{blocks_heres[atime]}")
+#     pr.iprint()
 
-    # stay_start(hrs),duration(hrs),stay_end(hrs)
-    visits = Stay.calc_stays(day, as_of_when)  # keyed by tag
-    # make list of stays keyed by start time
-    visits_by_start = {}
-    for v in visits.values():
-        start = v.time_in
-        if start not in visits_by_start:
-            visits_by_start[start] = []
-        visits_by_start[start].append(v)
-    pr.iprint()
-    print("Sequence, Start time, Length of stay")
-    seq = 1
-    for atime in sorted(visits_by_start.keys()):
-        for v in visits_by_start[atime]:
-            print(f"{seq},{time_hrs(v.time_in)}," f"{time_hrs(v.duration)}")
-            seq += 1
+#     # stay_start(hrs),duration(hrs),stay_end(hrs)
+#     visits = Stay.calc_stays(day, as_of_when)  # keyed by tag
+#     # make list of stays keyed by start time
+#     visits_by_start = {}
+#     for v in visits.values():
+#         start = v.time_in
+#         if start not in visits_by_start:
+#             visits_by_start[start] = []
+#         visits_by_start[start].append(v)
+#     pr.iprint()
+#     print("Sequence, Start time, Length of stay")
+#     seq = 1
+#     for atime in sorted(visits_by_start.keys()):
+#         for v in visits_by_start[atime]:
+#             print(f"{seq},{time_hrs(v.time_in)}," f"{time_hrs(v.duration)}")
+#             seq += 1
 
 
-def num_bikes_here(day: OldTrackerDay, as_of_when: VTime) -> int:
-    """Count how many bikes are in at this time."""
-    num_bikes = 0
-    for atime in day.bikes_in.items():
-        if atime <= as_of_when:
-            num_bikes += 1
-    return num_bikes
+# def num_bikes_here(day: OldTrackerDay, as_of_when: VTime) -> int:
+#     """Count how many bikes are in at this time."""
+#     num_bikes = 0
+#     for atime in day.bikes_in.items():
+#         if atime <= as_of_when:
+#             num_bikes += 1
+#     return num_bikes
 
 
 def bike_check_ins_report(day: OldTrackerDay, as_of_when: VTime) -> None:
@@ -583,7 +582,7 @@ def fullness_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
         pr.iprint(f"{start} {regular_marker * regs}{oversize_marker * overs}")
 
 
-def busy_report(
+def busiest_times_report(
     day: OldTrackerDay,
     events: dict[VTime, Event],
     as_of_when: VTime,
@@ -631,7 +630,7 @@ def busy_report(
         one_line(rank, activity, busy_times[activity])
 
 
-def qstack_report(visits: dict[TagID:Stay]) -> None:
+def qstack_report(visits: dict) -> None:
     """Report whether visits are more queue-like or more stack-like."""
     # Make a list of tuples: start_time, end_time for all visits.
     visit_times = list(
@@ -722,7 +721,7 @@ def day_end_report(day: OldTrackerDay, args: list, include_notes: bool = True) -
     # Bikes in, in various categories.
     bike_check_ins_report(day, as_of_when)
     # Stats that use visits (stays)
-    visits = Stay.calc_stays(day, as_of_when)
+    visits = None # FIXME: Stay.calc_stays(day, as_of_when)
     visit_lengths_by_category_report(visits)
     visit_statistics_report(visits)
 
@@ -753,10 +752,10 @@ def busyness_report(day: OldTrackerDay, args: list) -> None:
     events = Event.calc_events(day, as_of_when)
     highwater_report(events)
     # Busiest times of day
-    busy_report(day, events, as_of_when)
+    busiest_times_report(day, events, as_of_when)
 
     # Queue-like vs stack-like
-    visits = Stay.calc_stays(day, as_of_when)
+    visits = None # FIXME: Stay.calc_stays(day, as_of_when)
     qstack_report(visits)
 
 

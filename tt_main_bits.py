@@ -175,7 +175,7 @@ def confirm_hours(today: TrackerDay) -> bool:
         new_open, new_close = get_operating_hours(new_open, new_close)
         if new_open >= new_close:
             pr.iprint(
-                "Closing time must be later than opening time", style=k.ERROR_STYLE
+                f"Closing time must be later than opening time {new_open}", style=k.ERROR_STYLE
             )
         else:
             done = True

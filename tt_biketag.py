@@ -137,7 +137,7 @@ class BikeTag:
             v = self.latest_visit()
             if v.time_in >= time:
                 raise BikeTagError(
-                    f"Check-out time {time} for {self.tagid} must be later than check-in time."
+                    f"Check-out time {time} for {self.tagid} must be later than check-in time {v.time_in}."
                 )
             self.finish_visit(time)
         else:
