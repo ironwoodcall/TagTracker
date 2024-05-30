@@ -24,11 +24,10 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
+import re
 import json
 import jsonschema
 from jsonschema import validate
-import re
 
 from tt_tag import TagID
 from tt_time import VTime
@@ -37,6 +36,7 @@ from tt_biketag import BikeTag, BikeTagError
 from tt_constants import REGULAR, OVERSIZE, UNKNOWN
 from tt_bikevisit import BikeVisit
 from client_local_config import REGULAR_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
+from tt_registrations import Registrations
 
 
 class OldTrackerDay:
@@ -248,7 +248,7 @@ class TrackerDay:
         self.date = ut.date_str("today")
         self.opening_time = VTime("")
         self.closing_time = VTime("")
-        self.registrations = 0
+        self.registrations = Registrations()
         self.regular_tagids = frozenset()
         self.oversize_tagids = frozenset()
         self.retired_tagids = frozenset()
@@ -597,13 +597,12 @@ class TrackerDay:
         # A comment message at the top of the file.
         comment = f"This is a TagTracker datafile for {self.site_label} on {self.date}."
 
-
         return {
             "comment:": comment,
             "date": self.date,
             "opening_time": self.opening_time,
             "closing_time": self.closing_time,
-            "registrations": self.registrations,
+            "registrations": self.registrations.num_registrations,
             "bike_visits": bike_visits,
             "regular_tagids": sorted(list(self.regular_tagids)),
             "oversize_tagids": sorted(list(self.oversize_tagids)),
@@ -619,12 +618,12 @@ class TrackerDay:
         day.date = data["date"]
         day.opening_time = VTime(data["opening_time"])
         day.closing_time = VTime(data["closing_time"])
-        day.registrations = int(data["registrations"])
         try:
-            day.registrations = int(day.registrations)
+            reg = int(data.get("registrations", 0))
+            day.registrations = Registrations(reg)
         except ValueError as e:
             raise TrackerDayError(
-                f"Bad registration value in file: {day.registrations}'. Error {e}"
+                f"Bad registration value in file: '{data['registrations']}'. Error {e}"
             ) from e
         day.notes = data["notes"]
         day.site_name = data["site_name"]

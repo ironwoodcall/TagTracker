@@ -134,11 +134,11 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
         pr.iprint(format_one(event_time, tag_desc, check_in))
 
 
-def registrations_report(reg_count: int):
+def registrations_report(day: TrackerDay):
     """Display current count of registrations."""
     pr.iprint()
-    pr.iprint("Bike registrations", style=k.SUBTITLE_STYLE)
-    reg.Registrations.display_current_count(reg_count=reg_count, num_indents=2)
+    pr.iprint("Bike registrations (whole day)", style=k.SUBTITLE_STYLE)
+    day.registrations.display_current_count()
 
 
 def later_events_warning(day: TrackerDay, when: VTime="") -> None:
@@ -163,8 +163,7 @@ def later_events_warning(day: TrackerDay, when: VTime="") -> None:
 #     The tags list can be a string separated by whitespace or comma.
 #     or it can be a list of tags.
 #     """
-
-#     # FIXME: not adjusting this one to VTime/TagID yet, may not need to
+#
 #     def hyphenize(nums: list[int]) -> str:
 #         """Convert a list of ints into a hyphenated list."""
 #         # Warning: dark magic.
@@ -310,28 +309,8 @@ def visit_statistics_report(durations_list: list[int]) -> None:
         )
         one_line("Mode visit:", modes_str)
 
-    # def make_tags_str(tags: list[TagID]) -> str:
-    #     """Make a 'list of tags' string that is sure not to be too long."""
-    #     tagstr = "tag: " if len(tags) == 1 else "tags: "
-    #     tagstr = tagstr + ",".join([t.cased for t in tags])
-    #     if len(tagstr) > 30:
-    #         tagstr = f"{len(tags)} tags"
-    #     return tagstr
-
-    # Make a dict of stay-lengths with list tags (for longest/shortest).
-    # duration_tags = {}
-    # for tag, v in visits.items():
-    #     dur = v.duration
-    #     if dur not in duration_tags:
-    #         duration_tags[dur] = []
-    #     duration_tags[dur].append(tag)
-    # if not duration_tags:
-    #     return  # No durations
-    # durations_list = [x.duration for x in visits.values()]
     longest = max(durations_list,default=None)
-    # long_tags = make_tags_str(duration_tags[longest])
     shortest = min(durations_list,default=None)
-    # short_tags = make_tags_str(duration_tags[shortest])
     pr.iprint()
     pr.iprint("Visit-length statistics", style=k.SUBTITLE_STYLE)
     one_line(f"Longest {noun}:", f"{VTime(longest).tidy}")
@@ -585,7 +564,7 @@ def day_end_report(day: TrackerDay, args: list) -> None:
     # FIXME: move busy-ess report to here
 
     # Number of bike registrations
-    registrations_report(day.registrations)
+    registrations_report(day)
 
 
 # def qstack_report(visits: dict) -> None:
@@ -677,7 +656,6 @@ def day_end_report(day: TrackerDay, args: list) -> None:
 #     busiest_times_report(day, events, as_of_when)
 
 #     Queue-like vs stack-like
-#     FIXME: re-enable someday maybe. But maybe not.
 #     visits = Stay.calc_stays(day, as_of_when)
 #     qstack_report(visits)
 

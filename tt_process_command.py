@@ -563,11 +563,7 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
     elif cmd == CmdKeys.CMD_RECENT:
         rep.recent(today, args)
     elif cmd == CmdKeys.CMD_REGISTRATIONS:
-        # FIXME: should really adjust the count in trackerday
-        # so that don't have to do side-effect changes to it
-        # when change one day to another.
-        if reg.Registrations.process_registration("".join(args)):
-            today.registrations = reg.Registrations.num_registrations
+        if today.registrations.process_registration("".join(args)):
             data_changed = True
     elif cmd == CmdKeys.CMD_STATS:
         rep.day_end_report(day=today, args=args)
