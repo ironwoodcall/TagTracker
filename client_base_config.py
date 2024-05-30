@@ -152,10 +152,10 @@ except Exception as e:  # pylint:disable=broad-exception-caught
 # Final checks of local config and adjustments based on it.
 
 # SITE_LABEL forms filename and database ID parts.
-if not re.match(r'^[a-zA-Z0-9_\-.\~!]+$',SITE_LABEL) or len(SITE_LABEL) > 20:
+if not re.match(r'^[a-zA-Z0-9_\-.\~!]+$',SITE_LABEL) or len(SITE_LABEL) > 32:
     print()
     print("** Configuration error: **")
-    print("   SITE_LABEL has unsuitable characters or is too long.")
+    print("   SITE_LABEL has unsuitable characters or is too long (max len 32).")
     print("Contact TagTracker admin.")
     print()
     sys.exit(1)

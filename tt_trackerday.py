@@ -58,6 +58,7 @@ class OldTrackerDay:
         self.site_label = ""
         self.site_name = ""
 
+
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return list of all usable tags."""
         return frozenset((self.regular | self.oversize) - self.retired)
@@ -258,6 +259,20 @@ class TrackerDay:
         self.filepath = filepath
         self.site_label = site_label or "default"
         self.site_name = site_name or "Default Site"
+
+    def initialize_biketags(self):
+        """Create the biketags list from the tagid lists."""
+        # Initialize all the BikeTags
+        for t in self.regular_tagids:
+            self.biketags[t] = BikeTag(t, REGULAR)
+        for t in self.oversize_tagids:
+            self.biketags[t] = BikeTag(t, OVERSIZE)
+        for t in self.biketags.values():
+            t.status = BikeTag.UNUSED
+        for t in self.retired_tagids:
+            if t not in self.biketags:
+                self.biketags[t] = BikeTag(t, UNKNOWN)
+            self.biketags[t].status = BikeTag.RETIRED
 
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
@@ -579,7 +594,12 @@ class TrackerDay:
         # Sort bike_visits by tagid first, then by time_in
         bike_visits.sort(key=lambda x: (x["tagid"], x["time_in"]))
 
+        # A comment message at the top of the file.
+        comment = f"This is a TagTracker datafile for {self.site_label} on {self.date}."
+
+
         return {
+            "comment:": comment,
             "date": self.date,
             "opening_time": self.opening_time,
             "closing_time": self.closing_time,
@@ -608,6 +628,7 @@ class TrackerDay:
             ) from e
         day.notes = data["notes"]
         day.site_name = data["site_name"]
+        day.site_label = data["site_label"]
 
         day.regular_tagids = frozenset(TagID(tagid) for tagid in data["regular_tagids"])
         day.oversize_tagids = frozenset(
@@ -615,17 +636,8 @@ class TrackerDay:
         )
         day.retired_tagids = frozenset(TagID(tagid) for tagid in data["retired_tagids"])
 
-        # Initialize all the BikeTags
-        for t in day.regular_tagids:
-            day.biketags[t] = BikeTag(t, REGULAR)
-        for t in day.oversize_tagids:
-            day.biketags[t] = BikeTag(t, OVERSIZE)
-        for t in day.biketags.values():
-            t.status = BikeTag.UNUSED
-        for t in day.retired_tagids:
-            if t not in day.biketags:
-                day.biketags[t] = BikeTag(t, UNKNOWN)
-            day.biketags[t].status = BikeTag.RETIRED
+        # Initialize the biketags from the tagid lists
+        day.initialize_biketags()
 
         # Add the visits, assuring sorted by ascending time_in
         # FIXME: set the biketag.status fields
@@ -710,6 +722,8 @@ class TrackerDay:
         self.oversize_tagids = self._parse_tag_ids(OVERSIZE_TAGS)
         self.retired_tagids = self._parse_tag_ids(RETIRED_TAGS)
         self.check_tagids_conformity()
+        if not self.biketags:
+            self.initialize_biketags()
 
     def check_tagids_conformity(self) -> bool:
         """Check if all tag IDs conform to standard pattern.

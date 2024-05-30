@@ -128,6 +128,7 @@ def splash_top_default():
             style=k.ANSWER_STYLE,
         )
 
+
 def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
     """Print notes."""
     notes_list = notes_obj.fetch()
@@ -175,12 +176,15 @@ def confirm_hours(today: TrackerDay) -> bool:
         new_open, new_close = get_operating_hours(new_open, new_close)
         if new_open >= new_close:
             pr.iprint(
-                f"Closing time must be later than opening time {new_open}", style=k.ERROR_STYLE
+                f"Closing time must be later than opening time {new_open}",
+                style=k.ERROR_STYLE,
             )
         else:
             done = True
     # Has anything changed?
-    data_changed = bool(new_open != today.opening_time or new_close != today.closing_time)
+    data_changed = bool(
+        new_open != today.opening_time or new_close != today.closing_time
+    )
     # Save the changed
     today.opening_time = new_open
     today.closing_time = new_close

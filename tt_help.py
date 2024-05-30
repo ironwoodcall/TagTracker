@@ -22,26 +22,17 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from tt_tag import TagID
 import tt_printer as pr
-import tt_util as ut
-import client_base_config as cfg
-from tt_time import VTime
 import tt_constants as k
-import tt_default_hours
-from tt_trackerday import TrackerDay
-from tt_sounds import NoiseMaker
 from tt_commands import CmdKeys, find_command,COMMANDS
 
-# Help message.  Colour styles will be applied as:
+# Help messages.  Colour styles will be applied as:
 #       First non-blank line will be in TITLE_STYLE, after which
 #       lines that are flush left will be in SUBTITLE_STYLE; and
 #       all other lines will be in NORMAL_STYLE
 
-ARG_TAG = "<tag(s)>: a list of one or more tags"
-ARG_TIME = "time in 24-hour format, or the word 'now'"
-
 HELP_MESSAGES = {
+    # Dictionary key "" is for general help (no 'command' arg given)
     "": """
 TagTracker Commands
 
@@ -60,11 +51,10 @@ Information and reports
   Show recent activity         :  RECENT [time] [time]
   Show audit info              :  AUDIT [time]
   Show day-end stats report    :  STATS [time]
-  Show site busy-ness report   :  BUSY
   Show data as on paper form   :  DATAFORM
   Show tag configurations      :  TAGS
   Show chart of all activity   :  CHART
-  Estimate further bikes       :  ESTIMATE
+  Estimate further bikes today :  ESTIMATE
   Detailed dump of today data  :  DUMP ['full']
 
 Other

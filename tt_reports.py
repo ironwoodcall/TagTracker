@@ -550,6 +550,44 @@ def busiest_times_report(
         one_line(rank, activity, busy_times[activity])
 
 
+
+def day_end_report(day: TrackerDay, args: list) -> None:
+    """Report summary statistics about visits, up to the given time.
+
+    If not time given (arg[0]), calculates as if end of the day (closing time).
+    """
+    as_of_when = VTime((args and args[0]) or day.closing_time)
+    if not as_of_when:
+        pr.iprint(
+            f"Unrecognized time passed to visits summary ({args[0]})",
+            style=k.WARNING_STYLE,
+        )
+        return
+    pr.iprint()
+    pr.iprint(
+        f"Summary statistics {as_of_when.as_at}",
+        style=k.TITLE_STYLE,
+    )
+    later_events_warning(day, as_of_when)
+    if not day.latest_event(as_of_when):
+        pr.iprint(f"No bikes checked in by {as_of_when}", style=k.SUBTITLE_STYLE)
+        return
+    # Bikes in, in various categories.
+    bike_check_ins_report(day, as_of_when)
+    # Stats that use visits (stays)
+    durations_list = [v.duration(as_of_when) for v in day.all_visits()]
+    durations_list = [d for d in durations_list if d is not None]
+    visit_lengths_by_category_report(durations_list)
+    visit_statistics_report(durations_list)
+
+    # FIXME: move highwater report to here
+
+    # FIXME: move busy-ess report to here
+
+    # Number of bike registrations
+    registrations_report(day.registrations)
+
+
 # def qstack_report(visits: dict) -> None:
 #     """Report whether visits are more queue-like or more stack-like."""
 #     # Make a list of tuples: start_time, end_time for all visits.
@@ -612,72 +650,36 @@ def busiest_times_report(
 #     )
 
 
-def day_end_report(day: TrackerDay, args: list) -> None:
-    """Report summary statistics about visits, up to the given time.
 
-    If not time given (arg[0]), calculates as if end of the day (closing time).
-    """
-    as_of_when = VTime((args and args[0]) or day.closing_time)
-    if not as_of_when:
-        pr.iprint(
-            f"Unrecognized time passed to visits summary ({args[0]})",
-            style=k.WARNING_STYLE,
-        )
-        return
-    pr.iprint()
-    pr.iprint(
-        f"Summary statistics {as_of_when.as_at}",
-        style=k.TITLE_STYLE,
-    )
-    later_events_warning(day, as_of_when)
-    if not day.latest_event(as_of_when):
-        pr.iprint(f"No bikes checked in by {as_of_when}", style=k.SUBTITLE_STYLE)
-        return
-    # Bikes in, in various categories.
-    bike_check_ins_report(day, as_of_when)
-    # Stats that use visits (stays)
-    durations_list = [v.duration(as_of_when) for v in day.all_visits()]
-    durations_list = [d for d in durations_list if d is not None]
-    visit_lengths_by_category_report(durations_list)
-    visit_statistics_report(durations_list)
+# def busyness_report(day: OldTrackerDay, args: list) -> None:
+#     """Report more summary statistics about visits, up to the given time.
 
-    # FIXME: move highwater report to here
+#     If not time given, calculates as of latest checkin/out of the day.
+#     """
+#     # rightnow = ut.get_time()
+#     as_of_when = VTime((args + ["now"])[0])
+#     if not as_of_when:
+#         pr.iprint("Unrecognized time", style=k.WARNING_STYLE)
+#         return
+#     pr.iprint()
+#     pr.iprint(
+#         f"Busyness report {as_of_when.as_at}",
+#         style=k.TITLE_STYLE,
+#     )
+#     later_events_warning(day, as_of_when)
+#     if not day.latest_event(as_of_when):
+#         pr.iprint(f"No bikes checked in by {as_of_when}", style=k.SUBTITLE_STYLE)
+#         return
+#     # Dict of time (events)
+#     events = Snapshot.calc_moments(day, as_of_when)
+#     highwater_report(events)
+#     # Busiest times of day
+#     busiest_times_report(day, events, as_of_when)
 
-    # FIXME: move busy-ess report to here
-
-    # Number of bike registrations
-    registrations_report(day.registrations)
-
-
-def busyness_report(day: OldTrackerDay, args: list) -> None:
-    """Report more summary statistics about visits, up to the given time.
-
-    If not time given, calculates as of latest checkin/out of the day.
-    """
-    # rightnow = ut.get_time()
-    as_of_when = VTime((args + ["now"])[0])
-    if not as_of_when:
-        pr.iprint("Unrecognized time", style=k.WARNING_STYLE)
-        return
-    pr.iprint()
-    pr.iprint(
-        f"Busyness report {as_of_when.as_at}",
-        style=k.TITLE_STYLE,
-    )
-    later_events_warning(day, as_of_when)
-    if not day.latest_event(as_of_when):
-        pr.iprint(f"No bikes checked in by {as_of_when}", style=k.SUBTITLE_STYLE)
-        return
-    # Dict of time (events)
-    events = Snapshot.calc_moments(day, as_of_when)
-    highwater_report(events)
-    # Busiest times of day
-    busiest_times_report(day, events, as_of_when)
-
-    # Queue-like vs stack-like
-    # FIXME: re-enable someday maybe. But maybe not.
-    # visits = Stay.calc_stays(day, as_of_when)
-    # qstack_report(visits)
+#     Queue-like vs stack-like
+#     FIXME: re-enable someday maybe. But maybe not.
+#     visits = Stay.calc_stays(day, as_of_when)
+#     qstack_report(visits)
 
 
 # def dataform_report(day: OldTrackerDay, args: list[str]) -> None:
