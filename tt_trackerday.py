@@ -29,6 +29,7 @@ import json
 import jsonschema
 from jsonschema import validate
 
+import client_base_config as cfg
 from tt_tag import TagID
 from tt_time import VTime
 import tt_util as ut
@@ -37,7 +38,7 @@ from tt_constants import REGULAR, OVERSIZE, UNKNOWN
 from tt_bikevisit import BikeVisit
 from client_local_config import REGULAR_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
 from tt_registrations import Registrations
-
+from tt_notes import Notes
 
 class OldTrackerDay:
     """One day's worth of tracker info and its context."""
@@ -253,7 +254,7 @@ class TrackerDay:
         self.oversize_tagids = frozenset()
         self.retired_tagids = frozenset()
         self.colour_letters: dict[str, str] = {}
-        self.notes: list[str] = []
+        self.notes = Notes()
         self.biketags: dict[TagID, BikeTag] = {}
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
@@ -597,6 +598,7 @@ class TrackerDay:
         # A comment message at the top of the file.
         comment = f"This is a TagTracker datafile for {self.site_label} on {self.date}."
 
+        ut.squawk(f"{self.notes.notes=}",cfg.DEBUG)
         return {
             "comment:": comment,
             "date": self.date,
@@ -607,7 +609,7 @@ class TrackerDay:
             "regular_tagids": sorted(list(self.regular_tagids)),
             "oversize_tagids": sorted(list(self.oversize_tagids)),
             "retired_tagids": sorted(list(self.retired_tagids)),
-            "notes": self.notes,
+            "notes": self.notes.notes,
             "site_name": self.site_name,
             "site_label": self.site_label,
         }
@@ -625,7 +627,7 @@ class TrackerDay:
             raise TrackerDayError(
                 f"Bad registration value in file: '{data['registrations']}'. Error {e}"
             ) from e
-        day.notes = data["notes"]
+        day.notes.load(data["notes"])
         day.site_name = data["site_name"]
         day.site_label = data["site_label"]
 

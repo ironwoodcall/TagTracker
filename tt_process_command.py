@@ -501,6 +501,7 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
     cmd = cmd_bits.command
     args = cmd_bits.result_args
 
+
     # Assume no change in data unless we find out otherwise.
     data_changed = False
 
@@ -547,14 +548,13 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
         data_changed = bits.confirm_hours(today=today)
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
-    # elif cmd == CmdKeys.CMD_NOTES:
-    #     if cmd_bits.result_args:
-    #         # FIXME: Notes needs to be a list in TrackerDay
-    #         # not a standalone thingy.
-    #         notes.Notes.add(cmd_bits.tail)
-    #         pr.iprint("Noted.")
-    #     else:
-    #         bits.show_notes(notes.Notes, header=True, styled=False)
+    elif cmd == CmdKeys.CMD_NOTES:
+        if args:
+            today.notes.add(args[0])
+            data_changed = True
+            pr.iprint("Noted.")
+        else:
+            bits.show_notes(today.notes, header=True, styled=False)
     # elif cmd == CmdKeys.CMD_PUBLISH:
     #     # FIXME: this call is ok, still need to adjust publish_*
     #     publishment.publish_reports(day=today, args=args)

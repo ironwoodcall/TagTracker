@@ -281,6 +281,14 @@ def find_command(command_invocation):
             return command
     return ""
 
+def tags_arg(cmd_keyword) -> int:
+    """Returns which arg for cmd_keyword is an ARG_TAGS, or None."""
+    cmd_conf:CmdConfig = COMMANDS[cmd_keyword]
+    for i,arg_conf in enumerate(cmd_conf.arg_configs):
+        arg_conf:ArgConfig
+        if arg_conf.arg_type == ARG_TAGS:
+            return i
+    return None
 
 def prompt_user() -> str:
     """Prompt the user for input."""

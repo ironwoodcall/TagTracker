@@ -156,6 +156,13 @@ def later_events_warning(day: TrackerDay, when: VTime="") -> None:
     pr.iprint(msg, style=k.WARNING_STYLE)
 
 
+
+def print_tag_notes(day:TrackerDay, tag: str, reset: bool = False):
+    """Print notes for a given tag."""
+    for line in day.notes.find(tag):
+        pr.iprint(line, style=k.WARNING_STYLE)
+
+
 # def simplified_taglist(tags: list[TagID] | str) -> str:
 #     """Make a simplified str of tag names from a list of tags.
 

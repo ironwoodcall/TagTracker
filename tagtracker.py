@@ -44,7 +44,7 @@ if sys.version_info < (3, 10):
 # pylint: disable=wrong-import-position
 import tt_constants as k
 from tt_tag import TagID
-
+import tt_reports as rep
 # from tt_realtag import Stay
 from tt_time import VTime
 import tt_util as ut
@@ -62,6 +62,7 @@ from tt_commands import (
     CmdKeys,
     get_parsed_command,
     PARSED_OK,
+    tags_arg
 )
 from tt_sounds import NoiseMaker
 from tt_internet_monitor import InternetMonitorController
@@ -108,8 +109,8 @@ def main_loop(today: TrackerDay):
         pr.iprint()
         # Nag about bikes expected to be present if close to closing time
         bikes_on_hand_reminder(day=today)
-        # Allow tag notes for this next command
-        pr.print_tag_notes("", reset=True)
+        # # Allow tag notes for this next command
+        # rep.print_tag_notes(today,"", reset=True)
 
         # Get a command from the user.
         cmd_bits = get_parsed_command()
@@ -130,6 +131,11 @@ def main_loop(today: TrackerDay):
             data_changed = process_command(
                 cmd_bits=cmd_bits, today=today, publishment=publishment
             )
+            # Print any notes particularly associated with tag(s) in this command.
+            tag_arg = tags_arg(cmd_bits.command)
+            if tag_arg is not None:
+                for tag in cmd_bits.result_args[tag_arg]:
+                    rep.print_tag_notes(today,tag)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
         if data_changed and today.fix_2400_events():

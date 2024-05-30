@@ -131,7 +131,7 @@ def splash_top_default():
 
 def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
     """Print notes."""
-    notes_list = notes_obj.fetch()
+    notes_list = notes_obj.notes
     pr.iprint()
 
     if header:
