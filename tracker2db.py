@@ -42,7 +42,7 @@ import tt_dbutil
 import tt_constants
 import tt_util as ut
 
-from tt_event import Event
+from tt_snapshot import Snapshot
 from tt_time import VTime
 
 
@@ -185,7 +185,7 @@ def data_to_db(filename: str, args, batch, conn) -> None:
         return
 
     # Highwater values
-    events = Event.calc_events(data)
+    events = Snapshot.calc_moments(data)
     max_regular_num = max([x.num_here_regular for x in events.values()])
     max_oversize_num = max([x.num_here_oversize for x in events.values()])
     max_total_num = max([x.num_here_total for x in events.values()])

@@ -130,8 +130,8 @@ class Publisher:
         aud.audit_report(day,as_of_when)
         pr.iprint()
         # FIXME - re-enable
-        # rep.day_end_report(day, [as_of_when])
-        # pr.iprint()
+        rep.day_end_report(day, [as_of_when])
+        pr.iprint()
         # rep.busyness_report(day, [as_of_when])
         # pr.iprint()
         # rep.busy_graph(day, as_of_when=as_of_when)
@@ -159,7 +159,7 @@ class Publisher:
             return
 
         # FIXME - re-enable
-        # pr.iprint(ut.date_str(day.date, long_date=True))
-        # pr.iprint(f"Report generated {ut.date_str('today')} {VTime('now')}")
-        # rep.day_end_report(day, [as_of_when])
+        pr.iprint(ut.date_str(day.date, long_date=True))
+        pr.iprint(f"Report generated {ut.date_str('today')} {VTime('now')}")
+        rep.day_end_report(day, [as_of_when])
         pr.set_output()

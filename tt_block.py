@@ -25,7 +25,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 import tt_constants as k
 from tt_trackerday import OldTrackerDay
 from tt_time import VTime
-from tt_event import Event
+from tt_snapshot import Snapshot
 
 
 class Block:
@@ -133,9 +133,9 @@ def calc_blocks(day: OldTrackerDay, as_of_when: str = None) -> dict[VTime, objec
     # Load check-ins & check-outs into the blocks to which they belong
     # This has to happen carefully, in the order in which they occurred,
     # thus processing as Events rather than reading check_ins & _outs
-    events = Event.calc_events(day, as_of_when=as_of_when)
+    events = Snapshot.calc_moments(day, as_of_when=as_of_when)
     for evtime in sorted(events.keys()):
-        ev: Event
+        ev: Snapshot
         ev = events[evtime]
         bstart = block_start(ev.event_time)
         blk: Block

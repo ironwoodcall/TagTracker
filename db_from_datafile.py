@@ -60,7 +60,7 @@ import tt_dbutil
 import tt_util as ut
 from tt_trackerday import OldTrackerDay
 
-from tt_event import Event
+from tt_snapshot import Snapshot
 from tt_time import VTime
 
 # Pre-declare this global for linting purposes.
@@ -339,7 +339,7 @@ def calc_day_stats(filename: str, day: OldTrackerDay) -> DayStats:
         return None
 
     # Highwater values
-    events = Event.calc_events(day)
+    events = Snapshot.calc_moments(day)
     row.max_regular_num = max([x.num_here_regular for x in events.values()],default=0)
     row.max_oversize_num = max([x.num_here_oversize for x in events.values()],default=0)
     row.max_total_num = max([x.num_here_total for x in events.values()],default=0)

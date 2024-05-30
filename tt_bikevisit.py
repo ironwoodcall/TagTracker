@@ -32,9 +32,18 @@ class BikeVisit:
     #     if self.seq in BikeVisit.all_visits:
     #         del BikeVisit.all_visits[self.seq]
 
-    def duration(self, as_of_when: VTime | str = "now") -> int:
+    def duration(self, as_of_when:str = "now") -> int:
+        """Return the duration of the visit, in minutes as of "as_of_when".
+
+        If the visit has not started by "as_pf_when", returns None.
+        """
         # Return duration (in minutes) of visit
-        as_of_when = VTime(as_of_when)
-        dur = min(as_of_when.num, self.time_out.num)
+        as_of_when = VTime(as_of_when or "now")
+        if self.time_in > as_of_when:
+            return None
+
+        end = min(as_of_when, self.time_out) if self.time_out else as_of_when
+
+        dur = end.num - self.time_in.num
         dur = dur if dur >= 0 else 0
         return dur

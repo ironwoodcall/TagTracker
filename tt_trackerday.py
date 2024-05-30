@@ -811,6 +811,39 @@ class TrackerDay:
             if b.status_as_at(as_of_when) == BikeTag.DONE
         ]
 
+    def max_bikes_up_to_time(self,as_of_when:str=""):
+
+        # FIXME: extend this for regular/oversize/total
+
+        as_of_when = VTime(as_of_when or "now"
+                           )
+        # Collect all time_in and time_out events up to as_of_when
+        events = []
+        for visit in self.all_visits():
+            if visit.time_in <= as_of_when:
+                events.append((visit.time_in, 'in'))
+            if visit.time_out and visit.time_out <= as_of_when:
+                events.append((visit.time_out, 'out'))
+
+        # Sort events by time then 'in' before 'out'if times are the same.
+        events.sort(key=lambda x: (x[0], x[1] == 'out'))
+
+        max_bikes = 0
+        current_bikes = 0
+        max_time = ""
+
+        # Iterate through sorted events and track the number of bikes
+        for event in events:
+            if event[1] == 'in':
+                current_bikes += 1
+                if current_bikes > max_bikes:
+                    max_bikes = current_bikes
+                    max_time = event[0]
+            elif event[1] == 'out':
+                current_bikes -= 1
+
+        return max_bikes, max_time
+
     def dump(self, detailed: bool = False) -> list[str]:
         """Get info about this object."""
 

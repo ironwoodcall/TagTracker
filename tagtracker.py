@@ -636,11 +636,11 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay) -> bool:
 
 
 
-    # elif cmd_bits.command == CmdKeys.CMD_STATS:
-    #     rep.day_end_report(pack_day_data(), cmd_bits.result_args)
-    #     # Force publication when do day-end reports
-    #     publishment.publish(pack_day_data())
-    #     ##last_published = maybe_publish(last_published, force=True)
+    elif cmd_bits.command == CmdKeys.CMD_STATS:
+        rep.day_end_report(day=today, args=args)
+        # Force publication when do day-end reports
+        publishment.publish(pack_day_data())
+        ##last_published = maybe_publish(last_published, force=True)
 
 
     # elif cmd_bits.command == CmdKeys.CMD_BUSY:

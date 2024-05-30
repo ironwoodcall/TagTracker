@@ -30,16 +30,11 @@ from tt_tag import TagID
 # from tt_realtag import Stay
 from tt_trackerday import TrackerDay, OldTrackerDay
 import tt_util as ut
-from tt_event import Event
+from tt_snapshot import Snapshot
 import tt_block
 import tt_printer as pr
 import client_base_config as cfg
 import tt_registrations as reg
-
-# try:
-#    import tt_local_config  # pylint:disable=unused-import
-# except ImportError:
-#    pass
 
 
 # Time ranges for categorizing stay-lengths, in hours.
@@ -69,7 +64,7 @@ def _events_in_period(
             if start <= visit.time_in <= end:
                 event_list.append((visit.time_in, f"{biketag.tagid}:{i}", True))
             if visit.time_out and start <= visit.time_out <= end:
-                event_list.append((visit.time_in, f"{biketag.tagid}:{i}", False))
+                event_list.append((visit.time_out, f"{biketag.tagid}:{i}", False))
 
     event_list.sort(key=lambda event: event[0])
     return event_list
@@ -80,8 +75,10 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
 
     Args are: start_time, end_time
         If no args ==> now-30, now
-        If start_time but no end_time ==> start, now
-        If start_time and end_time ==> start, end
+        If start_time but no end_time
+            if start < now ==> start, now
+            if start >= now ==> now, now+60
+        If both start_time and end_time ==> start, end
     """
 
     def format_one(atime: VTime, tag: TagID, check_in: bool) -> str:
@@ -91,12 +88,17 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
         return f"{atime.tidy}    {in_tag:<7s}  {out_tag:<7s}"
 
     (start_time, end_time) = (args + [None, None])[:2]
+    now = VTime("now")
     if not start_time and not end_time:
-        end_time = VTime("now")
+        end_time = now
         start_time = VTime(end_time.num - 30)
     elif start_time and not end_time:
-        start_time = VTime(start_time)
-        end_time = VTime("now")
+        if start_time < now:
+            start_time = VTime(start_time)
+            end_time = now
+        else:
+            start_time = VTime(start_time)
+            end_time = start_time.num+60
     else:
         start_time = VTime(start_time)
         end_time = VTime(end_time)
@@ -110,7 +112,7 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
     # Print header.
     pr.iprint()
     pr.iprint(
-        f"Recent activity (from {start_time.short} to {end_time.short})",
+        f"Activity (from {start_time.short} to {end_time.short})",
         style=k.TITLE_STYLE,
     )
     pr.iprint(
@@ -154,165 +156,80 @@ def later_events_warning(day: TrackerDay, when: VTime="") -> None:
     pr.iprint(msg, style=k.WARNING_STYLE)
 
 
-def simplified_taglist(tags: list[TagID] | str) -> str:
-    """Make a simplified str of tag names from a list of tags.
+# def simplified_taglist(tags: list[TagID] | str) -> str:
+#     """Make a simplified str of tag names from a list of tags.
 
-    E.g. "wa0,2-7,9 wb1,9,10 be4"
-    The tags list can be a string separated by whitespace or comma.
-    or it can be a list of tags.
-    """
+#     E.g. "wa0,2-7,9 wb1,9,10 be4"
+#     The tags list can be a string separated by whitespace or comma.
+#     or it can be a list of tags.
+#     """
 
-    # FIXME: not adjusting this one to VTime/TagID yet, may not need to
-    def hyphenize(nums: list[int]) -> str:
-        """Convert a list of ints into a hyphenated list."""
-        # Warning: dark magic.
-        # Build lists of sequences from the sorted list.
-        # starts is list of starting values of sequences.
-        # ends is matching list of ending values.
-        # singles is list of ints that are not part of sequences.
-        nums_set = set(nums)
-        starts = [x for x in nums_set if x - 1 not in nums_set and x + 1 in nums_set]
-        startset = set(starts)
-        ends = [
-            x
-            for x in nums_set
-            if x - 1 in nums_set and x + 1 not in nums_set and x not in startset
-        ]
-        singles = [
-            x for x in nums_set if x - 1 not in nums_set and x + 1 not in nums_set
-        ]
-        # Build start & end into dictionary, rejecting any sequences
-        # shorter than an arbitrary shortest length
-        min_len = 3
-        seqs = {}  # key = int start; value = str representing the sequence
-        for start, end in zip(starts, ends):
-            if (end - start) >= (min_len - 1):
-                seqs[start] = f"{start}-{end}"
-            else:
-                # Too short, convert to singles
-                singles = singles + list(range(start, end + 1))
-        # Add the singles to the seqs dict
-        for num in singles:
-            seqs[num] = f"{num}"
-        # Return the whole thing as a comma-joined string
-        return ",".join([seqs[n] for n in sorted(seqs.keys())])
+#     # FIXME: not adjusting this one to VTime/TagID yet, may not need to
+#     def hyphenize(nums: list[int]) -> str:
+#         """Convert a list of ints into a hyphenated list."""
+#         # Warning: dark magic.
+#         # Build lists of sequences from the sorted list.
+#         # starts is list of starting values of sequences.
+#         # ends is matching list of ending values.
+#         # singles is list of ints that are not part of sequences.
+#         nums_set = set(nums)
+#         starts = [x for x in nums_set if x - 1 not in nums_set and x + 1 in nums_set]
+#         startset = set(starts)
+#         ends = [
+#             x
+#             for x in nums_set
+#             if x - 1 in nums_set and x + 1 not in nums_set and x not in startset
+#         ]
+#         singles = [
+#             x for x in nums_set if x - 1 not in nums_set and x + 1 not in nums_set
+#         ]
+#         # Build start & end into dictionary, rejecting any sequences
+#         # shorter than an arbitrary shortest length
+#         min_len = 3
+#         seqs = {}  # key = int start; value = str representing the sequence
+#         for start, end in zip(starts, ends):
+#             if (end - start) >= (min_len - 1):
+#                 seqs[start] = f"{start}-{end}"
+#             else:
+#                 # Too short, convert to singles
+#                 singles = singles + list(range(start, end + 1))
+#         # Add the singles to the seqs dict
+#         for num in singles:
+#             seqs[num] = f"{num}"
+#         # Return the whole thing as a comma-joined string
+#         return ",".join([seqs[n] for n in sorted(seqs.keys())])
 
-    if isinstance(tags, str):
-        # Break the tags down into a list.  First split comma.
-        tags = tags.split(",")
-        # Split on whitespace.  This makes a list of lists.
-        tags = [item.split() for item in tags]
-        # Flatten the list of lists into a single list.
-        tags = [item for sublist in tags for item in sublist]
-    # Make dict of [prefix]:list of tag_numbers_as_int
-    tag_prefixes = ut.tagnums_by_prefix(tags)
-    simplified_list = []
-    for prefix in sorted(tag_prefixes.keys()):
-        # A list of the tag numbers for this prefix
-        ##simplified_list.append(f"{prefix}" +
-        ##        (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
-        simplified_list.append(f"{prefix}{hyphenize(tag_prefixes[prefix])}")
-    # Return all of these joined together
-    simple_str = " ".join(simplified_list)
-    ##simple_str = simple_str.upper() if UC_TAGS else simple_str.lower()
-    return simple_str
-
-
-# def csv_dump(day: OldTrackerDay, args) -> None:
-#     """Dump a few stats into csv for pasting into spreadsheets."""
-#     filename = (args + [None])[0]
-#     if not filename:
-#         ##pr.iprint("usage: csv <filename>",style=k.WARNING_STYLE)
-#         pr.iprint("Printing to screen.", style=k.WARNING_STYLE)
-
-#     def time_hrs(atime) -> str:
-#         """Return atime (str or int) as a string of decimal hours."""
-#         hrs = ut.time_int(atime) / 60
-#         return f"{hrs:0.3}"
-
-#     as_of_when = "24:00"
-
-#     events = Event.calc_events(day, as_of_when)
-#     # detailed fullness
-#     pr.iprint()
-#     print("Time, Regular, Oversize, Total")
-#     for atime in sorted(events.keys()):
-#         ev = events[atime]
-#         print(
-#             f"{time_hrs(atime)},{ev.num_here_regular},"
-#             f"{ev.num_here_oversize},{ev.num_here_total}"
-#         )
-
-#     # block, ins, outs, num_bikes_here
-#     blocks_ins = dict(
-#         zip(
-#             tt_block.get_timeblock_list(day, as_of_when),
-#             [0 for _ in range(0, 100)],
-#         )
-#     )
-#     blocks_outs = blocks_ins.copy()
-#     blocks_heres = blocks_ins.copy()
-#     for atime, ev in events.items():
-#         start = tt_block.block_start(atime)  # Which block?
-#         blocks_ins[start] += ev.num_ins
-#         blocks_outs[start] += ev.num_outs
-#     prev_here = 0
-#     for atime in sorted(blocks_heres.keys()):
-#         blocks_heres[atime] = prev_here + blocks_ins[atime] - blocks_outs[atime]
-#         prev_here = blocks_heres[atime]
-#     pr.iprint()
-#     print("Time period,Incoming,Outgoing,Onsite")
-#     for atime in sorted(blocks_ins.keys()):
-#         print(f"{atime},{blocks_ins[atime]},{blocks_outs[atime]},{blocks_heres[atime]}")
-#     pr.iprint()
-
-#     # stay_start(hrs),duration(hrs),stay_end(hrs)
-#     visits = Stay.calc_stays(day, as_of_when)  # keyed by tag
-#     # make list of stays keyed by start time
-#     visits_by_start = {}
-#     for v in visits.values():
-#         start = v.time_in
-#         if start not in visits_by_start:
-#             visits_by_start[start] = []
-#         visits_by_start[start].append(v)
-#     pr.iprint()
-#     print("Sequence, Start time, Length of stay")
-#     seq = 1
-#     for atime in sorted(visits_by_start.keys()):
-#         for v in visits_by_start[atime]:
-#             print(f"{seq},{time_hrs(v.time_in)}," f"{time_hrs(v.duration)}")
-#             seq += 1
+#     if isinstance(tags, str):
+#         # Break the tags down into a list.  First split comma.
+#         tags = tags.split(",")
+#         # Split on whitespace.  This makes a list of lists.
+#         tags = [item.split() for item in tags]
+#         # Flatten the list of lists into a single list.
+#         tags = [item for sublist in tags for item in sublist]
+#     # Make dict of [prefix]:list of tag_numbers_as_int
+#     tag_prefixes = ut.tagnums_by_prefix(tags)
+#     simplified_list = []
+#     for prefix in sorted(tag_prefixes.keys()):
+#         # A list of the tag numbers for this prefix
+#         ##simplified_list.append(f"{prefix}" +
+#         ##        (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
+#         simplified_list.append(f"{prefix}{hyphenize(tag_prefixes[prefix])}")
+#     # Return all of these joined together
+#     simple_str = " ".join(simplified_list)
+#     ##simple_str = simple_str.upper() if UC_TAGS else simple_str.lower()
+#     return simple_str
 
 
-# def num_bikes_here(day: OldTrackerDay, as_of_when: VTime) -> int:
-#     """Count how many bikes are in at this time."""
-#     num_bikes = 0
-#     for atime in day.bikes_in.items():
-#         if atime <= as_of_when:
-#             num_bikes += 1
-#     return num_bikes
 
-
-def bike_check_ins_report(day: OldTrackerDay, as_of_when: VTime) -> None:
+def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
 
     as_of_when is HH:MM time, assumed to be a correct time.
     """
-    # Find the subset of check-ins at or before our cutoff time.
-    these_check_ins = {}
-    for tag, atime in day.bikes_in.items():
-        if atime <= as_of_when:
-            these_check_ins[tag] = atime
-    # Summary stats
-    num_still_here = len(
-        set(these_check_ins.keys())
-        - set([x for x in day.bikes_out if day.bikes_out[x] <= as_of_when])
-    )
-    num_bikes_ttl = len(these_check_ins)
-    these_checkins_am = [x for x in these_check_ins if these_check_ins[x] < "12:00"]
-    num_bikes_am = len(these_checkins_am)
-    num_bikes_regular = len([x for x in these_check_ins if x in day.regular])
-    num_bikes_oversize = len([x for x in these_check_ins if x in day.oversize])
+
+    num_bikes_ttl,num_bikes_regular,num_bikes_oversize = day.num_bikes_parked(as_of_when)
+    num_bikes_am,_,_ = day.num_bikes_parked("11:59")
+    num_still_here = day.num_tags_in_use(as_of_when)
 
     pr.iprint()
     pr.iprint("Bike check-ins", style=k.SUBTITLE_STYLE)
@@ -324,11 +241,14 @@ def bike_check_ins_report(day: OldTrackerDay, as_of_when: VTime) -> None:
     pr.iprint(f"Bikes still here: {num_still_here:4d}")
 
 
-def visit_lengths_by_category_report(visits: dict) -> None:
-    """Report number of visits in different length categories."""
+def visit_lengths_by_category_report(durations_list:list[int]) -> None:
+    """Report number of visits in different length categories.
+
+    visits is ....
+    """
 
     def one_range(lower: float = None, upper: float = None) -> None:
-        """Calculate and print visits in range lower:upper.
+        """Calculate and print visits in visit-duration range lower:upper (hours?).
 
         If lower is missing, uses anything below upper
         If upper is missing, uses anything above lower
@@ -350,8 +270,8 @@ def visit_lengths_by_category_report(visits: dict) -> None:
             header = f"{noun}s {lower:3.1f}-{upper:3.1f}h:"
         # Count visits in this time range.
         num = 0
-        for v in visits.values():
-            if v.duration >= lower * 60 and v.duration < upper * 60:
+        for d in durations_list:
+            if d >= lower * 60 and d < upper * 60:
                 num += 1
         pr.iprint(f"{header:18s}{num:4d}")
 
@@ -364,11 +284,11 @@ def visit_lengths_by_category_report(visits: dict) -> None:
     one_range(lower=prev_boundary, upper=None)
 
 
-def visit_statistics_report(visits: dict) -> None:
+def visit_statistics_report(durations_list: list[int]) -> None:
     """Max, min, mean, median, mode of visits.
 
     On entry:
-        visits is dict of tag:Stay
+        durations_list is a list of visit durations.
     """
     noun = "visit"
 
@@ -386,36 +306,36 @@ def visit_statistics_report(visits: dict) -> None:
         modes_str = ",".join(modes)
         modes_str = (
             f"{modes_str}  ({mode_occurences} occurences; "
-            "{MODE_ROUND_TO_NEAREST} minute categories)"
+            f"{MODE_ROUND_TO_NEAREST} minute categories)"
         )
         one_line("Mode visit:", modes_str)
 
-    def make_tags_str(tags: list[TagID]) -> str:
-        """Make a 'list of tags' string that is sure not to be too long."""
-        tagstr = "tag: " if len(tags) == 1 else "tags: "
-        tagstr = tagstr + ",".join([t.cased for t in tags])
-        if len(tagstr) > 30:
-            tagstr = f"{len(tags)} tags"
-        return tagstr
+    # def make_tags_str(tags: list[TagID]) -> str:
+    #     """Make a 'list of tags' string that is sure not to be too long."""
+    #     tagstr = "tag: " if len(tags) == 1 else "tags: "
+    #     tagstr = tagstr + ",".join([t.cased for t in tags])
+    #     if len(tagstr) > 30:
+    #         tagstr = f"{len(tags)} tags"
+    #     return tagstr
 
     # Make a dict of stay-lengths with list tags (for longest/shortest).
-    duration_tags = {}
-    for tag, v in visits.items():
-        dur = v.duration
-        if dur not in duration_tags:
-            duration_tags[dur] = []
-        duration_tags[dur].append(tag)
-    if not duration_tags:
-        return  # No durations
-    durations_list = [x.duration for x in visits.values()]
-    longest = max(list(duration_tags.keys()))
-    long_tags = make_tags_str(duration_tags[longest])
-    shortest = min(list(duration_tags.keys()))
-    short_tags = make_tags_str(duration_tags[shortest])
+    # duration_tags = {}
+    # for tag, v in visits.items():
+    #     dur = v.duration
+    #     if dur not in duration_tags:
+    #         duration_tags[dur] = []
+    #     duration_tags[dur].append(tag)
+    # if not duration_tags:
+    #     return  # No durations
+    # durations_list = [x.duration for x in visits.values()]
+    longest = max(durations_list,default=None)
+    # long_tags = make_tags_str(duration_tags[longest])
+    shortest = min(durations_list,default=None)
+    # short_tags = make_tags_str(duration_tags[shortest])
     pr.iprint()
     pr.iprint("Visit-length statistics", style=k.SUBTITLE_STYLE)
-    one_line(f"Longest {noun}:", f"{VTime(longest).tidy}  ({long_tags})")
-    one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}  ({short_tags})")
+    one_line(f"Longest {noun}:", f"{VTime(longest).tidy}")
+    one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}")
     # Make a list of stay-lengths (for mean, median, mode)
     one_line(f"Mean {noun}:", VTime(statistics.mean(durations_list)).tidy)
     one_line(
@@ -584,7 +504,7 @@ def fullness_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
 
 def busiest_times_report(
     day: OldTrackerDay,
-    events: dict[VTime, Event],
+    events: dict[VTime, Snapshot],
     as_of_when: VTime,
 ) -> None:
     """Report the busiest time(s) of day."""
@@ -630,85 +550,80 @@ def busiest_times_report(
         one_line(rank, activity, busy_times[activity])
 
 
-def qstack_report(visits: dict) -> None:
-    """Report whether visits are more queue-like or more stack-like."""
-    # Make a list of tuples: start_time, end_time for all visits.
-    visit_times = list(
-        zip(
-            [vis.time_in for vis in visits.values()],
-            [vis.time_out for vis in visits.values()],
-        )
-    )
-    ##ut.squawk( f"{len(list(visit_times))=}")
-    ##ut.squawk( f"{list(visit_times)=}")
-    queueish = 0
-    stackish = 0
-    neutralish = 0
-    visit_compares = 0
-    total_possible_compares = int((len(visit_times) * (len(visit_times) - 1)) / 2)
+# def qstack_report(visits: dict) -> None:
+#     """Report whether visits are more queue-like or more stack-like."""
+#     # Make a list of tuples: start_time, end_time for all visits.
+#     visit_times = list(
+#         zip(
+#             [vis.time_in for vis in visits.values()],
+#             [vis.time_out for vis in visits.values()],
+#         )
+#     )
+#     ##ut.squawk( f"{len(list(visit_times))=}")
+#     ##ut.squawk( f"{list(visit_times)=}")
+#     queueish = 0
+#     stackish = 0
+#     neutralish = 0
+#     visit_compares = 0
+#     total_possible_compares = int((len(visit_times) * (len(visit_times) - 1)) / 2)
 
-    for time_in, time_out in visit_times:
-        earlier_visits = [
-            (tin, tout)
-            for (tin, tout) in visit_times
-            if tin < time_in and tout > time_in
-        ]
-        visit_compares += len(earlier_visits)
-        for earlier_out in [v[1] for v in earlier_visits]:
-            if earlier_out < time_out:
-                queueish += 1
-            elif earlier_out > time_out:
-                stackish += 1
-            else:
-                neutralish += 1
+#     for time_in, time_out in visit_times:
+#         earlier_visits = [
+#             (tin, tout)
+#             for (tin, tout) in visit_times
+#             if tin < time_in and tout > time_in
+#         ]
+#         visit_compares += len(earlier_visits)
+#         for earlier_out in [v[1] for v in earlier_visits]:
+#             if earlier_out < time_out:
+#                 queueish += 1
+#             elif earlier_out > time_out:
+#                 stackish += 1
+#             else:
+#                 neutralish += 1
 
-    pr.iprint()
-    pr.iprint(
-        "Were today's vists more queue-like or stack-like?",
-        style=k.SUBTITLE_STYLE,
-    )
-    if not queueish and not stackish:
-        pr.iprint("Unable to determine.")
-        return
-    neutralish = total_possible_compares - queueish - stackish
-    queue_proportion = queueish / (queueish + stackish + neutralish)
-    stack_proportion = stackish / (queueish + stackish + neutralish)
-    pr.iprint(
-        f"The {total_possible_compares} compares of today's {len(visits)} "
-        "visits are:"
-    )
-    pr.iprint(
-        f"{(queue_proportion):0.3f} queue-like (overlapping visits)",
-        num_indents=2,
-    )
-    pr.iprint(
-        f"{(stack_proportion):0.3f} stack-like (nested visits)",
-        num_indents=2,
-    )
-    pr.iprint(
-        f"{((1 - stack_proportion - queue_proportion)):0.3f} neither "
-        "(disjunct visits, or share a check-in or -out time)",
-        num_indents=2,
-    )
+#     pr.iprint()
+#     pr.iprint(
+#         "Were today's vists more queue-like or stack-like?",
+#         style=k.SUBTITLE_STYLE,
+#     )
+#     if not queueish and not stackish:
+#         pr.iprint("Unable to determine.")
+#         return
+#     neutralish = total_possible_compares - queueish - stackish
+#     queue_proportion = queueish / (queueish + stackish + neutralish)
+#     stack_proportion = stackish / (queueish + stackish + neutralish)
+#     pr.iprint(
+#         f"The {total_possible_compares} compares of today's {len(visits)} "
+#         "visits are:"
+#     )
+#     pr.iprint(
+#         f"{(queue_proportion):0.3f} queue-like (overlapping visits)",
+#         num_indents=2,
+#     )
+#     pr.iprint(
+#         f"{(stack_proportion):0.3f} stack-like (nested visits)",
+#         num_indents=2,
+#     )
+#     pr.iprint(
+#         f"{((1 - stack_proportion - queue_proportion)):0.3f} neither "
+#         "(disjunct visits, or share a check-in or -out time)",
+#         num_indents=2,
+#     )
 
 
-def day_end_report(day: OldTrackerDay, args: list, include_notes: bool = True) -> None:
+def day_end_report(day: TrackerDay, args: list) -> None:
     """Report summary statistics about visits, up to the given time.
 
-    If not time given, calculates as of latest checkin/out of the day.
+    If not time given (arg[0]), calculates as if end of the day (closing time).
     """
-    rightnow = VTime("now")
-    as_of_when = (args + [None])[0]
+    as_of_when = VTime((args and args[0]) or day.closing_time)
     if not as_of_when:
-        as_of_when = rightnow
-    else:
-        as_of_when = VTime(as_of_when)
-        if not (as_of_when):
-            pr.iprint(
-                f"Unrecognized time passed to visits summary ({args[0]})",
-                style=k.WARNING_STYLE,
-            )
-            return
+        pr.iprint(
+            f"Unrecognized time passed to visits summary ({args[0]})",
+            style=k.WARNING_STYLE,
+        )
+        return
     pr.iprint()
     pr.iprint(
         f"Summary statistics {as_of_when.as_at}",
@@ -721,9 +636,14 @@ def day_end_report(day: OldTrackerDay, args: list, include_notes: bool = True) -
     # Bikes in, in various categories.
     bike_check_ins_report(day, as_of_when)
     # Stats that use visits (stays)
-    visits = None # FIXME: Stay.calc_stays(day, as_of_when)
-    visit_lengths_by_category_report(visits)
-    visit_statistics_report(visits)
+    durations_list = [v.duration(as_of_when) for v in day.all_visits()]
+    durations_list = [d for d in durations_list if d is not None]
+    visit_lengths_by_category_report(durations_list)
+    visit_statistics_report(durations_list)
+
+    # FIXME: move highwater report to here
+
+    # FIXME: move busy-ess report to here
 
     # Number of bike registrations
     registrations_report(day.registrations)
@@ -736,7 +656,7 @@ def busyness_report(day: OldTrackerDay, args: list) -> None:
     """
     # rightnow = ut.get_time()
     as_of_when = VTime((args + ["now"])[0])
-    if not (as_of_when):
+    if not as_of_when:
         pr.iprint("Unrecognized time", style=k.WARNING_STYLE)
         return
     pr.iprint()
@@ -749,69 +669,70 @@ def busyness_report(day: OldTrackerDay, args: list) -> None:
         pr.iprint(f"No bikes checked in by {as_of_when}", style=k.SUBTITLE_STYLE)
         return
     # Dict of time (events)
-    events = Event.calc_events(day, as_of_when)
+    events = Snapshot.calc_moments(day, as_of_when)
     highwater_report(events)
     # Busiest times of day
     busiest_times_report(day, events, as_of_when)
 
     # Queue-like vs stack-like
-    visits = None # FIXME: Stay.calc_stays(day, as_of_when)
-    qstack_report(visits)
+    # FIXME: re-enable someday maybe. But maybe not.
+    # visits = Stay.calc_stays(day, as_of_when)
+    # qstack_report(visits)
 
 
-def dataform_report(day: OldTrackerDay, args: list[str]) -> None:
-    """Print days activity in timeblocks.
+# def dataform_report(day: OldTrackerDay, args: list[str]) -> None:
+#     """Print days activity in timeblocks.
 
-    This is to match the (paper/google) data tracking sheets.
-    Single args are both optional, end_time.
-    If end_time is missing, runs to current time.
-    If start_time is missing, starts one hour before end_time.
-    """
-    end_time = VTime((args + ["now"])[0])
-    if not end_time:
-        pr.iprint(f"Unrecognized time {end_time.original}", style=k.WARNING_STYLE)
-        return
-    # Special case: allow "24:00"
-    if end_time != "24:00":
-        end_time = tt_block.block_end(end_time)
-        if not (end_time):
-            pr.iprint()
-            pr.iprint(f"Unrecognized time {args[0]}", style=k.WARNING_STYLE)
-            return
+#     This is to match the (paper/google) data tracking sheets.
+#     Single args are both optional, end_time.
+#     If end_time is missing, runs to current time.
+#     If start_time is missing, starts one hour before end_time.
+#     """
+#     end_time = VTime((args + ["now"])[0])
+#     if not end_time:
+#         pr.iprint(f"Unrecognized time {end_time.original}", style=k.WARNING_STYLE)
+#         return
+#     # Special case: allow "24:00"
+#     if end_time != "24:00":
+#         end_time = tt_block.block_end(end_time)
+#         if not (end_time):
+#             pr.iprint()
+#             pr.iprint(f"Unrecognized time {args[0]}", style=k.WARNING_STYLE)
+#             return
 
-    pr.iprint()
-    pr.iprint(
-        f"Tracking form data from start of day until {end_time.short}",
-        style=k.TITLE_STYLE,
-    )
-    later_events_warning(day, end_time)
-    all_blocks = tt_block.calc_blocks(day, end_time)
-    if not all_blocks:
-        earliest = day.earliest_event()
-        pr.iprint(
-            f"No bikes checked in before {end_time} " f"(earliest in at {earliest})",
-            style=k.HIGHLIGHT_STYLE,
-        )
-        return
-    for which in [k.BIKE_IN, k.BIKE_OUT]:
-        if which == k.BIKE_IN:
-            titlebit = "checked IN"
-            prefix = "<<<<"
-            suffix = ""
-        else:
-            titlebit = "returned OUT"
-            prefix = ">>>>"
-            suffix = ""
-        title = f"Bikes {titlebit}"
-        pr.iprint()
-        pr.iprint(title, style=k.SUBTITLE_STYLE)
-        pr.iprint("-" * len(title), style=k.SUBTITLE_STYLE)
-        for start, block in all_blocks.items():
-            inouts = block.ins_list if which == k.BIKE_IN else block.outs_list
-            end = tt_block.block_end(start)
-            tagslist = simplified_taglist(inouts)
-            if TagID.uc():
-                tagslist = tagslist.upper()
-            else:
-                tagslist = tagslist.lower()
-            pr.iprint(f"{start}-{end} {prefix} {tagslist} {suffix}")
+#     pr.iprint()
+#     pr.iprint(
+#         f"Tracking form data from start of day until {end_time.short}",
+#         style=k.TITLE_STYLE,
+#     )
+#     later_events_warning(day, end_time)
+#     all_blocks = tt_block.calc_blocks(day, end_time)
+#     if not all_blocks:
+#         earliest = day.earliest_event()
+#         pr.iprint(
+#             f"No bikes checked in before {end_time} " f"(earliest in at {earliest})",
+#             style=k.HIGHLIGHT_STYLE,
+#         )
+#         return
+#     for which in [k.BIKE_IN, k.BIKE_OUT]:
+#         if which == k.BIKE_IN:
+#             titlebit = "checked IN"
+#             prefix = "<<<<"
+#             suffix = ""
+#         else:
+#             titlebit = "returned OUT"
+#             prefix = ">>>>"
+#             suffix = ""
+#         title = f"Bikes {titlebit}"
+#         pr.iprint()
+#         pr.iprint(title, style=k.SUBTITLE_STYLE)
+#         pr.iprint("-" * len(title), style=k.SUBTITLE_STYLE)
+#         for start, block in all_blocks.items():
+#             inouts = block.ins_list if which == k.BIKE_IN else block.outs_list
+#             end = tt_block.block_end(start)
+#             tagslist = simplified_taglist(inouts)
+#             if TagID.uc():
+#                 tagslist = tagslist.upper()
+#             else:
+#                 tagslist = tagslist.lower()
+#             pr.iprint(f"{start}-{end} {prefix} {tagslist} {suffix}")

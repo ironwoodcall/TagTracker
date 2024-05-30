@@ -54,13 +54,6 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
 
     total_in, regular_in, oversize_in = day.num_bikes_parked(as_of_when)
     total_out, regular_out, oversize_out = day.num_bikes_returned(as_of_when)
-    # for biketag in day.biketags.values():
-    #     regular_in += len([v for v in biketag.visits if v.time_in <= as_of_when if biketag.bike_type == k.REGULAR])
-    #     oversize_in += len([v for v in biketag.visits if v.time_in <= as_of_when if biketag.bike_type == k.OVERSIZE])
-    #     regular_out += len([v for v in biketag.visits if as_of_when <= v.time_out if biketag.bike_type == k.REGULAR])
-    #     oversize_out += len([v for v in biketag.visits if as_of_when <= v.time_out if biketag.bike_type == k.OVERSIZE])
-    # total_in = regular_in + oversize_in
-    # total_out = regular_out + oversize_out
 
     # Count bikes currently onsite
     regular_onsite = 0
@@ -71,13 +64,14 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
         else:
             oversize_onsite += 1
     total_onsite = regular_onsite + oversize_onsite
-    ut.squawk(f"{total_onsite=}, {day.num_tags_in_use(as_of_when)=}",cfg.DEBUG)
+    ut.squawk(f"{total_onsite=}, {day.num_tags_in_use(as_of_when)=}", cfg.DEBUG)
 
     # Print summary of bikes in/out/here
     pr.iprint()
     pr.iprint("Summary             Regular Oversize Total", style=k.SUBTITLE_STYLE)
     pr.iprint(
-        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}" f"    {total_in:4d}"
+        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}"
+        f"    {total_in:4d}"
     )
     pr.iprint(
         f"Bikes returned out:   {regular_out:4d}    {oversize_out:4d}"
@@ -94,7 +88,7 @@ def audit_report(
     args: list[str],
     include_notes: bool = True,
     include_returns: bool = False,
-    retired_tag_str:str = DEFAULT_RETIRED_TAG_STR
+    retired_tag_str: str = DEFAULT_RETIRED_TAG_STR,
 ) -> None:
     """Create & display audit report as at a particular time.
 
@@ -133,7 +127,6 @@ def audit_report(
     tags_in_use = day.tags_in_use(as_of_when=as_of_when)
     tags_done = day.tags_done(as_of_when)
 
-
     # Tags matrixes
     # Tags broken down by prefix (for tags matrix)
     prefixes_on_hand = ut.tagnums_by_prefix(tags_in_use)
@@ -157,7 +150,9 @@ def audit_report(
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix:3>} "
-        for i in range(0, ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1):
+        for i in range(
+            0, ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1
+        ):
             if i in numbers:
                 s = f"{i:02d}"
             elif TagID(f"{prefix}{i}") in day.retired_tagids:
@@ -177,7 +172,8 @@ def audit_report(
             numbers = prefixes_returned_out[prefix]
             line = f"{prefix:3>} "
             for i in range(
-                0, ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1
+                0,
+                ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1,
             ):
                 if i in numbers:
                     s = f"{i:02d}"
