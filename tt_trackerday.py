@@ -319,18 +319,18 @@ class TrackerDay:
             return "O"
         return ""
 
-    def make_fake_tag_lists(self) -> None:
-        """Fake up regular/oversized tag lists based on City Hall use in 2023."""
-        regulars = set()
-        oversizes = set()
-        for tag in self.biketags:
-            tag_type = self.guess_tag_type(tag)
-            if tag_type == "R":
-                regulars.add(tag)
-            elif tag_type == "O":
-                oversizes.add(tag)
-        self.regular_tagids = frozenset(regulars)
-        self.oversize_tagids = frozenset(oversizes)
+    # def make_fake_tag_lists(self) -> None:
+    #     """Fake up regular/oversized tag lists based on City Hall use in 2023."""
+    #     regulars = set()
+    #     oversizes = set()
+    #     for tag in self.biketags:
+    #         tag_type = self.guess_tag_type(tag)
+    #         if tag_type == "R":
+    #             regulars.add(tag)
+    #         elif tag_type == "O":
+    #             oversizes.add(tag)
+    #     self.regular_tagids = frozenset(regulars)
+    #     self.oversize_tagids = frozenset(oversizes)
 
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
         """Generate a list of logic error messages for TrackerDay object.

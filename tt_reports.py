@@ -34,7 +34,6 @@ from tt_snapshot import Snapshot
 import tt_block
 import tt_printer as pr
 import client_base_config as cfg
-import tt_registrations as reg
 
 
 # Time ranges for categorizing stay-lengths, in hours.
@@ -116,7 +115,8 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
         style=k.TITLE_STYLE,
     )
     pr.iprint(
-        "The number following the tag shows which of the tag's visits this event represents.",
+        "The number following the tag shows which of the "
+        "tag's visits this event represents.",
         style=k.SUBTITLE_STYLE,
     )
     pr.iprint()
@@ -157,7 +157,7 @@ def later_events_warning(day: TrackerDay, when: VTime="") -> None:
 
 
 
-def print_tag_notes(day:TrackerDay, tag: str, reset: bool = False):
+def print_tag_notes(day:TrackerDay, tag: str):
     """Print notes for a given tag."""
     for line in day.notes.find(tag):
         pr.iprint(line, style=k.WARNING_STYLE)

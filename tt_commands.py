@@ -62,10 +62,10 @@ class ParsedCommand:
         }:
             raise ValueError(f"unknown status for ParsedCommand: '{self.status}")
 
-    def set_error(self, msg: str = "Parsing error."):
-        """Sets to error state with this message."""
-        self.status = PARSED_ERROR
-        self.message = msg
+    # def set_error(self, msg: str = "Parsing error."):
+    #     """Sets to error state with this message."""
+    #     self.status = PARSED_ERROR
+    #     self.message = msg
 
     def dump(self):
         """Print the contents of the object (for debugging basically)."""
@@ -293,7 +293,7 @@ def tags_arg(cmd_keyword) -> int:
 def prompt_user() -> str:
     """Prompt the user for input."""
     # Prompt
-    pr.iprint()  # blank line above the prompt
+    # pr.iprint()  # blank line above the prompt
     if cfg.INCLUDE_TIME_IN_PROMPT:
         pr.iprint(f"{VTime('now').short}", end="")
     pr.iprint(f"Bike tag or command {cfg.CURSOR}", style=k.PROMPT_STYLE, end="")

@@ -55,20 +55,6 @@ def find_on_path(filename):
         return None
 
 
-def top_level_script() -> str:
-    """Return filename of highest-level calling script.
-
-    This is specifically intended to let a module determine
-    whether or not it is being called by the tagtracker desktop
-    (data entry) script."""
-
-    frame = sys._getframe() #pylint: disable=protected-access
-    while frame.f_back:
-        frame = frame.f_back
-    top = frame.f_globals.get("__file__", None)
-    top = top if top else ""
-    return top
-
 
 def squawk(whatever: str = "",yes_print_this:bool=True) -> str:
     """Print whatever with file & linenumber in front of it.
@@ -91,13 +77,6 @@ def squawk(whatever: str = "",yes_print_this:bool=True) -> str:
     caller_function = f.f_code.co_name
     caller_line_no = f.f_lineno
     print(f"{caller_module}:{caller_function}():{caller_line_no}: {whatever}")
-
-def decomment(string: str) -> str:
-    """Remove any part of the string that starts with '#'."""
-    r = re.match(r"^([^#]*) *#", string)
-    if r:
-        return r.group(1)
-    return string
 
 
 def date_str(
@@ -156,23 +135,6 @@ def date_str(
         return thisday.strftime("%A %B %d (%Y-%m-%d)")
     return thisday.strftime("%Y-%m-%d")
 
-
-def date_offset(start_date: str, offset: int) -> str:
-    """Return a day some number of days before or after a date.
-
-    start_date: is any date string that date_str() will recognize
-    offset: is the number of days later(+) or earlier(-)
-    Returns:
-        YYYY-MM-DD of date which is offset from start_date
-        "" if start_date is bad
-    """
-    start_date = date_str(start_date)
-    if not start_date:
-        return ""
-    offset_day = datetime.datetime.strptime(
-        start_date, "%Y-%m-%d"
-    ) + datetime.timedelta(offset)
-    return offset_day.strftime("%Y-%m-%d")
 
 
 def dow_int(date_or_dayname: str) -> int:
@@ -276,54 +238,6 @@ def iso_timestamp() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def time_str(
-    maybe_time: int | str | float | None,
-    allow_now: bool = False,
-    default_now: bool = False,
-) -> VTime:
-    """Return maybe_time as HH:MM (or "").
-
-    Input can be int/float (duration or minutes since midnight),
-    or a string that *might* be a time in [H]H[:]MM.
-
-    Special case: "now" will return current time if allowed
-    by flag "allow_now".
-
-    If default_now is True, then will return current time when input is blank.
-
-    Return is either "" (doesn't look like a valid time) or
-    will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
-    """
-    # FIXME: time_str() deprecated, use VTime() object
-    if not maybe_time and default_now:
-        return VTime("now")
-    if isinstance(maybe_time, float):
-        maybe_time = round(maybe_time)
-    if isinstance(maybe_time, str):
-        if maybe_time.lower() == "now" and allow_now:
-            return VTime("now")
-        r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
-        if not (r):
-            return VTime("")
-        h = int(r.group(1))
-        m = int(r.group(2))
-        # Test for an impossible time
-        if h > 24 or m > 59 or (h * 60 + m) > 1440:
-            return VTime("")
-    elif maybe_time is None:
-        return VTime("")
-    elif not isinstance(maybe_time, int):
-        squawk(f"PROGRAM ERROR: called time_str({maybe_time=})")
-        return VTime("")
-    elif isinstance(maybe_time, int):
-        # Test for impossible time.
-        if not (0 <= maybe_time <= 1440):
-            return VTime("")
-        h = maybe_time // 60
-        m = maybe_time % 60
-    # Return 5-digit time string
-    return VTime(f"{h:02d}:{m:02d}")
-
 
 def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
     """Get tags sorted into lists by their prefix.
@@ -410,15 +324,6 @@ def get_version() -> str:
     # Full version string now
     # version_str = f"{version_str} ({git_str})"
     return git_str
-
-
-def OLD_plural(count: int) -> str:
-    """Get an "s" if count indicates one is needed."""
-    if isinstance(count, (int, float)) and count == 1:
-        return ""
-    else:
-        return "s"
-
 
 def untaint(tainted: str) -> str:
     """Remove any suspicious characters from a possibly tainted string."""
@@ -592,3 +497,90 @@ def writable_dir(filepath: str) -> bool:
             return False
     else:
         return False
+
+# time_str() deprecated, use VTime() object
+# def time_str(
+#     maybe_time: int | str | float | None,
+#     allow_now: bool = False,
+#     default_now: bool = False,
+# ) -> VTime:
+#     """Return maybe_time as HH:MM (or "").
+
+#     Input can be int/float (duration or minutes since midnight),
+#     or a string that *might* be a time in [H]H[:]MM.
+
+#     Special case: "now" will return current time if allowed
+#     by flag "allow_now".
+
+#     If default_now is True, then will return current time when input is blank.
+
+#     Return is either "" (doesn't look like a valid time) or
+#     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
+#     """
+#     if not maybe_time and default_now:
+#         return VTime("now")
+#     if isinstance(maybe_time, float):
+#         maybe_time = round(maybe_time)
+#     if isinstance(maybe_time, str):
+#         if maybe_time.lower() == "now" and allow_now:
+#             return VTime("now")
+#         r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
+#         if not (r):
+#             return VTime("")
+#         h = int(r.group(1))
+#         m = int(r.group(2))
+#         # Test for an impossible time
+#         if h > 24 or m > 59 or (h * 60 + m) > 1440:
+#             return VTime("")
+#     elif maybe_time is None:
+#         return VTime("")
+#     elif not isinstance(maybe_time, int):
+#         squawk(f"PROGRAM ERROR: called time_str({maybe_time=})")
+#         return VTime("")
+#     elif isinstance(maybe_time, int):
+#         # Test for impossible time.
+#         if not (0 <= maybe_time <= 1440):
+#             return VTime("")
+#         h = maybe_time // 60
+#         m = maybe_time % 60
+#     # Return 5-digit time string
+#     return VTime(f"{h:02d}:{m:02d}")
+
+# def date_offset(start_date: str, offset: int) -> str:
+#     """Return a day some number of days before or after a date.
+
+#     start_date: is any date string that date_str() will recognize
+#     offset: is the number of days later(+) or earlier(-)
+#     Returns:
+#         YYYY-MM-DD of date which is offset from start_date
+#         "" if start_date is bad
+#     """
+#     start_date = date_str(start_date)
+#     if not start_date:
+#         return ""
+#     offset_day = datetime.datetime.strptime(
+#         start_date, "%Y-%m-%d"
+#     ) + datetime.timedelta(offset)
+#     return offset_day.strftime("%Y-%m-%d")
+
+# def top_level_script() -> str:
+#     """Return filename of highest-level calling script.
+
+#     This is specifically intended to let a module determine
+#     whether or not it is being called by the tagtracker desktop
+#     (data entry) script."""
+
+#     frame = sys._getframe() #pylint: disable=protected-access
+#     while frame.f_back:
+#         frame = frame.f_back
+#     top = frame.f_globals.get("__file__", None)
+#     top = top if top else ""
+#     return top
+
+# def decomment(string: str) -> str:
+#     """Remove any part of the string that starts with '#'."""
+#     r = re.match(r"^([^#]*) *#", string)
+#     if r:
+#         return r.group(1)
+#     return string
+

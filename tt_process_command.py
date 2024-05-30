@@ -56,7 +56,6 @@ from tt_commands import (
     COMMANDS,
 )
 import tt_call_estimator
-import tt_registrations as reg
 from tt_sounds import NoiseMaker
 import tt_main_bits as bits
 

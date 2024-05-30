@@ -26,18 +26,7 @@ import tt_util as ut
 import tt_printer as pr
 from tt_sounds import NoiseMaker
 
-
-import tt_constants as k
-import tt_util as ut
-import tt_printer as pr
-from tt_sounds import NoiseMaker
-
-
-import tt_constants as k
 # import client_base_config as cfg
-import tt_util as ut
-import tt_printer as pr
-from tt_sounds import NoiseMaker
 
 
 class Registrations:
@@ -46,13 +35,13 @@ class Registrations:
     This uses only a class variable so there is only ever one instance.
     """
 
-    def __init__(self,num_registrations:int = 0) -> None:
+    def __init__(self, num_registrations: int = 0) -> None:
         self.num_registrations = num_registrations
 
     def __rep__(self):
         return f"{self.num_registrations}"
 
-    def process_registration(self, user_input:str):
+    def process_registration(self, user_input: str):
         """Set registration value based on a user command.
 
         Returns True if the count has changed, False otherwise.

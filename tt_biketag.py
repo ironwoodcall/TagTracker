@@ -20,7 +20,6 @@ from tt_constants import REGULAR, OVERSIZE, UNKNOWN
 
 class BikeTagError(Exception):
     """Custom exception class for BikeTag errors."""
-
     pass
 
 
