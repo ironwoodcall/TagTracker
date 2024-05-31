@@ -147,7 +147,7 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
 
     print("<h2>Busyness</h2>")
     print("<pre>")
-    rep.busyness_report(day, [qtime])
+    # rep.busyness_report(day, [qtime])
     print("\n</pre>")
 
     print("<h2>Tag inventory</h2>")
@@ -171,18 +171,18 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     print("<pre>")
     day = db.db2day(ttdb, thisday)
     rep.day_end_report(day, [qtime])
-    print()
-    rep.busyness_report(day, [qtime])
+    # print()
+    # rep.busyness_report(day, [qtime])
     print()
     aud.audit_report(day, [query_time], include_notes=False, include_returns=True)
     print()
     rep.full_chart(day, query_time)
     print()
     tt_tag_inv.tags_config_report(day, [query_time], True)
-    print()
-    rep.busy_graph(day, query_time)
-    print()
-    rep.fullness_graph(day, query_time)
+    # print()
+    # rep.busy_graph(day, query_time)
+    # print()
+    # rep.fullness_graph(day, query_time)
     print()
 
 
@@ -195,8 +195,8 @@ def one_day_chart(ttdb: sqlite3.Connection, date: str):
     print(f"<h1>Data Entry reports for {ut.date_str(thisday,long_date=True)}</h1>")
     print("<pre>")
     rep.full_chart(db.db2day(ttdb, thisday), query_time)
-    rep.busy_graph(db.db2day(ttdb, thisday), query_time)
-    rep.fullness_graph(db.db2day(ttdb, thisday), query_time)
+    # rep.busy_graph(db.db2day(ttdb, thisday), query_time)
+    # rep.fullness_graph(db.db2day(ttdb, thisday), query_time)
 
 
 def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
@@ -210,8 +210,8 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
     print(f"Hours: {day.opening_time} - {day.closing_time}</p>")
     print("<pre>")
     rep.day_end_report(day, [query_time])
-    print()
-    rep.busyness_report(day, [query_time])
+    # print()
+    # rep.busyness_report(day, [query_time])
     print("</pre>")
 
 
