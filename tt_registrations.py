@@ -96,9 +96,9 @@ class Registrations:
         if reg_count is None:
             reg_count = self.num_registrations
         pr.iprint(
-            f"There {ut.plural(reg_count,'is','are')} "
+            f"There is a total of "
             f"{reg_count} bike "
-            f"{ut.plural(reg_count, 'registration')}.",
+            f"{ut.plural(reg_count, 'registration')} today.",
             style=style,
             num_indents=num_indents,
         )

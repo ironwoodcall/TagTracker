@@ -34,7 +34,7 @@ def get_default_hours(date_str:MaybeDate) -> tuple[str,str]:
     Reads data structures SEASON_HOURS and SPECIAL_HOURS from
     client config file.
 
-    If no match or string isbad, returns "","".
+    If no match or string is bad, returns "","".
     """
     # Find the day of the week (& test for a badly formed date string).
     try:

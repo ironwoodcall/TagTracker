@@ -23,9 +23,13 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import tt_constants as k
-from tt_trackerday import OldTrackerDay
+from tt_trackerday import TrackerDay
 from tt_time import VTime
 from tt_snapshot import Snapshot
+
+# These are for DEBUG squawks:
+import client_base_config as cfg
+import tt_util as ut
 
 
 class Block:
@@ -34,7 +38,7 @@ class Block:
     Each instance is a timeblock of duration k.BLOCK_DURATION.
     """
 
-    def __init__(self, start_time: VTime|int) -> None:
+    def __init__(self, start_time: VTime | int) -> None:
         """Initialize. Assumes that start_time is valid."""
         self.start = VTime(start_time)  # in case it's a str not a VTime
         self.ins_list = []  # Tags of bikes that came in.
@@ -55,21 +59,21 @@ class Block:
         self.max_here_oversize = 0
 
 
-def block_start(atime: int|str) -> VTime:
+def block_start(atime: int | str) -> VTime:
     """Return the start time of the block that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
     """
     # Get time in minutes
     atime = VTime(atime)
-    if atime is None:
+    if not atime:
         return ""
     # which block of time does it fall in?
     block_start_min = (atime.num // k.BLOCK_DURATION) * k.BLOCK_DURATION
     return VTime(block_start_min)
 
 
-def block_end(atime: int|str) -> VTime:
+def block_end(atime: int | str) -> VTime:
     """Return the last minute of the timeblock that contains time 'atime'.
 
     'atime' can be minutes since midnight or HHMM.
@@ -82,37 +86,40 @@ def block_end(atime: int|str) -> VTime:
     return VTime(end)
 
 
-def get_timeblock_list(day: OldTrackerDay, as_of_when: str) -> list[VTime]:
+def get_timeblock_list(day: TrackerDay, as_of_when: str) -> list[VTime]:
     """Build a list of timeblocks from beg of day until as_of_when.
 
     Latest block of the day will be the latest timeblock that
     had any transactions at or before as_of_when.
     """
 
-    as_of_when = as_of_when if as_of_when else "now"
-    as_of_when = VTime(as_of_when)
-    # Make list of transactions <= as_of_when
+    as_of_when = VTime(as_of_when or "now")
+
+    # Make list of transactions times <= as_of_when
     transx = [
-        x
-        for x in (list(day.bikes_in.values()) + list(day.bikes_out.values()))
-        if x <= as_of_when
+        time for visit in day.all_visits() for time in (visit.time_in, visit.time_out)
     ]
+    transx = [time for time in transx if time]  # remove blanks
+    # transx = [
+    #     x
+    #     for x in (list(day.bikes_in.values()) + list(day.bikes_out.values()))
+    #     if x <= as_of_when
+    # ]
     # Anything?
     if not transx:
         return []
     # Find earliest and latest block of the day
+    ut.squawk(f"{min(transx)=},{max(transx)=}", cfg.DEBUG)
     min_block_min = block_start(min(transx)).num
     max_block_min = block_start(max(transx)).num
     # Create list of timeblocks for the the whole day.
     timeblocks = []
-    for t in range(
-        min_block_min, max_block_min + k.BLOCK_DURATION, k.BLOCK_DURATION
-    ):
+    for t in range(min_block_min, max_block_min + k.BLOCK_DURATION, k.BLOCK_DURATION):
         timeblocks.append(VTime(t))
     return timeblocks
 
-
-def calc_blocks(day: OldTrackerDay, as_of_when: str = None) -> dict[VTime, object]:
+# FIXME: make calc_blocks() take an optional events dict arg, in case already calculated
+def calc_blocks(day: TrackerDay, as_of_when: str = None) -> dict[VTime, object]:
     """Create a dictionary of Blocks {start:Block} for whole day."""
     if not as_of_when:
         as_of_when = day.latest_event("24:00")

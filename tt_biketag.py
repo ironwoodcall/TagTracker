@@ -94,10 +94,10 @@ class BikeTag:
         """
         if self.status not in {self.DONE, self.UNUSED}:
             raise BikeTagError(f"Tag {self.tagid} is already checked in or is retired.")
-        if self.status == self.DONE and bike_time < self.latest_visit().time_out:
+        if self.status == self.DONE and bike_time <= self.latest_visit().time_out:
             raise BikeTagError(
-                f"Proposed check-in of {bike_time.short} for tag {self.tagid} "
-                "is earlier than prior check-out."
+                f"Check-in at {bike_time.short} for tag {self.tagid} "
+                "must be later than prior check-out."
             )
         self.start_visit(bike_time)
 

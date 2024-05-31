@@ -112,10 +112,10 @@ def audit_report(
         pr.iprint("Unrecognized time", style=k.WARNING_STYLE)
         return False
 
-    # Audit report header. Special case if request is for "24:00"
+    # Audit report header.
     pr.iprint()
     pr.iprint(
-        f"Audit report for {day.date} {as_of_when.as_at}",
+        f"Audit report for {day.date} {rep.time_description(as_of_when,day=day)}",
         style=k.TITLE_STYLE,
     )
     rep.later_events_warning(day, as_of_when)

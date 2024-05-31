@@ -77,8 +77,7 @@ def print_tag_inout(tag: TagID, inout: str, when: VTime) -> None:
         return
     # Print
     pr.iprint(finalmsg, style=k.ANSWER_STYLE)
-    NoiseMaker.play(inout)
-
+    NoiseMaker.queue_add(inout)
 
 
 def edit_event(args: list, today: TrackerDay) -> bool:
@@ -121,6 +120,7 @@ def edit_event(args: list, today: TrackerDay) -> bool:
         tagid: TagID
         try:
             if not bits.check_tagid_usable(tagid, today):
+                NoiseMaker.queue_add(k.ALERT)
                 continue
 
             biketag = today.biketags[tagid]
@@ -130,7 +130,7 @@ def edit_event(args: list, today: TrackerDay) -> bool:
                         f"Tag {tagid.original} has no check-in to edit.",
                         style=k.WARNING_STYLE,
                     )
-                    NoiseMaker.play(k.ALERT)
+                    NoiseMaker.queue_add(k.ALERT)
                     continue
                 biketag.edit_in(bike_time)
                 data_changed = True
@@ -142,7 +142,7 @@ def edit_event(args: list, today: TrackerDay) -> bool:
                         f"Tag {tagid.original} has no check-out available to edit.",
                         style=k.WARNING_STYLE,
                     )
-                    NoiseMaker.play(k.ALERT)
+                    NoiseMaker.queue_add(k.ALERT)
                     continue
                 biketag.edit_out(bike_time)
                 data_changed = True
@@ -150,7 +150,10 @@ def edit_event(args: list, today: TrackerDay) -> bool:
 
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
-            NoiseMaker.play(k.ALERT)
+            NoiseMaker.queue_add(k.ALERT)
+
+    # NoiseMaker.queue_play()
+
     return data_changed
 
 
@@ -181,12 +184,13 @@ def delete_event(args: list, today: TrackerDay) -> bool:
         return data_changed
     for tagid in args[0]:
         if not bits.check_tagid_usable(tagid, today):
+            NoiseMaker.queue_add(k.ALERT)
             continue
         try:
             biketag: BikeTag = today.biketags[tagid]
             if biketag.status == biketag.UNUSED:
                 pr.iprint(f"Tag '{tagid}' not used yet today.", style=k.WARNING_STYLE)
-                NoiseMaker.play(k.ALERT)
+                NoiseMaker.queue_add(k.ALERT)
                 continue
             visit: BikeVisit = biketag.latest_visit()
             if args[1] == "i":
@@ -195,7 +199,7 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                         f"Can't delete '{tagid}' checkin, latest visit has a checkout.",
                         style=k.WARNING_STYLE,
                     )
-                    NoiseMaker.play(k.ALERT)
+                    NoiseMaker.queue_add(k.ALERT)
                 else:
                     biketag.delete_in()
                     pr.iprint(
@@ -209,7 +213,7 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                         f"Can't delete '{tagid}' checkout, latest visit has no checkout.",
                         style=k.WARNING_STYLE,
                     )
-                    NoiseMaker.play(k.ALERT)
+                    NoiseMaker.queue_add(k.ALERT)
 
                 else:
                     biketag.delete_out()
@@ -220,8 +224,9 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                     data_changed = True
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
-            NoiseMaker.play(k.ALERT)
+            NoiseMaker.queue_add(k.ALERT)
 
+    # NoiseMaker.queue_play()
     return data_changed
 
 
@@ -255,13 +260,14 @@ def check_in(args: list, today: TrackerDay) -> bool:
         tagid: TagID
         try:
             if not bits.check_tagid_usable(tagid, today):
+                NoiseMaker.queue_add(k.ALERT)
                 continue
             biketag = today.biketags[tagid]
             if biketag.status == biketag.IN_USE:
                 pr.iprint(
-                    f"Tag {tagid.original} already checked in.", style=k.WARNING_STYLE
+                    f"Tag {tagid} already checked in.", style=k.WARNING_STYLE
                 )
-                NoiseMaker.play(k.ALERT)
+                NoiseMaker.queue_add(k.ALERT)
                 continue
             # Check this bike out at this time
             biketag.check_in(bike_time)
@@ -269,7 +275,9 @@ def check_in(args: list, today: TrackerDay) -> bool:
             print_tag_inout(tagid, k.BIKE_IN, bike_time)
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
-            NoiseMaker.play(k.ALERT)
+            NoiseMaker.queue_add(k.ALERT)
+
+    # NoiseMaker.queue_play()
     return data_changed
 
 
@@ -302,13 +310,14 @@ def check_out(args: list, today: TrackerDay) -> bool:
         tagid: TagID
         try:
             if not bits.check_tagid_usable(tagid, today):
+                NoiseMaker.queue_add(k.ALERT)
                 continue
             biketag = today.biketags[tagid]
             if biketag.status != biketag.IN_USE:
                 pr.iprint(
                     f"Tag {tagid.original} not checked in.", style=k.WARNING_STYLE
                 )
-                NoiseMaker.play(k.ALERT)
+                NoiseMaker.queue_add(k.ALERT)
                 continue
             # Check this bike in at this time
             biketag.edit_out(bike_time)
@@ -316,8 +325,9 @@ def check_out(args: list, today: TrackerDay) -> bool:
             print_tag_inout(tagid, k.BIKE_OUT, bike_time)
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
-            NoiseMaker.play(k.ALERT)
+            NoiseMaker.queue_add(k.ALERT)
 
+    # NoiseMaker.queue_play()
     return data_changed
 
 
@@ -361,15 +371,16 @@ def guess_check_inout(args: list, today: TrackerDay) -> bool:
         tagid: TagID
         try:
             if not bits.check_tagid_usable(tagid, today):
+                NoiseMaker.queue_add(k.ALERT)
                 continue
             biketag = today.biketags[tagid]
             if biketag.status == biketag.DONE:
                 pr.iprint(
-                    f"Tag {tagid.original} already checked in and out. "
+                    f"Tag {tagid} already checked in and out. "
                     "To reuse this tag, use the 'IN' command.",
                     style=k.WARNING_STYLE,
                 )
-                NoiseMaker.play(k.ALERT)
+                NoiseMaker.queue_add(k.ALERT)
                 continue
             if biketag.status == biketag.UNUSED:
                 # Check in.
@@ -378,8 +389,9 @@ def guess_check_inout(args: list, today: TrackerDay) -> bool:
                 data_changed = check_out([[tagid], bike_time], today=today)
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
-            NoiseMaker.play(k.ALERT)
+            NoiseMaker.queue_add(k.ALERT)
 
+    # NoiseMaker.queue_play()
     return data_changed
 
 
@@ -395,11 +407,11 @@ def query_command(day: TrackerDay, targets: list[TagID]) -> None:
             msgs = [f"Tag {tagid} is retired."]
         else:
             msgs = []
-            for i, visit in enumerate(biketag.visits, start=0):
+            for i, visit in enumerate(biketag.visits, start=1):
                 visit: BikeVisit
-                msg = f"Tag {tagid} visit {i}: bike in at {visit.time_in.short}; "
+                msg = f"Tag {tagid} visit {i}: bike in at {visit.time_in.tidy}; "
                 if visit.time_out:
-                    msg += f"out at {visit.time_out.short}"
+                    msg += f"out at {visit.time_out.tidy}"
                 else:
                     msg += "still on-site."
                 msgs.append(msg)
@@ -482,6 +494,8 @@ def estimate(today:TrackerDay) -> None:
 def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.Publisher) -> bool:
     """Process the command.  Return True if data has (probably) changed."""
 
+    NoiseMaker.queue_reset()
+
     if cmd_bits.status == PARSED_EMPTY:
         return False
 
@@ -523,8 +537,8 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
         pr.iprint("'BUSY' command is now part of 'STATS' command.",style=k.WARNING_STYLE )
     # elif cmd == CmdKeys.CMD_BUSY_CHART:
     #     rep.busy_graph(pack_day_data())
-    # elif cmd == CmdKeys.CMD_CHART:
-    #     rep.full_chart(pack_day_data())
+    elif cmd == CmdKeys.CMD_CHART:
+        rep.full_chart(day=today)
     elif cmd == CmdKeys.CMD_DEBUG:
         cfg.DEBUG = args[0]
         pr.iprint(f"DEBUG is now {cfg.DEBUG}")
@@ -578,7 +592,9 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
         # An unhandled command
         canonical_invocation = COMMANDS[cmd].invoke[0].upper()
         pr.iprint(f"Command {canonical_invocation} is not available.")
+        NoiseMaker.queue_add(k.ALERT)
 
+    NoiseMaker.queue_play()
     return data_changed
 
 

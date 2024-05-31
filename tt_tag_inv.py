@@ -35,6 +35,7 @@ import client_base_config as cfg
 import tt_printer as pr
 from tt_time import VTime
 from tt_tag import TagID
+import tt_reports as rep
 
 # from tt_realtag import Stay
 from tt_trackerday import TrackerDay
@@ -81,11 +82,11 @@ def tag_inventory_matrix(
 
     as_of_when = VTime(as_of_when or "now")
     pr.iprint()
-    pr.iprint(f"Tags status {as_of_when.as_at}", style=k.TITLE_STYLE)
+    pr.iprint(f"Tags status {rep.time_description(as_of_when,day=day)}", style=k.TITLE_STYLE)
     pr.iprint(
         f"Key: '{TAG_INV_AVAILABLE[0]}'=Unused today; "
         f"'{TAG_INV_BIKE_IN[0]}'=Bike In; "
-        f"'{TAG_INV_BIKE_OUT[0]}'=Bike Out (tag can be re-used); "
+        f"'{TAG_INV_BIKE_OUT[0]}'=Bike Out (tag is reusable); "
         f"'{TAG_INV_RETIRED[0]}'=Retired",
         style=k.NORMAL_STYLE,
     )

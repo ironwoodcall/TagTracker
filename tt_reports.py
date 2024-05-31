@@ -27,6 +27,7 @@ import statistics
 import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
+
 # from tt_realtag import Stay
 from tt_trackerday import TrackerDay, OldTrackerDay
 import tt_util as ut
@@ -47,6 +48,17 @@ MODE_ROUND_TO_NEAREST = 30  # mins
 BUSIEST_RANKS = 4
 
 
+def time_description(time:VTime,day:TrackerDay) -> str:
+    """Make a descriptionof the time of day to use in report titles."""
+    time = VTime(time)
+    if time == day.closing_time:
+        return f"as at closing time ({time.short})"
+    if time < day.opening_time:
+        return f"as at {time.short} (before opening time)"
+    if time > day.closing_time:
+        return f"as at {time.short} (after closing time)"
+    return f"as at {time.short}"
+
 def _events_in_period(
     day: TrackerDay, start: VTime, end: VTime
 ) -> list[tuple[VTime, str, str]]:
@@ -59,7 +71,7 @@ def _events_in_period(
     """
     event_list = []
     for biketag in day.biketags.values():
-        for i, visit in enumerate(biketag.visits):
+        for i, visit in enumerate(biketag.visits,start=1):
             if start <= visit.time_in <= end:
                 event_list.append((visit.time_in, f"{biketag.tagid}:{i}", True))
             if visit.time_out and start <= visit.time_out <= end:
@@ -80,10 +92,10 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
         If both start_time and end_time ==> start, end
     """
 
-    def format_one(atime: VTime, tag: TagID, check_in: bool) -> str:
+    def format_one(atime: VTime, tag: TagID, is_check_in: bool) -> str:
         """Format one line of output."""
-        in_tag = f"{tag}" if check_in else ""
-        out_tag = "" if check_in else f"{tag}"
+        in_tag = f"{tag}" if is_check_in else ""
+        out_tag = "" if is_check_in else f"{tag}"
         return f"{atime.tidy}    {in_tag:<7s}  {out_tag:<7s}"
 
     (start_time, end_time) = (args + [None, None])[:2]
@@ -97,7 +109,7 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
             end_time = now
         else:
             start_time = VTime(start_time)
-            end_time = start_time.num+60
+            end_time = start_time.num + 60
     else:
         start_time = VTime(start_time)
         end_time = VTime(end_time)
@@ -124,14 +136,23 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
     # Collect & print any bike-in/bike-out events in the time period.
     events = _events_in_period(day, start_time, end_time)
 
+    ins = 0
+    outs = 0
     current_block_end = None  # block ends are for putting divider lines
-    for event_time, tag_desc, check_in in events:
+    for event_time, tag_desc, is_check_in in events:
         if not current_block_end:
             current_block_end = tt_block.block_end(event_time)
         if event_time > current_block_end:
             pr.iprint(f"{tt_block.block_start(event_time).tidy} --------------------")
             current_block_end = tt_block.block_end(event_time)
-        pr.iprint(format_one(event_time, tag_desc, check_in))
+        pr.iprint(format_one(event_time, tag_desc, is_check_in))
+        if is_check_in:
+            ins += 1
+        else:
+            outs += 1
+    pr.iprint()
+    pr.iprint(f"Total   {ins:6} {outs:7}", style=k.SUBTITLE_STYLE)
+
 
 
 def registrations_report(day: TrackerDay):
@@ -141,7 +162,7 @@ def registrations_report(day: TrackerDay):
     day.registrations.display_current_count()
 
 
-def later_events_warning(day: TrackerDay, when: VTime="") -> None:
+def later_events_warning(day: TrackerDay, when: VTime = "") -> None:
     """Warn about report that excludes later events.
 
     If  no later events, does nothing.
@@ -152,12 +173,14 @@ def later_events_warning(day: TrackerDay, when: VTime="") -> None:
     later_events = day.num_later_events(when)
     if not later_events:
         return
-    msg = f"Report excludes {later_events} events later than {when.short}"
-    pr.iprint(msg, style=k.WARNING_STYLE)
+    msg = (
+        f"Report excludes {later_events} {ut.plural(later_events,'event')} "
+        f"later than {when.short}."
+    )
+    pr.iprint(msg, style=k.ERROR_STYLE)
 
 
-
-def print_tag_notes(day:TrackerDay, tag: str):
+def print_tag_notes(day: TrackerDay, tag: str):
     """Print notes for a given tag."""
     for line in day.notes.find(tag):
         pr.iprint(line, style=k.WARNING_STYLE)
@@ -226,15 +249,16 @@ def print_tag_notes(day:TrackerDay, tag: str):
 #     return simple_str
 
 
-
 def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
 
     as_of_when is HH:MM time, assumed to be a correct time.
     """
 
-    num_bikes_ttl,num_bikes_regular,num_bikes_oversize = day.num_bikes_parked(as_of_when)
-    num_bikes_am,_,_ = day.num_bikes_parked("11:59")
+    num_bikes_ttl, num_bikes_regular, num_bikes_oversize = day.num_bikes_parked(
+        as_of_when
+    )
+    num_bikes_am, _, _ = day.num_bikes_parked(min("11:59",as_of_when))
     num_still_here = day.num_tags_in_use(as_of_when)
 
     pr.iprint()
@@ -247,7 +271,7 @@ def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     pr.iprint(f"Bikes still here: {num_still_here:4d}")
 
 
-def visit_lengths_by_category_report(durations_list:list[int]) -> None:
+def visit_lengths_by_category_report(durations_list: list[int]) -> None:
     """Report number of visits in different length categories.
 
     visits is ....
@@ -316,8 +340,8 @@ def visit_statistics_report(durations_list: list[int]) -> None:
         )
         one_line("Mode visit:", modes_str)
 
-    longest = max(durations_list,default=None)
-    shortest = min(durations_list,default=None)
+    longest = max(durations_list, default=None)
+    shortest = min(durations_list, default=None)
     pr.iprint()
     pr.iprint("Visit-length statistics", style=k.SUBTITLE_STYLE)
     one_line(f"Longest {noun}:", f"{VTime(longest).tidy}")
@@ -411,85 +435,8 @@ def full_chart(day: OldTrackerDay, as_of_when: str = "") -> None:
         )
 
 
-def busy_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
-    """Make a quick & dirty graph of busyness."""
-    in_marker = "+"  # OØ OX  <>  ↓↑
-    out_marker = "x"
-
-    as_of_when = as_of_when if as_of_when else "24:00"
-    if not day.bikes_in:
-        pr.iprint()
-        pr.iprint("-no bikes-", style=k.WARNING_STYLE)
-        return
-
-    blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
-    max_ins = max([b.num_ins for b in blocks.values()] + [0])
-    max_outs = max([b.num_outs for b in blocks.values()] + [0])
-    max_needed = max_ins + max_outs + 10
-    available_width = cfg.SCREEN_WIDTH
-    scale_factor = (max_needed // available_width) + 1
-    ##scale_factor = round((max_activity / available_width))
-    ##scale_factor = max(scale_factor, 1)
-
-    # Print graph
-    pr.iprint()
-    pr.iprint(f"Chart of busyness for {day.date}", style=k.TITLE_STYLE)
-    pr.iprint(
-        f"Each marker represents {scale_factor} "
-        f"{ut.plural(scale_factor,'bike')} in ({in_marker}) or out ({out_marker})",
-        style=k.SUBTITLE_STYLE,
-    )
-    ins_field_width = round(max_ins / scale_factor) + 1
-    for start in sorted(blocks.keys()):
-        blk: tt_block.Block
-        blk = blocks[start]
-        insize = round(blk.num_ins / scale_factor)
-        outsize = round(blk.num_outs / scale_factor)
-
-        pr.iprint(
-            f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  "
-            f"{start}  {out_marker * outsize}"
-        )
-
-
-def fullness_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
-    """Make a quick & dirty graph of how full the site is."""
-    regular_marker = "r"
-    oversize_marker = "O"
-
-    as_of_when = as_of_when if as_of_when else "24:00"
-
-    blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
-    if not day.bikes_in:
-        pr.iprint()
-        pr.iprint("-no bikes-", style=k.WARNING_STYLE)
-        return
-
-    max_full = max([b.num_here for b in blocks.values()] + [0])
-    available_width = cfg.SCREEN_WIDTH - 10
-    scale_factor = round((max_full / available_width))
-    scale_factor = max(scale_factor, 1)
-    # Print graph
-    pr.iprint()
-    pr.iprint(
-        f"Max bikes onsite within a time block for {day.date}",
-        style=k.TITLE_STYLE,
-    )
-    pr.iprint(
-        f"Each marker represents {scale_factor} regular ({regular_marker}) "
-        f"or oversize ({oversize_marker}) {ut.plural(scale_factor,'bike')}",
-        style=k.SUBTITLE_STYLE,
-    )
-    for start in sorted(blocks.keys()):
-        b: tt_block.Block
-        b = blocks[start]
-        regs = round(b.max_here_regular / scale_factor)
-        overs = round(b.max_here_oversize / scale_factor)
-        pr.iprint(f"{start} {regular_marker * regs}{oversize_marker * overs}")
-
-
 def busiest_times_report(
-    day: OldTrackerDay,
+    day: TrackerDay,
     events: dict[VTime, Snapshot],
     as_of_when: VTime,
 ) -> None:
@@ -497,6 +444,8 @@ def busiest_times_report(
 
     def one_line(rank: int, num_events: int, times: list[VTime]) -> None:
         """Format and print one line of busyness report."""
+        if num_events == 0:
+            return
         pr.iprint(f"{rank:2d}     {num_events:3d}      ", end="")
         for time_num, start_time in enumerate(sorted(times), start=1):
             end_time = VTime(start_time.num + k.BLOCK_DURATION)
@@ -519,7 +468,7 @@ def busiest_times_report(
     # Count actions in each timeblock
     for atime, ev in events.items():
         start = tt_block.block_start(atime)  # Which block?
-        blocks[start] += ev.num_ins + ev.num_outs
+        blocks[start] += ev.num_bikes_parked + ev.num_bikes_returned
     # Make a dict of busynesses with list of timeblocks for each.
     busy_times = {}
     for atime, activity in blocks.items():
@@ -536,7 +485,6 @@ def busiest_times_report(
         one_line(rank, activity, busy_times[activity])
 
 
-
 def day_end_report(day: TrackerDay, args: list) -> None:
     """Report summary statistics about visits, up to the given time.
 
@@ -551,7 +499,7 @@ def day_end_report(day: TrackerDay, args: list) -> None:
         return
     pr.iprint()
     pr.iprint(
-        f"Summary statistics {as_of_when.as_at}",
+        f"Summary statistics {time_description(as_of_when,day=day)}",
         style=k.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)
@@ -566,12 +514,92 @@ def day_end_report(day: TrackerDay, args: list) -> None:
     visit_lengths_by_category_report(durations_list)
     visit_statistics_report(durations_list)
 
-    # FIXME: move highwater report to here
+    # Today's highwater (fullest) times.
+    events = Snapshot.calc_moments(day, as_of_when)
+    highwater_report(events)
 
-    # FIXME: move busy-ess report to here
+    # Today's busiest periods.
+    busiest_times_report(day=day, events=events, as_of_when=as_of_when)
 
     # Number of bike registrations
     registrations_report(day)
+
+
+# def busy_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
+#     """Make a quick & dirty graph of busyness."""
+#     in_marker = "+"  # OØ OX  <>  ↓↑
+#     out_marker = "x"
+
+#     as_of_when = as_of_when if as_of_when else "24:00"
+#     if not day.bikes_in:
+#         pr.iprint()
+#         pr.iprint("-no bikes-", style=k.WARNING_STYLE)
+#         return
+
+#     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
+#     max_ins = max([b.num_ins for b in blocks.values()] + [0])
+#     max_outs = max([b.num_outs for b in blocks.values()] + [0])
+#     max_needed = max_ins + max_outs + 10
+#     available_width = cfg.SCREEN_WIDTH
+#     scale_factor = (max_needed // available_width) + 1
+#     ##scale_factor = round((max_activity / available_width))
+#     ##scale_factor = max(scale_factor, 1)
+
+#     # Print graph
+#     pr.iprint()
+#     pr.iprint(f"Chart of busyness for {day.date}", style=k.TITLE_STYLE)
+#     pr.iprint(
+#         f"Each marker represents {scale_factor} "
+#         f"{ut.plural(scale_factor,'bike')} in ({in_marker}) or out ({out_marker})",
+#         style=k.SUBTITLE_STYLE,
+#     )
+#     ins_field_width = round(max_ins / scale_factor) + 1
+#     for start in sorted(blocks.keys()):
+#         blk: tt_block.Block
+#         blk = blocks[start]
+#         insize = round(blk.num_ins / scale_factor)
+#         outsize = round(blk.num_outs / scale_factor)
+
+#         pr.iprint(
+#             f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  "
+#             f"{start}  {out_marker * outsize}"
+#         )
+
+
+# def fullness_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
+#     """Make a quick & dirty graph of how full the site is."""
+#     regular_marker = "r"
+#     oversize_marker = "O"
+
+#     as_of_when = as_of_when if as_of_when else "24:00"
+
+#     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
+#     if not day.bikes_in:
+#         pr.iprint()
+#         pr.iprint("-no bikes-", style=k.WARNING_STYLE)
+#         return
+
+#     max_full = max([b.num_here for b in blocks.values()] + [0])
+#     available_width = cfg.SCREEN_WIDTH - 10
+#     scale_factor = round((max_full / available_width))
+#     scale_factor = max(scale_factor, 1)
+#     # Print graph
+#     pr.iprint()
+#     pr.iprint(
+#         f"Max bikes onsite within a time block for {day.date}",
+#         style=k.TITLE_STYLE,
+#     )
+#     pr.iprint(
+#         f"Each marker represents {scale_factor} regular ({regular_marker}) "
+#         f"or oversize ({oversize_marker}) {ut.plural(scale_factor,'bike')}",
+#         style=k.SUBTITLE_STYLE,
+#     )
+#     for start in sorted(blocks.keys()):
+#         b: tt_block.Block
+#         b = blocks[start]
+#         regs = round(b.max_here_regular / scale_factor)
+#         overs = round(b.max_here_oversize / scale_factor)
+#         pr.iprint(f"{start} {regular_marker * regs}{oversize_marker * overs}")
 
 
 # def qstack_report(visits: dict) -> None:
@@ -636,7 +664,6 @@ def day_end_report(day: TrackerDay, args: list) -> None:
 #     )
 
 
-
 # def busyness_report(day: OldTrackerDay, args: list) -> None:
 #     """Report more summary statistics about visits, up to the given time.
 
@@ -649,7 +676,7 @@ def day_end_report(day: TrackerDay, args: list) -> None:
 #         return
 #     pr.iprint()
 #     pr.iprint(
-#         f"Busyness report {as_of_when.as_at}",
+#         f"Busyness report {rep.time_description(as_of_when,day=day)}",
 #         style=k.TITLE_STYLE,
 #     )
 #     later_events_warning(day, as_of_when)

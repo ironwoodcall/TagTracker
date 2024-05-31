@@ -95,7 +95,7 @@ class Snapshot:
                 [
                     x
                     for x in snapshot.bikes_returned
-                    if day.bikestags[x].bike_type == k.REGULAR
+                    if day.biketags[x].bike_type == k.REGULAR
                 ]
             )
             delta_oversize = len(
@@ -108,7 +108,7 @@ class Snapshot:
                 [
                     x
                     for x in snapshot.bikes_returned
-                    if day.bikestags[x].bike_type == k.OVERSIZE
+                    if day.biketags[x].bike_type == k.OVERSIZE
                 ]
             )
             num_regular += delta_regular

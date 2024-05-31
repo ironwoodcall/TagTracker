@@ -48,7 +48,7 @@ def splash():
     if not splash_top_pyfiglet():
         splash_top_default()
     pr.iprint()
-    pr.iprint(f"Version: {ut.get_version()}")
+    pr.iprint(f"TagTracker version: {ut.get_version()}")
     pr.iprint("See github.com/ironwoodcall/tagtracker for version details.")
     pr.iprint()
 
@@ -204,10 +204,14 @@ def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]
                     f"Enter new 24-hour HHMM {prompt_bit} time or press <Enter> "
                     f"to leave as {current_time.short}: ",
                     end="",
-                    style=k.PROMPT_STYLE,
+                    style=k.SUBPROMPT_STYLE,
                 )
             else:
-                pr.iprint(f"Enter 24-hour HHMM {prompt_bit} time: ", end="")
+                pr.iprint(
+                    f"Enter 24-hour HHMM {prompt_bit} time: ",
+                    end="",
+                    style=k.SUBPROMPT_STYLE,
+                )
             inp = pr.tt_inp().strip()
             if current_time and not inp:
                 return current_time
