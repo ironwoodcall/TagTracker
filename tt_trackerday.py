@@ -24,6 +24,7 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 import re
 import json
 import jsonschema
@@ -39,6 +40,25 @@ from tt_bikevisit import BikeVisit
 from client_local_config import REGULAR_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
 from tt_registrations import Registrations
 from tt_notes import Notes
+
+# Define constants for the string literals
+TOKEN_TAGID = "tagid"
+TOKEN_BIKE_SIZE = "bike_size"
+TOKEN_TIME_IN = "time_in"
+TOKEN_TIME_OUT = "time_out"
+TOKEN_COMMENT = "comment:"
+TOKEN_DATE = "date"
+TOKEN_OPENING_TIME = "opening_time"
+TOKEN_CLOSING_TIME = "closing_time"
+TOKEN_REGISTRATIONS = "registrations"
+TOKEN_BIKE_VISITS = "bike_visits"
+TOKEN_REGULAR_TAGIDS = "regular_tagids"
+TOKEN_OVERSIZE_TAGIDS = "oversize_tagids"
+TOKEN_RETIRED_TAGIDS = "retired_tagids"
+TOKEN_NOTES = "notes"
+TOKEN_SITE_NAME = "site_name"
+TOKEN_SITE_ID = "site_id"
+
 
 class OldTrackerDay:
     """One day's worth of tracker info and its context."""
@@ -56,9 +76,8 @@ class OldTrackerDay:
         self.retired = frozenset()
         self.colour_letters = {}
         self.notes = []
-        self.site_label = ""
+        self.site_id = ""
         self.site_name = ""
-
 
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return list of all usable tags."""
@@ -234,17 +253,31 @@ class TrackerDayError(Exception):
 
 
 class TrackerDay:
-    """One day's worth of tracker info and its context."""
+    """One day's worth of tracker info and its context.
 
-    REGULAR_KEYWORD = "regular"
-    OVERSIZE_KEYWORD = "oversize"
+    Initizlization: ideal path:
+        create empty
+        load taglists from config
+        load site_id, site_name from config
+        if load from datafile:
+            read datafile into a json dictionary
+            convert the json dictionary (including regular_tagids, etc)
+            overwrite site_name, site_id (& date & so on) with values in JSON dict
+            overwrite taglists unless 'today' with non-null taglists from JSON dict
+            create biketags list <-- internal method
+            load visits from JSON dict
+        if new file:
+            create biketags list
+
+    """
+
+    REGULAR_BIKE = "regular"
+    OVERSIZE_BIKE = "oversize"
     OPERATING_HOURS_TOLERANCE = (
         90  # Minutes to allow checkin/out to exceed operating hours
     )
 
-    def __init__(
-        self, filepath: str, site_name: str = "", site_label: str = ""
-    ) -> None:
+    def __init__(self, filepath: str, site_name: str = "", site_id: str = "") -> None:
         """Initialize blank."""
         self.date = ut.date_str("today")
         self.opening_time = VTime("")
@@ -258,7 +291,7 @@ class TrackerDay:
         self.biketags: dict[TagID, BikeTag] = {}
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
-        self.site_label = site_label or "default"
+        self.site_id = site_id or "default"
         self.site_name = site_name or "Default Site"
 
     def initialize_biketags(self):
@@ -319,43 +352,187 @@ class TrackerDay:
             return "O"
         return ""
 
-    # def make_fake_tag_lists(self) -> None:
-    #     """Fake up regular/oversized tag lists based on City Hall use in 2023."""
-    #     regulars = set()
-    #     oversizes = set()
-    #     for tag in self.biketags:
-    #         tag_type = self.guess_tag_type(tag)
-    #         if tag_type == "R":
-    #             regulars.add(tag)
-    #         elif tag_type == "O":
-    #             oversizes.add(tag)
-    #     self.regular_tagids = frozenset(regulars)
-    #     self.oversize_tagids = frozenset(oversizes)
+    # def lint_check(self, strict_datetimes: bool = False) -> list[str]:
+    #     """Generate a list of logic error messages for TrackerDay object.
+
+    #     If no errors found returns []
+    #     If errors, returns list of error message strings.
+
+    #     Check for:
+    #     - bikes checked out but not in
+    #     - checked out before in
+    #     - multiple check-ins, multiple check-outs
+    #     - unrecognized tag in check-ins & check-outs
+    #     - poorly formed Tag
+    #     - poorly formed Time
+    #     - use of a tag that is retired (to do later)
+    #     If strict_datetimes then checks:
+    #     - valet date, opening and closing are well-formed
+    #     - valet opening time < closing time
+    #     """
+
+    #     errors = []
+
+    #     # Empty tagids in reference lists.
+    #     for tagid in self.regular_tagids | self.oversize_tagids | self.retired_tagids:
+    #         if not isinstance(tagid, TagID):
+    #             errors.append(f"Tag '{tagid}' is not a TagID, is a {type(tagid)}")
+    #         if not tagid:
+    #             errors.append(
+    #                 f"A reference list has a null/non-empty tagid ({tagid.original})."
+    #             )
+
+    #     # Look for missing or bad times and dates
+    #     if strict_datetimes:
+    #         if not self.date or ut.date_str(self.date) != self.date:
+    #             errors.append(f"Bad or missing date {self.date}")
+    #         if not self.opening_time or not isinstance(self.opening_time, VTime):
+    #             errors.append(f"Bad or missing opening time {self.opening_time}")
+    #         if not self.closing_time or not isinstance(self.closing_time, VTime):
+    #             errors.append(f"Bad or missing closing time {self.closing_time}")
+    #         if (
+    #             self.opening_time
+    #             and self.closing_time
+    #             and self.opening_time >= self.closing_time
+    #         ):
+    #             errors.append(
+    #                 f"Opening time '{self.opening_time}' is not "
+    #                 f"earlier than closing time '{self.closing_time}'"
+    #             )
+
+    #     # Missing check-ins or check-ins that are later than check-outs
+    #     for v in self.all_visits():
+    #         if not v.time_in:
+    #             errors.append(f"A visit of tag {v.tagid} is missing a check-in time.")
+    #         if v.time_out and v.time_in > v.time_out:
+    #             errors.append(
+    #                 f"A {v.tagid} visit has time in ({v.time_in}) later than time out ({v.time_out})."
+    #             )
+
+    #     # Multiple checked in for one biketag which can be detected by
+    #     # Last visit must be the only one that is open
+    #     for b in self.biketags.values():
+    #         last_visit_index = len(b.visits) - 1
+    #         for i, v in enumerate(b.visits, start=0):
+    #             v: BikeVisit
+    #             if not v.time_out and i != last_visit_index:
+    #                 errors.append(
+    #                     f"Tag {v.tagid} has a visit checked in that is not its last visit."
+    #                 )
+    #                 continue
+
+    #     # Check each tagid's visits for overlaps
+    #     for tagid, biketag in self.biketags.items():
+    #         visits = biketag.visits
+    #         # Compare each visit's time_out with the next visit's time_in
+    #         for i in range(len(visits) - 1):
+    #             current_out = visits[i].time_out
+    #             next_in = visits[i + 1].time_in
+    #             if current_out > next_in:
+    #                 errors.append(f"Tag {tagid} has visits with overlapping times.")
+
+    #     # This seems to (sadly) repeat what I had previously written furhter below.
+    #     for tagid, biketag in self.biketags.items():
+    #         tagid: TagID
+    #         biketag: BikeTag
+    #         # ut.squawk("&&&" + f"{tagid=},{biketag.status=},{biketag.visits=}")
+    #         if not tagid:
+    #             errors.append("No tagid for a BikeTag")
+    #         if tagid != TagID(tagid) or biketag.tagid != TagID(biketag.tagid):
+    #             errors.append(f"Poorly formed tagid for Biketag '{tagid}'")
+    #         if tagid != biketag.tagid:
+    #             errors.append(
+    #                 f"BikeTag {tagid} key does not match object tagid {biketag.tagid}"
+    #             )
+    #         if biketag.visits and biketag.status == biketag.RETIRED:
+    #             errors.append(f"Biketag {tagid} has visits but status is RETIRED.")
+    #         # Check that visits have good tagids and they match
+    #         for i, v in enumerate(biketag.visits, start=0):
+    #             v: BikeVisit
+    #             if v.tagid != tagid:
+    #                 errors.append(
+    #                     f"BikeTag {tagid} vist {i} tagid {v.tagid} does not match."
+    #                 )
+    #             if v.time_in != VTime(v.time_in) or v.time_out != VTime(v.time_out):
+    #                 errors.append(
+    #                     f"BikeTag {tagid} vist {i} has bad time(s): '{v.time_in}'/'{v.time_out}'."
+    #                 )
+    #             if v.time_in == "24:00" or v.time_out == "24:00":
+    #                 errors.append(f"BikeTag {tagid} visit {i} has a time == '24:00'.")
+    #         if biketag.visits:
+    #             v = biketag.latest_visit()
+    #             if biketag.status == biketag.DONE and not v.time_out:
+    #                 errors.append(f"BikeTag {tagid} is DONE but has no time_out.")
+    #             elif biketag.status == biketag.IN_USE and v.time_out:
+    #                 errors.append(f"BikeTag {tagid} is IN_USE but has a time_out.")
+    #             elif biketag.status == biketag.UNUSED:
+    #                 errors.append(f"BikeTag {tagid} is UNUSED but has visit(s).")
+
+    #     # Look for BikeTag inconsistencies:
+    #     #   - DONE biketag with 0 visits or an unfinished visit
+    #     #   - UNUSED or RETIRED biketag with visits
+    #     #   - IN_USE biketag with a non-null last visit
+    #     #   - any visit other than last_visit having a null time_out
+
+    #     for tagid, biketag in self.biketags.items():
+    #         latest_visit = biketag.latest_visit()
+
+    #         # DONE biketag with 0 visits or an unfinished visit
+    #         if biketag.status == BikeTag.DONE:
+    #             if len(biketag.visits) == 0:
+    #                 errors.append(f"BikeTag {tagid} is DONE but has 0 visits.")
+    #             elif latest_visit and not latest_visit.time_out:
+    #                 errors.append(
+    #                     f"BikeTag {tagid} is DONE but has an unfinished visit."
+    #                 )
+
+    #         # UNUSED or RETIRED biketag with visits
+    #         if biketag.status in (BikeTag.UNUSED, BikeTag.RETIRED):
+    #             if len(biketag.visits) > 0:
+    #                 errors.append(
+    #                     f"BikeTag {tagid} is {biketag.status} but has visits."
+    #                 )
+
+    #         # IN_USE biketag with a non-null last visit
+    #         if biketag.status == BikeTag.IN_USE:
+    #             if latest_visit and latest_visit.time_out:
+    #                 errors.append(
+    #                     f"BikeTag {tagid} is IN_USE but has a non-empty last visit check-out."
+    #                 )
+
+    #         # Any visit other than latest_visit having a null time_out
+    #         for visit in biketag.visits[:-1]:  # Check all visits except the last one
+    #             if not visit.time_out:
+    #                 errors.append(
+    #                     f"BikeTag {tagid} has a checked-in visit that is not its last visit "
+    #                     f"(checked in at {visit.time_in})"
+    #                 )
+
+    #     # Bikes that are not in the list of allowed bikes
+    #     _allowed_tags = self.all_usable_tags()
+    #     for tag, biketag in self.biketags.items():
+    #         if biketag.status == biketag.RETIRED:
+    #             if tag not in self.retired_tagids:
+    #                 errors.append(f"Tag {tag} is RETIRED but not in retired list.")
+    #         elif tag not in _allowed_tags:
+    #             errors.append(
+    #                 f"Tag {tag} is status available but not so in config'd lists"
+    #             )
+
+    #     return errors
 
     def lint_check(self, strict_datetimes: bool = False) -> list[str]:
-        """Generate a list of logic error messages for TrackerDay object.
-
-        If no errors found returns []
-        If errors, returns list of error message strings.
-
-        Check for:
-        - bikes checked out but not in
-        - checked out before in
-        - multiple check-ins, multiple check-outs
-        - unrecognized tag in check-ins & check-outs
-        - poorly formed Tag
-        - poorly formed Time
-        - use of a tag that is retired (to do later)
-        If strict_datetimes then checks:
-        - valet date, opening and closing are well-formed
-        - valet opening time < closing time
-        """
-
-        # ut.squawk("&&&" + str(self))
-
+        """Generate a list of logic error messages for TrackerDay object."""
         errors = []
+        errors.extend(self._check_reference_tags())
+        errors.extend(self._check_dates_and_times(strict_datetimes))
+        errors.extend(self._check_bike_tags())
+        errors.extend(self._check_allowed_tags())
 
-        # Empty tagids in reference lists.
+        return errors
+
+    def _check_reference_tags(self) -> list[str]:
+        errors = []
         for tagid in self.regular_tagids | self.oversize_tagids | self.retired_tagids:
             if not isinstance(tagid, TagID):
                 errors.append(f"Tag '{tagid}' is not a TagID, is a {type(tagid)}")
@@ -363,8 +540,10 @@ class TrackerDay:
                 errors.append(
                     f"A reference list has a null/non-empty tagid ({tagid.original})."
                 )
+        return errors
 
-        # Look for missing or bad times and dates
+    def _check_dates_and_times(self, strict_datetimes: bool) -> list[str]:
+        errors = []
         if strict_datetimes:
             if not self.date or ut.date_str(self.date) != self.date:
                 errors.append(f"Bad or missing date {self.date}")
@@ -378,119 +557,18 @@ class TrackerDay:
                 and self.opening_time >= self.closing_time
             ):
                 errors.append(
-                    f"Opening time '{self.opening_time}' is not "
-                    f"earlier than closing time '{self.closing_time}'"
+                    f"Opening time '{self.opening_time}' is not earlier than closing time '{self.closing_time}'"
                 )
+        return errors
 
-        # Missing check-ins or check-ins that are later than check-outs
-        for v in self.all_visits():
-            if not v.time_in:
-                errors.append(f"A visit of tag {v.tagid} is missing a check-in time.")
-            if v.time_out and v.time_in > v.time_out:
-                errors.append(
-                    f"A {v.tagid} visit has time in ({v.time_in}) later than time out ({v.time_out})."
-                )
+    def _check_bike_tags(self) -> list[str]:
+        errors = []
+        for biketag in self.biketags.values():
+            errors.extend(biketag.lint_check())
+        return errors
 
-        # Multiple checked in for one biketag which can be detected by
-        # Last visit must be the only one that is open
-        for b in self.biketags.values():
-            last_visit_index = len(b.visits) - 1
-            for i, v in enumerate(b.visits, start=0):
-                v: BikeVisit
-                if not v.time_out and i != last_visit_index:
-                    errors.append(
-                        f"Tag {v.tagid} has a visit checked in that is not its last visit."
-                    )
-                    continue
-
-        # Check each tagid's visits for overlaps
-        for tagid, biketag in self.biketags.items():
-            visits = biketag.visits
-            # Compare each visit's time_out with the next visit's time_in
-            for i in range(len(visits) - 1):
-                current_out = visits[i].time_out
-                next_in = visits[i + 1].time_in
-                if current_out > next_in:
-                    errors.append(f"Tag {tagid} has visits with overlapping times.")
-
-        # This seems to (sadly) repeat what I had previously written furhter below.
-        for tagid, biketag in self.biketags.items():
-            tagid: TagID
-            biketag: BikeTag
-            # ut.squawk("&&&" + f"{tagid=},{biketag.status=},{biketag.visits=}")
-            if not tagid:
-                errors.append("No tagid for a BikeTag")
-            if tagid != TagID(tagid) or biketag.tagid != TagID(biketag.tagid):
-                errors.append(f"Poorly formed tagid for Biketag '{tagid}'")
-            if tagid != biketag.tagid:
-                errors.append(
-                    f"BikeTag {tagid} key does not match object tagid {biketag.tagid}"
-                )
-            if biketag.visits and biketag.status == biketag.RETIRED:
-                errors.append(f"Biketag {tagid} has visits but status is RETIRED.")
-            # Check that visits have good tagids and they match
-            for i, v in enumerate(biketag.visits, start=0):
-                v: BikeVisit
-                if v.tagid != tagid:
-                    errors.append(
-                        f"BikeTag {tagid} vist {i} tagid {v.tagid} does not match."
-                    )
-                if v.time_in != VTime(v.time_in) or v.time_out != VTime(v.time_out):
-                    errors.append(
-                        f"BikeTag {tagid} vist {i} has bad time(s): '{v.time_in}'/'{v.time_out}'."
-                    )
-                if v.time_in == "24:00" or v.time_out == "24:00":
-                    errors.append(f"BikeTag {tagid} visit {i} has a time == '24:00'.")
-            if biketag.visits:
-                v = biketag.latest_visit()
-                if biketag.status == biketag.DONE and not v.time_out:
-                    errors.append(f"BikeTag {tagid} is DONE but has no time_out.")
-                elif biketag.status == biketag.IN_USE and v.time_out:
-                    errors.append(f"BikeTag {tagid} is IN_USE but has a time_out.")
-                elif biketag.status == biketag.UNUSED:
-                    errors.append(f"BikeTag {tagid} is UNUSED but has visit(s).")
-
-        # Look for BikeTag inconsistencies:
-        #   - DONE biketag with 0 visits or an unfinished visit
-        #   - UNUSED or RETIRED biketag with visits
-        #   - IN_USE biketag with a non-null last visit
-        #   - any visit other than last_visit having a null time_out
-
-        for tagid, biketag in self.biketags.items():
-            latest_visit = biketag.latest_visit()
-
-            # DONE biketag with 0 visits or an unfinished visit
-            if biketag.status == BikeTag.DONE:
-                if len(biketag.visits) == 0:
-                    errors.append(f"BikeTag {tagid} is DONE but has 0 visits.")
-                elif latest_visit and not latest_visit.time_out:
-                    errors.append(
-                        f"BikeTag {tagid} is DONE but has an unfinished visit."
-                    )
-
-            # UNUSED or RETIRED biketag with visits
-            if biketag.status in (BikeTag.UNUSED, BikeTag.RETIRED):
-                if len(biketag.visits) > 0:
-                    errors.append(
-                        f"BikeTag {tagid} is {biketag.status} but has visits."
-                    )
-
-            # IN_USE biketag with a non-null last visit
-            if biketag.status == BikeTag.IN_USE:
-                if latest_visit and latest_visit.time_out:
-                    errors.append(
-                        f"BikeTag {tagid} is IN_USE but has a non-empty last visit check-out."
-                    )
-
-            # Any visit other than latest_visit having a null time_out
-            for visit in biketag.visits[:-1]:  # Check all visits except the last one
-                if not visit.time_out:
-                    errors.append(
-                        f"BikeTag {tagid} has a checked-in visit that is not its last visit "
-                        f"(checked in at {visit.time_in})"
-                    )
-
-        # Bikes that are not in the list of allowed bikes
+    def _check_allowed_tags(self) -> list[str]:
+        errors = []
         _allowed_tags = self.all_usable_tags()
         for tag, biketag in self.biketags.items():
             if biketag.status == biketag.RETIRED:
@@ -500,7 +578,6 @@ class TrackerDay:
                 errors.append(
                     f"Tag {tag} is status available but not so in config'd lists"
                 )
-
         return errors
 
     def earliest_event(self) -> VTime:
@@ -575,88 +652,190 @@ class TrackerDay:
 
         return visits
 
+    # def _day_to_json_dict(self) -> dict:
+    #     bike_visits = []
+    #     for visit in self.all_visits():
+    #         bike_size = (
+    #             self.REGULAR_BIKE
+    #             if self.biketags[visit.tagid].bike_type == REGULAR
+    #             else self.OVERSIZE_BIKE
+    #         )
+    #         bike_visits.append(
+    #             {
+    #                 "tagid": visit.tagid,
+    #                 "bike_size": bike_size,
+    #                 "time_in": visit.time_in,
+    #                 "time_out": visit.time_out,
+    #             }
+    #         )
+
+    #     # Sort bike_visits by tagid first, then by time_in
+    #     bike_visits.sort(key=lambda x: (x["tagid"], x["time_in"]))
+
+    #     # A comment message at the top of the file.
+    #     comment = f"This is a TagTracker datafile for {self.site_id} on {self.date}."
+
+    #     ut.squawk(f"{self.notes.notes=}",cfg.DEBUG)
+    #     return {
+    #         "comment:": comment,
+    #         "date": self.date,
+    #         "opening_time": self.opening_time,
+    #         "closing_time": self.closing_time,
+    #         "registrations": self.registrations.num_registrations,
+    #         "bike_visits": bike_visits,
+    #         "regular_tagids": sorted(list(self.regular_tagids)),
+    #         "oversize_tagids": sorted(list(self.oversize_tagids)),
+    #         "retired_tagids": sorted(list(self.retired_tagids)),
+    #         "notes": self.notes.notes,
+    #         "site_name": self.site_name,
+    #         "site_id": self.site_id,
+    #     }
+
+    # @staticmethod
+    # def _day_from_json_dict(data: dict, filepath: str) -> "TrackerDay":
+    #     day = TrackerDay(filepath)
+    #     day.date = data["date"]
+    #     day.opening_time = VTime(data["opening_time"])
+    #     day.closing_time = VTime(data["closing_time"])
+    #     try:
+    #         reg = int(data.get("registrations", 0))
+    #         day.registrations = Registrations(reg)
+    #     except ValueError as e:
+    #         raise TrackerDayError(
+    #             f"Bad registration value in file: '{data['registrations']}'. Error {e}"
+    #         ) from e
+    #     day.notes.load(data["notes"])
+    #     day.site_name = data["site_name"]
+    #     day.site_id = data["site_id"]
+
+    #     day.regular_tagids = frozenset(TagID(tagid) for tagid in data["regular_tagids"])
+    #     day.oversize_tagids = frozenset(
+    #         TagID(tagid) for tagid in data["oversize_tagids"]
+    #     )
+    #     day.retired_tagids = frozenset(TagID(tagid) for tagid in data["retired_tagids"])
+
+    #     # Initialize the biketags from the tagid lists
+    #     day.initialize_biketags()
+
+    #     # Add the visits, assuring sorted by ascending time_in
+    #     # FIXME: set the biketag.status fields
+    #     for visit_data in sorted(
+    #         data["bike_visits"], key=lambda x: (x["tagid"], x["time_in"])
+    #     ):
+    #         tagid = TagID(visit_data["tagid"])
+    #         time_in = VTime(visit_data["time_in"])
+    #         time_out = VTime(visit_data["time_out"])
+    #         day.biketags[tagid].start_visit(time_in)
+    #         if time_out:
+    #             day.biketags[tagid].finish_visit(time_out)
+
+    #     # Make sure all the visits are sorted by check_in time
+
+    #     return day
+
     def _day_to_json_dict(self) -> dict:
         bike_visits = []
         for visit in self.all_visits():
             bike_size = (
-                self.REGULAR_KEYWORD
+                self.REGULAR_BIKE
                 if self.biketags[visit.tagid].bike_type == REGULAR
-                else self.OVERSIZE_KEYWORD
+                else self.OVERSIZE_BIKE
             )
             bike_visits.append(
                 {
-                    "tagid": visit.tagid,
-                    "bike_size": bike_size,
-                    "time_in": visit.time_in,
-                    "time_out": visit.time_out,
+                    TOKEN_TAGID: visit.tagid,
+                    TOKEN_BIKE_SIZE: bike_size,
+                    TOKEN_TIME_IN: visit.time_in,
+                    TOKEN_TIME_OUT: visit.time_out,
                 }
             )
 
         # Sort bike_visits by tagid first, then by time_in
-        bike_visits.sort(key=lambda x: (x["tagid"], x["time_in"]))
+        bike_visits.sort(key=lambda x: (x[TOKEN_TAGID], x[TOKEN_TIME_IN]))
 
         # A comment message at the top of the file.
-        comment = f"This is a TagTracker datafile for {self.site_label} on {self.date}."
+        comment = f"This is a TagTracker datafile for {self.site_id} on {self.date}."
 
-        ut.squawk(f"{self.notes.notes=}",cfg.DEBUG)
+        ut.squawk(f"{self.notes.notes=}", cfg.DEBUG)
         return {
-            "comment:": comment,
-            "date": self.date,
-            "opening_time": self.opening_time,
-            "closing_time": self.closing_time,
-            "registrations": self.registrations.num_registrations,
-            "bike_visits": bike_visits,
-            "regular_tagids": sorted(list(self.regular_tagids)),
-            "oversize_tagids": sorted(list(self.oversize_tagids)),
-            "retired_tagids": sorted(list(self.retired_tagids)),
-            "notes": self.notes.notes,
-            "site_name": self.site_name,
-            "site_label": self.site_label,
+            TOKEN_COMMENT: comment,
+            TOKEN_SITE_NAME: self.site_name,
+            TOKEN_SITE_ID: self.site_id,
+            TOKEN_DATE: self.date,
+            TOKEN_OPENING_TIME: self.opening_time,
+            TOKEN_CLOSING_TIME: self.closing_time,
+            TOKEN_REGISTRATIONS: self.registrations.num_registrations,
+            TOKEN_BIKE_VISITS: bike_visits,
+            TOKEN_REGULAR_TAGIDS: sorted(list(self.regular_tagids)),
+            TOKEN_OVERSIZE_TAGIDS: sorted(list(self.oversize_tagids)),
+            TOKEN_RETIRED_TAGIDS: sorted(list(self.retired_tagids)),
+            TOKEN_NOTES: self.notes.notes,
         }
 
     @staticmethod
     def _day_from_json_dict(data: dict, filepath: str) -> "TrackerDay":
         day = TrackerDay(filepath)
-        day.date = data["date"]
-        day.opening_time = VTime(data["opening_time"])
-        day.closing_time = VTime(data["closing_time"])
+        day.date = data[TOKEN_DATE]
+        day.opening_time = VTime(data[TOKEN_OPENING_TIME])
+        day.closing_time = VTime(data[TOKEN_CLOSING_TIME])
         try:
-            reg = int(data.get("registrations", 0))
+            reg = int(data.get(TOKEN_REGISTRATIONS, 0))
             day.registrations = Registrations(reg)
         except ValueError as e:
             raise TrackerDayError(
-                f"Bad registration value in file: '{data['registrations']}'. Error {e}"
+                f"Bad registration value in file: '{data[TOKEN_REGISTRATIONS]}'. Error {e}"
             ) from e
-        day.notes.load(data["notes"])
-        day.site_name = data["site_name"]
-        day.site_label = data["site_label"]
+        day.notes.load(data[TOKEN_NOTES])
+        day.site_name = data[TOKEN_SITE_NAME]
+        day.site_id = data[TOKEN_SITE_ID]
 
-        day.regular_tagids = frozenset(TagID(tagid) for tagid in data["regular_tagids"])
-        day.oversize_tagids = frozenset(
-            TagID(tagid) for tagid in data["oversize_tagids"]
+        day.regular_tagids = frozenset(
+            TagID(tagid) for tagid in data[TOKEN_REGULAR_TAGIDS]
         )
-        day.retired_tagids = frozenset(TagID(tagid) for tagid in data["retired_tagids"])
+        day.oversize_tagids = frozenset(
+            TagID(tagid) for tagid in data[TOKEN_OVERSIZE_TAGIDS]
+        )
+        day.retired_tagids = frozenset(
+            TagID(tagid) for tagid in data[TOKEN_RETIRED_TAGIDS]
+        )
 
         # Initialize the biketags from the tagid lists
         day.initialize_biketags()
 
         # Add the visits, assuring sorted by ascending time_in
         # FIXME: set the biketag.status fields
+        errs = []
         for visit_data in sorted(
-            data["bike_visits"], key=lambda x: (x["tagid"], x["time_in"])
+            data[TOKEN_BIKE_VISITS],
+            key=lambda x: (x[TOKEN_TAGID], TagID(x[TOKEN_TIME_IN])),
         ):
-            tagid = TagID(visit_data["tagid"])
-            time_in = VTime(visit_data["time_in"])
-            time_out = VTime(visit_data["time_out"])
+            maybetag = visit_data[TOKEN_TAGID]
+            tagid = TagID(maybetag)
+            if not tagid:
+                errs.append(f"Datafile has bad tagid '{maybetag}'.")
+            maybetime = visit_data[TOKEN_TIME_IN]
+            time_in = VTime(maybetime)
+            if not time_in:
+                errs.append(
+                    f"Datafile has bad or missing time_in for {tagid}: '{maybetime}.'"
+                )
+            maybetime = visit_data[TOKEN_TIME_OUT]
+            time_out = VTime(maybetime)
+            if maybetime and not time_out:
+                errs.append(f"Datafile has bad time_out for {tagid}: '{maybetime}.'")
+            if errs:
+                continue
             day.biketags[tagid].start_visit(time_in)
             if time_out:
                 day.biketags[tagid].finish_visit(time_out)
+        if errs:
+            raise TrackerDayError(*errs)
 
         # Make sure all the visits are sorted by check_in time
 
         return day
 
-    def save_to_file(self,custom_filepath:str="") -> None:
+    def save_to_file(self, custom_filepath: str = "") -> None:
         """Save to the file.
 
         With defulat filepath, any errors in writing are considered catastrophic.
@@ -690,7 +869,7 @@ class TrackerDay:
         TrackerDay.validate_data(data, schema)
 
         loaded_day = TrackerDay._day_from_json_dict(data, filepath)
-        loaded_day.check_tagids_conformity()
+        loaded_day.determine_tagids_conformity()
 
         return loaded_day
 
@@ -719,14 +898,38 @@ class TrackerDay:
 
     def set_taglists_from_config(self):
         """Assign oversize, regular, and retired tag IDs from config."""
-        self.regular_tagids = self._parse_tag_ids(REGULAR_TAGS)
-        self.oversize_tagids = self._parse_tag_ids(OVERSIZE_TAGS)
-        self.retired_tagids = self._parse_tag_ids(RETIRED_TAGS)
-        self.check_tagids_conformity()
+
+        # FIXME: is this the right place to be checking for bad tagids? Could be bad from datafile too.
+        # FIXME: alternative would be to let in anything, then catch it in lint checks.
+        self.regular_tagids, errors = TagID.parse_tagids_str(
+            REGULAR_TAGS, "REGULAR_TAGS configuration"
+        )
+        self.oversize_tagids, errs = TagID.parse_tagids_str(
+            OVERSIZE_TAGS, "OVERSIZE_TAGS configuration"
+        )
+        errors += errs
+        self.retired_tagids, errs = TagID.parse_tagids_str(
+            RETIRED_TAGS, "RETIRED_TAGS configuration"
+        )
+        errors += errs
+        if errors:
+            raise TrackerDayError(*errors)
+
+        overlap = self.regular_tagids.intersection(self.oversize_tagids)
+        if overlap:
+            raise TrackerDayError(
+                f"These tags are configured as both regular and oversize:\n{overlap}"
+            )
+
+        if not self.regular_tagids and not self.oversize_tagids:
+            raise TrackerDayError("Configuration file defines to tags.")
+
+        self.determine_tagids_conformity()
+        # FIXME: Is this the right place for this? I don't think so.
         if not self.biketags:
             self.initialize_biketags()
 
-    def check_tagids_conformity(self) -> bool:
+    def determine_tagids_conformity(self) -> bool:
         """Check if all tag IDs conform to standard pattern.
 
         Sets flag in TrackerDay object, returns a courtesy boolean as well.
@@ -826,22 +1029,21 @@ class TrackerDay:
             if b.status_as_at(as_of_when) == BikeTag.DONE
         ]
 
-    def max_bikes_up_to_time(self,as_of_when:str=""):
+    def max_bikes_up_to_time(self, as_of_when: str = ""):
 
         # FIXME: extend this for regular/oversize/total
 
-        as_of_when = VTime(as_of_when or "now"
-                           )
+        as_of_when = VTime(as_of_when or "now")
         # Collect all time_in and time_out events up to as_of_when
         events = []
         for visit in self.all_visits():
             if visit.time_in <= as_of_when:
-                events.append((visit.time_in, 'in'))
+                events.append((visit.time_in, "in"))
             if visit.time_out and visit.time_out <= as_of_when:
-                events.append((visit.time_out, 'out'))
+                events.append((visit.time_out, "out"))
 
         # Sort events by time then 'in' before 'out'if times are the same.
-        events.sort(key=lambda x: (x[0], x[1] == 'out'))
+        events.sort(key=lambda x: (x[0], x[1] == "out"))
 
         max_bikes = 0
         current_bikes = 0
@@ -849,12 +1051,12 @@ class TrackerDay:
 
         # Iterate through sorted events and track the number of bikes
         for event in events:
-            if event[1] == 'in':
+            if event[1] == "in":
                 current_bikes += 1
                 if current_bikes > max_bikes:
                     max_bikes = current_bikes
                     max_time = event[0]
-            elif event[1] == 'out':
+            elif event[1] == "out":
                 current_bikes -= 1
 
         return max_bikes, max_time

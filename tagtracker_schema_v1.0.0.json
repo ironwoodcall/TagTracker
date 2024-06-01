@@ -8,7 +8,7 @@
       "site_name": {
         "type": "string"
       },
-      "site_label": {
+      "site_id": {
         "type": "string"
       },
       "date": {
@@ -78,5 +78,5 @@
         "type": "integer"
       }
     },
-    "required": ["site_name", "site_label","date", "opening_time", "closing_time"]
+    "required": ["site_name", "site_id","date", "opening_time", "closing_time"]
   }

@@ -234,10 +234,15 @@ def set_up_today() -> TrackerDay:
     datafilepath = custom_datafile()
     datafilepath = datafilepath or df.datafile_name(cfg.DATA_FOLDER)
     if os.path.exists(datafilepath):
-        day = TrackerDay.load_from_file(datafilepath)
+        try:
+            day = TrackerDay.load_from_file(datafilepath)
+        except TrackerDayError as e:
+            for s in e.args:
+                pr.iprint(s,style=k.ERROR_STYLE)
+            error_exit()
     else:
         day = TrackerDay(
-            datafilepath, site_label=cfg.SITE_LABEL, site_name=cfg.SITE_NAME
+            datafilepath, site_id=cfg.SITE_ID, site_name=cfg.SITE_NAME
         )
     # Just in case there's no date, guess it from the filename
     if not day.date:

@@ -55,7 +55,7 @@ INTERNET_MONITORING_FREQUENCY = 10
 
 # Site name identifier goes into the datafile, used in aggregation
 SITE_NAME = "Default Site"
-SITE_LABEL = "bikeparking"  # This is used in aggregation and filenames
+SITE_ID = "bikeparking"  # This is used in aggregation and filenames
 
 # Files and folder locations
 DATA_FOLDER = "../data"  # Folder to keep datafiles in
@@ -151,15 +151,15 @@ except Exception as e:  # pylint:disable=broad-exception-caught
 
 # Final checks of local config and adjustments based on it.
 
-# SITE_LABEL forms filename and database ID parts.
-if not re.match(r'^[a-zA-Z0-9_\-.\~!]+$',SITE_LABEL) or len(SITE_LABEL) > 32:
+# SITE_ID forms filename and database ID parts.
+if not re.match(r'^[a-zA-Z0-9_\-.\~!]+$',SITE_ID) or len(SITE_ID) > 32:
     print()
     print("** Configuration error: **")
-    print("   SITE_LABEL has unsuitable characters or is too long (max len 32).")
+    print("   SITE_ID has unsuitable characters or is too long (max len 32).")
     print("Contact TagTracker admin.")
     print()
     sys.exit(1)
 
-# Filenames are based on SITE_LABEL
-DATA_BASENAME = f"{SITE_LABEL}_"  # Files will be {BASENAME}YY-MM-DD.dat
+# Filenames are based on SITE_ID
+DATA_BASENAME = f"{SITE_ID}_"  # Files will be {BASENAME}YY-MM-DD.dat
 

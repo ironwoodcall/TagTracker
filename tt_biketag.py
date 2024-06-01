@@ -20,6 +20,7 @@ from tt_constants import REGULAR, OVERSIZE, UNKNOWN
 
 class BikeTagError(Exception):
     """Custom exception class for BikeTag errors."""
+
     pass
 
 
@@ -182,6 +183,68 @@ class BikeTag:
                 return self.IN_USE
         # Not in use, so must be DONE
         return self.DONE
+
+    def lint_check(self) -> list[str]:
+        """Check the BikeTag for errors. Return any errors as a list."""
+
+        errors = []
+
+        # Absent or bad tagid.
+        if self.tagid != TagID(self.tagid):
+            errors.append(f"Missing or bad tagid for BikeTag '{self.tagid}'")
+        # Inconsistencies between visits and BikeTag status.
+        if self.status in {self.UNUSED, self.RETIRED}:
+            if self.visits:
+                errors.append(
+                    f"BikeTag {self.tagid} has visits but status is {self.status}."
+                )
+        elif self.status in {self.IN_USE, self.DONE}:
+            if self.visits:
+                if self.latest_visit().time_out:
+                    if self.status == self.IN_USE:
+                        errors.append(
+                            f"BikeTag {self.tagid} is IN_USE but has a finished last visit."
+                        )
+                elif self.status == self.DONE:
+                    errors.append(
+                        f"BikeTag {self.tagid} is DONE but has an unfinished last visit."
+                    )
+            else:
+                errors.append(
+                    f"BikeTag {self.tagid} is {self.status} but has no visits."
+                )
+        else:
+            errors.append(
+                f"BikeTag {self.tagid} has unrecognized status {self.status}."
+            )
+
+        # Check all visits for time discrepencies..
+        # This does *not* check that a visit's time overlaps another.
+        last_visit_num = len(self.visits)  # NB: *Not* the visits[] index
+        for i, visit in enumerate(self.visits, start=1):
+            whatvisit = f"Visit {self.tagid}:{i}"
+            if not visit.time_in:
+                errors.append(f"{whatvisit} has no check-in time.")
+                continue
+            if visit.time_out:
+                if visit.time_in >= visit.time_out:
+                    errors.append(
+                        f"{whatvisit} has a check-in time same or later than its check-out."
+                    )
+            elif i != last_visit_num:
+                errors.append(
+                    f"{whatvisit} has no checkout time but is not the "
+                    f"last of tag's {len(self.visits)} visits."
+                )
+
+        # Check for overlapping visits.
+        for i in range(len(self.visits) - 1):
+            current_out = self.visits[i].time_out
+            next_in = self.visits[i + 1].time_in
+            if current_out > next_in:
+                errors.append(f"Visits {self.tagid}:{i+1} and :{i+2} overlap.")
+
+        return errors
 
         # # Iterate over visits to determine the status at the given time
         # for i, visit in enumerate(self.visits):

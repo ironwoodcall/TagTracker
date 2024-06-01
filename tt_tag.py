@@ -231,3 +231,22 @@ class TagID(str):
 
     def __repr__(self) -> str:
         return f"'{self.__str__()}'"
+
+    @staticmethod
+    def parse_tagids_str(
+        tagids_str: str, name_of_string: str = "list of tags"
+    ) -> tuple[set, list[str]]:
+        """Parse tokens in tagids_str into a set.  Errors listed in a list."""
+        errors = []
+        tagids = set()
+        for token in re.split(r"[\s,]+", tagids_str):
+            if not token:
+                continue
+            tagid = TagID(token)
+            if tagid:
+                tagids.add(tagid)
+            else:
+                errors.append(
+                    f"Error in {name_of_string}: '{token}' is not a valid tag."
+                )
+        return (tagids, errors)
