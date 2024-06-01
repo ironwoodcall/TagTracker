@@ -126,6 +126,7 @@ def audit_report(
     # Want list of biketags on hand and those returned but not reused
     tags_in_use = day.tags_in_use(as_of_when=as_of_when)
     tags_done = day.tags_done(as_of_when)
+    ut.squawk(f"{tags_done=}",cfg.DEBUG)
 
     # Tags matrixes
     # Tags broken down by prefix (for tags matrix)

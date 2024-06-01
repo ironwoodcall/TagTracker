@@ -568,9 +568,8 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
             pr.iprint("Noted.")
         else:
             bits.show_notes(today.notes, header=True, styled=False)
-    # elif cmd == CmdKeys.CMD_PUBLISH:
-    #     # FIXME: this call is ok, still need to adjust publish_*
-    #     publishment.publish_reports(day=today, args=args)
+    elif cmd == CmdKeys.CMD_PUBLISH:
+        publishment.publish_reports(day=today, args=args,mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
         query_command(day=today, targets=args[0])
     elif cmd == CmdKeys.CMD_RECENT:
@@ -579,7 +578,7 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
         if today.registrations.process_registration("".join(args)):
             data_changed = True
     elif cmd == CmdKeys.CMD_STATS:
-        rep.day_end_report(day=today, args=args)
+        rep.summary_report(day=today, args=args)
         # Force publication when do day-end reports
         publishment.publish(day=today)
         ##last_published = maybe_publish(last_published, force=True)

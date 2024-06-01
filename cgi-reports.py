@@ -170,7 +170,7 @@ def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
     print(f"{cc.main_and_back_buttons(1)}<br>")
     print("<pre>")
     day = db.db2day(ttdb, thisday)
-    rep.day_end_report(day, [qtime])
+    rep.summary_report(day, [qtime])
     # print()
     # rep.busyness_report(day, [qtime])
     print()
@@ -209,7 +209,7 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
 
     print(f"Hours: {day.opening_time} - {day.closing_time}</p>")
     print("<pre>")
-    rep.day_end_report(day, [query_time])
+    rep.summary_report(day, [query_time])
     # print()
     # rep.busyness_report(day, [query_time])
     print("</pre>")

@@ -34,7 +34,7 @@ import tt_util as ut
 from tt_snapshot import Snapshot
 import tt_block
 import tt_printer as pr
-import client_base_config as cfg
+# import client_base_config as cfg
 
 
 # Time ranges for categorizing stay-lengths, in hours.
@@ -52,7 +52,7 @@ def time_description(time:VTime,day:TrackerDay) -> str:
     """Make a descriptionof the time of day to use in report titles."""
     time = VTime(time)
     if time == day.closing_time:
-        return f"as at closing time ({time.short})"
+        return f"as at today's closing time ({time.short})"
     if time < day.opening_time:
         return f"as at {time.short} (before opening time)"
     if time > day.closing_time:
@@ -484,8 +484,7 @@ def busiest_times_report(
             break
         one_line(rank, activity, busy_times[activity])
 
-
-def day_end_report(day: TrackerDay, args: list) -> None:
+def summary_report(day: TrackerDay, args: list) -> None:
     """Report summary statistics about visits, up to the given time.
 
     If not time given (arg[0]), calculates as if end of the day (closing time).
@@ -499,7 +498,7 @@ def day_end_report(day: TrackerDay, args: list) -> None:
         return
     pr.iprint()
     pr.iprint(
-        f"Summary statistics {time_description(as_of_when,day=day)}",
+        f"Summary report for {day.site_name} {time_description(as_of_when,day=day)}",
         style=k.TITLE_STYLE,
     )
     later_events_warning(day, as_of_when)

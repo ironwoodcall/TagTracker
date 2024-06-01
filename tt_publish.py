@@ -70,6 +70,7 @@ class Publisher:
 
     def publish(self, day: TrackerDay, as_of_when: str = "") -> None:
         """Publish."""
+        ut.squawk(f"Entering .publish with {self.able_to_publish=}",cfg.DEBUG)
         if not self.able_to_publish:
             return
         ut.squawk(f"{type(day)=}, {day.date=}",cfg.DEBUG)
@@ -114,52 +115,23 @@ class Publisher:
             return False
         return day.save_to_file(filepath)
 
-    def publish_city_report(
-        self, day: TrackerDay, as_of_when: str = ""
-    ) -> None:
-        """Publish a report for daily insight to the City."""
-        as_of_when = VTime(as_of_when or "now")
-        if not self.able_to_publish:
-            return
-        fullfn = os.path.join(cfg.REPORTS_FOLDER, "city.txt")
-        if not pr.set_output(fullfn):
-            return
-        pr.iprint(f"Overall bike parking report for {day.date}")
-        pr.iprint(f"Generated {ut.date_str('today')} {ut.get_time()}")
-
-        aud.audit_report(day,as_of_when)
-        pr.iprint()
-        # FIXME - re-enable
-        rep.day_end_report(day, [as_of_when])
-        pr.iprint()
-        # rep.busyness_report(day, [as_of_when])
-        # pr.iprint()
-        # rep.busy_graph(day, as_of_when=as_of_when)
-        # pr.iprint()
-        # rep.fullness_graph(day, as_of_when=as_of_when)
-        # pr.iprint()
-        # rep.full_chart(day, as_of_when=as_of_when)
-        pr.set_output()
-
-    def publish_reports(self, day: TrackerDay, args: list = None) -> None:
+    def publish_reports(self, day: TrackerDay, args: list = None,mention:bool=False) -> None:
         """Publish reports to the PUBLISH directory."""
         if not self.able_to_publish:
             return
         as_of_when = (args + [None])[0]
-        if not as_of_when:
-            as_of_when = "now"
-        as_of_when: VTime = VTime(as_of_when)
+        as_of_when: VTime = VTime(as_of_when or "now")
+        if mention:
+            pr.iprint(f"Publishing a copy of reports to {cfg.REPORTS_FOLDER}.",
+                      style=k.SUBTITLE_STYLE)
         self.publish_audit(day, [as_of_when])
-        # FIXME - re-enable
-        # self.publish_city_report(day, as_of_when=as_of_when)
 
-        fn = "day_end.txt"
+        fn = "summary.txt"
         day_end_fn = os.path.join(cfg.REPORTS_FOLDER, fn)
         if not pr.set_output(day_end_fn):
             return
 
-        # FIXME - re-enable
         pr.iprint(ut.date_str(day.date, long_date=True))
         pr.iprint(f"Report generated {ut.date_str('today')} {VTime('now')}")
-        rep.day_end_report(day, [as_of_when])
+        rep.summary_report(day, [as_of_when])
         pr.set_output()

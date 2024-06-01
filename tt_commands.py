@@ -131,7 +131,7 @@ COMMANDS = {
     ),
     # This is the command to check a bike in, possibly reusing a tag.
     CmdKeys.CMD_BIKE_IN: CmdConfig(
-        invoke=["in", "i", "reuse", "check-in", "checkin"],
+        invoke=["in", "i", "check-in", "checkin"],
         arg_configs=[
             ArgConfig(
                 ARG_TAGS, optional=False, prompt="Check in bike(s) using what tag(s)? "
