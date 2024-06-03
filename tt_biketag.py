@@ -20,8 +20,7 @@ from tt_constants import REGULAR, OVERSIZE, UNKNOWN
 
 class BikeTagError(Exception):
     """Custom exception class for BikeTag errors."""
-
-    pass
+    pass #pylint:disable=unnecessary-pass
 
 
 class BikeTag:
@@ -58,11 +57,13 @@ class BikeTag:
     # Lower-level methods
 
     def start_visit(self, time: VTime):
+        """Initiate a visit.  Presumes error constraints already checked."""
         visit = BikeVisit(self.tagid, time)
         self.visits.append(visit)
         self.status = self.IN_USE
 
     def finish_visit(self, time: VTime):
+        """Finish a visit.  Presumes error constraints already checked."""
         if self.visits:
             latest_visit = self.latest_visit()
             latest_visit.time_out = time
@@ -103,6 +104,7 @@ class BikeTag:
         self.start_visit(bike_time)
 
     def check_out(self, time: VTime):
+        """Higher-level check-out call."""
         if self.status == self.IN_USE:
             self.finish_visit(time)
 
@@ -126,24 +128,28 @@ class BikeTag:
             )
 
     def edit_out(self, time: VTime):
+        """A higher-level function for editing a time_out."""
         if self.status == self.DONE:
             v = self.latest_visit()
             if v.time_in >= time:
                 raise BikeTagError(
-                    f"Tag {self.tagid}: Checkout time {time} must be later than check-in time {v.time_in}."
+                    f"Tag {self.tagid}: Checkout time {time} must be "
+                    f"later than check-in time {v.time_in}."
                 )
             v.time_out = time
         elif self.status == self.IN_USE:
             v = self.latest_visit()
             if v.time_in >= time:
                 raise BikeTagError(
-                    f"Check-out time {time} for {self.tagid} must be later than check-in time {v.time_in}."
+                    f"Check-out time {time} for {self.tagid} must be "
+                    f"later than check-in time {v.time_in}."
                 )
             self.finish_visit(time)
         else:
             raise BikeTagError("Invalid state for edit_out")
 
     def delete_in(self):
+        """A higher-level function that will delete a check-in."""
         if self.status == self.IN_USE:
             if self.visits:
                 self.visits.pop()
@@ -154,6 +160,8 @@ class BikeTag:
             raise BikeTagError(f"Bike {self.tagid} is not currently checked in.")
 
     def delete_out(self):
+        """A higher-level function that will delete a check-out."""
+
         if self.status == self.DONE:
             v = self.latest_visit()
             v.time_out = None

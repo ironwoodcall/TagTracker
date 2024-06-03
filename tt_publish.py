@@ -87,8 +87,8 @@ class Publisher:
         """Maybe publish.  Return T if did a publish."""
         if not self.able_to_publish:
             return
-        timenow = VTime("now")
-        time_since_last = ut.time_int(timenow) - ut.time_int(self.last_publish)
+        timenow:VTime = VTime("now")
+        time_since_last = timenow.num - VTime(self.last_publish).num
         if time_since_last >= self.frequency:
             self.publish(day, as_of_when)
 

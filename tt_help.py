@@ -43,7 +43,7 @@ To enter and change tracking data
   Edit check in/out times      :  EDIT <tag(s)> <in|out> <time>
   Delete a check in/out        :  DELETE <tag(s)> <in|out> <yes>
   Change operating hours       :  HOURS
-  View/add operator notes      :  NOTE [note text]
+  View/add operator notes      :  NOTE [DELETE|note text]
   View/set bike registrations  :  REGISTER [+n|-n|=n]
 
 Information and reports
@@ -87,6 +87,25 @@ Description
 
   If the tag has been used previously, this will re-use the tag for
   this new visit.
+""",
+
+    CmdKeys.CMD_NOTES: """
+Command: NOTE [DELETE|note text]
+
+Can be invoked as
+  {}
+
+Description:
+    Create or delete a note.  Notes are minor information items for
+    the convenience of the bike attendants.
+
+    E.g. "NOTE Bike BH4 has a flat tire."
+
+    If called without arguments, will list existing notes.
+    If called with 'DELETE" (or 'DEL' or 'D'), will list exising notes
+    and prompt for one to be deleted.
+    Otherwise, creates a new note with the note text.
+
 """,
 
     CmdKeys.CMD_BIKE_OUT: """

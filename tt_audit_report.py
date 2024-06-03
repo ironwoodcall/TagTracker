@@ -26,8 +26,6 @@ import tt_constants as k
 from tt_time import VTime
 from tt_tag import TagID
 from tt_trackerday import TrackerDay
-from tt_biketag import BikeTag
-from tt_bikevisit import BikeVisit
 import tt_util as ut
 import tt_printer as pr
 import client_base_config as cfg

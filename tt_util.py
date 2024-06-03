@@ -188,51 +188,6 @@ def most_recent_dow(iso_day) -> str:
     return most_recent_date.strftime("%Y-%m-%d")
 
 
-def get_time() -> VTime:
-    """Return current time as string: HH:MM."""
-    # FIXME: get_time() deprecated, use VTime("now") instead
-    return VTime(datetime.datetime.today().strftime("%H:%M"))
-
-
-def time_int(maybe_time: str | int | float | None) -> int | None:
-    """Return maybe_time (str or int) to number of minutes since midnight or "".
-
-        Input can be int (minutes since midnight) or a string
-    that might be a time in HH:MM.
-
-    Return is either None (doesn't look like a valid time) or
-    will be an integer between 0 and 1440.
-
-    Warning: edge case: if given "00:00" or 0, this will return 0,
-    which can test as False in a boolean argument.  In cases where 0
-    might be a legitimate time, test for the type of the return or
-    test whether "is None".
-    """
-    # FIXME: time_int() deprecated, use VTime() instead
-    if isinstance(maybe_time, float):
-        maybe_time = round(maybe_time)
-    if isinstance(maybe_time, str):
-        r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
-        if not (r):
-            return None
-        h = int(r.group(1))
-        m = int(r.group(2))
-        # Test for an impossible time
-        if h > 24 or m > 59 or (h * 60 + m) > 1440:
-            return None
-        return h * 60 + m
-    if isinstance(maybe_time, int):
-        # Test for impossible time.
-        if not (0 <= maybe_time <= 1440):
-            return None
-        return maybe_time
-    if maybe_time is None:
-        return None
-    # Not an int, not a str, not None.
-    squawk(f"PROGRAM ERROR: called time_int({maybe_time=})")
-    return None
-
-
 def iso_timestamp() -> str:
     """Get ISO8601 timestamp of current local time."""
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")

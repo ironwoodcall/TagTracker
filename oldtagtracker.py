@@ -924,7 +924,7 @@ def main():
         elif cmd_bits.command == k.CMD_QUERY:
             query_tag(cmd_bits.args)
         elif cmd_bits.command == k.CMD_STATS:
-            rep.day_end_report(pack_day_data(), cmd_bits.args)
+            rep.summary_report(pack_day_data(), cmd_bits.args)
             # Force publication when do day-end reports
             publishment.publish(pack_day_data())
             ##last_published = maybe_publish(last_published, force=True)

@@ -668,7 +668,6 @@ def summary_report(day: TrackerDay, args: list) -> None:
 
 #     If not time given, calculates as of latest checkin/out of the day.
 #     """
-#     # rightnow = ut.get_time()
 #     as_of_when = VTime((args + ["now"])[0])
 #     if not as_of_when:
 #         pr.iprint("Unrecognized time", style=k.WARNING_STYLE)

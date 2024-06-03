@@ -22,9 +22,11 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import re
+import tt_constants as k
 import tt_util as ut
 import tt_time
 import client_base_config as cfg
+import tt_printer as pr
 
 class Notes:
     """Keep tagtracker operator notes."""
@@ -65,6 +67,17 @@ class Notes:
         for line in self.notes:
             print(line)
 
+    def delete(self,note_index) -> None:
+        """Delete a note from the collection.  notes_index is 1-based."""
+        if not self.notes:
+            return
+
+        if note_index < 1 or note_index > len(self.notes):
+            ut.squawk(f"Unexpected value for {note_index=}, out of range.")
+            return
+
+        # Delete the corresponding note
+        del self.notes[note_index - 1]
 
 
 # class Notes:

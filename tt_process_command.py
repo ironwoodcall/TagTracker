@@ -25,7 +25,6 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 """
 
 
-
 # pylint: disable=wrong-import-position
 import tt_constants as k
 from tt_tag import TagID
@@ -45,6 +44,7 @@ import tt_audit_report as aud
 
 import tt_reports as rep
 import tt_tag_inv as inv
+
 # import tt_notes as notes
 
 # from tt_cmdparse import CmdBits
@@ -58,6 +58,7 @@ from tt_commands import (
 import tt_call_estimator
 from tt_sounds import NoiseMaker
 import tt_main_bits as bits
+
 
 def print_tag_inout(tag: TagID, inout: str, when: VTime) -> None:
     """Pretty-print a check-in or check-out message.
@@ -264,9 +265,7 @@ def check_in(args: list, today: TrackerDay) -> bool:
                 continue
             biketag = today.biketags[tagid]
             if biketag.status == biketag.IN_USE:
-                pr.iprint(
-                    f"Tag {tagid} already checked in.", style=k.WARNING_STYLE
-                )
+                pr.iprint(f"Tag {tagid} already checked in.", style=k.WARNING_STYLE)
                 NoiseMaker.queue_add(k.ALERT)
                 continue
             # Check this bike out at this time
@@ -469,7 +468,7 @@ def dump_data_command(today: TrackerDay, args: list):
             pr.iprint(value)
 
 
-def estimate(today:TrackerDay) -> None:
+def estimate(today: TrackerDay) -> None:
     """Estimate how many more bikes.
     # Args:
     #     bikes_so_far: default current bikes so far
@@ -491,7 +490,10 @@ def estimate(today:TrackerDay) -> None:
             pr.iprint(line)
     pr.iprint()
 
-def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.Publisher) -> bool:
+
+def process_command(
+    cmd_bits: ParsedCommand, today: TrackerDay, publishment: pub.Publisher
+) -> bool:
     """Process the command.  Return True if data has (probably) changed."""
 
     NoiseMaker.queue_reset()
@@ -514,7 +516,6 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
     cmd = cmd_bits.command
     args = cmd_bits.result_args
 
-
     # Assume no change in data unless we find out otherwise.
     data_changed = False
 
@@ -534,7 +535,9 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
         # Check a bike out. Hard to imagine anyone even using this command.
         data_changed = check_out(args=args, today=today)
     elif cmd == CmdKeys.CMD_BUSY:
-        pr.iprint("'BUSY' command is now part of 'STATS' command.",style=k.WARNING_STYLE )
+        pr.iprint(
+            "'BUSY' command is now part of 'STATS' command.", style=k.WARNING_STYLE
+        )
     # elif cmd == CmdKeys.CMD_BUSY_CHART:
     #     rep.busy_graph(pack_day_data())
     elif cmd == CmdKeys.CMD_CHART:
@@ -562,14 +565,9 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
     elif cmd == CmdKeys.CMD_NOTES:
-        if args:
-            today.notes.add(args[0])
-            data_changed = True
-            pr.iprint("Noted.")
-        else:
-            bits.show_notes(today.notes, header=True, styled=False)
+        data_changed = notes_command(today=today,args=args)
     elif cmd == CmdKeys.CMD_PUBLISH:
-        publishment.publish_reports(day=today, args=args,mention=True)
+        publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
         query_command(day=today, targets=args[0])
     elif cmd == CmdKeys.CMD_RECENT:
@@ -596,6 +594,61 @@ def process_command(cmd_bits: ParsedCommand, today: TrackerDay,publishment:pub.P
     NoiseMaker.queue_play()
     return data_changed
 
+
+def notes_command(today: TrackerDay, args: list) -> bool:
+    """Handle 'notes' command. Returns True if data has changed.
+
+    args[0], if present, is either the keyword 'DELETE' or new note text.
+    """
+
+    data_changed = False
+    if not args:
+        pr.iprint()
+        bits.show_notes(notes_obj=today.notes, header=True, styled=False)
+        return data_changed
+
+    text = args[0]
+    if text.strip().lower() in {"delete", "del", "d"}:
+
+        pr.iprint()
+        if not today.notes.notes:
+            pr.iprint("No notes to delete",style=k.WARNING_STYLE)
+            return data_changed
+
+        pr.iprint("Deleting a note:", style=k.TITLE_STYLE)
+        bits.show_notes(
+            today.notes, header=False, styled=False, num_indents=2, enumerated=True
+        )
+
+        # Prompt for input
+        total_notes = len(today.notes.notes)
+        pr.iprint(f"Delete which note (1..{total_notes}): ",end="",style=k.SUBPROMPT_STYLE)
+        user_input = pr.tt_inp()
+
+        # Handle the input
+        if user_input.strip() == "":
+            pr.iprint("Cancelled", style=k.WARNING_STYLE)
+            return data_changed
+
+        if not user_input.isdigit():
+            pr.iprint("Error: Input is not a number.", style=k.WARNING_STYLE)
+            return data_changed
+
+        note_index = int(user_input)
+        if note_index < 1 or note_index > total_notes:
+            pr.iprint("Error: Number out of range.", style=k.WARNING_STYLE)
+            return data_changed
+
+        data_changed = True
+        today.notes.delete(note_index)
+        pr.iprint("Note deleted.", style=k.SUBTITLE_STYLE)
+
+    else:
+        today.notes.add(text)
+        data_changed = True
+        pr.iprint("Noted.", style=k.SUBTITLE_STYLE)
+
+    return data_changed
 
 
 def lint_report(

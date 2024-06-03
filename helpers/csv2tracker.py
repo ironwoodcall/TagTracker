@@ -142,11 +142,11 @@ def readafile(file: str) -> Tuple[dict, dict]:
                     continue
                 # A legit tag at a legit time.
                 if RANDOMIZE_TIMES:
-                    block_begin = ut.time_int(block_start)
+                    block_begin = VTime(block_start).num
                     check_time = random.randint(block_begin, block_begin + 29)
                 else:
                     offset = BIKE_IN_OFFSET if inout == k.BIKE_IN else BIKE_OUT_OFFSET
-                    check_time = ut.time_int(block_start) + offset
+                    check_time = VTime(block_start).num + offset
                 if inout == k.BIKE_IN:
                     check_ins[tag] = VTime(check_time)
                 elif inout == k.BIKE_OUT:
@@ -185,7 +185,7 @@ def clean(file: str, check_ins: dict, check_outs: dict) -> None:
         if RANDOMIZE_TIMES:
             if check_outs[tag] <= check_ins[tag]:
                 check_outs[tag] = ut.time_str(
-                    ut.time_int(check_ins[tag]) + random.randint(10, 30)
+                    VTime(check_ins[tag]).num + random.randint(10, 30)
                 )
         elif check_outs[tag] < check_ins[tag]:
             message(

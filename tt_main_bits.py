@@ -129,10 +129,15 @@ def splash_top_default():
         )
 
 
-def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
+def show_notes(
+    notes_obj,
+    header: bool = False,
+    styled: bool = True,
+    num_indents: int = 1,
+    enumerated: bool = False,
+) -> None:
     """Print notes."""
     notes_list = notes_obj.notes
-    pr.iprint()
 
     if header:
         if notes_list:
@@ -140,11 +145,12 @@ def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
         else:
             pr.iprint("There are no notes yet today.")
             pr.iprint("(To create a note, enter NOTE [note text])")
-    for line in notes_list:
+    for i, line in enumerate(notes_list, start=1):
+        text = f"{i}: {line}" if enumerated else line
         if styled:
-            pr.iprint(line, style=k.WARNING_STYLE)
+            pr.iprint(text, style=k.WARNING_STYLE, num_indents=num_indents)
         else:
-            pr.iprint(line, style=k.NORMAL_STYLE)
+            pr.iprint(text, style=k.NORMAL_STYLE, num_indents=num_indents)
 
 
 def confirm_hours(today: TrackerDay) -> bool:

@@ -75,8 +75,8 @@ class ParsedCommand:
         print(f"                .result_args = '{self.result_args}'")
 
 
-# List of commands.  These are keys to COMMANDS dictionary
 class CmdKeys:
+    """Keys to the COMMANDS dictionary."""
     CMD_AUDIT = "AUDIT"
     CMD_BIKE_IN = "BIKE_IN"  # Explicit
     CMD_BIKE_INOUT = "BIKE_INOUT"  # Guess, but won't re-use a tag.
