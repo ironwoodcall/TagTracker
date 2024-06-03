@@ -242,7 +242,7 @@ def set_up_today() -> TrackerDay:
             error_exit()
     else:
         day = TrackerDay(
-            datafilepath, site_id=cfg.SITE_ID, site_name=cfg.SITE_NAME
+            datafilepath, site_handle=cfg.SITE_HANDLE, site_name=cfg.SITE_NAME
         )
     # Just in case there's no date, guess it from the filename
     if not day.date:

@@ -57,7 +57,7 @@ TOKEN_OVERSIZE_TAGIDS = "oversize_tagids"
 TOKEN_RETIRED_TAGIDS = "retired_tagids"
 TOKEN_NOTES = "notes"
 TOKEN_SITE_NAME = "site_name"
-TOKEN_SITE_ID = "site_id"
+TOKEN_SITE_HANDLE = "site_handle"
 
 
 class OldTrackerDay:
@@ -80,7 +80,7 @@ class OldTrackerDay:
         self.retired = frozenset()
         self.colour_letters = {}
         self.notes = []
-        self.site_id = ""
+        self.site_handle = ""
         self.site_name = ""
 
     def all_usable_tags(self) -> frozenset[TagID]:
@@ -218,11 +218,11 @@ class TrackerDay:
     Initizlization: ideal path:
         create empty
         load taglists from config
-        load site_id, site_name from config
+        load site_handle, site_name from config
         if load from datafile:
             read datafile into a json dictionary
             convert the json dictionary (including regular_tagids, etc)
-            overwrite site_name, site_id (& date & so on) with values in JSON dict
+            overwrite site_name, site_handle (& date & so on) with values in JSON dict
             overwrite taglists unless 'today' with non-null taglists from JSON dict
             create biketags list <-- internal method
             load visits from JSON dict
@@ -237,7 +237,7 @@ class TrackerDay:
     # Minutes to allow checkin/out to exceed operating hours
     OPERATING_HOURS_TOLERANCE = 120
 
-    def __init__(self, filepath: str, site_name: str = "", site_id: str = "") -> None:
+    def __init__(self, filepath: str, site_name: str = "", site_handle: str = "") -> None:
         """Initialize blank."""
         self.date = ut.date_str("today")
         self.opening_time = VTime("")
@@ -251,7 +251,7 @@ class TrackerDay:
         self.biketags: dict[TagID, BikeTag] = {}
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
-        self.site_id = site_id or "default"
+        self.site_handle = site_handle or "default"
         self.site_name = site_name or "Default Site"
 
     def initialize_biketags(self):
@@ -465,13 +465,13 @@ class TrackerDay:
         bike_visits.sort(key=lambda x: (x[TOKEN_TAGID], x[TOKEN_TIME_IN]))
 
         # A comment message at the top of the file.
-        comment = f"This is a TagTracker datafile for {self.site_id} on {self.date}."
+        comment = f"This is a TagTracker datafile for {self.site_handle} on {self.date}."
 
         ut.squawk(f"{self.notes.notes=}", cfg.DEBUG)
         return {
             TOKEN_COMMENT: comment,
             TOKEN_SITE_NAME: self.site_name,
-            TOKEN_SITE_ID: self.site_id,
+            TOKEN_SITE_HANDLE: self.site_handle,
             TOKEN_DATE: self.date,
             TOKEN_OPENING_TIME: self.opening_time,
             TOKEN_CLOSING_TIME: self.closing_time,
@@ -498,7 +498,7 @@ class TrackerDay:
             ) from e
         day.notes.load(data[TOKEN_NOTES])
         day.site_name = data[TOKEN_SITE_NAME]
-        day.site_id = data[TOKEN_SITE_ID]
+        day.site_handle = data[TOKEN_SITE_HANDLE]
 
         day.regular_tagids = frozenset(
             TagID(tagid) for tagid in data[TOKEN_REGULAR_TAGIDS]

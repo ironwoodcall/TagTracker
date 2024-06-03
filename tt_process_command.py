@@ -36,16 +36,13 @@ from tt_trackerday import TrackerDay, TrackerDayError
 from tt_bikevisit import BikeVisit
 from tt_biketag import BikeTag, BikeTagError
 import client_base_config as cfg
+import tt_notes
 import tt_printer as pr
 import tt_publish as pub
 import tt_help
-
 import tt_audit_report as aud
-
 import tt_reports as rep
 import tt_tag_inv as inv
-
-# import tt_notes as notes
 
 # from tt_cmdparse import CmdBits
 from tt_commands import (
@@ -565,7 +562,7 @@ def process_command(
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
     elif cmd == CmdKeys.CMD_NOTES:
-        data_changed = notes_command(today=today,args=args)
+        data_changed = tt_notes.notes_command(notes_obj=today.notes,args=args)
     elif cmd == CmdKeys.CMD_PUBLISH:
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
@@ -594,61 +591,6 @@ def process_command(
     NoiseMaker.queue_play()
     return data_changed
 
-
-def notes_command(today: TrackerDay, args: list) -> bool:
-    """Handle 'notes' command. Returns True if data has changed.
-
-    args[0], if present, is either the keyword 'DELETE' or new note text.
-    """
-
-    data_changed = False
-    if not args:
-        pr.iprint()
-        bits.show_notes(notes_obj=today.notes, header=True, styled=False)
-        return data_changed
-
-    text = args[0]
-    if text.strip().lower() in {"delete", "del", "d"}:
-
-        pr.iprint()
-        if not today.notes.notes:
-            pr.iprint("No notes to delete",style=k.WARNING_STYLE)
-            return data_changed
-
-        pr.iprint("Deleting a note:", style=k.TITLE_STYLE)
-        bits.show_notes(
-            today.notes, header=False, styled=False, num_indents=2, enumerated=True
-        )
-
-        # Prompt for input
-        total_notes = len(today.notes.notes)
-        pr.iprint(f"Delete which note (1..{total_notes}): ",end="",style=k.SUBPROMPT_STYLE)
-        user_input = pr.tt_inp()
-
-        # Handle the input
-        if user_input.strip() == "":
-            pr.iprint("Cancelled", style=k.WARNING_STYLE)
-            return data_changed
-
-        if not user_input.isdigit():
-            pr.iprint("Error: Input is not a number.", style=k.WARNING_STYLE)
-            return data_changed
-
-        note_index = int(user_input)
-        if note_index < 1 or note_index > total_notes:
-            pr.iprint("Error: Number out of range.", style=k.WARNING_STYLE)
-            return data_changed
-
-        data_changed = True
-        today.notes.delete(note_index)
-        pr.iprint("Note deleted.", style=k.SUBTITLE_STYLE)
-
-    else:
-        today.notes.add(text)
-        data_changed = True
-        pr.iprint("Noted.", style=k.SUBTITLE_STYLE)
-
-    return data_changed
 
 
 def lint_report(
