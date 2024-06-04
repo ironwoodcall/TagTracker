@@ -43,8 +43,8 @@ import math
 import statistics
 
 import web_base_config as wcfg
-import tt_util as ut
-from tt_time import VTime
+import common.tt_util as ut
+from common.tt_time import VTime
 import tt_dbutil as db
 import tt_default_hours
 # import client_base_config as cfg

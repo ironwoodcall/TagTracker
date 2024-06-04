@@ -44,7 +44,7 @@ class VTime(str):
     # Precompile regex pattern for valid formats with optional colon
     TIME_PATTERN = re.compile(r'^(\d+):?(\d{2})$')
 
-    def __new__(cls, maybe_time, allow_large=False):
+    def __new__(cls, maybe_time:str="", allow_large=False):
         time_str,time_int = cls._convert_time(maybe_time, allow_large)
         this = super().__new__(cls, time_str)
         this.num = time_int

@@ -24,10 +24,10 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import sqlite3
 
-import tt_util as ut
+import common.tt_util as ut
 import tt_dbutil as db
 import cgi_common as cc
-from tt_tag import TagID
+from common.tt_tag import TagID
 
 
 STYLE_GOOD = "color:black;background:cornsilk;"

@@ -21,8 +21,8 @@ Copyright (C) 2023-2024 Julias Hocking and Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import tt_constants as k
-import tt_util as ut
+import common.tt_constants as k
+import common.tt_util as ut
 import tt_printer as pr
 from tt_sounds import NoiseMaker
 

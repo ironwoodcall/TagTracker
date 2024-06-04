@@ -42,13 +42,13 @@ if sys.version_info < (3, 10):
     sys.exit(1)
 
 # pylint: disable=wrong-import-position
-import tt_constants as k
-from tt_tag import TagID
+import common.tt_constants as k
+from common.tt_tag import TagID
 import tt_reports as rep
 # from tt_realtag import Stay
-from tt_time import VTime
-import tt_util as ut
-from tt_trackerday import TrackerDay, TrackerDayError
+from common.tt_time import VTime
+import common.tt_util as ut
+from common.tt_trackerday import TrackerDay, TrackerDayError
 import client_base_config as cfg
 import tt_printer as pr
 import tt_datafile as df

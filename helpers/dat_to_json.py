@@ -9,7 +9,7 @@ import argparse
 
 sys.path.append("../")
 
-from tt_trackerday import TrackerDay,OldTrackerDay,old_to_new,TrackerDayError
+from common.tt_trackerday import TrackerDay,OldTrackerDay,old_to_new,TrackerDayError
 import tt_datafile as df
 import client_base_config as cfg
 

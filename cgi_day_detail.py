@@ -26,9 +26,9 @@ import sqlite3
 from statistics import mean, median
 
 import tt_dbutil as db
-from tt_tag import TagID
-from tt_time import VTime
-import tt_util as ut
+from common.tt_tag import TagID
+from common.tt_time import VTime
+import common.tt_util as ut
 import cgi_common as cc
 import datacolors as dc
 import tt_estimator

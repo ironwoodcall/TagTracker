@@ -34,10 +34,10 @@ import re
 import random
 from typing import Tuple
 
-import tt_constants as k
-import tt_util as ut
-from tt_tag import TagID
-from tt_time import VTime
+import common.tt_constants as k
+import common.tt_util as ut
+from common.tt_tag import TagID
+from common.tt_time import VTime
 
 
 HEADER_DATE = "Valet date:"

@@ -22,7 +22,7 @@ By default this avoids repeating a previously successful datafile load
 by keeping a datafile_loads table in the database.  The --force option
 will force reloading.
 
-Copyright (C) 2024 Todd Glover & Julias Hocking
+Copyright (C) 2024 Julias Hocking & Todd Glover
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting
@@ -57,11 +57,10 @@ import tt_datafile
 import tt_dbutil
 
 # import tt_globals
-import common.tt_util as ut
-from common.tt_trackerday import TrackerDay, TrackerDayError
-from common.tt_biketag import BikeTag,BikeTagError
+import tt_util as ut
+from tt_trackerday import OldTrackerDay
 
-from tt_daysummary import DaySummary
+from tt_daysummary import Snapshot
 from common.tt_time import VTime
 
 # Pre-declare this global for linting purposes.
@@ -316,7 +315,7 @@ def get_bike_type(tag: str, day: OldTrackerDay) -> str:
         return ""
 
 
-def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
+def calc_day_stats(filename: str, day: OldTrackerDay) -> DayStats:
     """Figure out the stats for a DAY row."""
 
     row = DayStats(day.date)
@@ -394,7 +393,7 @@ def fetch_reg_from_db(dbconx: sqlite3.Connection, date: str) -> int:
     return rows[0].registrations
 
 
-def calc_reg_value(day_totals: DayStats, dbconx: sqlite3.Connection) -> int:
+def calc_reg_value(day_summary: DayStats, dbconx: sqlite3.Connection) -> int:
     """Calculate what bike registrations count to use."""
     # Figure out what value to use for registrations.
     # This is yucky for legacy support reasons: before approx 2024-02
@@ -408,8 +407,8 @@ def calc_reg_value(day_totals: DayStats, dbconx: sqlite3.Connection) -> int:
     # not None  None        db_reg
     # not None  not None    max(df_reg, db_reg)
 
-    db_reg = fetch_reg_from_db(dbconx, day_totals.date)
-    df_reg = day_totals.registrations
+    db_reg = fetch_reg_from_db(dbconx, day_summary.date)
+    df_reg = day_summary.registrations
     winner = "nowhere"
     if db_reg is None and df_reg is None:
         result = "NULL"
@@ -432,13 +431,13 @@ def calc_reg_value(day_totals: DayStats, dbconx: sqlite3.Connection) -> int:
     return result
 
 
-def day_totals_into_db(
-    filename: str, day_totals: DayStats, batch: str, dbconx: sqlite3.Connection
+def day_summary_into_db(
+    filename: str, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
 ) -> bool:
     """Load into the DAY table.  Return T or F to indicate success."""
 
     # Figure out what bike registrations count value to use.  (!!!!yuck)
-    reg = calc_reg_value(day_totals, dbconx)
+    reg = calc_reg_value(day_summary, dbconx)
 
     # This requires some fancy footwork in order to
     #   1) use the value for registration that is the greater of
@@ -473,24 +472,24 @@ def day_totals_into_db(
                 {COL_SUNSET},
                 {COL_BATCH}
             ) VALUES (
-                '{day_totals.date}',
-                {day_totals.regular_parked},
-                {day_totals.oversize_parked},
-                {day_totals.total_parked},
-                {day_totals.total_leftover},
-                {day_totals.max_regular_num},
-                '{day_totals.max_regular_time}',
-                {day_totals.max_oversize_num},
-                '{day_totals.max_oversize_time}',
-                {day_totals.max_total_num},
-                '{day_totals.max_total_time}',
-                '{day_totals.time_open}',
-                '{day_totals.time_close}',
-                {day_totals.weekday},
+                '{day_summary.date}',
+                {day_summary.regular_parked},
+                {day_summary.oversize_parked},
+                {day_summary.total_parked},
+                {day_summary.total_leftover},
+                {day_summary.max_regular_num},
+                '{day_summary.max_regular_time}',
+                {day_summary.max_oversize_num},
+                '{day_summary.max_oversize_time}',
+                {day_summary.max_total_num},
+                '{day_summary.max_total_time}',
+                '{day_summary.time_open}',
+                '{day_summary.time_close}',
+                {day_summary.weekday},
                 {reg},
-                (SELECT {COL_PRECIP_MM} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_totals.date}'),
-                (SELECT {COL_TEMP} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_totals.date}'),
-                (SELECT {COL_SUNSET} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_totals.date}'),
+                (SELECT {COL_PRECIP_MM} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
+                (SELECT {COL_TEMP} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
+                (SELECT {COL_SUNSET} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
                 '{batch}'
             );""",
         dbconx,
@@ -507,7 +506,7 @@ def day_totals_into_db(
 def day_tags_context_into_db(
     file_info: FileInfo,
     day: OldTrackerDay,
-    day_totals: DayStats,
+    day_summary: DayStats,
     batch: str,
     dbconx: sqlite3.Connection,
 ) -> bool:
@@ -527,7 +526,7 @@ def day_tags_context_into_db(
                 {COL_OVERSIZE_CONTEXT},
                 {COL_RETIRED_CONTEXT}
             ) VALUES (
-                '{day_totals.date}',
+                '{day_summary.date}',
                 '{regular_tags}',
                 '{oversize_tags}',
                 '{retired_tags}'
@@ -547,7 +546,7 @@ def day_tags_context_into_db(
 def day_visits_into_db(
     file_info: FileInfo,
     day: OldTrackerDay,
-    day_totals: DayStats,
+    day_summary: DayStats,
     batch: str,
     dbconx: sqlite3.Connection,
 ) -> bool:
@@ -555,7 +554,7 @@ def day_visits_into_db(
     if args.verbose:
         print("   Deleting any existing visits info for this day from database.")
     sql_error = sql_exec_and_error(
-        f"DELETE FROM {TABLE_VISITS} WHERE date = '{day_totals.date}'", dbconx
+        f"DELETE FROM {TABLE_VISITS} WHERE date = '{day_summary.date}'", dbconx
     )
     if sql_error:
         file_info.set_bad(f"Error deleting VISIT rows: {sql_error}")
@@ -571,7 +570,7 @@ def day_visits_into_db(
             time_out = VTime(day.bikes_out[tag])
             dur_end = time_out
         else:  # no check-out recorded
-            dur_end = day_totals.time_close
+            dur_end = day_summary.time_close
             time_out = ""  # empty str for no time
         time_stay = calc_stay_length(time_in, dur_end)
         biketype = get_bike_type(tag, day)
@@ -586,8 +585,8 @@ def day_visits_into_db(
                     {COL_DURATION},
                     {COL_BATCH}
                     ) VALUES (
-                    '{day_totals.date}.{tag}',
-                    '{day_totals.date}',
+                    '{day_summary.date}.{tag}',
+                    '{day_summary.date}',
                     '{tag}',
                     '{biketype}',
                     '{time_in}',
@@ -603,11 +602,11 @@ def day_visits_into_db(
 
 
 def fileload_results_into_db(
-    file_info: FileInfo, day_totals: DayStats, batch: str, dbconx: sqlite3.Connection
+    file_info: FileInfo, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
 ) -> bool:
     """Update table that tracks load successes."""
     if args.verbose:
-        print(f"   Updating fileload info for {day_totals.date} into database.")
+        print(f"   Updating fileload info for {day_summary.date} into database.")
     sql = f"""
         INSERT OR REPLACE INTO {TABLE_LOADS} (
             {COL_DATE},
@@ -616,7 +615,7 @@ def fileload_results_into_db(
             {COL_FINGERPRINT},
             {COL_BATCH}
         ) VALUES (
-            '{day_totals.date}',
+            '{day_summary.date}',
             '{file_info.name}',
             '{file_info.timestamp}',
             '{file_info.fingerprint}',
@@ -633,7 +632,7 @@ def datafile_into_db(filename: str, batch, dbconx) -> str:
     """Record one datafile to the database, returns date.
 
     Reads the datafile, looking for errors.
-    Calculates summary stats, tables.
+    Calculates summary stats, loads DAY and VISIT tables.
     Saves the file info & fingerprint to LOAD_INFO table.
 
     Returns the date of the file's data if successful (else "")
@@ -650,11 +649,7 @@ def datafile_into_db(filename: str, batch, dbconx) -> str:
         print(f"Reading {filename}:")
 
     read_errors = []
-    try:
-        day = TrackerDay.load_from_file(filename)
-    except (TrackerDayError,BikeTagError) as e:
-        read_errors = e.args
-
+    day = tt_datafile.read_datafile(f"{filename}", err_msgs=read_errors)
     if not day.date:
         msg = "Unable to read date from file. Skipping file."
         file_info.set_bad(msg)
@@ -665,43 +660,43 @@ def datafile_into_db(filename: str, batch, dbconx) -> str:
         return ""
     if args.verbose:
         print(
-            f"    Date:{day.date}  Open:{day.opening_time}-{day.closing_time}"
-            f"  Visits:{len(day.all_visits())} using {len(day.biketags)} tags "
-            #f"Leftover:{len(day.bikes_in)-len(day.bikes_out)}  "
+            f"   Date:{day.date}  Open:{day.opening_time}-{day.closing_time}"
+            f"  Bikes:{len(day.bikes_in)} "
+            f"Leftover:{len(day.bikes_in)-len(day.bikes_out)}  "
             f"Registrations:{day.registrations}"
         )
 
-    day_totals = calc_day_stats(filename, day)
+    day_summary = calc_day_stats(filename, day)
 
     sql_begin_transaction(dbconx)
 
     # Day summary
-    if not day_totals_into_db(filename, day_totals, batch, dbconx):
+    if not day_summary_into_db(filename, day_summary, batch, dbconx):
         dbconx.rollback()
         return ""
 
     # Visits info
-    if not day_visits_into_db(file_info, day, day_totals, batch, dbconx):
+    if not day_visits_into_db(file_info, day, day_summary, batch, dbconx):
         dbconx.rollback()
         return ""
 
     # Tags context (regular/oversize/retired tags)
-    if not day_tags_context_into_db(file_info, day, day_totals, batch, dbconx):
+    if not day_tags_context_into_db(file_info, day, day_summary, batch, dbconx):
         dbconx.rollback()
         return ""
 
 
     # Successful load (pending commit), put it in the loads log
-    if not fileload_results_into_db(file_info, day_totals, batch, dbconx):
+    if not fileload_results_into_db(file_info, day_summary, batch, dbconx):
         dbconx.rollback()
         return ""
 
     dbconx.commit()  # commit one datafile transaction
 
     if args.verbose:
-        print(f"   Committed {day_totals.date}.")
+        print(f"   Committed {day_summary.date}.")
 
-    return day_totals.date
+    return day_summary.date
 
 
 def sql_begin_transaction(dbconx: sqlite3.Connection):

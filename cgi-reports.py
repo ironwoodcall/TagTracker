@@ -27,15 +27,15 @@ import sys
 import os
 import urllib.parse
 
-import tt_constants as k
+import common.tt_constants as k
 import tt_dbutil as db
 import web_base_config as wcfg
 import tt_reports as rep
 import tt_audit_report as aud
 import tt_datafile as df
-from tt_tag import TagID
-from tt_time import VTime
-import tt_util as ut
+from common.tt_tag import TagID
+from common.tt_time import VTime
+import common.tt_util as ut
 import tt_tag_inv
 import tt_printer as pr
 import cgi_common as cc

@@ -34,10 +34,10 @@ from datetime import datetime, timedelta
 from web_base_config import SITE_NAME
 
 # from tt_conf import SITE_NAME
-from tt_time import VTime
-from tt_tag import TagID
+from common.tt_time import VTime
+from common.tt_tag import TagID
 import tt_dbutil as db
-import tt_util as ut
+import common.tt_util as ut
 
 # Set up debugging .. maybe
 if "TAGTRACKER_DEBUG" in os.environ:

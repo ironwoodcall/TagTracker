@@ -23,7 +23,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import tt_printer as pr
-import tt_constants as k
+import common.tt_constants as k
 from tt_commands import CmdKeys, find_command,COMMANDS
 
 # Help messages.  Colour styles will be applied as:

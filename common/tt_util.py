@@ -30,9 +30,9 @@ import collections
 import random
 import string
 # import client_base_config as cfg
-from tt_time import VTime
-from tt_tag import TagID
-from tt_constants import BLOCK_DURATION
+from common.tt_time import VTime
+from common.tt_tag import TagID
+from common.tt_constants import BLOCK_DURATION
 
 
 def find_on_path(filename):

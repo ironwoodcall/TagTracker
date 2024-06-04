@@ -33,10 +33,10 @@ try:
 except ImportError:
     pass
 
-import tt_util as ut
+import common.tt_util as ut
 import client_base_config as cfg
-import tt_constants as k
-from tt_time import VTime
+import common.tt_constants as k
+from common.tt_time import VTime
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
 _INDENT = "  "

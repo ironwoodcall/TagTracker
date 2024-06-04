@@ -31,12 +31,12 @@ import json
 # from jsonschema import validate
 
 import client_base_config as cfg
-from tt_tag import TagID
-from tt_time import VTime
-import tt_util as ut
-from tt_biketag import BikeTag
-from tt_constants import REGULAR, OVERSIZE, UNKNOWN
-from tt_bikevisit import BikeVisit
+from common.tt_tag import TagID
+from common.tt_time import VTime
+import common.tt_util as ut
+from common.tt_biketag import BikeTag
+from common.tt_constants import REGULAR, OVERSIZE, UNKNOWN
+from common.tt_bikevisit import BikeVisit
 from tt_registrations import Registrations
 from tt_notes import Notes
 

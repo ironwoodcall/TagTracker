@@ -26,8 +26,8 @@ import subprocess
 import random
 
 # import tt_globals
-import tt_constants as k
-import tt_util as ut
+import common.tt_constants as k
+import common.tt_util as ut
 import client_base_config as cfg
 import tt_printer as pr
 

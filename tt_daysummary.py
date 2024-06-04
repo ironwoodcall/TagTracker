@@ -24,14 +24,16 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 
 from dataclasses import dataclass, field
 from collections import defaultdict
-from tt_trackerday import TrackerDay
-from tt_time import VTime
-import tt_constants as k
-from tt_util import block_start
+from common.tt_trackerday import TrackerDay
+from common.tt_time import VTime
+import common.tt_constants as k
+from common.tt_util import block_start
+
 
 @dataclass
 class MomentDetail:
     """Class to summarize all bike activity & holdings at one moment in the day."""
+
     time: str = ""
     num_incoming: dict = field(
         default_factory=lambda: {k.REGULAR: 0, k.OVERSIZE: 0, k.COMBINED: 0}
@@ -47,8 +49,9 @@ class MomentDetail:
 
 
 @dataclass
-class BlockDetail(MomentDetail):
+class BlockDetail:
     """Class to summarize what happened during one period (block) in the day."""
+
     time: str = ""
     num_incoming: dict = field(
         default_factory=lambda: {k.REGULAR: 0, k.OVERSIZE: 0, k.COMBINED: 0}
@@ -69,8 +72,10 @@ class BlockDetail(MomentDetail):
 
 class DaySummary:
     """Complex class for whole-day summary of events and blocks (for reporting)."""
+
     def __init__(self, day: TrackerDay, as_of_when: str = ""):
         self.date = day.date
+        self.whole_day = BlockDetail()
 
         # If no time given, set to latest event of the day
         if not as_of_when:
@@ -159,7 +164,9 @@ class DaySummary:
                 moment.num_outgoing[k.REGULAR] + moment.num_outgoing[k.OVERSIZE]
             )
             for bike_type in [k.REGULAR, k.OVERSIZE, k.COMBINED]:
-                here[bike_type] += moment.num_incoming[bike_type] - moment.num_outgoing[bike_type]
+                here[bike_type] += (
+                    moment.num_incoming[bike_type] - moment.num_outgoing[bike_type]
+                )
                 moment.num_on_hand[bike_type] = here[bike_type]
 
         return moments

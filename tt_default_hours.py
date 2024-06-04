@@ -26,7 +26,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 from datetime import datetime
 from client_base_config import SEASON_HOURS,SPECIAL_HOURS
-from tt_constants import MaybeDate
+from common.tt_constants import MaybeDate
 
 def get_default_hours(date_str:MaybeDate) -> tuple[str,str]:
     """Look for opening/closing hours for this date.

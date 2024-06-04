@@ -32,8 +32,8 @@ import sys
 import sqlite3
 
 import tt_dbutil as db
-import tt_util as ut
-from tt_time import VTime
+import common.tt_util as ut
+from common.tt_time import VTime
 
 
 class NewVals:

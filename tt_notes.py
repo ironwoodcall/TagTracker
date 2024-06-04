@@ -22,9 +22,9 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import re
-import tt_constants as k
-import tt_util as ut
-import tt_time
+import common.tt_constants as k
+import common.tt_util as ut
+import common.tt_time as tt_time
 import client_base_config as cfg
 import tt_printer as pr
 

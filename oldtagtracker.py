@@ -43,10 +43,10 @@ if sys.version_info < (3, 10):
     sys.exit(1)
 
 # pylint: disable=wrong-import-position
-import tt_constants as k
-from tt_tag import TagID
+import common.tt_constants as k
+from common.tt_tag import TagID
 from tt_realtag import Stay
-from tt_time import VTime
+from common.tt_time import VTime
 import tt_util as ut
 import tt_trackerday as td
 import client_base_config as cfg

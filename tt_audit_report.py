@@ -22,11 +22,11 @@ Copyright (C) 2023-2024 Julias Hocking and Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import tt_constants as k
-from tt_time import VTime
-from tt_tag import TagID
-from tt_trackerday import TrackerDay
-import tt_util as ut
+import common.tt_constants as k
+from common.tt_time import VTime
+from common.tt_tag import TagID
+from common.tt_trackerday import TrackerDay
+import common.tt_util as ut
 import tt_printer as pr
 import client_base_config as cfg
 import tt_reports as rep

@@ -39,11 +39,11 @@ import sys
 
 import tt_datafile
 import tt_dbutil
-import tt_constants
+import common.tt_constants as tt_constants
 import tt_util as ut
 
 from tt_daysummary import DaySummary
-from tt_time import VTime
+from common.tt_time import VTime
 
 
 # Names for tables and columns.s

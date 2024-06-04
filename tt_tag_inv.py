@@ -30,18 +30,18 @@ Symbols for:
 
 """
 
-import tt_constants as k
+import common.tt_constants as k
 import client_base_config as cfg
 import tt_printer as pr
-from tt_time import VTime
-from tt_tag import TagID
+from common.tt_time import VTime
+from common.tt_tag import TagID
 import tt_reports as rep
 
 # from tt_realtag import Stay
-from tt_trackerday import TrackerDay
+from common.tt_trackerday import TrackerDay
 
 # import client_base_config as cfg
-import tt_util as ut
+import common.tt_util as ut
 
 
 # These are the symbols & styles used in the tag inventory matrix.

@@ -12,10 +12,10 @@ Copyright (c) 2024 Todd Glover & Julias Hocking
 
 """
 
-from tt_tag import TagID
-from tt_time import VTime
-from tt_bikevisit import BikeVisit
-from tt_constants import REGULAR, OVERSIZE, UNKNOWN
+from common.tt_tag import TagID
+from common.tt_time import VTime
+from common.tt_bikevisit import BikeVisit
+from common.tt_constants import REGULAR, OVERSIZE, UNKNOWN
 
 
 class BikeTagError(Exception):

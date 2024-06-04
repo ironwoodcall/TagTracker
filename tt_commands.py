@@ -9,13 +9,13 @@ Copyright (c) 2024 Todd Glover & Julias Hocking
 
 """
 
-from tt_time import VTime
-from tt_tag import TagID
+from common.tt_time import VTime
+from common.tt_tag import TagID
 import tt_printer as pr
 import client_base_config as cfg
-import tt_constants as k
+import common.tt_constants as k
 import tt_sounds
-from tt_util import squawk
+from common.tt_util import squawk
 
 # Types of argument validations (arg_type)
 ARG_TAGS = "ARG_TAGS"  # Returns list of 1+ TagID()

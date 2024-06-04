@@ -24,13 +24,13 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import statistics
 
-import tt_constants as k
-from tt_time import VTime
-from tt_tag import TagID
+import common.tt_constants as k
+from common.tt_time import VTime
+from common.tt_tag import TagID
 
 # from tt_realtag import Stay
-from tt_trackerday import TrackerDay
-import tt_util as ut
+from common.tt_trackerday import TrackerDay
+import common.tt_util as ut
 from tt_daysummary import DaySummary, BlockDetail, MomentDetail
 
 # import tt_block

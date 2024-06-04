@@ -43,7 +43,7 @@ import random
 import string
 import http.client
 
-import tt_constants as k
+import common.tt_constants as k
 import client_base_config as cfg
 import tt_printer as pr
 from tt_sounds import NoiseMaker

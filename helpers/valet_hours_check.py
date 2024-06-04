@@ -4,7 +4,7 @@
 import sys
 import tt_dbutil as db
 from web_base_config import DB_FILENAME
-import tt_util as ut
+import common.tt_util as ut
 
 sys.path.append("../")
 

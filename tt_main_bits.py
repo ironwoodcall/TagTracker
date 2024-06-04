@@ -22,14 +22,14 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-from tt_tag import TagID
+from common.tt_tag import TagID
 import tt_printer as pr
-import tt_util as ut
+import common.tt_util as ut
 import client_base_config as cfg
-from tt_time import VTime
-import tt_constants as k
+from common.tt_time import VTime
+import common.tt_constants as k
 import tt_default_hours
-from tt_trackerday import TrackerDay
+from common.tt_trackerday import TrackerDay
 from tt_sounds import NoiseMaker
 
 # Import pyfiglet if it's available.

@@ -25,9 +25,9 @@ import sqlite3
 import sys
 import os
 from typing import Iterable
-from tt_trackerday import OldTrackerDay
-from tt_tag import TagID
-from tt_time import VTime
+from common.tt_trackerday import OldTrackerDay
+from common.tt_tag import TagID
+from common.tt_time import VTime
 
 
 class VisitRow:

@@ -2,7 +2,7 @@
 
 import sqlite3
 
-import tt_util as ut
+import common.tt_util as ut
 import tt_dbutil as db
 import cgi_common as cc
 
