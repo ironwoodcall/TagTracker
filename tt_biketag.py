@@ -192,8 +192,11 @@ class BikeTag:
         # Not in use, so must be DONE
         return self.DONE
 
-    def lint_check(self) -> list[str]:
-        """Check the BikeTag for errors. Return any errors as a list."""
+    def lint_check(self,allow_quick_checkout:bool=False) -> list[str]:
+        """Check the BikeTag for errors. Return any errors as a list.
+
+        If allow_quick_checkout, a check-out can be the same time as a check-in.
+        """
 
         errors = []
 
@@ -235,9 +238,13 @@ class BikeTag:
                 errors.append(f"{whatvisit} has no check-in time.")
                 continue
             if visit.time_out:
-                if visit.time_in >= visit.time_out:
+                if visit.time_in > visit.time_out:
                     errors.append(
-                        f"{whatvisit} has a check-in time same or later than its check-out."
+                        f"{whatvisit} has a check-in time later than its check-out."
+                    )
+                elif visit.time_in == visit.time_out and not allow_quick_checkout:
+                    errors.append(
+                        f"{whatvisit} has a check-in time as its check-out."
                     )
             elif i != last_visit_num:
                 errors.append(

@@ -174,6 +174,40 @@ def custom_datafile() -> str:
     return file
 
 
+
+def set_taglists_from_config(day:TrackerDay):
+    """Assign oversize, regular, and retired tag IDs from config."""
+
+    day.regular_tagids, errors = TagID.parse_tagids_str(
+        cfg.REGULAR_TAGS, "REGULAR_TAGS configuration"
+    )
+    day.oversize_tagids, errs = TagID.parse_tagids_str(
+        cfg.OVERSIZE_TAGS, "OVERSIZE_TAGS configuration"
+    )
+    errors += errs
+    day.retired_tagids, errs = TagID.parse_tagids_str(
+        cfg.RETIRED_TAGS, "RETIRED_TAGS configuration"
+    )
+    errors += errs
+    if errors:
+        raise TrackerDayError(*errors)
+
+    overlap = day.regular_tagids.intersection(day.oversize_tagids)
+    if overlap:
+        raise TrackerDayError(
+            f"These tags are configured as both regular and oversize:\n{overlap}"
+        )
+
+    if not day.regular_tagids and not day.oversize_tagids:
+        raise TrackerDayError("Configuration file defines to tags.")
+
+    day.determine_tagids_conformity()
+    # FIXME: Is this the right place for this? I don't think so.
+    if not day.biketags:
+        day.initialize_biketags()
+
+
+
 def error_exit() -> None:
     """If an error has occurred, give a message and shut down.
 
@@ -248,8 +282,8 @@ def set_up_today() -> TrackerDay:
     if not day.date:
         day.date = deduce_parking_date(datafilepath)
 
-    # Set the site name
-    day.site_name = day.site_name or cfg.SITE_NAME
+    # Set some bits, if missing
+    day.fill_default_bits(site_name = cfg.SITE_NAME,site_handle=cfg.SITE_HANDLE)
 
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
@@ -259,7 +293,7 @@ def set_up_today() -> TrackerDay:
     ):
         ut.squawk("Setting taglists from config",cfg.DEBUG)
         try:
-            day.set_taglists_from_config()
+            set_taglists_from_config(day)
         except TrackerDayError as e:
             pr.iprint()
             for text in e.args:

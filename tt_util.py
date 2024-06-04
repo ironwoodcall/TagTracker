@@ -29,7 +29,7 @@ import re
 import collections
 import random
 import string
-import client_base_config as cfg
+# import client_base_config as cfg
 from tt_time import VTime
 from tt_tag import TagID
 from tt_constants import BLOCK_DURATION
@@ -360,9 +360,10 @@ def line_wrapper(
     return lines
 
 
-def calculate_visit_frequencies(
+def _calculate_visit_frequencies(
     durations_list: list, category_width: int = 30
 ) -> collections.Counter:
+    """Helper function for calculating modes."""
     durations = []
     for d in durations_list:
         if isinstance(d, int):
@@ -393,7 +394,7 @@ def calculate_visit_modes(
     Returns a list of sorted VTimes().tidy of all the centre times of
     the modes and the number of times it/they occurred.
     """
-    freq_list = calculate_visit_frequencies(durations_list, category_width)
+    freq_list = _calculate_visit_frequencies(durations_list, category_width)
     mosts = freq_list.most_common()
     occurences = mosts[0][1]
     modes_numeric = sorted([element for element, count in mosts if count == occurences])
@@ -479,90 +480,3 @@ def writable_dir(filepath: str) -> bool:
             return False
     else:
         return False
-
-
-# time_str() deprecated, use VTime() object
-# def time_str(
-#     maybe_time: int | str | float | None,
-#     allow_now: bool = False,
-#     default_now: bool = False,
-# ) -> VTime:
-#     """Return maybe_time as HH:MM (or "").
-
-#     Input can be int/float (duration or minutes since midnight),
-#     or a string that *might* be a time in [H]H[:]MM.
-
-#     Special case: "now" will return current time if allowed
-#     by flag "allow_now".
-
-#     If default_now is True, then will return current time when input is blank.
-
-#     Return is either "" (doesn't look like a valid time) or
-#     will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
-#     """
-#     if not maybe_time and default_now:
-#         return VTime("now")
-#     if isinstance(maybe_time, float):
-#         maybe_time = round(maybe_time)
-#     if isinstance(maybe_time, str):
-#         if maybe_time.lower() == "now" and allow_now:
-#             return VTime("now")
-#         r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
-#         if not (r):
-#             return VTime("")
-#         h = int(r.group(1))
-#         m = int(r.group(2))
-#         # Test for an impossible time
-#         if h > 24 or m > 59 or (h * 60 + m) > 1440:
-#             return VTime("")
-#     elif maybe_time is None:
-#         return VTime("")
-#     elif not isinstance(maybe_time, int):
-#         squawk(f"PROGRAM ERROR: called time_str({maybe_time=})")
-#         return VTime("")
-#     elif isinstance(maybe_time, int):
-#         # Test for impossible time.
-#         if not (0 <= maybe_time <= 1440):
-#             return VTime("")
-#         h = maybe_time // 60
-#         m = maybe_time % 60
-#     # Return 5-digit time string
-#     return VTime(f"{h:02d}:{m:02d}")
-
-# def date_offset(start_date: str, offset: int) -> str:
-#     """Return a day some number of days before or after a date.
-
-#     start_date: is any date string that date_str() will recognize
-#     offset: is the number of days later(+) or earlier(-)
-#     Returns:
-#         YYYY-MM-DD of date which is offset from start_date
-#         "" if start_date is bad
-#     """
-#     start_date = date_str(start_date)
-#     if not start_date:
-#         return ""
-#     offset_day = datetime.datetime.strptime(
-#         start_date, "%Y-%m-%d"
-#     ) + datetime.timedelta(offset)
-#     return offset_day.strftime("%Y-%m-%d")
-
-# def top_level_script() -> str:
-#     """Return filename of highest-level calling script.
-
-#     This is specifically intended to let a module determine
-#     whether or not it is being called by the tagtracker desktop
-#     (data entry) script."""
-
-#     frame = sys._getframe() #pylint: disable=protected-access
-#     while frame.f_back:
-#         frame = frame.f_back
-#     top = frame.f_globals.get("__file__", None)
-#     top = top if top else ""
-#     return top
-
-# def decomment(string: str) -> str:
-#     """Remove any part of the string that starts with '#'."""
-#     r = re.match(r"^([^#]*) *#", string)
-#     if r:
-#         return r.group(1)
-#     return string

@@ -37,7 +37,6 @@ import tt_util as ut
 from tt_biketag import BikeTag
 from tt_constants import REGULAR, OVERSIZE, UNKNOWN
 from tt_bikevisit import BikeVisit
-from client_local_config import REGULAR_TAGS, OVERSIZE_TAGS, RETIRED_TAGS
 from tt_registrations import Registrations
 from tt_notes import Notes
 
@@ -251,8 +250,8 @@ class TrackerDay:
         self.biketags: dict[TagID, BikeTag] = {}
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
-        self.site_handle = site_handle or "default"
-        self.site_name = site_name or "Default Site"
+        self.site_handle = site_handle or ""
+        self.site_name = site_name or ""
 
     def initialize_biketags(self):
         """Create the biketags list from the tagid lists."""
@@ -302,22 +301,30 @@ class TrackerDay:
             <= self.closing_time.num + self.OPERATING_HOURS_TOLERANCE
         )
 
-    @staticmethod
-    def guess_tag_type(tag: TagID) -> str:
-        """Guess the type of tag (R=regular or O=oversize)."""
-        colour = TagID(tag).colour.lower()
-        if colour in ["o", "p", "w", "g"]:
-            return "R"
-        if colour in ["b"]:
-            return "O"
-        return ""
+    # @staticmethod
+    # def guess_tag_type(tag: TagID) -> str:
+    #     """Guess the type of tag (R=regular or O=oversize)."""
+    #     colour = TagID(tag).colour.lower()
+    #     if colour in ["o", "p", "w", "g"]:
+    #         return "R"
+    #     if colour in ["b"]:
+    #         return "O"
+    #     return ""
 
-    def lint_check(self, strict_datetimes: bool = False) -> list[str]:
-        """Generate a list of logic error messages for TrackerDay object."""
+    def fill_default_bits(self,site_handle:str="",site_name:str="",):
+        """Tries to fills certain missing bits of a TrackerDay."""
+        self.site_handle = self.site_handle or site_handle
+        self.site_name = self.site_name or site_name
+
+    def lint_check(self, strict_datetimes: bool = False,allow_quick_checkout:bool=False) -> list[str]:
+        """Generate a list of logic error messages for TrackerDay object.
+
+        If allow_quick_checkout, a check-out can be the same time as a check-in.
+        """
         errors = []
         errors.extend(self._check_reference_tags())
         errors.extend(self._check_dates_and_times(strict_datetimes))
-        errors.extend(self._check_bike_tags())
+        errors.extend(self._check_bike_tags(allow_quick_checkout=allow_quick_checkout))
         errors.extend(self._check_allowed_tags())
 
         return errors
@@ -353,10 +360,10 @@ class TrackerDay:
                 )
         return errors
 
-    def _check_bike_tags(self) -> list[str]:
+    def _check_bike_tags(self,allow_quick_checkout:bool=False) -> list[str]:
         errors = []
         for biketag in self.biketags.values():
-            errors.extend(biketag.lint_check())
+            errors.extend(biketag.lint_check(allow_quick_checkout=allow_quick_checkout))
         return errors
 
     def _check_allowed_tags(self) -> list[str]:
@@ -597,37 +604,6 @@ class TrackerDay:
                 tag_ids.add(t)
         return tag_ids
 
-    def set_taglists_from_config(self):
-        """Assign oversize, regular, and retired tag IDs from config."""
-
-        self.regular_tagids, errors = TagID.parse_tagids_str(
-            REGULAR_TAGS, "REGULAR_TAGS configuration"
-        )
-        self.oversize_tagids, errs = TagID.parse_tagids_str(
-            OVERSIZE_TAGS, "OVERSIZE_TAGS configuration"
-        )
-        errors += errs
-        self.retired_tagids, errs = TagID.parse_tagids_str(
-            RETIRED_TAGS, "RETIRED_TAGS configuration"
-        )
-        errors += errs
-        if errors:
-            raise TrackerDayError(*errors)
-
-        overlap = self.regular_tagids.intersection(self.oversize_tagids)
-        if overlap:
-            raise TrackerDayError(
-                f"These tags are configured as both regular and oversize:\n{overlap}"
-            )
-
-        if not self.regular_tagids and not self.oversize_tagids:
-            raise TrackerDayError("Configuration file defines to tags.")
-
-        self.determine_tagids_conformity()
-        # FIXME: Is this the right place for this? I don't think so.
-        if not self.biketags:
-            self.initialize_biketags()
-
     def determine_tagids_conformity(self) -> bool:
         """Check if all tag IDs conform to standard pattern.
 
@@ -814,8 +790,8 @@ def old_to_new(old: OldTrackerDay) -> TrackerDay:
     new.date = old.date
     new.opening_time = old.opening_time
     new.closing_time = old.closing_time
-    new.registrations = old.registrations
-    new.notes = old.notes
+    new.registrations = Registrations(old.registrations)
+    new.notes = Notes(old.notes)
     # Tag reference lists
     new.regular_tagids = old.regular
     new.oversize_tagids = old.oversize
