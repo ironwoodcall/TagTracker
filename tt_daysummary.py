@@ -2,7 +2,7 @@
 
 Summary & associated classes for tagtracker.
 
-Copyright (C) 2023-2024 Julias Hocking & Todd Glover
+Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting
@@ -29,9 +29,9 @@ from tt_time import VTime
 import tt_constants as k
 from tt_util import block_start
 
-
 @dataclass
 class MomentDetail:
+    """Class to summarize all bike activity & holdings at one moment in the day."""
     time: str = ""
     num_incoming: dict = field(
         default_factory=lambda: {k.REGULAR: 0, k.OVERSIZE: 0, k.COMBINED: 0}
@@ -48,6 +48,7 @@ class MomentDetail:
 
 @dataclass
 class BlockDetail(MomentDetail):
+    """Class to summarize what happened during one period (block) in the day."""
     time: str = ""
     num_incoming: dict = field(
         default_factory=lambda: {k.REGULAR: 0, k.OVERSIZE: 0, k.COMBINED: 0}
@@ -67,6 +68,7 @@ class BlockDetail(MomentDetail):
 
 
 class DaySummary:
+    """Complex class for whole-day summary of events and blocks (for reporting)."""
     def __init__(self, day: TrackerDay, as_of_when: str = ""):
         self.date = day.date
 
@@ -148,17 +150,17 @@ class DaySummary:
                     )
 
         here = {k.REGULAR: 0, k.OVERSIZE: 0, k.COMBINED: 0}
-        for m in sorted(moments):
-            moment = moments[m]
+        for moment_time in sorted(moments):
+            moment = moments[moment_time]
             moment.num_incoming[k.COMBINED] = (
                 moment.num_incoming[k.REGULAR] + moment.num_incoming[k.OVERSIZE]
             )
             moment.num_outgoing[k.COMBINED] = (
                 moment.num_outgoing[k.REGULAR] + moment.num_outgoing[k.OVERSIZE]
             )
-            for what in [k.REGULAR, k.OVERSIZE, k.COMBINED]:
-                here[what] += moment.num_incoming[what] - moment.num_outgoing[what]
-                moment.num_on_hand[what] = here[what]
+            for bike_type in [k.REGULAR, k.OVERSIZE, k.COMBINED]:
+                here[bike_type] += moment.num_incoming[bike_type] - moment.num_outgoing[bike_type]
+                moment.num_on_hand[bike_type] = here[bike_type]
 
         return moments
 
@@ -229,4 +231,3 @@ class DaySummary:
             block_start_time = VTime(block_start_time.num + k.BLOCK_DURATION)
 
         return blocks
-
