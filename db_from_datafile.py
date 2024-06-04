@@ -60,7 +60,7 @@ import tt_dbutil
 import tt_util as ut
 from tt_trackerday import OldTrackerDay
 
-from tt_snapshot import Snapshot
+from tt_daysummary import Snapshot
 from tt_time import VTime
 
 # Pre-declare this global for linting purposes.

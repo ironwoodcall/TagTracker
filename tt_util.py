@@ -32,6 +32,8 @@ import string
 import client_base_config as cfg
 from tt_time import VTime
 from tt_tag import TagID
+from tt_constants import BLOCK_DURATION
+
 
 def find_on_path(filename):
     """Check if filename exists, including anywhere in system PATH.
@@ -55,8 +57,7 @@ def find_on_path(filename):
         return None
 
 
-
-def squawk(whatever: str = "",yes_print_this:bool=True) -> str:
+def squawk(whatever: str = "", yes_print_this: bool = True) -> str:
     """Print whatever with file & linenumber in front of it.
 
     This is intended for programming errors not prettiness.
@@ -136,7 +137,6 @@ def date_str(
     return thisday.strftime("%Y-%m-%d")
 
 
-
 def dow_int(date_or_dayname: str) -> int:
     """Get ISO day of week from a date or weekday name."""
     date = date_str(date_or_dayname)
@@ -192,6 +192,32 @@ def iso_timestamp() -> str:
     """Get ISO8601 timestamp of current local time."""
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
+
+def block_start(atime: int | str) -> VTime:
+    """Return the start time of the block that contains time 'atime'.
+
+    'atime' can be minutes since midnight or HHMM.
+    """
+    # Get time in minutes
+    atime = VTime(atime)
+    if not atime:
+        return ""
+    # which block of time does it fall in?
+    block_start_min = (atime.num // BLOCK_DURATION) * BLOCK_DURATION
+    return VTime(block_start_min)
+
+
+def block_end(atime: int | str) -> VTime:
+    """Return the last minute of the timeblock that contains time 'atime'.
+
+    'atime' can be minutes since midnight or HHMM.
+    """
+    # Get block start
+    start = block_start(atime)
+    # Calculate block end
+    end = start.num + BLOCK_DURATION - 1
+    # Return as minutes or HHMM
+    return VTime(end)
 
 
 def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
@@ -279,6 +305,7 @@ def get_version() -> str:
     # Full version string now
     # version_str = f"{version_str} ({git_str})"
     return git_str
+
 
 def untaint(tainted: str) -> str:
     """Remove any suspicious characters from a possibly tainted string."""
@@ -453,6 +480,7 @@ def writable_dir(filepath: str) -> bool:
     else:
         return False
 
+
 # time_str() deprecated, use VTime() object
 # def time_str(
 #     maybe_time: int | str | float | None,
@@ -538,4 +566,3 @@ def writable_dir(filepath: str) -> bool:
 #     if r:
 #         return r.group(1)
 #     return string
-

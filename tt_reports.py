@@ -29,11 +29,13 @@ from tt_time import VTime
 from tt_tag import TagID
 
 # from tt_realtag import Stay
-from tt_trackerday import TrackerDay, OldTrackerDay
+from tt_trackerday import TrackerDay
 import tt_util as ut
-from tt_snapshot import Snapshot
-import tt_block
+from tt_daysummary import DaySummary, BlockDetail, MomentDetail
+
+# import tt_block
 import tt_printer as pr
+
 # import client_base_config as cfg
 
 
@@ -48,7 +50,7 @@ MODE_ROUND_TO_NEAREST = 30  # mins
 BUSIEST_RANKS = 4
 
 
-def time_description(time:VTime,day:TrackerDay) -> str:
+def time_description(time: VTime, day: TrackerDay) -> str:
     """Make a descriptionof the time of day to use in report titles."""
     time = VTime(time)
     if time == day.closing_time:
@@ -58,6 +60,7 @@ def time_description(time:VTime,day:TrackerDay) -> str:
     if time > day.closing_time:
         return f"as at {time.short} (after closing time)"
     return f"as at {time.short}"
+
 
 def _events_in_period(
     day: TrackerDay, start: VTime, end: VTime
@@ -71,7 +74,7 @@ def _events_in_period(
     """
     event_list = []
     for biketag in day.biketags.values():
-        for i, visit in enumerate(biketag.visits,start=1):
+        for i, visit in enumerate(biketag.visits, start=1):
             if start <= visit.time_in <= end:
                 event_list.append((visit.time_in, f"{biketag.tagid}:{i}", True))
             if visit.time_out and start <= visit.time_out <= end:
@@ -134,25 +137,31 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
     pr.iprint()
     pr.iprint("Time     BikeIn   BikeOut", style=k.SUBTITLE_STYLE)
     # Collect & print any bike-in/bike-out events in the time period.
-    events = _events_in_period(day, start_time, end_time)
+    summary = DaySummary(day=day, as_of_when=end_time)
+
+    # events = _events_in_period(day, start_time, end_time)
 
     ins = 0
     outs = 0
     current_block_end = None  # block ends are for putting divider lines
-    for event_time, tag_desc, is_check_in in events:
+
+    for moment_time in sorted(summary.moments.keys()):
+        moment: MomentDetail = summary.moments[moment_time]
+
         if not current_block_end:
-            current_block_end = tt_block.block_end(event_time)
-        if event_time > current_block_end:
-            pr.iprint(f"{tt_block.block_start(event_time).tidy} --------------------")
-            current_block_end = tt_block.block_end(event_time)
-        pr.iprint(format_one(event_time, tag_desc, is_check_in))
-        if is_check_in:
+            current_block_end = ut.block_end(moment_time)
+        if moment_time > current_block_end:
+            pr.iprint(f"{ut.block_start(moment_time).tidy} --------------------")
+            current_block_end = ut.block_end(moment_time)
+
+        for tag_desc in moment.tag_descriptions_incoming:
+            pr.iprint(format_one(moment_time, tag_desc, True))
             ins += 1
-        else:
+        for tag_desc in moment.tag_descriptions_outgoing:
+            pr.iprint(format_one(moment_time, tag_desc, False))
             outs += 1
     pr.iprint()
     pr.iprint(f"Total   {ins:6} {outs:7}", style=k.SUBTITLE_STYLE)
-
 
 
 def registrations_report(day: TrackerDay):
@@ -186,69 +195,6 @@ def print_tag_notes(day: TrackerDay, tag: str):
         pr.iprint(line, style=k.WARNING_STYLE)
 
 
-# def simplified_taglist(tags: list[TagID] | str) -> str:
-#     """Make a simplified str of tag names from a list of tags.
-
-#     E.g. "wa0,2-7,9 wb1,9,10 be4"
-#     The tags list can be a string separated by whitespace or comma.
-#     or it can be a list of tags.
-#     """
-#
-#     def hyphenize(nums: list[int]) -> str:
-#         """Convert a list of ints into a hyphenated list."""
-#         # Warning: dark magic.
-#         # Build lists of sequences from the sorted list.
-#         # starts is list of starting values of sequences.
-#         # ends is matching list of ending values.
-#         # singles is list of ints that are not part of sequences.
-#         nums_set = set(nums)
-#         starts = [x for x in nums_set if x - 1 not in nums_set and x + 1 in nums_set]
-#         startset = set(starts)
-#         ends = [
-#             x
-#             for x in nums_set
-#             if x - 1 in nums_set and x + 1 not in nums_set and x not in startset
-#         ]
-#         singles = [
-#             x for x in nums_set if x - 1 not in nums_set and x + 1 not in nums_set
-#         ]
-#         # Build start & end into dictionary, rejecting any sequences
-#         # shorter than an arbitrary shortest length
-#         min_len = 3
-#         seqs = {}  # key = int start; value = str representing the sequence
-#         for start, end in zip(starts, ends):
-#             if (end - start) >= (min_len - 1):
-#                 seqs[start] = f"{start}-{end}"
-#             else:
-#                 # Too short, convert to singles
-#                 singles = singles + list(range(start, end + 1))
-#         # Add the singles to the seqs dict
-#         for num in singles:
-#             seqs[num] = f"{num}"
-#         # Return the whole thing as a comma-joined string
-#         return ",".join([seqs[n] for n in sorted(seqs.keys())])
-
-#     if isinstance(tags, str):
-#         # Break the tags down into a list.  First split comma.
-#         tags = tags.split(",")
-#         # Split on whitespace.  This makes a list of lists.
-#         tags = [item.split() for item in tags]
-#         # Flatten the list of lists into a single list.
-#         tags = [item for sublist in tags for item in sublist]
-#     # Make dict of [prefix]:list of tag_numbers_as_int
-#     tag_prefixes = ut.tagnums_by_prefix(tags)
-#     simplified_list = []
-#     for prefix in sorted(tag_prefixes.keys()):
-#         # A list of the tag numbers for this prefix
-#         ##simplified_list.append(f"{prefix}" +
-#         ##        (",".join([str(num) for num in sorted(tag_prefixes[prefix])])))
-#         simplified_list.append(f"{prefix}{hyphenize(tag_prefixes[prefix])}")
-#     # Return all of these joined together
-#     simple_str = " ".join(simplified_list)
-#     ##simple_str = simple_str.upper() if UC_TAGS else simple_str.lower()
-#     return simple_str
-
-
 def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     """Print the check-ins count part of the summary statistics.
 
@@ -258,7 +204,7 @@ def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
     num_bikes_ttl, num_bikes_regular, num_bikes_oversize = day.num_bikes_parked(
         as_of_when
     )
-    num_bikes_am, _, _ = day.num_bikes_parked(min("11:59",as_of_when))
+    num_bikes_am, _, _ = day.num_bikes_parked(min("11:59", as_of_when))
     num_still_here = day.num_tags_in_use(as_of_when)
 
     pr.iprint()
@@ -355,17 +301,24 @@ def visit_statistics_report(durations_list: list[int]) -> None:
     visits_mode(durations_list)
 
 
-def highwater_report(events: dict) -> None:
-    """Make a highwater table as at as_of_when."""
+def highwater_report(summary: DaySummary) -> None:
+    """Make a highwater table."""
 
     # High-water mark for bikes onsite at any one time
-    def one_line(header: str, events: dict, atime: VTime, highlight_field: int) -> None:
+    def one_line(header: str, num: int, atime: VTime, highlight_field: int) -> None:
         """Print one line for highwater_report."""
+
         values = [
-            events[atime].num_here_regular,
-            events[atime].num_here_oversize,
-            events[atime].num_here_total,
+            summary.moments[atime].num_on_hand[k.REGULAR],
+            summary.moments[atime].num_on_hand[k.OVERSIZE],
+            summary.moments[atime].num_on_hand[k.COMBINED],
         ]
+
+        # values = [
+        #     events[atime].num_here_regular,
+        #     events[atime].num_here_oversize,
+        #     events[atime].num_here_total,
+        # ]
         line = f"{header:15s}"
         for num, val in enumerate(values):
             bit = f"{val:3d}"
@@ -377,42 +330,35 @@ def highwater_report(events: dict) -> None:
     # Table header
     pr.iprint()
     pr.iprint("Most bikes onsite at any one time", style=k.SUBTITLE_STYLE)
-    if not events:
+    if len(summary.moments) <= 0:
         pr.iprint("-no bikes-")
         return
-    # Find maximum bikes on hand for the categories
-    max_regular_num = max([x.num_here_regular for x in events.values()])
-    max_oversize_num = max([x.num_here_oversize for x in events.values()])
-    max_total_num = max([x.num_here_total for x in events.values()])
-    max_regular_time = None
-    max_oversize_time = None
-    max_total_time = None
-    # Find the first time at which these took place
-    for atime in sorted(events.keys()):
-        if events[atime].num_here_regular >= max_regular_num and not max_regular_time:
-            max_regular_time = atime
-        if (
-            events[atime].num_here_oversize >= max_oversize_num
-            and not max_oversize_time
-        ):
-            max_oversize_time = atime
-        if events[atime].num_here_total >= max_total_num and not max_total_time:
-            max_total_time = atime
+
+    num_fullest = {k.REGULAR: 0, k.OVERSIZE: 0, k.COMBINED: 0}
+    time_fullest = {k.REGULAR: "", k.OVERSIZE: "", k.COMBINED: ""}
+    for moment_time, moment in summary.moments.items():
+        for bike_type in [k.REGULAR, k.OVERSIZE, k.COMBINED]:
+            if moment.num_on_hand[bike_type] > num_fullest[bike_type]:
+                num_fullest[bike_type] = moment.num_on_hand[bike_type]
+                time_fullest[bike_type] = moment_time
+
     pr.iprint("                 Reglr OvrSz Total WhenAchieved")
-    one_line("Most regular:", events, max_regular_time, 0)
-    one_line("Most oversize:", events, max_oversize_time, 1)
-    one_line("Most combined:", events, max_total_time, 2)
+    one_line("Most regular:", num_fullest[k.REGULAR], time_fullest[k.REGULAR], 0)
+    one_line("Most oversize:", num_fullest[k.OVERSIZE], time_fullest[k.OVERSIZE], 1)
+    one_line("Most combined:", num_fullest[k.COMBINED], time_fullest[k.COMBINED], 2)
 
 
-def full_chart(day: OldTrackerDay, as_of_when: str = "") -> None:
+def full_chart(day: TrackerDay, as_of_when: str = "") -> None:
     """Make chart of main stats by timeblock."""
-    as_of_when = as_of_when if as_of_when else "24:00"
-    if not day.bikes_in:
+    as_of_when = VTime(as_of_when or day.closing_time)
+
+    if not day.num_bikes_parked(as_of_when=as_of_when):
         pr.iprint()
         pr.iprint("-no bikes-", style=k.WARNING_STYLE)
         return
 
-    blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
+    summary = DaySummary(day=day, as_of_when=as_of_when)
+
     pr.iprint()
     pr.iprint(f"Activity chart {day.date}", style=k.TITLE_STYLE)
     pr.iprint()
@@ -424,22 +370,19 @@ def full_chart(day: OldTrackerDay, as_of_when: str = "") -> None:
         " Time     In   Out    Reglr Ovrsz Total   Bikes",
         style=k.SUBTITLE_STYLE,
     )
-    for blk_start in sorted(blocks.keys()):
-        blk: tt_block.Block
-        blk = blocks[blk_start]
+
+    for blk_start in sorted(summary.blocks.keys()):
+        blk: BlockDetail = summary.blocks[blk_start]
+
         pr.iprint(
             f"{blk_start.tidy}    "
-            f"{blk.num_ins:3}   {blk.num_outs:3}    "
-            f"{blk.num_here_regular:4}  {blk.num_here_oversize:4}  {blk.num_here:4}    "
-            f"{blk.max_here:4}"
+            f"{blk.num_incoming[k.COMBINED]:3}   {blk.num_outgoing[k.COMBINED]:3}    "
+            f"{blk.num_on_hand[k.REGULAR]:4}  {blk.num_on_hand[k.OVERSIZE]:4}  "
+            f"{blk.num_on_hand[k.COMBINED]:4}    {blk.num_fullest[k.COMBINED]:4}"
         )
 
 
-def busiest_times_report(
-    day: TrackerDay,
-    events: dict[VTime, Snapshot],
-    as_of_when: VTime,
-) -> None:
+def busiest_times_report(summary: dict[VTime, DaySummary]) -> None:
     """Report the busiest time(s) of day."""
 
     def one_line(rank: int, num_events: int, times: list[VTime]) -> None:
@@ -458,24 +401,31 @@ def busiest_times_report(
                 pr.iprint(", ", end="", num_indents=0)
         pr.iprint()
 
-    # Make an empty dict of busyness of timeblocks.
-    blocks = dict(
-        zip(
-            tt_block.get_timeblock_list(day, as_of_when),
-            [0 for _ in range(0, 100)],
-        )
-    )
-    # Count actions in each timeblock
-    for atime, ev in events.items():
-        start = tt_block.block_start(atime)  # Which block?
-        blocks[start] += ev.num_bikes_parked + ev.num_bikes_returned
-    # Make a dict of busynesses with list of timeblocks for each.
     busy_times = {}
-    for atime, activity in blocks.items():
+    for atime, block in summary.blocks.items():
+        activity = block.num_incoming[k.COMBINED] + block.num_outgoing[k.COMBINED]
         if activity not in busy_times:
             busy_times[activity] = []
         busy_times[activity].append(atime)
-    # Report the results.
+
+    # # Make an empty dict of busyness of timeblocks.
+    # blocks = dict(
+    #     zip(
+    #         tt_block.get_timeblock_list(day, as_of_when),
+    #         [0 for _ in range(0, 100)],
+    #     )
+    # )
+    # # Count actions in each timeblock
+    # for atime, ev in events.items():
+    #     start = ut.block_start(atime)  # Which block?
+    #     blocks[start] += ev.num_bikes_parked + ev.num_bikes_returned
+    # # Make a dict of busynesses with list of timeblocks for each.
+    # busy_times = {}
+    # for atime, activity in blocks.items():
+    #     if activity not in busy_times:
+    #         busy_times[activity] = []
+    #     busy_times[activity].append(atime)
+    # # Report the results.
     pr.iprint()
     pr.iprint("Busiest times of day", style=k.SUBTITLE_STYLE)
     pr.iprint("Rank  Ins&Outs  When")
@@ -483,6 +433,7 @@ def busiest_times_report(
         if rank > BUSIEST_RANKS:
             break
         one_line(rank, activity, busy_times[activity])
+
 
 def summary_report(day: TrackerDay, args: list) -> None:
     """Report summary statistics about visits, up to the given time.
@@ -514,11 +465,11 @@ def summary_report(day: TrackerDay, args: list) -> None:
     visit_statistics_report(durations_list)
 
     # Today's highwater (fullest) times.
-    events = Snapshot.calc_moments(day, as_of_when)
-    highwater_report(events)
+    summary = DaySummary(day=day, as_of_when=as_of_when)
+    highwater_report(summary)
 
     # Today's busiest periods.
-    busiest_times_report(day=day, events=events, as_of_when=as_of_when)
+    busiest_times_report(summary=summary)
 
     # Number of bike registrations
     registrations_report(day)

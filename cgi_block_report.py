@@ -239,7 +239,7 @@ def print_the_html(
         print(f"<td style=width:auto;><a href='{dow_report_link}'>{dayname}</a></td>")
 
         # Find which time block had the greatest num of bikes this day.
-        fullest_block_this_day = tt_block.block_start(thisday.day_max_bikes_time)
+        fullest_block_this_day = ut.block_start(thisday.day_max_bikes_time)
 
         # Print the blocks for this day.
         html = ""
