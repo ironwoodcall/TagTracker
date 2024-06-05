@@ -75,7 +75,6 @@ class DaySummary:
 
     def __init__(self, day: TrackerDay, as_of_when: str = ""):
         self.date = day.date
-        self.whole_day = BlockDetail()
 
         # If no time given, set to latest event of the day
         if not as_of_when:
@@ -86,9 +85,30 @@ class DaySummary:
 
         self.moments = self._summarize_moments(day=day, as_of_when=self.as_of_when)
         self.blocks = self._summarize_blocks(moments=self.moments)
+        self.whole_day = self._summarize_whole_day(blocks=self.blocks)
 
     def __repr__(self):
-        s = f"DaySummary(date={self.date}, as_of_when={self.as_of_when}):\n"
+        s = f"DaySummary for {self.date}, as of {self.as_of_when}\n"
+
+        s += "Whole day overview (tuples are Regular,Oversize,Combined):\n"
+        block:BlockDetail = self.whole_day
+        s += (
+            f"   In {block.num_incoming[k.REGULAR]:2d}, {block.num_incoming[k.OVERSIZE]:2d}, "
+            f"{block.num_incoming[k.COMBINED]:2d};  "
+        )
+        s += (
+            f"Out {block.num_outgoing[k.REGULAR]:2d}, {block.num_outgoing[k.OVERSIZE]:2d}, "
+            f"{block.num_outgoing[k.COMBINED]:2d};  "
+        )
+        s += (
+            f"Here {block.num_on_hand[k.REGULAR]:3d}, {block.num_on_hand[k.OVERSIZE]:3d}, "
+            f"{block.num_on_hand[k.COMBINED]:3d};  "
+        )
+        s += (
+            f"Fullest {block.num_fullest[k.REGULAR]:3d} @{block.time_fullest[k.REGULAR]:5s}, "
+            f"{block.num_fullest[k.OVERSIZE]:3d} @{block.time_fullest[k.OVERSIZE]:5s}, "
+            f"{block.num_fullest[k.COMBINED]:3d} @{block.time_fullest[k.COMBINED]:5s}\n"
+        )
 
         s += "Moments  (tuples are Regular,Oversize,Combined):\n"
         for m in sorted(self.moments.keys()):
@@ -238,3 +258,21 @@ class DaySummary:
             block_start_time = VTime(block_start_time.num + k.BLOCK_DURATION)
 
         return blocks
+
+    @staticmethod
+    def _summarize_whole_day(blocks: dict[VTime, BlockDetail]) -> BlockDetail:
+        """Summarize the whole day's blocks as one time period."""
+        whole_day = BlockDetail()
+        for block in blocks.values():
+            block: BlockDetail
+            for bike_type in [k.REGULAR, k.OVERSIZE, k.COMBINED]:
+                whole_day.num_incoming[bike_type] += block.num_incoming[bike_type]
+                whole_day.num_outgoing[bike_type] += block.num_outgoing[bike_type]
+                whole_day.num_on_hand[bike_type] = (
+                    whole_day.num_incoming[bike_type]
+                    - whole_day.num_outgoing[bike_type]
+                )
+                if block.num_fullest[bike_type] > whole_day.num_fullest[bike_type]:
+                    whole_day.num_fullest[bike_type] = block.num_fullest[bike_type]
+                    whole_day.time_fullest[bike_type] = block.time_fullest[bike_type]
+        return whole_day

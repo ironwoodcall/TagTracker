@@ -38,7 +38,7 @@ TAGS_UPPERCASE = False
 DATA_OWNER = ""
 
 # Database filename
-DB_FILENAME = ""  # Filepath to sqlite3 database
+DB_FILENAME = "../data/v2.db"  # Filepath to sqlite3 database
 
 # Import any local web config to override this module's values.
 try:

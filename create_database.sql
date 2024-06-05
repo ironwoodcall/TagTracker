@@ -37,18 +37,20 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 -- so using them keeps them visible in the '.sch' command in sqlite3
 
 CREATE TABLE ORG (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     org_handle TEXT NOT NULL,   -- shortform text form of org
     org_name TEXT,  -- optional(?) descriptive name of org
     can_view_orgs TEXT,    -- list of org_handles whose data this org can see
     UNIQUE (org_handle)
 );
 
+INSERT INTO ORG (org_handle) VALUES ("no_org");
+
 -- A site is an arbitrary name of a location or event an org manages.
 -- It affects aggregations of an org's data but is not tied to authorization
 CREATE TABLE ORGSITE ( -- arbitrary sites used by an org. Not tied to authz.
-    id integer PRIMARY KEY,
-    org_id INTEGER NOT NULL,
+    id integer PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER DEFAULT 1,   -- FIXME right now everything goes under one org
     site_handle TEXT DEFAULT 'unspecified', -- human-handy reference to the site
     site_name TEXT, -- optional long name of the site
     FOREIGN KEY (org_id) REFERENCES ORG (id),
@@ -57,9 +59,10 @@ CREATE TABLE ORGSITE ( -- arbitrary sites used by an org. Not tied to authz.
 
 
 CREATE TABLE DAY (  -- Summary data about one org at one site on one day
-    id INTEGER PRIMARY KEY,
-    org_id INTEGER,
-    site_id INTEGER,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- org_id INTEGER, -- is this needed?
+    orgsite_id INTEGER,
+    -- site_handle TEXT NOT NULL, -- don't need this if have orgsite_id
 
     date DATE
         NOT NULL
@@ -67,6 +70,7 @@ CREATE TABLE DAY (  -- Summary data about one org at one site on one day
             date LIKE '____-__-__'
             AND date BETWEEN '2000-01-01' AND '2100-01-01'
         ),
+
 
     time_open TEXT
         CHECK (
@@ -78,36 +82,52 @@ CREATE TABLE DAY (  -- Summary data about one org at one site on one day
             time_closed LIKE "__:__"
             AND time_closed BETWEEN '00:00' AND '24:00'
         ),
-    bikes_regular INTEGER,
-    bikes_oversize INTEGER,
-    bikes_total INTEGER,
-    -- bikes_registered is supplied by the organization
+    weekday INTEGER NOT NULL,
+
+    num_regular INTEGER,
+    num_oversize INTEGER,
+    num_combined INTEGER,
+    num_leftover INTEGER,
+    num_fullest_regular INTEGER,
+    num_fullest_oversize INTEGER,
+    num_fullest_combined INTEGER,
+    time_fullest_regular TEXT,
+    time_fullest_oversize TEXT,
+    time_fullest_combined TEXT,
+
     bikes_registered INTEGER,
     -- weather statistics are looked up online from government sources
     max_temperature FLOAT, -- to be looked up online, can be null
     precipitation FLOAT, -- to be looked up online, can be null
-    time_dusk TEXT -- to be looked up online, can be null
-        CHECK (
-            time_open LIKE "__:__"
-            AND time_open BETWEEN '00:00' AND '24:00'
-        ),
+    -- time_dusk TEXT -- to be looked up online, can be null
+    --    CHECK (
+    --        time_open LIKE "__:__"
+    --        AND time_open BETWEEN '00:00' AND '24:00'
+    --    ),
 
-    FOREIGN KEY (org_id) REFERENCES ORG (id),
-    FOREIGN KEY (site_id) REFERENCES ORGSITE (id),
-    UNIQUE ( date,org_id,site_id)
+    batch TEXT,
+    -- FOREIGN KEY (org_id) REFERENCES ORG (id),
+    FOREIGN KEY (orgsite_id) REFERENCES ORGSITE (id),
+    -- UNIQUE ( date,org_id,orgsite_id)
+    UNIQUE ( date,orgsite_id)
 );
 CREATE INDEX day_date_idx on day (date);
-CREATE INDEX day_org_id_idx on day (org_id);
-CREATE INDEX day_site_id_idx on day (site_id);
+-- CREATE INDEX day_org_id_idx on day (org_id);
+-- CREATE INDEX day_orgsite_id_idx on day (orgsite_id);
 
 CREATE TABLE VISIT ( -- one bike visit for one org/site/date
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     day_id INTEGER,
     time_in TEXT --
         NOT NULL
         CHECK (
             time_in LIKE "__:__"
             AND time_in BETWEEN '00:00' AND '24:00'
+        ),
+    time_out TEXT
+            CHECK (
+            time_in = "" OR (time_in LIKE "__:__"
+            AND time_in BETWEEN '00:00' AND '24:00')
         ),
     duration INTEGER,
     bike_type TEXT
@@ -117,7 +137,7 @@ CREATE TABLE VISIT ( -- one bike visit for one org/site/date
 );
 
 CREATE TABLE BLOCK ( -- activity in a given half hour for an org/site/date
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     day_id INTEGER,
     time_start TEXT
         NOT NULL
@@ -125,12 +145,19 @@ CREATE TABLE BLOCK ( -- activity in a given half hour for an org/site/date
             time_start LIKE "__:__"
             AND time_start BETWEEN '00:00' AND '24:00'
         ),
-    regular_at_start INTEGER,
-    oversize_at_start INTEGER,
+
+    regular_incoming INTEGER,
+    oversize_incoming INTEGER,
+    combined_incoming INTEGER,
+
+    regular_outgoing INTEGER,
+    oversize_outgoing INTEGER,
+    combined_outgoing INTEGER,
+
     regular_at_end INTEGER,
     oversize_at_end INTEGER,
-    combined_at_start INTEGER,
     combined_at_end INTEGER,
+
     num_most_full INTEGER,
     time_most_full TEXT
         CHECK(
@@ -142,12 +169,13 @@ CREATE TABLE BLOCK ( -- activity in a given half hour for an org/site/date
 
 -- Information about the most recent successful data load
 CREATE TABLE DATALOADS ( -- info about most recent successful data loads
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     day_id INTEGER,
     datafile_name TEXT, -- absolute path to file from which data loaded
     datafile_fingerprint TEXT, -- fingerprint (eg md5) of the file
     datafile_timestamp TEXT, -- timestamp of the file
     load_timestamp TEXT,    -- time at which the file was loaded
+    batch TEXT,
     FOREIGN KEY (day_id) REFERENCES DAY (id) ON DELETE CASCADE
 );
 

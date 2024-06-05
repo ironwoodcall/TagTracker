@@ -35,6 +35,7 @@ import common.tt_util as ut
 from common.tt_trackerday import TrackerDay, TrackerDayError
 from common.tt_bikevisit import BikeVisit
 from common.tt_biketag import BikeTag, BikeTagError
+from common.tt_daysummary import DaySummary
 import client_base_config as cfg
 import tt_notes
 import tt_printer as pr
@@ -446,6 +447,11 @@ def dump_data_command(today: TrackerDay, args: list):
     for l in info:
         pr.iprint(l)
 
+    pr.iprint()
+    pr.iprint("DaySummary:", num_indents=0, style=k.ERROR_STYLE)
+    print(DaySummary(today))
+
+    pr.iprint()
     pr.iprint("Config:", num_indents=0, style=k.ERROR_STYLE)
     for var in vars(cfg):
         if var[0] == "_":

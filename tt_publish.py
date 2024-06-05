@@ -134,4 +134,6 @@ class Publisher:
         pr.iprint(ut.date_str(day.date, long_date=True))
         pr.iprint(f"Report generated {ut.date_str('today')} {VTime('now')}")
         rep.summary_report(day, [as_of_when])
+        pr.iprint()
+        rep.full_chart(day,as_of_when=as_of_when)
         pr.set_output()

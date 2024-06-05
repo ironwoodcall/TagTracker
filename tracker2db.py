@@ -42,7 +42,7 @@ import tt_dbutil
 import common.tt_constants as tt_constants
 import tt_util as ut
 
-from tt_daysummary import DaySummary
+from common.tt_daysummary import DaySummary
 from common.tt_time import VTime
 
 

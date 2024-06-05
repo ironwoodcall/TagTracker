@@ -31,7 +31,7 @@ from common.tt_tag import TagID
 # from tt_realtag import Stay
 from common.tt_trackerday import TrackerDay
 import common.tt_util as ut
-from tt_daysummary import DaySummary, BlockDetail, MomentDetail
+from common.tt_daysummary import DaySummary, BlockDetail, MomentDetail
 
 # import tt_block
 import tt_printer as pr
@@ -473,6 +473,7 @@ def summary_report(day: TrackerDay, args: list) -> None:
 
     # Number of bike registrations
     registrations_report(day)
+
 
 
 # def busy_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
