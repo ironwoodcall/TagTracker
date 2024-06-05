@@ -203,12 +203,14 @@ class OldTrackerDay:
 
         return errors
 
+
 class TrackerDayError(Exception):
     """A minimal error class for TrackerDays.
 
     Frequently a list of error messages may be passed up as self.args.
     """
-    pass #pylint:disable=unnecessary-pass
+
+    pass  # pylint:disable=unnecessary-pass
 
 
 class TrackerDay:
@@ -236,7 +238,9 @@ class TrackerDay:
     # Minutes to allow checkin/out to exceed operating hours
     OPERATING_HOURS_TOLERANCE = 120
 
-    def __init__(self, filepath: str, site_name: str = "", site_handle: str = "") -> None:
+    def __init__(
+        self, filepath: str, site_name: str = "", site_handle: str = ""
+    ) -> None:
         """Initialize blank."""
         self.date = ut.date_str("today")
         self.opening_time = VTime("")
@@ -311,12 +315,18 @@ class TrackerDay:
     #         return "O"
     #     return ""
 
-    def fill_default_bits(self,site_handle:str="",site_name:str="",):
+    def fill_default_bits(
+        self,
+        site_handle: str = "",
+        site_name: str = "",
+    ):
         """Tries to fills certain missing bits of a TrackerDay."""
         self.site_handle = self.site_handle or site_handle
         self.site_name = self.site_name or site_name
 
-    def lint_check(self, strict_datetimes: bool = False,allow_quick_checkout:bool=False) -> list[str]:
+    def lint_check(
+        self, strict_datetimes: bool = False, allow_quick_checkout: bool = False
+    ) -> list[str]:
         """Generate a list of logic error messages for TrackerDay object.
 
         If allow_quick_checkout, a check-out can be the same time as a check-in.
@@ -360,7 +370,7 @@ class TrackerDay:
                 )
         return errors
 
-    def _check_bike_tags(self,allow_quick_checkout:bool=False) -> list[str]:
+    def _check_bike_tags(self, allow_quick_checkout: bool = False) -> list[str]:
         errors = []
         for biketag in self.biketags.values():
             errors.extend(biketag.lint_check(allow_quick_checkout=allow_quick_checkout))
@@ -472,7 +482,9 @@ class TrackerDay:
         bike_visits.sort(key=lambda x: (x[TOKEN_TAGID], x[TOKEN_TIME_IN]))
 
         # A comment message at the top of the file.
-        comment = f"This is a TagTracker datafile for {self.site_handle} on {self.date}."
+        comment = (
+            f"This is a TagTracker datafile for {self.site_handle} on {self.date}."
+        )
 
         ut.squawk(f"{self.notes.notes=}", cfg.DEBUG)
         return {
@@ -493,29 +505,31 @@ class TrackerDay:
     @staticmethod
     def _day_from_json_dict(data: dict, filepath: str) -> "TrackerDay":
         day = TrackerDay(filepath)
-        day.date = data[TOKEN_DATE]
-        day.opening_time = VTime(data[TOKEN_OPENING_TIME])
-        day.closing_time = VTime(data[TOKEN_CLOSING_TIME])
         try:
+            day.date = data[TOKEN_DATE]
+            day.opening_time = VTime(data[TOKEN_OPENING_TIME])
+            day.closing_time = VTime(data[TOKEN_CLOSING_TIME])
+            day.notes.load(data[TOKEN_NOTES])
+            day.site_name = data[TOKEN_SITE_NAME]
+            day.site_handle = data[TOKEN_SITE_HANDLE]
+
+            day.regular_tagids = frozenset(
+                TagID(tagid) for tagid in data[TOKEN_REGULAR_TAGIDS]
+            )
+            day.oversize_tagids = frozenset(
+                TagID(tagid) for tagid in data[TOKEN_OVERSIZE_TAGIDS]
+            )
+            day.retired_tagids = frozenset(
+                TagID(tagid) for tagid in data[TOKEN_RETIRED_TAGIDS]
+            )
             reg = int(data.get(TOKEN_REGISTRATIONS, 0))
             day.registrations = Registrations(reg)
-        except ValueError as e:
-            raise TrackerDayError(
-                f"Bad registration value in file: '{data[TOKEN_REGISTRATIONS]}'. Error {e}"
-            ) from e
-        day.notes.load(data[TOKEN_NOTES])
-        day.site_name = data[TOKEN_SITE_NAME]
-        day.site_handle = data[TOKEN_SITE_HANDLE]
 
-        day.regular_tagids = frozenset(
-            TagID(tagid) for tagid in data[TOKEN_REGULAR_TAGIDS]
-        )
-        day.oversize_tagids = frozenset(
-            TagID(tagid) for tagid in data[TOKEN_OVERSIZE_TAGIDS]
-        )
-        day.retired_tagids = frozenset(
-            TagID(tagid) for tagid in data[TOKEN_RETIRED_TAGIDS]
-        )
+        except (KeyError,ValueError) as e:
+            raise TrackerDayError(
+                f"Bad key or value in file: '{data[TOKEN_REGISTRATIONS]}'. Error {e}"
+            ) from e
+
 
         # Initialize the biketags from the tagid lists
         day.initialize_biketags()
@@ -584,13 +598,12 @@ class TrackerDay:
 
         Some error testing is done, but a lint check is still required.
         """
-        with open(filepath, "r", encoding="utf-8") as file:
-            data = json.load(file)
-
-        # schema = TrackerDay.load_schema()
-        # TrackerDay.validate_data(data, schema)
-
-        loaded_day = TrackerDay._day_from_json_dict(data, filepath)
+        try:
+            with open(filepath, "r", encoding="utf-8") as file:
+                data = json.load(file)
+            loaded_day = TrackerDay._day_from_json_dict(data, filepath)
+        except json.decoder.JSONDecodeError as e:
+            raise TrackerDayError(f"JSON error {e}") from e
         loaded_day.determine_tagids_conformity()
 
         return loaded_day

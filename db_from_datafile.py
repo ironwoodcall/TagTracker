@@ -681,12 +681,12 @@ def insert_into_block(
 
 
 
-def fileload_results_into_db(
+def insert_into_dataloads(
     file_info: FileInfo, day_id: int, batch: str, dbconx: sqlite3.Connection
 ) -> bool:
     """Update table that tracks load successes."""
     if args.verbose:
-        print(f"   Updating fileload info for {date} into database.")
+        print(f"   Updating fileload info for {file_info.basename} into database.")
     sql = f"""
         INSERT OR REPLACE INTO {TABLE_LOADS} (
             {COL_DAYID},
@@ -727,20 +727,20 @@ def read_datafile(filename: str) -> tuple[TrackerDay,DaySummary]:
     if args.verbose:
         print(f"Reading {filename}:")
 
-    read_errors = []
     try:
         day = TrackerDay.load_from_file(filename)
     except (TrackerDayError, BikeTagError) as e:
-        read_errors = e.args
+        msg = f"Error reading file {filename=}: {e}. Skipping file."
+        file_info.set_bad(msg)
+        #print(msg)
+        return None,None
 
-    if not day.date:
-        msg = "Unable to read date from file. Skipping file."
+    lint_msgs = day.lint_check(strict_datetimes=True,allow_quick_checkout=True)
+    if lint_msgs :
+        msg = [f"Errors reading datafile {filename}:"] + lint_msgs
         file_info.set_bad(msg)
         return None,None
-    if read_errors:
-        msg = ["Errors reading datafile"] + read_errors
-        file_info.set_bad(msg)
-        return None,None
+
     day_summary = DaySummary(day=day, as_of_when="24:00")
     return day,day_summary
 
@@ -753,6 +753,8 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
 
     Returns the date of the file's data if successful (else "")
     Status is also Statuses.files[filename], which is a FileInfo object.
+
+    This should create then destroy a cursor, which means rollback or commit.
     """
 
     day,day_summary = read_datafile(filename=filename)
@@ -804,15 +806,17 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
         # day_tags_context_into_db(file_info, day, day_totals, batch, dbconx)
         # day_blocks_into_db()
 
-        # FIXME fileload_results_into_db(file_info, day_totals, batch, dbconx)
+        insert_into_dataloads(Statuses.files[filename], day_id=day_id, batch=batch, dbconx=dbconx)
 
     except (sqlite3.Error, DBError) as err:
         print(f"Error:{err}", file=sys.stderr)
         dbconx.rollback()
         return ""
 
-    cursor.close()
-    dbconx.commit()  # commit one datafile transaction
+    finally:
+        cursor.close()
+
+    dbconx.commit()  # commit as one datafile transaction
 
 
     if args.verbose:
@@ -1025,7 +1029,7 @@ def skip_non_newest_dups():
         )
 
 
-def print_summary(loaded_dates: dict[str:int]):
+def print_summary():
     """A chatty summary of what took place."""
     for info in Statuses.files.values():
         info: FileInfo
@@ -1049,13 +1053,6 @@ def print_summary(loaded_dates: dict[str:int]):
             finfo: FileInfo
             if finfo.status == STATUS_BAD:
                 print(f"    {f}: {finfo.errors} errors")
-    num_dup_dates = sum([x - 1 for d, x in loaded_dates.items() if d])
-    if num_dup_dates:
-        print(f"Dates for which more that one datafile loaded: {num_dup_dates}")
-        if args.verbose:
-            for date, count in sorted(loaded_dates.items()):
-                if date and count > 1:
-                    print(f"    {date}: {count} files")
 
 
 def main():
@@ -1063,14 +1060,14 @@ def main():
 
     Statuses.files = {}
 
-    global args
+    global args #pylint:disable=global-statement
     args = get_args()
     ordered_file_list = find_datafiles(args.dataglob)
     if not args.quiet:
         print(f"Load requested for {len(ordered_file_list)} files.")
 
     if args.verbose:
-        print("Getting metadata for files.")
+        print("Calculating metadata of datafiles.")
     get_files_metadata(ordered_file_list)
 
     database_file = args.dbfile
@@ -1124,14 +1121,18 @@ def main():
     if num_good:
         if args.verbose:
             print("Assuring foreign key constraints are enabled.")
-        sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", dbconx)
-        if sql_error:
-            print(
-                "Error: couldn't enable SQLite foreign key constraints", file=sys.stderr
-            )
-            dbconx.close()
+        try:
+            cursor = dbconx.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON;")
+            dbconx.commit()
+        except tuple(SQL_ROLLBACK_ERRORS) as e:
+            print(f"SQL error: {e}",file=sys.stderr)
             sys.exit(1)
-        dbconx.commit()
+        except tuple(SQL_CRITICAL_ERRORS) as e:
+            print(f"Serious SQL error occurred: {e}",file=sys.stderr)
+            raise
+        finally:
+            cursor.close()
 
         batch = Statuses.start_time[
             :-3
@@ -1140,19 +1141,25 @@ def main():
             print(f"Batch ID is {batch}.")
 
     # Load the datafiles.
-    dates_loaded_ok = defaultdict(int)
     for file_name in sorted(
         [f.name for f in Statuses.files.values() if f.status == STATUS_GOOD]
     ):
-        this_date = one_datafile_into_db(file_name, batch, dbconx)
-        dates_loaded_ok[this_date] += 1
+        try:
+            one_datafile_into_db(file_name, batch, dbconx)
+
+        except tuple(SQL_ROLLBACK_ERRORS) as e:
+            print(f"SQL error: {e}")
+            continue
+        except tuple(SQL_CRITICAL_ERRORS) as e:
+            print(f"Serious SQL error occurred: {e}")
+            raise
 
     if args.verbose:
         print("Closing database connection.")
     dbconx.close()
 
     if not args.quiet:
-        print_summary(dates_loaded_ok)
+        print_summary()
 
     if Statuses.errors:
         sys.exit(1)

@@ -27,9 +27,11 @@ import sys
 import os
 import urllib.parse
 
+#sys.path.append("../")
+
 import common.tt_constants as k
 import tt_dbutil as db
-import web_base_config as wcfg
+import web.web_base_config as wcfg
 import tt_reports as rep
 import tt_audit_report as aud
 import tt_datafile as df
