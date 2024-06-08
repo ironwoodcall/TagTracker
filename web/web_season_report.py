@@ -25,9 +25,9 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import sqlite3
 import common.tt_util as ut
-import cgi_common as cc
+import web_common as cc
 import datacolors as dc
-import cgi_histogram
+import web_histogram
 
 BLOCK_XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 BLOCK_X_TOP_COLOR = "red"
@@ -36,7 +36,7 @@ BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
-def totals_table(totals: cc.DaysSummary,table_title:str = 'Summary'):
+def totals_table(totals: cc.AllDaysTotals,table_title:str = 'Summary'):
     """Print a table of YTD totals."""
 
     most_parked_link = cc.selfref(
@@ -176,7 +176,7 @@ def season_frequencies_report(
         title = f"{title} ({title_bit})" if title_bit else title
         title = f"<h2>{title}</h2>"
         print(
-            cgi_histogram.times_hist_table(
+            web_histogram.times_hist_table(
                 ttdb,
                 query_column=column,
                 days_of_week=dow_parameter,
@@ -199,7 +199,7 @@ def mini_freq_tables(ttdb: sqlite3.Connection):
         column, title, color = parameters
         title = f"<a href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'>{title}</a>"
         print(
-            cgi_histogram.times_hist_table(
+            web_histogram.times_hist_table(
                 ttdb,
                 query_column=column,
                 mini=True,

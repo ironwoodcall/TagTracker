@@ -144,8 +144,8 @@ def confirm_hours(today: TrackerDay) -> bool:
     - Changes values in TrackerDay
 
     """
-    maybe_open = today.opening_time
-    maybe_close = today.closing_time
+    maybe_open = today.time_open
+    maybe_close = today.time_closed
     if not maybe_open or not maybe_close:
         # Set any blank value from config'd defaults
         default_open, default_close = tt_default_hours.get_default_hours(today.date)
@@ -166,11 +166,11 @@ def confirm_hours(today: TrackerDay) -> bool:
             done = True
     # Has anything changed?
     data_changed = bool(
-        new_open != today.opening_time or new_close != today.closing_time
+        new_open != today.time_open or new_close != today.time_closed
     )
     # Save the changed
-    today.opening_time = new_open
-    today.closing_time = new_close
+    today.time_open = new_open
+    today.time_closed = new_close
     # Done, return whether data has changed
     return data_changed
 
@@ -236,7 +236,7 @@ def check_bike_time_reasonable(bike_time: VTime, day: TrackerDay) -> bool:
 
     pr.iprint(
         f"Time ({bike_time.short}) is too far outside open hours "
-        f"({day.opening_time.short}-{day.closing_time.short}).",
+        f"({day.time_open.short}-{day.time_closed.short}).",
         style=k.WARNING_STYLE,
     )
     NoiseMaker.play(k.ALERT)

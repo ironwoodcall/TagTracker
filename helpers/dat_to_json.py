@@ -244,6 +244,11 @@ def process_file(file_path,site_handle:str="",site_name:str="",target_dir:str=""
 
     new_day.save_to_file(new_file_path)
 
+    # Set the new file to the same timestamp as the old file
+    source_stat = os.stat(file_path)
+    os.utime(new_file_path, (source_stat.st_atime, source_stat.st_mtime))
+
+
 def main(file_list,site_handle:str="",site_name:str="",target_dir:str=""):
 
     for file_path in file_list:

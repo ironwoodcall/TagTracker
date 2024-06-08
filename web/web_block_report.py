@@ -26,11 +26,11 @@ import sqlite3
 import copy
 from collections import defaultdict
 
-import tt_dbutil as db
+import common.tt_dbutil as db
 from common.tt_time import VTime
 import common.tt_util as ut
 # import tt_block
-import cgi_common as cc
+import web_common as cc
 import datacolors as dc
 import colortable
 

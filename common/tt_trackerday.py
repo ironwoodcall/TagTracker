@@ -47,8 +47,8 @@ TOKEN_TIME_IN = "time_in"
 TOKEN_TIME_OUT = "time_out"
 TOKEN_COMMENT = "comment:"
 TOKEN_DATE = "date"
-TOKEN_OPENING_TIME = "opening_time"
-TOKEN_CLOSING_TIME = "closing_time"
+TOKEN_OPENING_TIME = "time_open"
+TOKEN_CLOSING_TIME = "time_closed"
 TOKEN_REGISTRATIONS = "registrations"
 TOKEN_BIKE_VISITS = "bike_visits"
 TOKEN_REGULAR_TAGIDS = "regular_tagids"
@@ -69,8 +69,8 @@ class OldTrackerDay:
     def __init__(self) -> None:
         """Initialize blank."""
         self.date = ""
-        self.opening_time = VTime("")
-        self.closing_time = VTime("")
+        self.time_open = VTime("")
+        self.time_closed = VTime("")
         self.registrations = 0
         self.bikes_in = {}
         self.bikes_out = {}
@@ -163,18 +163,18 @@ class OldTrackerDay:
         if strict_datetimes:
             if not self.date or ut.date_str(self.date) != self.date:
                 errors.append(f"Bad or missing date {self.date}")
-            if not self.opening_time or not isinstance(self.opening_time, VTime):
-                errors.append(f"Bad or missing opening time {self.opening_time}")
-            if not self.closing_time or not isinstance(self.closing_time, VTime):
-                errors.append(f"Bad or missing closing time {self.closing_time}")
+            if not self.time_open or not isinstance(self.time_open, VTime):
+                errors.append(f"Bad or missing opening time {self.time_open}")
+            if not self.time_closed or not isinstance(self.time_closed, VTime):
+                errors.append(f"Bad or missing closing time {self.time_closed}")
             if (
-                self.opening_time
-                and self.closing_time
-                and self.opening_time >= self.closing_time
+                self.time_open
+                and self.time_closed
+                and self.time_open >= self.time_closed
             ):
                 errors.append(
-                    f"Opening time '{self.opening_time}' is not "
-                    f"earlier then closing time '{self.closing_time}'"
+                    f"Opening time '{self.time_open}' is not "
+                    f"earlier then closing time '{self.time_closed}'"
                 )
         # Look for poorly formed times and tags
         errors += bad_tags(self.regular, "regular-tags")
@@ -214,23 +214,7 @@ class TrackerDayError(Exception):
 
 
 class TrackerDay:
-    """One day's worth of tracker info and its context.
-
-    Initizlization: ideal path:
-        create empty
-        load taglists from config
-        load site_handle, site_name from config
-        if load from datafile:
-            read datafile into a json dictionary
-            convert the json dictionary (including regular_tagids, etc)
-            overwrite site_name, site_handle (& date & so on) with values in JSON dict
-            overwrite taglists unless 'today' with non-null taglists from JSON dict
-            create biketags list <-- internal method
-            load visits from JSON dict
-        if new file:
-            create biketags list
-
-    """
+    """One day's worth of tracker info and its context."""
 
     REGULAR_BIKE = "regular"
     OVERSIZE_BIKE = "oversize"
@@ -243,8 +227,8 @@ class TrackerDay:
     ) -> None:
         """Initialize blank."""
         self.date = ut.date_str("today")
-        self.opening_time = VTime("")
-        self.closing_time = VTime("")
+        self.time_open = VTime("")
+        self.time_closed = VTime("")
         self.registrations = Registrations()
         self.regular_tagids = frozenset()
         self.oversize_tagids = frozenset()
@@ -297,12 +281,12 @@ class TrackerDay:
 
     def bike_time_reasonable(self, inout_time: VTime) -> bool:
         """Checks if inout_time is reasonably close to operating hours."""
-        if not self.opening_time or not self.closing_time:
+        if not self.time_open or not self.time_closed:
             return True
         return (
-            self.opening_time.num - self.OPERATING_HOURS_TOLERANCE
+            self.time_open.num - self.OPERATING_HOURS_TOLERANCE
             <= inout_time.num
-            <= self.closing_time.num + self.OPERATING_HOURS_TOLERANCE
+            <= self.time_closed.num + self.OPERATING_HOURS_TOLERANCE
         )
 
     # @staticmethod
@@ -355,18 +339,18 @@ class TrackerDay:
         if strict_datetimes:
             if not self.date or ut.date_str(self.date) != self.date:
                 errors.append(f"Bad or missing date {self.date}")
-            if not self.opening_time or not isinstance(self.opening_time, VTime):
-                errors.append(f"Bad or missing opening time {self.opening_time}")
-            if not self.closing_time or not isinstance(self.closing_time, VTime):
-                errors.append(f"Bad or missing closing time {self.closing_time}")
+            if not self.time_open or not isinstance(self.time_open, VTime):
+                errors.append(f"Bad or missing opening time {self.time_open}")
+            if not self.time_closed or not isinstance(self.time_closed, VTime):
+                errors.append(f"Bad or missing closing time {self.time_closed}")
             if (
-                self.opening_time
-                and self.closing_time
-                and self.opening_time >= self.closing_time
+                self.time_open
+                and self.time_closed
+                and self.time_open >= self.time_closed
             ):
                 errors.append(
-                    f"Opening time '{self.opening_time}' must be earlier "
-                    f"than closing time '{self.closing_time}'"
+                    f"Opening time '{self.time_open}' must be earlier "
+                    f"than closing time '{self.time_closed}'"
                 )
         return errors
 
@@ -452,12 +436,20 @@ class TrackerDay:
         List will always be sorted by the time_in of the visits.
         """
 
-        visits = []
-        for biketag in self.biketags.values():
-            if biketag.visits:
-                visits += biketag.visits
-        # Sort visits on their time in
-        visits = sorted(visits, key=lambda visit: visit.time_in)
+        # visits = []
+        # for biketag in self.biketags.values():
+        #     if biketag.visits:
+        #         visits += biketag.visits
+        # # Sort visits on their time in
+        # visits = sorted(visits, key=lambda visit: visit.time_in)
+
+        visits = [
+            visit
+            for biketag in self.biketags.values()
+            if biketag.visits
+            for visit in biketag.visits
+        ]
+        visits.sort(key=lambda visit: visit.time_in)
 
         return visits
 
@@ -492,8 +484,8 @@ class TrackerDay:
             TOKEN_SITE_NAME: self.site_name,
             TOKEN_SITE_HANDLE: self.site_handle,
             TOKEN_DATE: self.date,
-            TOKEN_OPENING_TIME: self.opening_time,
-            TOKEN_CLOSING_TIME: self.closing_time,
+            TOKEN_OPENING_TIME: self.time_open,
+            TOKEN_CLOSING_TIME: self.time_closed,
             TOKEN_REGISTRATIONS: self.registrations.num_registrations,
             TOKEN_BIKE_VISITS: bike_visits,
             TOKEN_REGULAR_TAGIDS: sorted(list(self.regular_tagids)),
@@ -507,8 +499,8 @@ class TrackerDay:
         day = TrackerDay(filepath)
         try:
             day.date = data[TOKEN_DATE]
-            day.opening_time = VTime(data[TOKEN_OPENING_TIME])
-            day.closing_time = VTime(data[TOKEN_CLOSING_TIME])
+            day.time_open = VTime(data[TOKEN_OPENING_TIME])
+            day.time_closed = VTime(data[TOKEN_CLOSING_TIME])
             day.notes.load(data[TOKEN_NOTES])
             day.site_name = data[TOKEN_SITE_NAME]
             day.site_handle = data[TOKEN_SITE_HANDLE]
@@ -525,11 +517,10 @@ class TrackerDay:
             reg = int(data.get(TOKEN_REGISTRATIONS, 0))
             day.registrations = Registrations(reg)
 
-        except (KeyError,ValueError) as e:
+        except (KeyError, ValueError) as e:
             raise TrackerDayError(
                 f"Bad key or value in file: '{data[TOKEN_REGISTRATIONS]}'. Error {e}"
             ) from e
-
 
         # Initialize the biketags from the tagid lists
         day.initialize_biketags()
@@ -754,7 +745,7 @@ class TrackerDay:
         """Get info about this object."""
 
         info = [
-            f"TrackerDay for '{self.date}','{self.opening_time}'-'{self.closing_time}'"
+            f"TrackerDay for '{self.date}','{self.time_open}'-'{self.time_closed}'"
         ]
         info.append(f"    BikeVisits: {len(self.all_visits())}")
         info.append(f"    BikeTags: {len(self.biketags)}")
@@ -801,8 +792,8 @@ def old_to_new(old: OldTrackerDay) -> TrackerDay:
 
     new = TrackerDay("")
     new.date = old.date
-    new.opening_time = old.opening_time
-    new.closing_time = old.closing_time
+    new.time_open = old.time_open
+    new.time_closed = old.time_closed
     new.registrations = Registrations(old.registrations)
     new.notes = Notes(old.notes)
     # Tag reference lists

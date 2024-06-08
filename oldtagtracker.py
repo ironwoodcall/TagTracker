@@ -137,8 +137,8 @@ def pack_day_data() -> td.OldTrackerDay:
     # Pack info into OldTrackerDay object
     day = td.OldTrackerDay()
     day.date = PARKING_DATE
-    day.opening_time = OPENING_TIME
-    day.closing_time = CLOSING_TIME
+    day.time_open = OPENING_TIME
+    day.time_closed = CLOSING_TIME
     day.registrations = reg.Registrations.num_registrations
     day.bikes_in = check_ins
     day.bikes_out = check_outs
@@ -159,8 +159,8 @@ def unpack_day_data(today_data: td.OldTrackerDay) -> None:
     global TAG_COLOUR_NAMES
     # pylint: enable=global-statement
     PARKING_DATE = today_data.date
-    OPENING_TIME = VTime(today_data.opening_time)
-    CLOSING_TIME = VTime(today_data.closing_time)
+    OPENING_TIME = VTime(today_data.time_open)
+    CLOSING_TIME = VTime(today_data.time_closed)
     reg.Registrations.set_num_registrations(today_data.registrations)
     check_ins = today_data.bikes_in
     check_outs = today_data.bikes_out
@@ -842,7 +842,7 @@ def estimate(args: list[str]) -> None:
         bikes_so_far: default current bikes so far
         as_of_when: default right now
         dow: default today (else 1..7 or a date)
-        closing_time: default - today's closing time
+        time_closed: default - today's closing time
     """
     args += [""] * 4
 

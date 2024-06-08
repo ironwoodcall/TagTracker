@@ -36,7 +36,7 @@ BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
-def totals_table(totals: cc.DaysSummary,table_title:str = 'Summary'):
+def totals_table(totals: cc.AllDaysTotals,table_title:str = 'Summary'):
     """Print a table of YTD totals."""
 
     most_parked_link = cc.selfref(

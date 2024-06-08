@@ -31,13 +31,18 @@ import statistics
 import urllib
 from datetime import datetime, timedelta
 
-from web_base_config import SITE_NAME
+from web.web_base_config import SITE_NAME
 
 # from tt_conf import SITE_NAME
 from common.tt_time import VTime
 from common.tt_tag import TagID
-import tt_dbutil as db
+import common.tt_dbutil as db
 import common.tt_util as ut
+# from common.tt_trackerday import TrackerDay
+from common.tt_daysummary import DaySummary,PeriodDetail,MomentDetail,DayTotals
+# from common.tt_bikevisit import BikeVisit
+# from common.tt_biketag import BikeTag
+
 
 # Set up debugging .. maybe
 if "TAGTRACKER_DEBUG" in os.environ:
@@ -85,6 +90,7 @@ SORT_PRECIPITATAION = "precipitation"
 
 ORDER_FORWARD = "forward"
 ORDER_REVERSE = "reverse"
+
 
 
 def test_dow_parameter(dow_parameter: str, list_ok: bool = False):
@@ -432,7 +438,7 @@ class SingleDay:
 
 
 @dataclass
-class DaysSummary:
+class AllDaysTotals:
     """Summary data for all days."""
 
     total_total_bikes: int = 0
@@ -486,21 +492,20 @@ def get_days_data(
             DAY.weekday dow,
             DAY.time_open AS valet_open,
             DAY.time_closed AS valet_close,
-            DAY.parked_regular AS regular_bikes,
-            DAY.parked_oversize AS oversize_bikes,
-            DAY.parked_total AS total_bikes,
-            DAY.max_total AS max_bikes,
-            DAY.time_max_total AS max_bikes_time,
-            DAY.registrations,
-            DAY.precip_mm AS precip,
-            DAY.temp AS temperature,
-            DAY.sunset AS dusk,
-            DAY.leftover AS leftovers
+            DAY.num_regular AS regular_bikes,
+            DAY.num_oversize AS oversize_bikes,
+            DAY.num_combined AS total_bikes,
+            DAY.num_fullest_combined AS max_bikes,
+            DAY.time_fullest_combined AS max_bikes_time,
+            DAY.bikes_registered,
+            DAY.precipitation AS precip,
+            DAY.max_temperature AS temperature,
+            DAY.num_leftover AS leftovers
         FROM DAY
         {where}
-        GROUP BY DAY.date, DAY.time_open, DAY.time_closed, DAY.parked_regular, DAY.parked_oversize,
-            DAY.parked_total, DAY.max_total, DAY.time_max_total, DAY.registrations, DAY.precip_mm,
-            DAY.temp, DAY.sunset, DAY.leftover;
+        GROUP BY DAY.date, DAY.time_open, DAY.time_closed, DAY.num_regular, DAY.num_oversize,
+            DAY.num_combined, DAY.num_fullest_combined, DAY.time_fullest_combined, DAY.bikes_registered, DAY.precipitation,
+            DAY.max_temperature, DAY.num_leftover;
         """
 
     dbrows = db.db_fetch(ttdb, sql)
@@ -593,7 +598,7 @@ def get_season_summary_data(
     ttdb: sqlite3.Connection,
     season_dailies: list[SingleDay],
     include_visit_stats: bool = False,
-) -> DaysSummary:
+) -> AllDaysTotals:
     """Fetch whole-season data, limited to date range represented in season_dailies.
 
     If include_visit_stats is True then includes those, else they are undefined.
@@ -609,22 +614,22 @@ def get_season_summary_data(
     dates_list = [d.date for d in season_dailies]
     where = f'where date >= "{min(dates_list)}" and date <= "{max(dates_list)}"'
 
-    summ = DaysSummary()
+    summ = AllDaysTotals()
     set_obj_from_sql(
         ttdb,
         f"""
         select
-            sum(parked_total) total_total_bikes,
-            sum(parked_regular) total_regular_bikes,
-            sum(parked_oversize) total_oversize_bikes,
-            sum(registrations) total_registrations,
-            max(registrations) max_registrations,
-            min(temp) min_temperature,
-            max(temp) max_temperature,
-            sum(precip_mm) total_precip,
-            max(precip_mm) max_precip,
-            sum(leftover) total_leftovers,
-            max(leftover) max_leftovers,
+            sum(num_combined) total_total_bikes,
+            sum(num_regular) total_regular_bikes,
+            sum(num_oversize) total_oversize_bikes,
+            sum(bikes_registered) total_registrations,
+            max(bikes_registered) max_registrations,
+            min(max_temperature) min_temperature,
+            max(max_temperature) max_temperature,
+            sum(precipitation) total_precip,
+            max(precipitation) max_precip,
+            sum(num_leftover) total_leftovers,
+            max(num_leftover) max_leftovers,
             count(date) total_valet_days
         from day
         {where};
@@ -636,25 +641,26 @@ def get_season_summary_data(
         ttdb,
         f"""
             SELECT
-                parked_total as max_total_bikes,
+                num_combined as max_total_bikes,
                 date as max_total_bikes_date
             FROM day
             {where}
-            ORDER BY parked_total DESC, date ASC
+            ORDER BY num_combined DESC, date ASC
             LIMIT 1;
         """,
         summ,
     )
 
+
     set_obj_from_sql(
         ttdb,
         f"""
             SELECT
-                max_total as max_max_bikes,
+                num_fullest_combined as max_max_bikes,
                 date as max_max_bikes_date
             FROM day
             {where}
-            ORDER BY max_total DESC, date ASC
+            ORDER BY num_fullest_combined DESC, date ASC
             LIMIT 1;
         """,
         summ,

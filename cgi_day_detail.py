@@ -464,9 +464,9 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = tt_estimator.Estimator(closing_time=day_data.valet_close)
+        est = tt_estimator.Estimator(time_closed=day_data.valet_close)
         est.guess()
-        if est.state != tt_estimator.ERROR and est.closing_time > VTime("now"):
+        if est.state != tt_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
             est_max = est.bikes_so_far + est.max
             the_estimate = (

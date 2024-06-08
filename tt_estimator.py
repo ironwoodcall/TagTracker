@@ -2,14 +2,14 @@
 """Estimate how many more bikes to expect.
 
 Call (as itself) as:
-    self    bikes_so_far, as_of_when, dow, closing_time
+    self    bikes_so_far, as_of_when, dow, time_closed
     where
         bikes_so_far: is how many bikes in by as_of_when (mandatory)
         as_of_when: is the time for which the estimate is made, HH:MM, H:MM, HMM
             (default if missing or "": now)
         dow: ISO day of week (1=Mo..7=Su), YYYY-MM-DD, "today" or "yesterday"
             (default if missing or "": today)
-        closing_time: HHMM of time the service closes day of estimate
+        time_closed: HHMM of time the service closes day of estimate
             (default if missing or "": will try to determine using config functions)
 
 Or call in a CGI script, and the parameters are read from QUERY_STRING.
@@ -45,7 +45,7 @@ import statistics
 import web_base_config as wcfg
 import common.tt_util as ut
 from common.tt_time import VTime
-import tt_dbutil as db
+import common.tt_dbutil as db
 import tt_default_hours
 # import client_base_config as cfg
 import tt_estimator_rf as rf
@@ -347,7 +347,7 @@ class Estimator:
         bikes_so_far="",
         as_of_when="",
         dow_in="",
-        closing_time="",
+        time_closed="",
     ) -> None:
         """Set up the inputs and results vars.
 
@@ -370,7 +370,7 @@ class Estimator:
         self.bikes_so_far = None
         self.dow = None
         self.as_of_when = None
-        self.closing_time = None
+        self.time_closed = None
         # This is the raw data
         self.similar_dates = []
         self.befores = []
@@ -391,7 +391,7 @@ class Estimator:
         self.database = db.db_connect(DBFILE)
 
         # Now process the inputs from passed-in values.
-        ##if not bikes_so_far and not as_of_when and not dow_in and not closing_time:
+        ##if not bikes_so_far and not as_of_when and not dow_in and not time_closed:
         if not bikes_so_far:
             bikes_so_far = self._bikes_right_now()
 
@@ -431,11 +431,11 @@ class Estimator:
 
         # closing time, if not given, will be most recent day that matches
         # the given day of the week, or of the date if that was given as dow.
-        if not closing_time:
-            closing_time = tt_default_hours.get_default_hours(dow_date)[1]
-        self.closing_time = VTime(closing_time)  # Closing time today
-        if not self.closing_time:
-            self.error = "Missing or bad closing_time parameter."
+        if not time_closed:
+            time_closed = tt_default_hours.get_default_hours(dow_date)[1]
+        self.time_closed = VTime(time_closed)  # Closing time today
+        if not self.time_closed:
+            self.error = "Missing or bad time_closed parameter."
             self.state = ERROR
             return
 
@@ -492,7 +492,7 @@ class Estimator:
             ) AS v2 ON day.date = v2.date
             WHERE
                 day.weekday IN {dow_set}
-                AND day.time_closed = "{self.closing_time}"
+                AND day.time_closed = "{self.time_closed}"
                 AND day.date != "{today}"
             ORDER BY
                 day.date;
@@ -587,7 +587,7 @@ class Estimator:
         one_line = (
             f"Estimating for a typical {dayname} with {self.bikes_so_far} "
             f"{ut.plural(self.bikes_so_far,'bike')} parked by {self.as_of_when.short}, "
-            f"closing at {self.closing_time}:"
+            f"closing at {self.time_closed}:"
         )
         lines = (
             lines + [""] + [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
@@ -635,7 +635,7 @@ def _init_from_cgi() -> Estimator:
     """Read initialization parameters from CGI env var.
 
     CGI parameters: as at top of file.
-        bikes_so_far, dow,as_of_when,closing_time
+        bikes_so_far, dow,as_of_when,time_closed
 
     """
     query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
@@ -643,9 +643,9 @@ def _init_from_cgi() -> Estimator:
     bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
     dow = query_parms.get("dow", [""])[0]
     as_of_when = query_parms.get("as_of_when", [""])[0]
-    closing_time = query_parms.get("closing_time", [""])[0]
+    time_closed = query_parms.get("time_closed", [""])[0]
 
-    return Estimator(bikes_so_far, as_of_when, dow, closing_time)
+    return Estimator(bikes_so_far, as_of_when, dow, time_closed)
 
 
 def _init_from_args() -> Estimator:

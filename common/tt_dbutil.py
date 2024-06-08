@@ -30,6 +30,10 @@ from common.tt_tag import TagID
 from common.tt_time import VTime
 
 
+# FIXME Also make a class for BLOCK. And a routine to load them all from the DB
+# for a given date & orgsite_id.
+
+# FIXME use VisitDetail instead?
 class VisitRow:
     def __init__(self):
         self.tag = TagID()
@@ -39,6 +43,7 @@ class VisitRow:
         self.checked_out = False
 
 
+# FIXME use DayDetail instead, or make a subclass of it. Or maybe not.
 class DayRow:
     def __init__(self):
         self.date = ""
@@ -122,9 +127,10 @@ def db_latest(ttdb: sqlite3.Connection) -> str:
     latest_event = db_fetch(
         ttdb,
         """
-        SELECT DATE || 'T' || MAX(MAX(TIME_IN), MAX(TIME_OUT))
+        SELECT DAY.DATE || 'T' || MAX(MAX(TIME_IN), MAX(TIME_OUT))
             AS latest
-        FROM VISIT
+        FROM VISIT,DAY
+        WHERE VISIT.DAY_ID = DAY.ID
         GROUP BY DATE
         ORDER BY DATE DESC
         LIMIT 1;
@@ -132,14 +138,7 @@ def db_latest(ttdb: sqlite3.Connection) -> str:
     )[0].latest
     latest_load = db_fetch(
         ttdb,
-        """
-        SELECT MAX(BATCH) AS latest
-        FROM (
-            SELECT BATCH FROM VISIT
-            UNION
-            SELECT BATCH FROM DAY
-        );
-    """,
+        "SELECT MAX(BATCH) AS latest FROM  DAY",
     )[0].latest
 
     return f"Latest DB: load={latest_load}; event={latest_event}"
@@ -175,8 +174,8 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> OldTrackerDay:
         return None
     day = OldTrackerDay()
     day.date = whatdate
-    day.opening_time = rows[0][0]
-    day.closing_time = rows[0][1]
+    day.time_open = rows[0][0]
+    day.time_closed = rows[0][1]
     day.registrations = rows[0][2]
     # Fetch any tags checked in or out
     curs = ttdb.cursor()
@@ -216,30 +215,24 @@ def db2day(ttdb: sqlite3.Connection, whatdate: str) -> OldTrackerDay:
 
 
 def db_connect(db_file) -> sqlite3.Connection:
-    """Connect to (existing) SQLite database.
-
-    Flag must_exist indicates whether:
-        T: must exist; this fails if no DB [default]
-        F: database will be created if doesn't exist
-        This will create a new .db database file if none yet exists at the named
-    path."""
+    """Connect to (existing) SQLite database. Returns None if fails."""
 
     if not os.path.exists(db_file):
-        print(f"Database file {db_file} not found",
-              #file=sys.stderr
-              )
+        print(f"Database file {db_file} not found")
         return None
-
     try:
         connection = sqlite3.connect(db_file)
-        ##print(sqlite3.version)
-    except sqlite3.Error as sqlite_err:
-        print(
-            "sqlite ERROR in db_connect() -- ",
-            sqlite_err,
-            #file=sys.stderr,
-        )
+        cursor = connection.cursor()
+        tables = cursor.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()
+        cursor.close()
+        if not tables:
+            print(f"Database {db_file} is empty.")
+            return None
+    except (sqlite3.Error,sqlite3.DatabaseError)  as sqlite_err:
+        print(f"Sqlite ERROR: {sqlite_err}")
         return None
+
+
     return connection
 
 

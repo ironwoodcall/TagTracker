@@ -28,8 +28,8 @@ from datetime import datetime, timedelta
 import os
 
 # import tt_util as ut
-import tt_dbutil as db
-import cgi_common as cc
+import common.tt_dbutil as db
+import web_common as cc
 
 PERIOD_NAMES = {
     cc.WHAT_PERIOD_WEEK: "Weeks",

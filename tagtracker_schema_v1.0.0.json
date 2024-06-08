@@ -15,11 +15,11 @@
         "type": "string",
         "format": "date"
       },
-      "opening_time": {
+      "time_open": {
         "type": "string",
         "format": "time"
       },
-      "closing_time": {
+      "time_closed": {
         "type": "string",
         "format": "time"
       },
@@ -78,5 +78,5 @@
         "type": "integer"
       }
     },
-    "required": ["site_name", "site_handle","date", "opening_time", "closing_time"]
+    "required": ["site_name", "site_handle","date", "time_open", "time_closed"]
   }

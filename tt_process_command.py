@@ -477,7 +477,7 @@ def estimate(today: TrackerDay) -> None:
     #     bikes_so_far: default current bikes so far
     #     as_of_when: default right now
     #     dow: default today (else 1..7 or a date)
-    #     closing_time: default - today's closing time
+    #     time_closed: default - today's closing time
     """
     pr.iprint()
     pr.iprint("Estimating...")

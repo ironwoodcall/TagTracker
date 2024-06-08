@@ -25,8 +25,8 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 import sqlite3
 
 import common.tt_util as ut
-import tt_dbutil as db
-import cgi_common as cc
+import common.tt_dbutil as db
+import web_common as cc
 from common.tt_tag import TagID
 
 

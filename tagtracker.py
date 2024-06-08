@@ -91,7 +91,7 @@ def deduce_parking_date(filename: str) -> str:
 
 def bikes_on_hand_reminder(day: TrackerDay) -> None:
     """Remind how many bikes should be present, if close to closing time."""
-    if day.closing_time.num - VTime("now").num < 60:  # last hour
+    if day.time_closed.num - VTime("now").num < 60:  # last hour
         num_bikes = len(day.tags_in_use("now"))
         pr.iprint(
             f"There should currently be {num_bikes} {ut.plural(num_bikes,'bike')}"

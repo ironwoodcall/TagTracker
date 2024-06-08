@@ -3,8 +3,8 @@
 import sqlite3
 
 import common.tt_util as ut
-import tt_dbutil as db
-import cgi_common as cc
+import common.tt_dbutil as db
+import web_common as cc
 
 def html_histogram(
     data: dict,

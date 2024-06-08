@@ -25,14 +25,14 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 import sqlite3
 from statistics import mean, median
 
-import tt_dbutil as db
+import common.tt_dbutil as db
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
-import cgi_common as cc
+import web_common as cc
 import datacolors as dc
 import tt_estimator
-import cgi_histogram
+import web_histogram
 
 
 HIGHLIGHT_NONE = 0
@@ -274,7 +274,7 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
         column, title, subtitle, color = parameters
         title = f"<h2>{title}</h2>"
         print(
-            cgi_histogram.times_hist_table(
+            web_histogram.times_hist_table(
                 ttdb,
                 query_column=column,
                 start_date=today,
@@ -298,7 +298,7 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
         column, title, color = parameters
         title = f"<a href='{cc.selfref(cc.WHAT_ONE_DAY_FREQUENCIES,qdate=today)}'>{title}</a>"
         print(
-            cgi_histogram.times_hist_table(
+            web_histogram.times_hist_table(
                 ttdb,
                 query_column=column,
                 start_date=today,
@@ -464,9 +464,9 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = tt_estimator.Estimator(closing_time=day_data.valet_close)
+        est = tt_estimator.Estimator(time_closed=day_data.valet_close)
         est.guess()
-        if est.state != tt_estimator.ERROR and est.closing_time > VTime("now"):
+        if est.state != tt_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
             est_max = est.bikes_so_far + est.max
             the_estimate = (

@@ -54,7 +54,7 @@ import hashlib
 from collections import defaultdict
 
 # import tt_datafile
-import tt_dbutil
+import common.tt_dbutil as tt_dbutil
 
 # import tt_globals
 import common.tt_util as ut
@@ -62,7 +62,7 @@ from common.tt_trackerday import TrackerDay, TrackerDayError
 from common.tt_biketag import BikeTag, BikeTagError
 from common.tt_bikevisit import BikeVisit
 
-from common.tt_daysummary import DaySummary,BlockDetail
+from common.tt_daysummary import DaySummary,PeriodDetail
 from common.tt_time import VTime
 from common.tt_constants import REGULAR, OVERSIZE, COMBINED
 
@@ -473,14 +473,18 @@ def insert_into_day(
             time_closed,
             weekday,
 
-            num_regular,
-            num_oversize,
-            num_combined,
-            num_leftover,
+            num_parked_regular,
+            num_parked_oversize,
+            num_parked_combined,
+
+            num_remaining_regular,
+            num_remaining_oversize,
+            num_remaining_combined,
 
             num_fullest_regular,
             num_fullest_oversize,
             num_fullest_combined,
+
             time_fullest_regular,
             time_fullest_oversize,
             time_fullest_combined,
@@ -493,8 +497,7 @@ def insert_into_day(
         )
         VALUES (
             ?,?,?,?,?,
-            ?,?,?,?,
-            ?,?,?,?,?,?,
+            ?,?,?,    ?,?,?,   ?,?,?,   ?,?,?,
             ?,?,
             ?,?
         )
@@ -503,20 +506,27 @@ def insert_into_day(
             # td.org_id,  # Add org_id to TrackerDay class
             # td.site_id,  # Add site_id to TrackerDay class
             orgsite_id,
-            td.date,
-            td.opening_time,
-            td.closing_time,
+            summary.whole_day.date,
+            summary.whole_day.time_open,
+            summary.whole_day.time_closed,
             ut.dow_int(td.date),
-            summary.whole_day.num_incoming[REGULAR],
-            summary.whole_day.num_incoming[OVERSIZE],
-            summary.whole_day.num_incoming[COMBINED],
-            summary.whole_day.num_on_hand[COMBINED],
-            summary.whole_day.num_fullest[REGULAR],
-            summary.whole_day.num_fullest[OVERSIZE],
-            summary.whole_day.num_fullest[COMBINED],
-            summary.whole_day.time_fullest[REGULAR],
-            summary.whole_day.time_fullest[OVERSIZE],
-            summary.whole_day.time_fullest[COMBINED],
+
+            summary.whole_day.num_parked_regular,
+            summary.whole_day.num_parked_oversize,
+            summary.whole_day.num_parked_combined,
+
+            summary.whole_day.num_remaining_regular,
+            summary.whole_day.num_remaining_oversize,
+            summary.whole_day.num_remaining_combined,
+
+            summary.whole_day.num_fullest_regular,
+            summary.whole_day.num_fullest_oversize,
+            summary.whole_day.num_fullest_combined,
+
+            summary.whole_day.time_fullest_regular,
+            summary.whole_day.time_fullest_oversize,
+            summary.whole_day.time_fullest_combined,
+
             td.registrations.num_registrations,
             batch_id,
             existing_temp,
@@ -525,7 +535,6 @@ def insert_into_day(
     )
 
     day_id = cursor.lastrowid
-
 
     return day_id
 
@@ -630,7 +639,7 @@ def insert_into_block(
         )
 
     for block in summary.blocks.values():
-        block:BlockDetail
+        block:PeriodDetail
         # Save to BLOCK table
         cursor.execute(
             """
@@ -777,9 +786,9 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
 
     if args.verbose:
         print(
-            f"   Date:{day.date}  Open:{day.opening_time}-{day.closing_time}"
-            f"  Visits:{day_summary.whole_day.num_incoming[COMBINED]}  "
-            f"Leftover:{day_summary.whole_day.num_on_hand[COMBINED]}  "
+            f"   Date:{day.date}  Open:{day.time_open}-{day.time_closed}"
+            f"  Visits:{day_summary.whole_day.num_parked_combined}  "
+            f"Leftover:{day_summary.whole_day.num_remaining_combined}  "
             f"Registrations:{day.registrations.num_registrations}"
         )
 
@@ -821,7 +830,7 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
 
     if args.verbose:
         print(
-            f"   Committed {day_summary.whole_day.num_incoming[COMBINED]} visits for {day.date}."
+            f"   Committed {day_summary.whole_day.num_parked_combined} visits for {day.date}."
         )
 
     return day.date
@@ -1021,7 +1030,7 @@ def skip_non_newest_dups():
             newest_stamp = max(fi_list, key=get_fileinfo_timestamp)
             for dup_fi in fi_list:
                 dup_fi: FileInfo
-                if dup_fi.timestamp != newest_stamp:
+                if dup_fi.timestamp != newest_stamp.timestamp:
                     dup_fi.status = STATUS_SKIP_NEWER
     if args.verbose:
         print(
@@ -1076,7 +1085,10 @@ def main():
     dbconx = tt_dbutil.db_connect(database_file)
     if not dbconx:
         print(f"Error: unable to connect to db {database_file}", file=sys.stderr)
-        dbconx.close()
+        try:
+            dbconx.close()
+        except Exception:
+            pass
         sys.exit(1)
 
     if args.tail_only:
@@ -1088,7 +1100,11 @@ def main():
     # Get a list of fingerprints of previous good loads.
     if args.verbose:
         print("Fetching fingerprints of previous datafile loads.")
-    good_fingerprints = get_load_fingerprints(dbconx=dbconx)
+    try:
+        good_fingerprints = get_load_fingerprints(dbconx=dbconx)
+    except tuple(SQL_ROLLBACK_ERRORS + SQL_CRITICAL_ERRORS) as e:
+        print(f"SQL error: {e}",file=sys.stderr)
+        sys.exit(1)
 
     # Decide which files to ignore becuase previously loaded ok
     for finfo in Statuses.files.values():

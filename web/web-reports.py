@@ -27,10 +27,18 @@ import sys
 import os
 import urllib.parse
 
-#sys.path.append("../")
+sys.path.append("../")
+sys.path.append("./")
 
+#pylint:disable=wrong-import-position
+import web_common as cc
+import web_block_report
+from web_day_detail import one_day_tags_report, day_frequencies_report
+import web_season_report
+import web_tags_report
+import web_period_summaries
 import common.tt_constants as k
-import tt_dbutil as db
+import common.tt_dbutil as db
 import web.web_base_config as wcfg
 import tt_reports as rep
 import tt_audit_report as aud
@@ -40,12 +48,7 @@ from common.tt_time import VTime
 import common.tt_util as ut
 import tt_tag_inv
 import tt_printer as pr
-import cgi_common as cc
-import cgi_block_report
-from cgi_day_detail import one_day_tags_report, day_frequencies_report
-import cgi_season_report
-import cgi_tags_report
-import cgi_period_summaries
+#pylint:enable=wrong-import-position
 
 
 def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: k.MaybeTag) -> None:
@@ -103,8 +106,8 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     print(f"# TagTracker datafile for {thisday}")
     print(f"# Reconstructed on {ut.date_str('today')} at {VTime('now')}")
     print(f"{df.HEADER_DATE} {day.date}")
-    print(f"{df.HEADER_OPENS} {day.opening_time}")
-    print(f"{df.HEADER_CLOSES} {day.closing_time}")
+    print(f"{df.HEADER_OPENS} {day.time_open}")
+    print(f"{df.HEADER_CLOSES} {day.time_closed}")
     print(f"{df.HEADER_BIKES_IN}")
     sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
     for this_tag, atime in sorted_bikes:
@@ -209,7 +212,7 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
     print(f"<h1>Day-end report for {ut.date_str(thisday,long_date=True)}</h1>")
     print(f"{cc.main_and_back_buttons(1)}<br>")
 
-    print(f"Hours: {day.opening_time} - {day.closing_time}</p>")
+    print(f"Hours: {day.time_open} - {day.time_closed}</p>")
     print("<pre>")
     rep.summary_report(day, [query_time])
     # print()
@@ -319,21 +322,21 @@ if not what:
 if what == cc.WHAT_TAG_HISTORY:
     one_tag_history_report(database, tag)
 elif what == cc.WHAT_BLOCKS:
-    cgi_block_report.blocks_report(database)
+    web_block_report.blocks_report(database)
 elif what == cc.WHAT_BLOCKS_DOW:
-    cgi_block_report.blocks_report(database, dow_parameter)
+    web_block_report.blocks_report(database, dow_parameter)
 elif what == cc.WHAT_DETAIL:
-    cgi_season_report.season_detail(
+    web_season_report.season_detail(
         database, sort_by=sort_by, sort_direction=sort_direction, pages_back=pages_back
     )
 elif what == cc.WHAT_SUMMARY:
-    cgi_season_report.season_summary(database)
+    web_season_report.season_summary(database)
 elif what == cc.WHAT_SUMMARY_FREQUENCIES:
-    cgi_season_report.season_frequencies_report(
+    web_season_report.season_frequencies_report(
         database, dow_parameter=dow_parameter, title_bit=text, pages_back=pages_back
     )
 elif what == cc.WHAT_TAGS_LOST:
-    cgi_tags_report.tags_report(database)
+    web_tags_report.tags_report(database)
 elif what == cc.WHAT_ONE_DAY:
     one_day_tags_report(database, whatday=qdate, sort_by=sort_by, pages_back=pages_back)
 elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
@@ -351,11 +354,11 @@ elif what in [
     cc.WHAT_PERIOD_QUARTER,
     cc.WHAT_PERIOD_YEAR,
 ]:
-    cgi_period_summaries.period_summary(database, what)
+    web_period_summaries.period_summary(database, what)
 elif what == cc.WHAT_PERIOD_CUSTOM:
     date_start = query_params.get("start_date", ["0000-00-00"])[0]
     date_end = query_params.get("end_date", ["9999-99-99"])[0]
-    cgi_period_summaries.period_summary(database,period_type=what,start_date=date_start,end_date=date_end)
+    web_period_summaries.period_summary(database,period_type=what,start_date=date_start,end_date=date_end)
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)

@@ -362,9 +362,9 @@ def calc_day_stats(filename: str, day: OldTrackerDay) -> DayStats:
             row.max_total_time = atime
 
     # Open and close times
-    if day.opening_time and day.closing_time:
-        row.time_open = day.opening_time
-        row.time_close = day.closing_time
+    if day.time_open and day.time_closed:
+        row.time_open = day.time_open
+        row.time_close = day.time_closed
     else:  # guess with bike check-ins
         row.time_open = day.earliest_event()
         row.time_close = day.latest_event('24:00')
@@ -660,7 +660,7 @@ def datafile_into_db(filename: str, batch, dbconx) -> str:
         return ""
     if args.verbose:
         print(
-            f"   Date:{day.date}  Open:{day.opening_time}-{day.closing_time}"
+            f"   Date:{day.date}  Open:{day.time_open}-{day.time_closed}"
             f"  Bikes:{len(day.bikes_in)} "
             f"Leftover:{len(day.bikes_in)-len(day.bikes_out)}  "
             f"Registrations:{day.registrations}"

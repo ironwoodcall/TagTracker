@@ -101,8 +101,8 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     print(f"# TagTracker datafile for {thisday}")
     print(f"# Reconstructed on {ut.date_str('today')} at {VTime('now')}")
     print(f"{df.HEADER_DATE} {day.date}")
-    print(f"{df.HEADER_OPENS} {day.opening_time}")
-    print(f"{df.HEADER_CLOSES} {day.closing_time}")
+    print(f"{df.HEADER_OPENS} {day.time_open}")
+    print(f"{df.HEADER_CLOSES} {day.time_closed}")
     print(f"{df.HEADER_BIKES_IN}")
     sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
     for this_tag, atime in sorted_bikes:
@@ -207,7 +207,7 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
     print(f"<h1>Day-end report for {ut.date_str(thisday,long_date=True)}</h1>")
     print(f"{cc.main_and_back_buttons(1)}<br>")
 
-    print(f"Hours: {day.opening_time} - {day.closing_time}</p>")
+    print(f"Hours: {day.time_open} - {day.time_closed}</p>")
     print("<pre>")
     rep.summary_report(day, [query_time])
     # print()

@@ -432,7 +432,7 @@ class SingleDay:
 
 
 @dataclass
-class DaysSummary:
+class AllDaysTotals:
     """Summary data for all days."""
 
     total_total_bikes: int = 0
@@ -593,7 +593,7 @@ def get_season_summary_data(
     ttdb: sqlite3.Connection,
     season_dailies: list[SingleDay],
     include_visit_stats: bool = False,
-) -> DaysSummary:
+) -> AllDaysTotals:
     """Fetch whole-season data, limited to date range represented in season_dailies.
 
     If include_visit_stats is True then includes those, else they are undefined.
@@ -609,7 +609,7 @@ def get_season_summary_data(
     dates_list = [d.date for d in season_dailies]
     where = f'where date >= "{min(dates_list)}" and date <= "{max(dates_list)}"'
 
-    summ = DaysSummary()
+    summ = AllDaysTotals()
     set_obj_from_sql(
         ttdb,
         f"""

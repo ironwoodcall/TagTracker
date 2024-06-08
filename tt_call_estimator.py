@@ -35,7 +35,7 @@ def get_estimate_via_url(
     bikes_so_far: int=None,
     as_of_when="",
     dow: int = None,
-    closing_time="",
+    time_closed="",
 ) -> list[str]:
     """Call estimator URL to get the estimate.
 
@@ -47,8 +47,8 @@ def get_estimate_via_url(
         bikes_so_far,_,_ = day.num_bikes_parked(as_of_when)
     if not dow:
         dow = ut.dow_int("today")
-        if not closing_time:
-            closing_time = day.closing_time
+        if not time_closed:
+            time_closed = day.time_closed
 
     if not cfg.ESTIMATOR_URL_BASE:
         return ["No estimator URL defined"]
@@ -56,8 +56,8 @@ def get_estimate_via_url(
         f"bikes_so_far={bikes_so_far}&as_of_when={as_of_when}"
         f"&dow={dow}&as_of_when={as_of_when}"
     )
-    if closing_time:
-        url_parms = f"{url_parms}&closing_time={closing_time}"
+    if time_closed:
+        url_parms = f"{url_parms}&time_closed={time_closed}"
 
     url = f"{cfg.ESTIMATOR_URL_BASE}?{url_parms}"
     ##ut.squawk(f"{url=}")

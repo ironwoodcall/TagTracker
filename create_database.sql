@@ -84,13 +84,20 @@ CREATE TABLE DAY (  -- Summary data about one org at one site on one day
         ),
     weekday INTEGER NOT NULL,
 
-    num_regular INTEGER,
-    num_oversize INTEGER,
-    num_combined INTEGER,
-    num_leftover INTEGER,
+    num_parked_regular INTEGER,
+    num_parked_oversize INTEGER,
+    num_parked_combined INTEGER,
+
+    num_remaining_regular INTEGER,
+    num_remaining_oversize INTEGER,
+    num_remaining_combined INTEGER,
+
+    -- num_leftover INTEGER,
+
     num_fullest_regular INTEGER,
     num_fullest_oversize INTEGER,
     num_fullest_combined INTEGER,
+
     time_fullest_regular TEXT,
     time_fullest_oversize TEXT,
     time_fullest_combined TEXT,

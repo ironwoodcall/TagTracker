@@ -131,9 +131,9 @@ def _read_time_or_date(
                 fline=line_num,
             )
         if header in [HEADER_OPENS, HEADER_OLD_OPENS]:
-            data.opening_time = maybetime
+            data.time_open = maybetime
         else:
-            data.closing_time = maybetime
+            data.time_closed = maybetime
     else:
         ut.squawk(f"Unexpected unrecognition of header {header} line {line_num}")
         return err_count + 1
@@ -436,10 +436,10 @@ def read_datafile(
 #     # Date, opening & closing hours
 #     if data.date:
 #         lines.append(f"{HEADER_DATE} {data.date}")
-#     if data.opening_time:
-#         lines.append(f"{HEADER_OPENS} {data.opening_time}")
-#     if data.closing_time:
-#         lines.append(f"{HEADER_CLOSES} {data.closing_time}")
+#     if data.time_open:
+#         lines.append(f"{HEADER_OPENS} {data.time_open}")
+#     if data.time_closed:
+#         lines.append(f"{HEADER_CLOSES} {data.time_closed}")
 #     if data.registrations:
 #         lines.append(f"{HEADER_REGISTRATIONS} {data.registrations}")
 

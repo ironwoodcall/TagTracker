@@ -31,7 +31,7 @@ from common.tt_tag import TagID
 # from tt_realtag import Stay
 from common.tt_trackerday import TrackerDay
 import common.tt_util as ut
-from common.tt_daysummary import DaySummary, BlockDetail, MomentDetail
+from common.tt_daysummary import DaySummary, PeriodDetail, MomentDetail
 
 # import tt_block
 import tt_printer as pr
@@ -53,11 +53,11 @@ BUSIEST_RANKS = 4
 def time_description(time: VTime, day: TrackerDay) -> str:
     """Make a descriptionof the time of day to use in report titles."""
     time = VTime(time)
-    if time == day.closing_time:
+    if time == day.time_closed:
         return f"as at today's closing time ({time.short})"
-    if time < day.opening_time:
+    if time < day.time_open:
         return f"as at {time.short} (before opening time)"
-    if time > day.closing_time:
+    if time > day.time_closed:
         return f"as at {time.short} (after closing time)"
     return f"as at {time.short}"
 
@@ -350,7 +350,7 @@ def highwater_report(summary: DaySummary) -> None:
 
 def full_chart(day: TrackerDay, as_of_when: str = "") -> None:
     """Make chart of main stats by timeblock."""
-    as_of_when = VTime(as_of_when or day.closing_time)
+    as_of_when = VTime(as_of_when or day.time_closed)
 
     if not day.num_bikes_parked(as_of_when=as_of_when):
         pr.iprint()
@@ -372,7 +372,7 @@ def full_chart(day: TrackerDay, as_of_when: str = "") -> None:
     )
 
     for blk_start in sorted(summary.blocks.keys()):
-        blk: BlockDetail = summary.blocks[blk_start]
+        blk: PeriodDetail = summary.blocks[blk_start]
 
         pr.iprint(
             f"{blk_start.tidy}    "
@@ -440,7 +440,7 @@ def summary_report(day: TrackerDay, args: list) -> None:
 
     If not time given (arg[0]), calculates as if end of the day (closing time).
     """
-    as_of_when = VTime((args and args[0]) or day.closing_time)
+    as_of_when = VTime((args and args[0]) or day.time_closed)
     if not as_of_when:
         pr.iprint(
             f"Unrecognized time passed to visits summary ({args[0]})",
