@@ -153,24 +153,38 @@ CREATE TABLE BLOCK ( -- activity in a given half hour for an org/site/date
             AND time_start BETWEEN '00:00' AND '24:00'
         ),
 
-    regular_incoming INTEGER,
-    oversize_incoming INTEGER,
-    combined_incoming INTEGER,
+        num_incoming_regular INTEGER,
+        num_incoming_oversize INTEGER,
+        num_incoming_combined INTEGER,
 
-    regular_outgoing INTEGER,
-    oversize_outgoing INTEGER,
-    combined_outgoing INTEGER,
+        num_outgoing_regular INTEGER,
+        num_outgoing_oversize INTEGER,
+        num_outgoing_combined INTEGER,
 
-    regular_at_end INTEGER,
-    oversize_at_end INTEGER,
-    combined_at_end INTEGER,
+        num_on_hand_regular INTEGER,
+        num_on_hand_oversize INTEGER,
+        num_on_hand_combined INTEGER,
 
-    num_most_full INTEGER,
-    time_most_full TEXT
+        num_fullest_regular INTEGER,
+        num_fullest_oversize INTEGER,
+        num_fullest_combined INTEGER,
+
+        time_fullest_regular TEXT
         CHECK(
-            time_most_full LIKE "__:__"
-            AND time_most_full BETWEEN '00:00' AND '24:00'
+            time_fullest_regular LIKE "__:__"
+            AND time_fullest_regular BETWEEN '00:00' AND '24:00'
         ),
+         time_fullest_oversize TEXT
+        CHECK(
+            time_fullest_oversize LIKE "__:__"
+            AND time_fullest_oversize BETWEEN '00:00' AND '24:00'
+        ),
+        time_fullest_combined TEXT
+        CHECK(
+            time_fullest_combined LIKE "__:__"
+            AND time_fullest_combined BETWEEN '00:00' AND '24:00'
+        ),
+
     FOREIGN KEY (day_id) REFERENCES DAY (id) ON DELETE CASCADE
 );
 

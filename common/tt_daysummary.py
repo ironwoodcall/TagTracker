@@ -54,7 +54,7 @@ class MomentDetail:
 class PeriodDetail:
     """Class to summarize what happened during one period (block) in the day."""
 
-    time: str = ""
+    time_start: str = ""
     num_incoming: dict = field(
         default_factory=lambda: {k.REGULAR: 0, k.OVERSIZE: 0, k.COMBINED: 0}
     )
@@ -239,7 +239,7 @@ class DaySummary:
         moments: dict[VTime, MomentDetail]
     ) -> dict[VTime, PeriodDetail]:
         """Create a dictionary of PeriodDetail objects for this day."""
-        blocks = defaultdict(lambda: PeriodDetail(time=None))
+        blocks = defaultdict(lambda: PeriodDetail(time_start=None))
 
         if not moments:
             return blocks
@@ -258,7 +258,7 @@ class DaySummary:
         block_start_time = block_start(earliest_time)
         while block_start_time.num <= latest_time.num:  # yes blocks need to be in order
             block_end_time = VTime(block_start_time.num + k.BLOCK_DURATION - 1)
-            current_block = PeriodDetail(time=block_start_time)
+            current_block = PeriodDetail(time_start=block_start_time)
             block_ins = {
                 k.REGULAR: 0,
                 k.OVERSIZE: 0,
@@ -305,8 +305,6 @@ class DaySummary:
     @staticmethod
     def _summarize_whole_day(day:TrackerDay,blocks: dict[VTime, PeriodDetail]) -> DayTotals:
         """Summarize the whole day's blocks as one time period."""
-
-        visits = day.all_visits()
 
         whole_day = DayTotals()
         whole_day.site_handle = day.site_handle

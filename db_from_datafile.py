@@ -54,7 +54,8 @@ import hashlib
 from collections import defaultdict
 
 # import tt_datafile
-import common.tt_dbutil as tt_dbutil
+import common.tt_dbutil as db
+from common.tt_dbutil import SQL_CRITICAL_ERRORS, SQL_MODERATE_ERRORS
 
 # import tt_globals
 import common.tt_util as ut
@@ -62,28 +63,13 @@ from common.tt_trackerday import TrackerDay, TrackerDayError
 from common.tt_biketag import BikeTag, BikeTagError
 from common.tt_bikevisit import BikeVisit
 
-from common.tt_daysummary import DaySummary,PeriodDetail
+from common.tt_daysummary import DaySummary, PeriodDetail
 from common.tt_time import VTime
 from common.tt_constants import REGULAR, OVERSIZE, COMBINED
 
 # Pre-declare this global for linting purposes.
 args = None
 
-# These errors will mean a rollback but keep going to next day
-SQL_ROLLBACK_ERRORS = [
-    sqlite3.IntegrityError,
-    sqlite3.OperationalError,
-    sqlite3.DatabaseError,
-    sqlite3.Warning
-]
-
-# These errors are big & bad and mean we should error exit
-SQL_CRITICAL_ERRORS = [
-    sqlite3.ProgrammingError,
-    sqlite3.InterfaceError,
-    sqlite3.DataError,
-    sqlite3.InternalError
-]
 
 # Default org_handle -- make this match default text in CREATE_DATABASE sql script
 DEFAULT_ORG = "no_org"
@@ -327,50 +313,34 @@ def get_file_timestamp(file_path):
         print("    File not found {e}.", file=sys.stderr)
         return None
 
-def fetch_day_id(
-    cursor: sqlite3.Connection.cursor, date: str, orgsite_id: int, null_ok: bool = True
-) -> int:
-    """Fetch the DAY id for this date/site.
-
-    If null_ok, then it's ok if no matching record; otherwise a DBError."""
-    if args.verbose:
-        print(f"   Fetching day_id for {orgsite_id=}/'{date}'.")
-    row = cursor.execute(f"SELECT id FROM day WHERE orgsite_id = {orgsite_id} AND date = '{date}';").fetchone()
-
-    if not row:
-        if null_ok:
-            return None
-        raise DBError(f"No match for {orgsite_id=}/{date=}.")
-
-    this_id = row[0]
-    if not isinstance(this_id, int):
-        raise DBError(f"Not integer: day.id '{this_id}' (type {type(this_id)})")
-
-    return this_id
 
 def fetch_existing_weather(
-        cursor: sqlite3.Connection.cursor, date: str, orgsite_id: int
-) -> tuple[float,float]:
+    cursor: sqlite3.Connection.cursor, date: str, orgsite_id: int
+) -> tuple[float, float]:
     """Fetch any existing temp and precip data from the given day.
 
     This uses data and orgsite_id since day_id not known at time this is called."""
     if args.verbose:
         print(f"   Fetching existing weather (temp/precip) for {orgsite_id=}/'{date}'.")
-    row = cursor.execute(f"SELECT max_temperature, precipitation FROM day WHERE orgsite_id = {orgsite_id} AND date = '{date}';").fetchone()
+    row = cursor.execute(
+        f"SELECT max_temperature, precipitation FROM day WHERE orgsite_id = {orgsite_id} AND date = '{date}';"
+    ).fetchone()
 
     if not row:
-        return None,None
+        return None, None
 
-    return row[0],row[1]
+    return row[0], row[1]
 
 
+# FIXME: use versions in tt_dbutil
 def fetch_org_id(cursor: sqlite3.Connection.cursor, org_handle: str) -> int:
     """Fetch the org id."""
     org_handle = org_handle.strip().lower()
     if args.verbose:
         print(f"   Fetching org_id for '{org_handle}'.")
     row = cursor.execute(
-        f"SELECT id FROM org WHERE org_handle = '{org_handle}';").fetchone()
+        f"SELECT id FROM org WHERE org_handle = '{org_handle}';"
+    ).fetchone()
 
     if not row:
         raise DBError(f"No match for org_handle '{org_handle}'.")
@@ -381,6 +351,7 @@ def fetch_org_id(cursor: sqlite3.Connection.cursor, org_handle: str) -> int:
     return this_id
 
 
+# FIXME: separate making new into its own.  Use fetch_*() from tt_dbutil
 def fetch_orgsite_id(
     cursor: sqlite3.Connection.cursor,
     site_handle: str,
@@ -417,10 +388,48 @@ def fetch_orgsite_id(
     return this_id
 
 
-def delete_one_day_data(cursor: sqlite3.Connection.cursor, date: str, orgsite_id:int):
+def fetch_day_id(
+    cursor: sqlite3.Connection.cursor, date: str, orgsite_id: int, null_ok: bool = True
+) -> int:
+    """Fetch the DAY id for this date/site.
+
+    If null_ok, then it's ok if no matching record; otherwise a DBError."""
+    if args.verbose:
+        print(f"   Fetching day_id for {orgsite_id=}/'{date}'.")
+    row = cursor.execute(
+        f"SELECT id FROM day WHERE orgsite_id = {orgsite_id} AND date = '{date}';"
+    ).fetchone()
+
+    if not row:
+        if null_ok:
+            return None
+        raise DBError(f"No match for {orgsite_id=}/{date=}.")
+
+    this_id = row[0]
+    if not isinstance(this_id, int):
+        raise DBError(f"Not integer: day.id '{this_id}' (type {type(this_id)})")
+
+    return this_id
+
+
+def insert_new_orgsite(
+    cursor: sqlite3.Connection.cursor,
+    org_id: int,
+    site_handle: str,
+    site_name: str = "",
+) -> int:
+    """Insert new org/site into orgsite table, returns orgsite_id."""
+    this_id = cursor.execute(
+        "INSERT INTO orgsite (org_id,site_handle,site_name) VALUES (?,?,?)",
+        (org_id, site_handle, site_name),
+    ).lastrowid
+    return this_id
+
+
+def delete_one_day_data(cursor: sqlite3.Connection.cursor, date: str, orgsite_id: int):
     """Delete one complete day's data from all tables."""
 
-    day_id = fetch_day_id(cursor=cursor, orgsite_id=orgsite_id, date=date)
+    day_id = db.fetch_day_id(cursor=cursor, date=date, maybe_orgsite_id=orgsite_id)
 
     if args.verbose:
         print(f"   Deleting records for '{orgsite_id=}'/'{date}'.")
@@ -455,7 +464,9 @@ def insert_into_day(
     # environmental data (temperature and precipitation).
 
     # Fetch current temp and precip
-    existing_temp,existing_precip = fetch_existing_weather(cursor=cursor,date=td.date,orgsite_id=orgsite_id)
+    existing_temp, existing_precip = fetch_existing_weather(
+        cursor=cursor, date=td.date, orgsite_id=orgsite_id
+    )
 
     # Delete existing data for this day
     delete_one_day_data(cursor=cursor, date=td.date, orgsite_id=orgsite_id)
@@ -510,23 +521,18 @@ def insert_into_day(
             summary.whole_day.time_open,
             summary.whole_day.time_closed,
             ut.dow_int(td.date),
-
             summary.whole_day.num_parked_regular,
             summary.whole_day.num_parked_oversize,
             summary.whole_day.num_parked_combined,
-
             summary.whole_day.num_remaining_regular,
             summary.whole_day.num_remaining_oversize,
             summary.whole_day.num_remaining_combined,
-
             summary.whole_day.num_fullest_regular,
             summary.whole_day.num_fullest_oversize,
             summary.whole_day.num_fullest_combined,
-
             summary.whole_day.time_fullest_regular,
             summary.whole_day.time_fullest_oversize,
             summary.whole_day.time_fullest_combined,
-
             td.registrations.num_registrations,
             batch_id,
             existing_temp,
@@ -593,9 +599,7 @@ def insert_into_visit(
     #     return False
 
     if args.verbose:
-        print(
-            f"   Adding {len(day.all_visits())} visits to database."
-        )
+        print(f"   Adding {len(day.all_visits())} visits to database.")
 
     for visit in day.all_visits():
         visit: BikeVisit
@@ -626,6 +630,7 @@ def insert_into_visit(
         )
     return True
 
+
 def insert_into_block(
     summary: DaySummary,
     cursor: sqlite3.Connection.cursor,
@@ -634,60 +639,64 @@ def insert_into_block(
     """Load this day's block data into the database."""
 
     if args.verbose:
-        print(
-            f"   Adding {len(summary.blocks)} data blocks to database."
-        )
+        print(f"   Adding {len(summary.blocks)} data blocks to database.")
 
     for block in summary.blocks.values():
-        block:PeriodDetail
+        block: PeriodDetail
         # Save to BLOCK table
         cursor.execute(
             """
             INSERT INTO block (
+
                 day_id,
                 time_start,
 
-                regular_incoming,
-                oversize_incoming,
-                combined_incoming,
+                num_incoming_regular,
+                num_incoming_oversize,
+                num_incoming_combined,
 
-                regular_outgoing,
-                oversize_outgoing,
-                combined_outgoing,
+                num_outgoing_regular,
+                num_outgoing_oversize,
+                num_outgoing_combined,
 
-                regular_at_end,
-                oversize_at_end,
-                combined_at_end,
+                num_on_hand_regular,
+                num_on_hand_oversize,
+                num_on_hand_combined,
 
-                num_most_full,
-                time_most_full
+                num_fullest_regular,
+                num_fullest_oversize,
+                num_fullest_combined,
+
+                time_fullest_regular,
+                time_fullest_oversize,
+                time_fullest_combined
+
+
             )
 
-            VALUES (?,?,  ?,?,?,  ?,?,?,  ?,?,?,  ?,?)
+            VALUES (?,?,  ?,?,?,  ?,?,?,  ?,?,?,  ?,?,?, ?,?,?)
         """,
             (
                 day_id,
-                block.time,
-
+                block.time_start,
                 block.num_incoming[REGULAR],
                 block.num_incoming[OVERSIZE],
                 block.num_incoming[COMBINED],
-
                 block.num_outgoing[REGULAR],
                 block.num_outgoing[OVERSIZE],
                 block.num_outgoing[COMBINED],
-
                 block.num_on_hand[REGULAR],
                 block.num_on_hand[OVERSIZE],
                 block.num_on_hand[COMBINED],
-
+                block.num_fullest[REGULAR],
+                block.num_fullest[OVERSIZE],
                 block.num_fullest[COMBINED],
-                block.time_fullest[COMBINED]
+                block.time_fullest[REGULAR],
+                block.time_fullest[OVERSIZE],
+                block.time_fullest[COMBINED],
             ),
         )
     return True
-
-
 
 
 def insert_into_dataloads(
@@ -713,7 +722,7 @@ def insert_into_dataloads(
     cursor = dbconx.cursor()
     try:
         cursor.execute(sql)
-    except tuple(SQL_ROLLBACK_ERRORS) as e:
+    except tuple(SQL_MODERATE_ERRORS) as e:
         print(f"Non-fatal error occurred: {e}")
         return False
     except tuple(SQL_CRITICAL_ERRORS) as e:
@@ -725,13 +734,13 @@ def insert_into_dataloads(
     return True
 
 
-def read_datafile(filename: str) -> tuple[TrackerDay,DaySummary]:
+def read_datafile(filename: str) -> tuple[TrackerDay, DaySummary]:
     """Read and prepare one filename into TrackerDay & DaySummary obects."""
     file_info: FileInfo = Statuses.files[filename]
 
     if not os.path.isfile(filename):
         file_info.set_bad("File not found")
-        return None,None
+        return None, None
 
     if args.verbose:
         print(f"Reading {filename}:")
@@ -741,17 +750,18 @@ def read_datafile(filename: str) -> tuple[TrackerDay,DaySummary]:
     except (TrackerDayError, BikeTagError) as e:
         msg = f"Error reading file {filename=}: {e}. Skipping file."
         file_info.set_bad(msg)
-        #print(msg)
-        return None,None
+        # print(msg)
+        return None, None
 
-    lint_msgs = day.lint_check(strict_datetimes=True,allow_quick_checkout=True)
-    if lint_msgs :
+    lint_msgs = day.lint_check(strict_datetimes=True, allow_quick_checkout=True)
+    if lint_msgs:
         msg = [f"Errors reading datafile {filename}:"] + lint_msgs
         file_info.set_bad(msg)
-        return None,None
+        return None, None
 
     day_summary = DaySummary(day=day, as_of_when="24:00")
-    return day,day_summary
+    return day, day_summary
+
 
 def one_datafile_into_db(filename: str, batch, dbconx) -> str:
     """Record one datafile to the database, returns date.
@@ -766,23 +776,29 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
     This should create then destroy a cursor, which means rollback or commit.
     """
 
-    day,day_summary = read_datafile(filename=filename)
+    day, day_summary = read_datafile(filename=filename)
     if day is None or day_summary is None:
         return None
 
     # Datafile fully loaded, now start db stuff
     cursor = sql_begin_transaction(dbconx=dbconx)
-    org_id = fetch_org_id(cursor=cursor, org_handle=args.org)
+    if args.verbose:
+        print("   Fetching org and orgsize ids")
+    org_id = db.fetch_org_id(cursor=cursor, org_handle=args.org)
     if org_id is None:
         raise DBError(f"No org matches {args.org_handle}")
-    orgsite_id = fetch_orgsite_id(
-        cursor=cursor,
-        site_handle=day.site_handle,
-        site_name=day.site_name,
-        org_id=org_id,
-        insert_new=True,
+    orgsite_id = db.fetch_orgsite_id(
+        cursor=cursor, site_handle=day.site_handle, maybe_org_id=org_id, null_ok=True
     )
-
+    if orgsite_id is None:
+        if args.verbose:
+            print(f"  Adding new orgsite {args.org=},{day.site_handle=}")
+        orgsite_id = insert_new_orgsite(
+            cursor=cursor,
+            org_id=org_id,
+            site_handle=day.site_handle,
+            site_name=day.site_name,
+        )
 
     if args.verbose:
         print(
@@ -815,7 +831,9 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
         # day_tags_context_into_db(file_info, day, day_totals, batch, dbconx)
         # day_blocks_into_db()
 
-        insert_into_dataloads(Statuses.files[filename], day_id=day_id, batch=batch, dbconx=dbconx)
+        insert_into_dataloads(
+            Statuses.files[filename], day_id=day_id, batch=batch, dbconx=dbconx
+        )
 
     except (sqlite3.Error, DBError) as err:
         print(f"Error:{err}", file=sys.stderr)
@@ -826,7 +844,6 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
         cursor.close()
 
     dbconx.commit()  # commit as one datafile transaction
-
 
     if args.verbose:
         print(
@@ -840,6 +857,7 @@ def sql_begin_transaction(dbconx: sqlite3.Connection) -> sqlite3.Connection.curs
     curs = dbconx.cursor()
     curs.execute("BEGIN;")
     return curs
+
 
 def sql_exec_and_error(sql_statement: str, dbconx) -> int:
     """Execute a SQL statement, returns error message (if any).
@@ -1069,7 +1087,7 @@ def main():
 
     Statuses.files = {}
 
-    global args #pylint:disable=global-statement
+    global args  # pylint:disable=global-statement
     args = get_args()
     ordered_file_list = find_datafiles(args.dataglob)
     if not args.quiet:
@@ -1082,13 +1100,13 @@ def main():
     database_file = args.dbfile
     if args.verbose:
         print(f"Connecting to database {database_file}.")
-    dbconx = tt_dbutil.db_connect(database_file)
+    dbconx = db.db_connect(database_file)
     if not dbconx:
         print(f"Error: unable to connect to db {database_file}", file=sys.stderr)
         try:
             dbconx.close()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error {e}")
         sys.exit(1)
 
     if args.tail_only:
@@ -1102,8 +1120,8 @@ def main():
         print("Fetching fingerprints of previous datafile loads.")
     try:
         good_fingerprints = get_load_fingerprints(dbconx=dbconx)
-    except tuple(SQL_ROLLBACK_ERRORS + SQL_CRITICAL_ERRORS) as e:
-        print(f"SQL error: {e}",file=sys.stderr)
+    except tuple(SQL_MODERATE_ERRORS + SQL_CRITICAL_ERRORS) as e:
+        print(f"SQL error: {e}", file=sys.stderr)
         sys.exit(1)
 
     # Decide which files to ignore becuase previously loaded ok
@@ -1141,11 +1159,11 @@ def main():
             cursor = dbconx.cursor()
             cursor.execute("PRAGMA foreign_keys=ON;")
             dbconx.commit()
-        except tuple(SQL_ROLLBACK_ERRORS) as e:
-            print(f"SQL error: {e}",file=sys.stderr)
+        except tuple(SQL_MODERATE_ERRORS) as e:
+            print(f"SQL error: {e}", file=sys.stderr)
             sys.exit(1)
         except tuple(SQL_CRITICAL_ERRORS) as e:
-            print(f"Serious SQL error occurred: {e}",file=sys.stderr)
+            print(f"Serious SQL error occurred: {e}", file=sys.stderr)
             raise
         finally:
             cursor.close()
@@ -1163,7 +1181,7 @@ def main():
         try:
             one_datafile_into_db(file_name, batch, dbconx)
 
-        except tuple(SQL_ROLLBACK_ERRORS) as e:
+        except tuple(SQL_MODERATE_ERRORS) as e:
             print(f"SQL error: {e}")
             continue
         except tuple(SQL_CRITICAL_ERRORS) as e:

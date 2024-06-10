@@ -129,3 +129,6 @@ def set_terminal_style():
 # Colour combinations.
 set_terminal_style()
 
+
+class TagTrackerError(Exception):
+    """Generic TagTracker error."""

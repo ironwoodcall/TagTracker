@@ -18,12 +18,12 @@ class BikeVisit:
     # all_visits = {}
     _last_seq = 0
 
-    def __init__(self, tagid, time_in="now"):
+    def __init__(self, tagid, time_in="now",time_out=None):
         # Auto-generate a unique seq number
         self.seq = BikeVisit._last_seq
         BikeVisit._last_seq += 1
         self.time_in = VTime(time_in)
-        self.time_out = VTime("")
+        self.time_out = VTime(time_out) or VTime("")
         self.tagid = TagID(tagid)
         # Add the new instance to the all_visits dict
         # BikeVisit.all_visits[self.seq] = self
