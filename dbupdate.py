@@ -296,7 +296,7 @@ class ProgArgs:
         progargs = self._parse_args()
         self.verbose = progargs.verbose
         self.database_file = progargs.database_file
-        self.day_end = progargs.day_end
+        # self.day_end = progargs.day_end
         self.force = progargs.force
         self.onedate = ""
         if progargs.date:
