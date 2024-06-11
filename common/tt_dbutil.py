@@ -25,9 +25,10 @@ import sqlite3
 import sys
 import os
 from typing import Iterable
+
 # from collections import defaultdict
 from dataclasses import dataclass, field
-from statistics import mean,median
+from statistics import mean, median
 
 from common.tt_trackerday import TrackerDay
 from common.tt_daysummary import DaySummary, DayTotals, PeriodDetail
@@ -204,8 +205,26 @@ def fetch_day_id(
     return this_id
 
 
+def fetch_day_id_list(
+    cursor: sqlite3.Connection.cursor,
+    orgsite_id: int,
+    min_date: str = "",
+    max_date: str = "",
+) -> list[int]:
+    """Fetch a list of day_id vals for this orgsite_id & date range."""
+
+    min_date = min_date or "0000-00-00"
+    max_date = max_date or ut.date_str("today")
+
+    rows = cursor.execute(
+        "select id from day where orgsite_id = ? and date >= ? and date <= ?;",
+        (orgsite_id, min_date, max_date),
+    ).fetchall()
+    return [row[0] for row in rows if row[0]]
+
+
 def db_fetch(
-    conn_or_cursor,#: sqlite3.Connection | sqlite3.Connection.cursor,
+    conn_or_cursor,  #: sqlite3.Connection | sqlite3.Connection.cursor,
     select_statement: str,
     col_names: list[str] = None,
 ) -> list[DBRow]:
@@ -364,7 +383,7 @@ def fetch_day_totals(cursor: sqlite3.Cursor, day_id: int) -> DayTotals:
     ]
 
     row = cursor.execute(
-        f"SELECT {', '.join(column_names)} FROM day WHERE day_id = ?", (day_id,)
+        f"SELECT {', '.join(column_names)} FROM day WHERE id = ?", (day_id,)
     ).fetchone()
 
     if not row:
@@ -391,29 +410,22 @@ def fetch_day_blocks(
 
     column_names = [
         "time_start",
-
         "num_incoming_regular",
         "num_incoming_oversize",
         "num_incoming_combined",
-
         "num_outgoing_regular",
         "num_outgoing_oversize",
         "num_outgoing_combined",
-
         "num_on_hand_regular",
         "num_on_hand_oversize",
         "num_on_hand_combined",
-
         "num_fullest_regular",
         "num_fullest_oversize",
         "num_fullest_combined",
-
         "time_fullest_regular",
         "time_fullest_oversize",
         "time_fullest_combined",
-
     ]
-
 
     rows = cursor.execute(
         f"SELECT {', '.join(column_names)} FROM block WHERE day_id = ?", (day_id,)
@@ -482,7 +494,7 @@ def fetch_day_summary(
     )
 
 
-def db2day(ttdb: sqlite3.Connection, day_id:int) -> TrackerDay:
+def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
     """Create one day's TrackerDay from the database."""
     # Do we have info about the day?  Need its open/close times
     curs = ttdb.cursor()
@@ -503,30 +515,33 @@ def db2day(ttdb: sqlite3.Connection, day_id:int) -> TrackerDay:
     # Fetch the visits, build the biketags from them
     rows = curs.execute(
         "select bike_id, time_in,time_out,bike_type from visit "
-        "where day_id = ? order by time_in desc;",(day_id,)
+        "where day_id = ? order by time_in desc;",
+        (day_id,),
     ).fetchall()
     curs.close()
 
-    biketags:dict[VTime,BikeTag] = {}
+    biketags: dict[VTime, BikeTag] = {}
     for row in rows:
         tagid = TagID(row[0])
-        if row[3] == 'R':
+        if row[3] == "R":
             bike_type = k.REGULAR
-        elif row[3] == 'O':
+        elif row[3] == "O":
             bike_type = k.OVERSIZE
         else:
             bike_type = k.UNKNOWN
         if tagid in biketags:
             # FIXME: support a biketag with multiple bike_types
             if bike_type != biketags[tagid].bike_type:
-                print( f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type")
+                print(
+                    f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type"
+                )
         if tagid not in biketags:
-            biketags[tagid] = BikeTag(tagid=tagid,bike_type=bike_type)
-        visit = BikeVisit(tagid=tagid,time_in=row[1],time_out=row[2])
+            biketags[tagid] = BikeTag(tagid=tagid, bike_type=bike_type)
+        visit = BikeVisit(tagid=tagid, time_in=row[1], time_out=row[2])
         biketags[tagid].visits.append(visit)
     # Set BikeTag's statuses (none will be RETIRED)
     for biketag in biketags.values():
-        biketag:BikeTag
+        biketag: BikeTag
         if not biketag.visits:
             biketag.status = BikeTag.UNUSED
         elif biketag.visits[-1].time_out:

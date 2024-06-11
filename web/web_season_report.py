@@ -30,6 +30,7 @@ import datacolors as dc
 import web_histogram
 import common.tt_dbutil as db
 from common.tt_time import VTime
+from common.tt_daysummary import DayTotals
 
 BLOCK_XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 BLOCK_X_TOP_COLOR = "red"
@@ -184,7 +185,7 @@ def totals_table(conn: sqlite3.Connection):
         elif isinstance(val, str):
             return f"{val:>}"
         else:
-            return ""
+            return "-"
 
     # Function to generate HTML row
     def html_row(label, ytd_value, *day_values):
@@ -296,7 +297,6 @@ def totals_table(conn: sqlite3.Connection):
     print("")
     print("<table class='general_table'>")
 
-
     # Table header
     header_html = f"  <tr><th>Summary</th><th>YTD<br>{selected_year}</th>"
     for day, _ in day_totals.items():
@@ -308,144 +308,6 @@ def totals_table(conn: sqlite3.Connection):
     # Table rows
     for label, ytd_value, *day_values in rows:
         print(html_row(label, ytd_value, *day_values))
-
-    print("</table>")
-
-
-def old_but_working_totals_table(conn: sqlite3.Connection):
-    """Quick summary table of YTD, yesterday, and today totals."""
-
-    def _p(val) -> str:
-        """Format a single value."""
-        if isinstance(val, int):
-            return f"{val:,}"
-        elif isinstance(val, float):
-            return f"{val:,.1f}"
-        elif isinstance(val, str):
-            return f"{val:>}"
-        else:
-            return ""
-
-    def html_row(label, ytd_value, yesterday_value, today_value):
-        """Print a single row of data."""
-        return (
-            f"<tr><td style='text-align:left'>{label}</td>"
-            f"<td style='text-align:right'>{_p(ytd_value)}</td>"
-            f"<td style='text-align:right'>{_p(yesterday_value)}</td>"
-            f"<td style='text-align:right'>{_p(today_value)}</td></tr>\n"
-        )
-
-    today = ut.date_str("today")
-    selected_year = today[:4]
-    yesterday = ut.date_str("yesterday")
-
-    # Fetch data for YTD, Yesterday, and Today
-    ytd_totals = db.MultiDayTotals.fetch_from_db(
-        conn=conn, orgsite_id=1, start_date=f"{selected_year}-01-01", end_date=today
-    )
-    yesterday_totals = db.MultiDayTotals.fetch_from_db(
-        conn=conn, orgsite_id=1, start_date=yesterday, end_date=yesterday
-    )
-    today_totals = db.MultiDayTotals.fetch_from_db(
-        conn=conn, orgsite_id=1, start_date=today, end_date=today
-    )
-
-    most_parked_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_parked_combined_date
-    )
-    fullest_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_fullest_combined_date
-    )
-
-    rows = [
-        (
-            "Total bikes parked (visits)",
-            ytd_totals.total_parked_combined,
-            yesterday_totals.total_parked_combined,
-            today_totals.total_parked_combined,
-        ),
-        (
-            "&nbsp;&nbsp;&nbsp;Regular bikes parked",
-            ytd_totals.total_parked_regular,
-            yesterday_totals.total_parked_regular,
-            today_totals.total_parked_regular,
-        ),
-        (
-            "&nbsp;&nbsp;&nbsp;Oversize bikes parked",
-            ytd_totals.total_parked_oversize,
-            yesterday_totals.total_parked_oversize,
-            today_totals.total_parked_oversize,
-        ),
-        (
-            "Average bikes / day",
-            round(ytd_totals.total_parked_combined / ytd_totals.total_days_open),
-            "-",
-            "-",
-        ),
-        (
-            "Total bike registrations",
-            ytd_totals.total_bikes_registered,
-            yesterday_totals.total_bikes_registered,
-            today_totals.total_bikes_registered,
-        ),
-        (
-            "Total days open",
-            ytd_totals.total_days_open,
-            yesterday_totals.total_days_open,
-            today_totals.total_days_open,
-        ),
-        (
-            "Total hours open",
-            VTime(ytd_totals.total_hours_open * 60, allow_large=True),
-            VTime(
-                (
-                    yesterday_totals.total_hours_open * 60
-                    if yesterday_totals.total_hours_open
-                    else ""
-                ),
-                allow_large=True,
-            ),
-            VTime(
-                (
-                    today_totals.total_hours_open * 60
-                    if today_totals.total_hours_open
-                    else ""
-                ),
-                allow_large=True,
-            ),
-        ),
-        (
-            "Bikes left",
-            ytd_totals.total_remaining_combined,
-            yesterday_totals.total_remaining_combined,
-            today_totals.total_remaining_combined,
-        ),
-        (
-            f"Most bikes parked (<a href='{most_parked_link}'>"
-            f"{ytd_totals.max_parked_combined_date}</a>)",
-            ytd_totals.max_parked_combined,
-            "-",
-            "-",
-        ),
-        (
-            f"Most bikes at once (<a href='{fullest_link}'>"
-            f"{ytd_totals.max_fullest_combined_date}</a>)",
-            ytd_totals.max_fullest_combined,
-            yesterday_totals.max_fullest_combined,
-            today_totals.max_fullest_combined,
-        ),
-    ]
-
-    print("")
-    print("<table class='general_table'>")
-    print(
-        f"  <tr><th>Summary</th><th>YTD<br>{selected_year}</th>"
-        f"<th>Yesterday<br>{ut.dow_str(yesterday)}</th>"
-        f"<th>Today<br>{ut.dow_str(today)}</th></tr>"
-    )
-
-    for label, ytd_value, yesterday_value, today_value in rows:
-        print(html_row(label, ytd_value, yesterday_value, today_value))
 
     print("</table>")
 
@@ -473,8 +335,10 @@ def season_summary(ttdb: sqlite3.Connection):
     print("</div>")
     print("<br>")
 
-    print(
-        f"""
+    print("<br>Limited further detail unavailable for now<br><br>")
+    if False:
+        print(
+            f"""
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
@@ -488,10 +352,19 @@ def season_summary(ttdb: sqlite3.Connection):
             style="padding: 10px; display: inline-block;">
           <b>Overall<br>Visits<br>Graphs</b></button>
         <br><br>
+        """
+        )
+    print(
+        f"""
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Daily<br>Summaries</b></button>
         &nbsp;&nbsp;
+          """
+    )
+    if False:
+        print(
+            f"""
         <button onclick="window.location.href='{summaries_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Period<br>Summaries</b></button>
@@ -501,7 +374,7 @@ def season_summary(ttdb: sqlite3.Connection):
           <b>Tags<br>Inventory</b></button>
         <br><br>
           """
-    )
+        )
 
 
 def season_detail(
@@ -509,14 +382,20 @@ def season_detail(
     sort_by=None,
     sort_direction=None,
     pages_back: int = 1,
+    start_date: str = "",
+    end_date: str = "",
 ):
-    # FIXME: priority report
-    """Print new version of the all-days default report."""
-    all_days = cc.get_days_data(ttdb)
-    cc.incorporate_blocks_data(ttdb, all_days)
-    # FIXME: orgsite_id is hardwired
-    days_totals = db.MultiDayTotals.fetch_from_db(conn=ttdb, orgsite_id=1)
-    ##blocks_totals = cc.get_blocks_summary(all_days)
+    """A summary in which each row is one day."""
+
+    # list of each day's totals
+    all_days = cc.get_days_data(
+        ttdb=ttdb, min_date=start_date, max_date=end_date
+    )  # FIXME: needs to use orgsite_id
+    # overall totals for the whole period
+    # FIXME: hardwired to orgsite_id=1
+    days_totals = db.MultiDayTotals.fetch_from_db(
+        conn=ttdb, orgsite_id=1, start_date=start_date, end_date=end_date
+    )
 
     # Sort the all_days ldataccording to the sort parameter
     sort_by = sort_by if sort_by else cc.SORT_DATE
@@ -536,27 +415,35 @@ def season_detail(
     if sort_by == cc.SORT_DATE:
         sort_msg = f"date{direction_msg}"
     elif sort_by == cc.SORT_DAY:
-        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.dow)
+        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.weekday)
         sort_msg = f"day of week{direction_msg}"
     elif sort_by == cc.SORT_PARKED:
-        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.total_bikes)
+        all_days = sorted(
+            all_days, reverse=reverse_sort, key=lambda x: x.num_parked_combined
+        )
         sort_msg = f"bikes parked{direction_msg}"
     elif sort_by == cc.SORT_FULLNESS:
-        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.max_bikes)
+        all_days = sorted(
+            all_days, reverse=reverse_sort, key=lambda x: x.num_fullest_combined
+        )
         sort_msg = f"most bikes at once{direction_msg}"
     elif sort_by == cc.SORT_LEFTOVERS:
-        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.leftovers)
+        all_days = sorted(
+            all_days, reverse=reverse_sort, key=lambda x: x.num_remaining_combined
+        )
         sort_msg = f"bikes left onsite{direction_msg}"
     elif sort_by == cc.SORT_PRECIPITATAION:
         all_days = sorted(
-            all_days, reverse=reverse_sort, key=lambda x: (x.precip if x.precip else 0)
+            all_days,
+            reverse=reverse_sort,
+            key=lambda x: (x.precipitation if x.precipitation else 0),
         )
         sort_msg = f"precipitation{direction_msg}"
     elif sort_by == cc.SORT_TEMPERATURE:
         all_days = sorted(
             all_days,
             reverse=reverse_sort,
-            key=lambda x: (x.temperature if x.temperature else -999),
+            key=lambda x: (x.max_temperature if x.max_temperature else -999),
         )
         sort_msg = f"temperature{direction_msg}"
     else:
@@ -636,7 +523,7 @@ def season_detail(
     # mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
 
     print("<table class='general_table'>")
-    print(f"<tr><th colspan=13><br>{sort_msg}<br>&nbsp;</th></tr>")
+    print(f"<tr><th colspan=12><br>{sort_msg}<br>&nbsp;</th></tr>")
     print("<style>td {text-align: right;}</style>")
     print(
         "<tr>"
@@ -648,7 +535,7 @@ def season_detail(
         # "<th rowspan=2>Bike-<br />hours</th>"
         # "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
         "<th rowspan=2>Bike<br />Regs</th>"
-        "<th colspan=3>Environment</th>"
+        "<th colspan=2>Weather</th>"
         "</tr>"
     )
     print(
@@ -660,34 +547,33 @@ def season_detail(
         # "<th>Left</th>"
         # "<th>Fullest</th>"
         f"<th><a href={sort_temperature_link}>Max<br />temp</a></th>"
-        f"<th><a href={sort_precipitation_link}>Rain</a></th><th>Dusk</th>"
+        f"<th><a href={sort_precipitation_link}>Rain</a></th>"
         "</tr>"
     )
 
     for row in all_days:
-        row: cc.SingleDay
+        row: DayTotals
         date_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date)
-        reg_str = "" if row.registrations is None else f"{row.registrations}"
-        temp_str = "" if row.temperature is None else f"{row.temperature:0.1f}"
-        precip_str = "" if row.precip is None else f"{row.precip:0.1f}"
+        reg_str = "" if row.bikes_registered is None else f"{row.bikes_registered}"
+        temp_str = "" if row.max_temperature is None else f"{row.max_temperature:0.1f}"
+        precip_str = "" if row.precipitation is None else f"{row.precipitation:0.1f}"
 
         print(
             f"<tr>"
             f"<td><a href='{date_link}'>{row.date}</a></td>"
             f"<td style='text-align:left'>{ut.date_str(row.date,dow_str_len=3)}</td>"
-            f"<td>{row.valet_open}</td><td>{row.valet_close}</td>"
-            f"<td>{row.regular_bikes}</td>"
-            f"<td>{row.oversize_bikes}</td>"
+            f"<td>{row.time_open}</td><td>{row.time_closed}</td>"
+            f"<td>{row.num_parked_regular}</td>"
+            f"<td>{row.num_parked_oversize}</td>"
             # f"<td style='background: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
-            f"<td style='{max_parked_colour.css_bg_fg(row.total_bikes)}'>{row.total_bikes}</td>"
-            f"<td style='{max_left_colour.css_bg_fg(row.leftovers)}'>{row.leftovers}</td>"
-            f"<td style='{max_full_colour.css_bg_fg(row.max_bikes)}'>{row.max_bikes}</td>"
+            f"<td style='{max_parked_colour.css_bg_fg(row.num_parked_combined)}'>{row.num_parked_combined}</td>"
+            f"<td style='{max_left_colour.css_bg_fg(row.num_remaining_combined)}'>{row.num_remaining_combined}</td>"
+            f"<td style='{max_full_colour.css_bg_fg(row.num_fullest_combined)}'>{row.num_fullest_combined}</td>"
             # f"<td style='{max_bike_hours_colour.css_bg_fg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
             # f"<td style='{max_bike_hours_per_hour_colour.css_bg_fg(row.bike_hours_per_hour)}'>{row.bike_hours_per_hour:0.2f}</td>"
             f"<td>{reg_str}</td>"
-            f"<td style='{max_temp_colour.css_bg_fg(row.temperature)}'>{temp_str}</td>"
-            f"<td style='{max_precip_colour.css_bg_fg(row.precip)}'>{precip_str}</td>"
-            f"<td>{row.dusk}</td>"
+            f"<td style='{max_temp_colour.css_bg_fg(row.max_temperature)}'>{temp_str}</td>"
+            f"<td style='{max_precip_colour.css_bg_fg(row.precipitation)}'>{precip_str}</td>"
             "</tr>"
         )
     print(" </table>")

@@ -38,6 +38,7 @@ from common.tt_time import VTime
 from common.tt_tag import TagID
 import common.tt_dbutil as db
 import common.tt_util as ut
+from common.tt_daysummary import DayTotals
 
 # from common.tt_trackerday import TrackerDay
 # from common.tt_daysummary import DaySummary, PeriodDetail, MomentDetail, DayTotals
@@ -493,70 +494,75 @@ def get_days_data(
     ttdb: sqlite3.Connection,
     min_date: str = "",
     max_date: str = "",
-) -> list[SingleDay]:
-    """Create the list of SingleDay data, some info loaded but not the block data.
+) -> list[DayTotals]:
+    """Create the list of totals about a set of days.
 
-    If min_date &/or max_date are present, will restrict dates to those
-
-    Does not load:
-        blocks
-        mean, median, modes
     """
 
-    where = ""
-    if min_date:
-        where += f" DAY.date >= '{min_date}'"
-    if max_date:
-        where += f"{' AND' if where else ''} DAY.date <= '{max_date}'"
-    where = f"WHERE{where}" if where else ""
+    cursor = ttdb.cursor()
+    day_ids = db.fetch_day_id_list(cursor=cursor,orgsite_id=1,min_date=min_date,max_date=max_date)
 
-    sql = f"""
-        SELECT
-            DAY.date,
-            DAY.weekday dow,
-            DAY.time_open AS valet_open,
-            DAY.time_closed AS valet_close,
-            DAY.num_regular AS regular_bikes,
-            DAY.num_oversize AS oversize_bikes,
-            DAY.num_combined AS total_bikes,
-            DAY.num_fullest_combined AS max_bikes,
-            DAY.time_fullest_combined AS max_bikes_time,
-            DAY.bikes_registered,
-            DAY.precipitation AS precip,
-            DAY.max_max_temperature AS temperature,
-            DAY.num_leftover AS leftovers
-        FROM DAY
-        {where}
-        GROUP BY DAY.date, DAY.time_open, DAY.time_closed, DAY.num_regular, DAY.num_oversize,
-            DAY.num_combined, DAY.num_fullest_combined, DAY.time_fullest_combined, DAY.bikes_registered, DAY.precipitation,
-            DAY.max_max_temperature, DAY.num_leftover;
-        """
+    totals_list = []
+    for day_id in day_ids:
+        # day = DayTotals()
+        day = db.fetch_day_totals(cursor=cursor,day_id=day_id)
+        totals_list.append(day)
+    return totals_list
 
-    dbrows = db.db_fetch(ttdb, sql)
-    # There mught be nothing.
-    ##ut.squawk(f"{sql=}\n")
-    if not dbrows:
-        return [SingleDay()]
-    # Look for properties in common (these are the ones we will copy over)
-    shared_properties = set(
-        prop
-        for prop in dbrows[0].__dict__.keys()
-        if prop[0] != "_" and prop in SingleDay.__annotations__
-    )
-    days = []
-    for r in dbrows:
-        # Copy any commmon properties
-        d = SingleDay()
-        for prop in shared_properties:
-            setattr(d, prop, getattr(r, prop))
-        # Fix up any that are to be VTimes
-        d.valet_open = VTime(d.valet_open)
-        d.valet_close = VTime(d.valet_close)
-        d.max_bikes_time = VTime(d.max_bikes_time)
-        d.dusk = VTime(d.dusk)
+    # where = ""
+    # if min_date:
+    #     where += f" DAY.date >= '{min_date}'"
+    # if max_date:
+    #     where += f"{' AND' if where else ''} DAY.date <= '{max_date}'"
+    # where = f"WHERE{where}" if where else ""
 
-        days.append(d)
-    return days
+    # sql = f"""
+    #     SELECT
+    #         DAY.date,
+    #         DAY.weekday dow,
+    #         DAY.time_open AS valet_open,
+    #         DAY.time_closed AS valet_close,
+    #         DAY.num_regular AS regular_bikes,
+    #         DAY.num_oversize AS oversize_bikes,
+    #         DAY.num_combined AS total_bikes,
+    #         DAY.num_fullest_combined AS max_bikes,
+    #         DAY.time_fullest_combined AS max_bikes_time,
+    #         DAY.bikes_registered,
+    #         DAY.precipitation AS precip,
+    #         DAY.max_max_temperature AS temperature,
+    #         DAY.num_leftover AS leftovers
+    #     FROM DAY
+    #     {where}
+    #     GROUP BY DAY.date, DAY.time_open, DAY.time_closed, DAY.num_regular, DAY.num_oversize,
+    #         DAY.num_combined, DAY.num_fullest_combined, DAY.time_fullest_combined, DAY.bikes_registered, DAY.precipitation,
+    #         DAY.max_max_temperature, DAY.num_leftover;
+    #     """
+
+    # dbrows = db.db_fetch(ttdb, sql)
+    # # There mught be nothing.
+    # ##ut.squawk(f"{sql=}\n")
+    # if not dbrows:
+    #     return [SingleDay()]
+    # # Look for properties in common (these are the ones we will copy over)
+    # shared_properties = set(
+    #     prop
+    #     for prop in dbrows[0].__dict__.keys()
+    #     if prop[0] != "_" and prop in SingleDay.__annotations__
+    # )
+    # days = []
+    # for r in dbrows:
+    #     # Copy any commmon properties
+    #     d = SingleDay()
+    #     for prop in shared_properties:
+    #         setattr(d, prop, getattr(r, prop))
+    #     # Fix up any that are to be VTimes
+    #     d.valet_open = VTime(d.valet_open)
+    #     d.valet_close = VTime(d.valet_close)
+    #     d.max_bikes_time = VTime(d.max_bikes_time)
+    #     d.dusk = VTime(d.dusk)
+
+    #     days.append(d)
+    # return days
 
 
 def get_common_properties(obj1: object, obj2: object) -> list:
