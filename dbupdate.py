@@ -239,41 +239,41 @@ def get_wx_changes(
 #     return results
 
 
-def get_sun_changes(
-    ttdb: sqlite3.Connection,
-    source_csv: str,
-    force: str,
-    onedate: str,
-) -> list[str]:
-    """Get SQL statements of changes from NRCan source."""
+# def get_sun_changes(
+#     ttdb: sqlite3.Connection,
+#     source_csv: str,
+#     force: str,
+#     onedate: str,
+# ) -> list[str]:
+#     """Get SQL statements of changes from NRCan source."""
 
-    where = f" where date = '{onedate}' " if onedate else ""
-    db_data = db.db_fetch(
-        ttdb,
-        "select " "   date, sunset " "from day " f"{where}" "order by date",
-    )
-    if not db_data:
-        return []
-    if args.verbose:
-        for row in db_data:
-            print(f"{row.date=};{row.sunset=}")
-    new = read_sun_data(source_csv)
+#     where = f" where date = '{onedate}' " if onedate else ""
+#     db_data = db.db_fetch(
+#         ttdb,
+#         "select " "   date, sunset " "from day " f"{where}" "order by date",
+#     )
+#     if not db_data:
+#         return []
+#     if args.verbose:
+#         for row in db_data:
+#             print(f"{row.date=};{row.sunset=}")
+#     new = read_sun_data(source_csv)
 
-    sqls = []
-    for existing in db_data:
-        if onedate and onedate != existing.date:
-            continue
+#     sqls = []
+#     for existing in db_data:
+#         if onedate and onedate != existing.date:
+#             continue
 
-        if (
-            (force or existing.sunset is None)
-            and existing.date in new
-            and new[existing.date].sunset is not None
-        ):
-            sqls.append(
-                f"update day set sunset = '{new[existing.date].sunset}' "
-                f"where date = '{existing.date}';"
-            )
-    return sqls
+#         if (
+#             (force or existing.sunset is None)
+#             and existing.date in new
+#             and new[existing.date].sunset is not None
+#         ):
+#             sqls.append(
+#                 f"update day set sunset = '{new[existing.date].sunset}' "
+#                 f"where date = '{existing.date}';"
+#             )
+#     return sqls
 
 
 # -------------------
@@ -400,21 +400,21 @@ if args.weather_csv:
         db.db_update(database, sql, commit=False)
     db.db_commit(database)
 
-sun_changes = []
-if args.sun_csv:
-    if args.verbose:
-        print("SUN\n")
-    sun_changes: list[str] = get_sun_changes(
-        database,
-        args.sun_csv,
-        args.force,
-        args.onedate,
-    )
-    for sql in sun_changes:
-        if args.verbose:
-            print(sql)
-        db.db_update(database, sql, commit=False)
-    db.db_commit(database)
+# sun_changes = []
+# if args.sun_csv:
+#     if args.verbose:
+#         print("SUN\n")
+#     sun_changes: list[str] = get_sun_changes(
+#         database,
+#         args.sun_csv,
+#         args.force,
+#         args.onedate,
+#     )
+#     for sql in sun_changes:
+#         if args.verbose:
+#             print(sql)
+#         db.db_update(database, sql, commit=False)
+#     db.db_commit(database)
 
 # day_end_changes = []
 # if args.day_end_csv:
@@ -435,8 +435,8 @@ if args.sun_csv:
 print(f"Updated database '{args.database_file}':")
 if args.weather_csv:
     print(f"   {len(weather_changes):3d} weather updates from '{args.weather_csv}'")
-if args.sun_csv:
-    print(f"   {len(sun_changes):3d} sun updates from '{args.sun_csv}'")
+# if args.sun_csv:
+#     print(f"   {len(sun_changes):3d} sun updates from '{args.sun_csv}'")
 # if args.day_end_csv:
 #     print(
 #         f"   {len(day_end_changes):3d} day_end updates from '{args.day_end_csv}'"
