@@ -47,27 +47,27 @@ class NewVals:
         self,
         # registrations: int = None,
         # abandoned: int = None,
-        precip: float = None,
-        max_temp: float = None,
-        min_temp: float = None,
-        mean_temp: float = None,
+        precipitation: float = None,
+        max_temperature: float = None,
+        min_temperature: float = None,
+        mean_temperature: float = None,
         rainfall: float = None,
         # sunset: str = None,
     ) -> None:
         # self.registrations = registrations
         # self.abandoned = abandoned
-        self.precip = precip
-        self.max_temp = max_temp
-        self.min_temp = min_temp
-        self.mean_temp = mean_temp
+        self.precipitation = precipitation
+        self.max_temperature = max_temperature
+        self.min_temperature = min_temperature
+        self.mean_temperature = mean_temperature
         self.rainfall = rainfall
         # self.sunset = sunset
 
     def dump(self):
         """Dump object contents. Mostly here for debug work."""
         return (
-            f"{self.precip=}; "
-            f"{self.max_temp=}; {self.min_temp=}; {self.mean_temp=}"
+            f"{self.precipitation=}; "
+            f"{self.max_temperature=}; {self.min_temperature=}; {self.mean_temperature=}"
         )
 
 
@@ -123,11 +123,11 @@ def read_wx_data(source_csv: str) -> dict[str, NewVals]:
             if not thisdate:
                 continue
             results[thisdate] = NewVals(
-                precip=oneval(row, 23, want_num=True),
+                precipitation=oneval(row, 23, want_num=True),
                 # temp=oneval(row, 14, want_num=True),    # max
-                min_temp=oneval(row, 11, want_num=True),
-                max_temp=oneval(row, 9, want_num=True),
-                mean_temp=oneval(row, 13, want_num=True),
+                min_temperature=oneval(row, 11, want_num=True),
+                max_temperature=oneval(row, 9, want_num=True),
+                mean_temperature=oneval(row, 13, want_num=True),
             )
     return results
 
@@ -160,21 +160,21 @@ def get_wx_changes(
             continue
 
         if (
-            (force or existing.precip_mm is None)
+            (force or existing.precipitation is None)
             and existing.date in new
-            and new[existing.date].precip is not None
+            and new[existing.date].precipitation is not None
         ):
             sqls.append(
-                f"update day set precipitation = {new[existing.date].precip} "
+                f"update day set precipitation = {new[existing.date].precipitation} "
                 f"where date = '{existing.date}';"
             )
         if (
-            (force or not existing.temp)
+            (force or not existing.max_temperature)
             and existing.date in new
-            and new[existing.date].max_temp is not None
+            and new[existing.date].max_temperature is not None
         ):
             sqls.append(
-                f"update day set max_temperature = {new[existing.date].max_temp} "
+                f"update day set max_temperature = {new[existing.date].max_temperature} "
                 f"where date = '{existing.date}';"
             )
     return sqls
