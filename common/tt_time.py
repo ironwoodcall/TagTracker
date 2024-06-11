@@ -81,7 +81,7 @@ class VTime(str):
             return f'{hours:02}:{minutes:02}', hours*60+minutes
         return '',None
 
-    def __init__(self, maybe_time, allow_large=False): #pylint:disable=unused-argument
+    def __init__(self, maybe_time:str="", allow_large=False): #pylint:disable=unused-argument
         """This is here only so that IDE will know the structure of a VTime."""
         if False: # pylint: disable=using-constant-test
             self.num:int = None

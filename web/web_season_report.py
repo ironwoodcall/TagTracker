@@ -29,77 +29,13 @@ import web_common as cc
 import datacolors as dc
 import web_histogram
 import common.tt_dbutil as db
+from common.tt_time import VTime
 
 BLOCK_XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 BLOCK_X_TOP_COLOR = "red"
 BLOCK_Y_TOP_COLOR = "royalblue"
 BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
-
-
-def totals_table(ytd_totals: db.MultiDayTotals,today_totals:db.MultiDayTotals):
-    """Print a table of YTD totals and today totals."""
-
-
-    def _p(val) -> str:
-        if isinstance(val,int):
-            return(f"{val:,}")
-        elif isinstance(val,float):
-            return(f"{val:,.1f}")
-        elif isinstance(val,str):
-            return(f"{val:>}")
-        else:
-            return("")
-
-
-    most_parked_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_parked_combined_date
-    )
-    fullest_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_fullest_combined_date)
-
-    html_tr_start = "<tr><td style='text-align:left'>"
-    html_tr_mid = "</td><td style='text-align:right'>"
-    html_tr_end = "</td></tr>\n"
-    print("")
-    print(
-        f"""
-        <table class='general_table'>
-          <tr><th>Summary</th><th>YTD</th><th>Today</th></tr>
-        {html_tr_start}Total bikes parked (visits){html_tr_mid}
-          {_p(ytd_totals.total_parked_combined)}{html_tr_mid}
-          {_p(today_totals.total_parked_combined)}{html_tr_end}
-        {html_tr_start}&nbsp;&nbsp;&nbsp;Regular bikes parked{html_tr_mid}
-          {_p(ytd_totals.total_parked_regular)}{html_tr_mid}
-          {_p(today_totals.total_parked_regular)}{html_tr_end}
-        {html_tr_start}&nbsp;&nbsp;&nbsp;Oversize bikes parked{html_tr_mid}
-          {_p(ytd_totals.total_parked_oversize)}{html_tr_mid}
-          {_p(today_totals.total_parked_oversize)}{html_tr_end}
-        {html_tr_start}Average bikes / day{html_tr_mid}
-          {_p(ytd_totals.total_parked_combined/ytd_totals.total_days_open)}{html_tr_mid}
-          {_p("" if not today_totals.total_days_open else today_totals.total_parked_combined/today_totals.total_days_open)}{html_tr_end}
-        {html_tr_start}Total bike registrations{html_tr_mid}
-          {_p(ytd_totals.total_bikes_registered)}{html_tr_mid}
-          {_p(today_totals.total_bikes_registered)}{html_tr_end}
-        {html_tr_start}Total days open{html_tr_mid}
-          {_p(ytd_totals.total_days_open)}{html_tr_mid}
-          {_p(today_totals.total_days_open)}{html_tr_end}
-        {html_tr_start}Total hours open{html_tr_mid}
-          {_p(ytd_totals.total_hours_open)}{html_tr_mid}
-          {_p(today_totals.total_hours_open)}{html_tr_end}
-        {html_tr_start}Bikes left{html_tr_mid}
-          {_p(ytd_totals.total_remaining_combined)}{html_tr_mid}
-          {_p(today_totals.total_remaining_combined)}{html_tr_end}
-        {html_tr_start}Most bikes parked
-          (<a href='{most_parked_link}'>{ytd_totals.max_parked_combined_date}</a>){html_tr_mid}
-          {_p(ytd_totals.max_parked_combined)}{html_tr_mid}
-          {_p(today_totals.max_parked_combined)}{html_tr_end}
-        {html_tr_start}Most bikes at once
-          (<a href='{fullest_link}'>{ytd_totals.max_fullest_combined_date}</a>){html_tr_mid}
-          {_p(ytd_totals.max_fullest_combined)}{html_tr_mid}
-          {_p(today_totals.max_fullest_combined)}{html_tr_end}
-        </table>
-    """
-    )
 
 
 def _freq_nav_buttons(pages_back) -> str:
@@ -235,19 +171,146 @@ def mini_freq_tables(ttdb: sqlite3.Connection):
         print("<br>")
 
 
+def totals_table(conn: sqlite3.Connection):
+    """Quick summary table of YTD, yesterday, and today totals."""
+
+    def _p(val) -> str:
+        """Format a single value."""
+        if isinstance(val, int):
+            return f"{val:,}"
+        elif isinstance(val, float):
+            return f"{val:,.1f}"
+        elif isinstance(val, str):
+            return f"{val:>}"
+        else:
+            return ""
+
+    def html_row(label, ytd_value, yesterday_value, today_value):
+        """Print a single row of data."""
+        return (
+            f"<tr><td style='text-align:left'>{label}</td>"
+            f"<td style='text-align:right'>{_p(ytd_value)}</td>"
+            f"<td style='text-align:right'>{_p(yesterday_value)}</td>"
+            f"<td style='text-align:right'>{_p(today_value)}</td></tr>\n"
+        )
+
+    today = ut.date_str("today")
+    selected_year = today[:4]
+    yesterday = ut.date_str("yesterday")
+
+    # Fetch data for YTD, Yesterday, and Today
+    ytd_totals = db.MultiDayTotals.fetch_from_db(
+        conn=conn, orgsite_id=1, start_date=f"{selected_year}-01-01", end_date=today
+    )
+    yesterday_totals = db.MultiDayTotals.fetch_from_db(
+        conn=conn, orgsite_id=1, start_date=yesterday, end_date=yesterday
+    )
+    today_totals = db.MultiDayTotals.fetch_from_db(
+        conn=conn, orgsite_id=1, start_date=today, end_date=today
+    )
+
+    most_parked_link = cc.selfref(
+        what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_parked_combined_date
+    )
+    fullest_link = cc.selfref(
+        what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_fullest_combined_date
+    )
+
+    rows = [
+        (
+            "Total bikes parked (visits)",
+            ytd_totals.total_parked_combined,
+            yesterday_totals.total_parked_combined,
+            today_totals.total_parked_combined,
+        ),
+        (
+            "&nbsp;&nbsp;&nbsp;Regular bikes parked",
+            ytd_totals.total_parked_regular,
+            yesterday_totals.total_parked_regular,
+            today_totals.total_parked_regular,
+        ),
+        (
+            "&nbsp;&nbsp;&nbsp;Oversize bikes parked",
+            ytd_totals.total_parked_oversize,
+            yesterday_totals.total_parked_oversize,
+            today_totals.total_parked_oversize,
+        ),
+        (
+            "Average bikes / day",
+            round(ytd_totals.total_parked_combined / ytd_totals.total_days_open),
+            "-",
+            "-",
+        ),
+        (
+            "Total bike registrations",
+            ytd_totals.total_bikes_registered,
+            yesterday_totals.total_bikes_registered,
+            today_totals.total_bikes_registered,
+        ),
+        (
+            "Total days open",
+            ytd_totals.total_days_open,
+            yesterday_totals.total_days_open,
+            today_totals.total_days_open,
+        ),
+        (
+            "Total hours open",
+            VTime(ytd_totals.total_hours_open * 60, allow_large=True),
+            VTime(
+                (
+                    yesterday_totals.total_hours_open * 60
+                    if yesterday_totals.total_hours_open
+                    else ""
+                ),
+                allow_large=True,
+            ),
+            VTime(
+                (
+                    today_totals.total_hours_open * 60
+                    if today_totals.total_hours_open
+                    else ""
+                ),
+                allow_large=True,
+            ),
+        ),
+        (
+            "Bikes left",
+            ytd_totals.total_remaining_combined,
+            yesterday_totals.total_remaining_combined,
+            today_totals.total_remaining_combined,
+        ),
+        (
+            f"Most bikes parked (<a href='{most_parked_link}'>"
+            f"{ytd_totals.max_parked_combined_date}</a>)",
+            ytd_totals.max_parked_combined,
+            "-",
+            "-",
+        ),
+        (
+            f"Most bikes at once (<a href='{fullest_link}'>"
+            f"{ytd_totals.max_fullest_combined_date}</a>)",
+            ytd_totals.max_fullest_combined,
+            yesterday_totals.max_fullest_combined,
+            today_totals.max_fullest_combined,
+        ),
+    ]
+
+    print("")
+    print("<table class='general_table'>")
+    print(
+        f"  <tr><th>Summary</th><th>YTD<br>{selected_year}</th>"
+        f"<th>Yesterday<br>{ut.dow_str(yesterday)}</th>"
+        f"<th>Today<br>{ut.dow_str(today)}</th></tr>"
+    )
+
+    for label, ytd_value, yesterday_value, today_value in rows:
+        print(html_row(label, ytd_value, yesterday_value, today_value))
+
+    print("</table>")
+
+
 def season_summary(ttdb: sqlite3.Connection):
     """Print super-brief summary report of the current year."""
-
-    today = ut.date_str('today')
-    selected_year = today[:4]
-
-    # all_days = cc.get_days_data(
-    #     ttdb, min_date=f"{selected_year}-01-01", max_date=f"{selected_year}-12-31"
-    # )
-
-
-    # FIXME: This call hardwires orgiste_id
-    days_totals = db.MultiDayTotals.fetch_from_db(conn=ttdb,orgsite_id=1,start_date=f"{selected_year}-01-01",end_date=today)
 
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
@@ -255,16 +318,13 @@ def season_summary(ttdb: sqlite3.Connection):
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
     summaries_link = cc.selfref(what=cc.WHAT_DATERANGE)
 
-    print(
-        f"<h1 style='display: inline;'>{cc.titleize('Quick Overview')}</h1><br><br>"
-    )
+    print(f"<h1 style='display: inline;'>{cc.titleize('Quick Overview')}</h1><br><br>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
-    # FIXME: hard-wired orgsite_id
-    today_totals = db.MultiDayTotals.fetch_from_db(conn=ttdb,orgsite_id=1,start_date=today,end_date=today)
+
     # today_totals = cc.MultiDayTotals.fetch_from_db(conn=ttdb,orgsite_id=1,start_date="2024-06-03",end_date="2024-06-03")
     # print(f"{today_totals=}")
-    totals_table(days_totals,today_totals)
+    totals_table(conn=ttdb)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##mini_freq_tables(ttdb)

@@ -29,6 +29,9 @@ import re
 import collections
 import random
 import string
+from pathlib import Path
+
+
 # import client_base_config as cfg
 from common.tt_time import VTime
 from common.tt_tag import TagID
@@ -159,11 +162,13 @@ def dow_int(date_or_dayname: str) -> int:
     return None
 
 
-def dow_str(iso_dow: int, dow_str_len: int = 0) -> str:
-    """Return int ISO day of week as a str of length dow_str_len.
+def dow_str(iso_dow_or_date: int, dow_str_len: int = 0) -> str:
+    """Return YYYY-MM-DD or ISO day of week as a str of length dow_str_len.
 
     If dow_len is not specified then returns whole dow name.
     """
+    if isinstance(iso_dow_or_date,str):
+        iso_dow = dow_int(iso_dow_or_date)
     iso_dow = str(iso_dow)
     dow_str_len = dow_str_len if dow_str_len else 99
     d = datetime.datetime.strptime(f"2023-1-{iso_dow}", "%Y-%W-%u")
@@ -270,10 +275,73 @@ def splitline(inp: str) -> list[str]:
 
 
 def get_version() -> str:
-    """Return system version number from changelog.txt.
+    """Return git repo ref and branch name."""
+    current_path = Path.cwd()
 
-    If it looks like a git repo, will also try to include a ref from that.
-    """
+    # Find the .git directory
+    while current_path != current_path.parent:
+        git_dir = current_path / ".git"
+        if git_dir.exists():
+            break
+        current_path = current_path.parent
+    else:
+        return "Could not find .git directory"
+
+    # Handle both directory and file (submodules or worktrees) cases for .git
+    if git_dir.is_file():
+        with open(git_dir, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            if content.startswith("gitdir:"):
+                git_dir = (current_path / content[7:].strip()).resolve()
+            else:
+                return "Invalid .git file content"
+
+    # Read the HEAD file
+    git_head = git_dir / "HEAD"
+    if not git_head.exists():
+        return "HEAD file does not exist"
+
+    with git_head.open("r", encoding="utf-8") as f:
+        ref_path = ""
+        for line in f:
+            r = re.match(r"^ref: *(refs.*)", line)
+            if r:
+                ref_path = r.group(1)
+                break
+            else:
+                # If HEAD contains a commit hash directly (detached HEAD)
+                ref_path = line.strip()
+                if re.match(r"^[0-9a-f]{40}$", ref_path):
+                    return ref_path[:7]
+
+        if not ref_path:
+            return "Could not find ref path in HEAD"
+
+    ref_full_path = git_dir / ref_path
+    if not ref_full_path.exists():
+        return f"Ref full path {ref_full_path} does not exist"
+
+    with ref_full_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            if line:
+                git_str = line.strip()
+                break
+
+    git_hex = git_str[:7]
+
+    # Get the branch name if possible
+    r = re.match(r"^refs/heads/(.*)", ref_path)
+    if r:
+        branch_name = r.group(1)
+        git_str = f"{git_hex} '{branch_name}'"
+    else:
+        git_str = git_hex
+
+    return git_str
+
+
+def OLD_get_version() -> str:
+    """Return git repo ref."""
     version_str = ""
 
     # Git ref
