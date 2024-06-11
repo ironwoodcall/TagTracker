@@ -36,7 +36,7 @@ import web_block_report
 from web_day_detail import one_day_tags_report, day_frequencies_report
 import web_season_report
 import web_tags_report
-import web_period_summaries
+import web.web_daterange_summaries as web_daterange_summaries
 import common.tt_constants as k
 import common.tt_dbutil as db
 import web.web_base_config as wcfg
@@ -260,6 +260,10 @@ def webpage_footer(ttdb: sqlite3.Connection):
 
 
 # =================================================================
+
+org_handle = "no_org"   # FIXME
+caller_org = "no_org"   # FIXME - read from web auth via env
+
 print("Content-type: text/html\n\n\n")
 
 TagID.uc(wcfg.TAGS_UPPERCASE)
@@ -319,6 +323,7 @@ html_head()
 
 if not what:
     sys.exit()
+
 if what == cc.WHAT_TAG_HISTORY:
     one_tag_history_report(database, tag)
 elif what == cc.WHAT_BLOCKS:
@@ -348,17 +353,17 @@ elif what == cc.WHAT_DATA_ENTRY:
 elif what == cc.WHAT_AUDIT:
     web_audit_report(database, "today", VTime("now"))
 elif what in [
-    cc.WHAT_PERIOD,
-    cc.WHAT_PERIOD_WEEK,
-    cc.WHAT_PERIOD_MONTH,
-    cc.WHAT_PERIOD_QUARTER,
-    cc.WHAT_PERIOD_YEAR,
+    cc.WHAT_DATERANGE,
+    cc.WHAT_DATERANGE_WEEK,
+    cc.WHAT_DATERANGE_MONTH,
+    cc.WHAT_DATERANGE_QUARTER,
+    cc.WHAT_DATERANGE_YEAR,
 ]:
-    web_period_summaries.period_summary(database, what)
-elif what == cc.WHAT_PERIOD_CUSTOM:
+    web_daterange_summaries.period_summary(database, what)
+elif what == cc.WHAT_DATERANGE_CUSTOM:
     date_start = query_params.get("start_date", ["0000-00-00"])[0]
     date_end = query_params.get("end_date", ["9999-99-99"])[0]
-    web_period_summaries.period_summary(database,period_type=what,start_date=date_start,end_date=date_end)
+    web_daterange_summaries.period_summary(database,period_type=what,start_date=date_start,end_date=date_end)
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)

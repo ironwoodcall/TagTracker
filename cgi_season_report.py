@@ -36,13 +36,13 @@ BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
-def totals_table(totals: cc.AllDaysTotals,table_title:str = 'Summary'):
+def totals_table(totals: cc.MultiDayTotals,table_title:str = 'Summary'):
     """Print a table of YTD totals."""
 
     most_parked_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=totals.max_total_bikes_date
+        what=cc.WHAT_ONE_DAY, qdate=totals.max_parked_combined_date
     )
-    fullest_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=totals.max_max_bikes_date)
+    fullest_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=totals.max_fullest_combined_date)
 
     html_tr_start = "<tr><td style='text-align:left'>"
     html_tr_mid = "</td><td style='text-align:right'>"
@@ -53,25 +53,25 @@ def totals_table(totals: cc.AllDaysTotals,table_title:str = 'Summary'):
         <table class='general_table'>
           <tr><th colspan=2>{table_title}</th></tr>
         {html_tr_start}Total bikes parked (visits){html_tr_mid}
-          {totals.total_total_bikes:,}{html_tr_end}
+          {totals.total_parked_combined:,}{html_tr_end}
         {html_tr_start}&nbsp;&nbsp;&nbsp;Regular bikes parked{html_tr_mid}
-          {totals.total_regular_bikes:,}{html_tr_end}
+          {totals.total_parked_regular:,}{html_tr_end}
         {html_tr_start}&nbsp;&nbsp;&nbsp;Oversize bikes parked{html_tr_mid}
-          {totals.total_oversize_bikes:,}{html_tr_end}
+          {totals.total_parked_oversize:,}{html_tr_end}
         {html_tr_start}Average bikes / day{html_tr_mid}
-          {(totals.total_total_bikes/totals.total_valet_days):0.1f}{html_tr_end}
+          {(totals.total_parked_combined/totals.total_days_open):0.1f}{html_tr_end}
         {html_tr_start}Total bike registrations{html_tr_mid}
-          {totals.total_registrations:,}{html_tr_end}
+          {totals.total_bikes_registered:,}{html_tr_end}
         {html_tr_start}Total days open{html_tr_mid}
-          {totals.total_valet_days:,}{html_tr_end}
+          {totals.total_days_open:,}{html_tr_end}
         {html_tr_start}Total hours open{html_tr_mid}
-          {totals.total_valet_hours:,.1f}{html_tr_end}
+          {totals.total_hours_open:,.1f}{html_tr_end}
         {html_tr_start}Most bikes parked
-            (<a href='{most_parked_link}'>{totals.max_total_bikes_date}</a>)
-          {html_tr_mid}{totals.max_total_bikes}{html_tr_end}
+            (<a href='{most_parked_link}'>{totals.max_parked_combined_date}</a>)
+          {html_tr_mid}{totals.max_parked_combined}{html_tr_end}
         {html_tr_start}Most bikes at once
-            (<a href='{fullest_link}'>{totals.max_max_bikes_date}</a>)
-          {html_tr_mid}{totals.max_max_bikes}{html_tr_end}
+            (<a href='{fullest_link}'>{totals.max_fullest_combined_date}</a>)
+          {html_tr_mid}{totals.max_fullest_combined}{html_tr_end}
         </table>
     """
     )
@@ -224,7 +224,7 @@ def season_summary(ttdb: sqlite3.Connection):
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
-    summaries_link = cc.selfref(what=cc.WHAT_PERIOD)
+    summaries_link = cc.selfref(what=cc.WHAT_DATERANGE)
 
     print(
         f"<h1 style='display: inline;'>{cc.titleize(': Current Year Summary')}</h1><br><br>"
@@ -331,11 +331,11 @@ def season_detail(
     # Set up colour maps for shading cell backgrounds
     max_parked_colour = dc.Dimension(interpolation_exponent=2)
     max_parked_colour.add_config(0, "white")
-    max_parked_colour.add_config(days_totals.max_total_bikes, "green")
+    max_parked_colour.add_config(days_totals.max_parked_combined, "green")
 
     max_full_colour = dc.Dimension(interpolation_exponent=2)
     max_full_colour.add_config(0, "white")
-    max_full_colour.add_config(days_totals.max_max_bikes, "teal")
+    max_full_colour.add_config(days_totals.max_fullest_combined, "teal")
 
     max_left_colour = dc.Dimension()
     max_left_colour.add_config(0, "white")
@@ -348,7 +348,7 @@ def season_detail(
 
     max_precip_colour = dc.Dimension(interpolation_exponent=1)
     max_precip_colour.add_config(0, "white")
-    max_precip_colour.add_config(days_totals.max_precip, "azure")
+    max_precip_colour.add_config(days_totals.max_precipitation, "azure")
 
     print(f"<h1>{cc.titleize(': Detail')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")

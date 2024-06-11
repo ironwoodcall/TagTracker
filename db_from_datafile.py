@@ -623,7 +623,7 @@ def insert_into_visit(
                 day_id,
                 visit.time_in,
                 visit.time_out,
-                visit.duration(),
+                visit.duration('24:00'),
                 biketype,
                 visit.tagid,
             ),

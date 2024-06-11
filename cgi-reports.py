@@ -343,14 +343,14 @@ elif what == cc.WHAT_DATA_ENTRY:
 elif what == cc.WHAT_AUDIT:
     web_audit_report(database, "today", VTime("now"))
 elif what in [
-    cc.WHAT_PERIOD,
-    cc.WHAT_PERIOD_WEEK,
-    cc.WHAT_PERIOD_MONTH,
-    cc.WHAT_PERIOD_QUARTER,
-    cc.WHAT_PERIOD_YEAR,
+    cc.WHAT_DATERANGE,
+    cc.WHAT_DATERANGE_WEEK,
+    cc.WHAT_DATERANGE_MONTH,
+    cc.WHAT_DATERANGE_QUARTER,
+    cc.WHAT_DATERANGE_YEAR,
 ]:
     cgi_period_summaries.period_summary(database, what)
-elif what == cc.WHAT_PERIOD_CUSTOM:
+elif what == cc.WHAT_DATERANGE_CUSTOM:
     date_start = query_params.get("start_date", ["0000-00-00"])[0]
     date_end = query_params.get("end_date", ["9999-99-99"])[0]
     cgi_period_summaries.period_summary(database,period_type=what,start_date=date_start,end_date=date_end)

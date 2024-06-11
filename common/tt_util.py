@@ -380,7 +380,7 @@ def _calculate_visit_frequencies(
 
 
 def calculate_visit_modes(
-    durations_list: list, category_width: int = 30
+    durations_list: list, category_width: int = BLOCK_DURATION
 ) -> tuple[list[VTime], int]:
     """Calculate the mode(s) for the list of durations.
 
@@ -398,7 +398,7 @@ def calculate_visit_modes(
     mosts = freq_list.most_common()
     occurences = mosts[0][1]
     modes_numeric = sorted([element for element, count in mosts if count == occurences])
-    modes_list = [f"{VTime(x+category_width/2).tidy}" for x in modes_numeric]
+    modes_list = [f"{VTime(x+category_width/2).short}" for x in modes_numeric]
     # modes_list = []
     # modes_list = [x.tidy for x in modes_list]
 

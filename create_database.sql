@@ -44,7 +44,7 @@ CREATE TABLE ORG (
     UNIQUE (org_handle)
 );
 
-INSERT INTO ORG (org_handle) VALUES ("no_org");
+INSERT INTO ORG (org_handle,org_name,can_view_orgs) VALUES ("no_org","Default Org","*");
 
 -- A site is an arbitrary name of a location or event an org manages.
 -- It affects aggregations of an org's data but is not tied to authorization

@@ -25,7 +25,10 @@ import sqlite3
 import sys
 import os
 from typing import Iterable
-from collections import defaultdict
+# from collections import defaultdict
+from dataclasses import dataclass, field
+from statistics import mean,median
+
 from common.tt_trackerday import TrackerDay
 from common.tt_daysummary import DaySummary, DayTotals, PeriodDetail
 from common.tt_tag import TagID
@@ -33,6 +36,7 @@ from common.tt_time import VTime
 from common.tt_constants import TagTrackerError
 from common.tt_biketag import BikeTag
 from common.tt_bikevisit import BikeVisit
+import common.tt_util as ut
 import common.tt_constants as k
 
 
@@ -335,7 +339,7 @@ def db_latest(ttdb: sqlite3.Connection) -> str:
 
 
 def fetch_day_totals(cursor: sqlite3.Cursor, day_id: int) -> DayTotals:
-    """Fetch the full DayTotals -- essentially a DAY row."""
+    """Fetch the full DayTotals -- essentially a single DAY row."""
 
     column_names = [
         "date",
@@ -532,6 +536,180 @@ def db2day(ttdb: sqlite3.Connection, day_id:int) -> TrackerDay:
 
     day.determine_tagids_conformity()
     return day
+
+
+@dataclass
+class MultiDayTotals:
+    """Summary data for multiple days."""
+
+    total_parked_combined: int = 0
+    total_parked_regular: int = 0
+    total_parked_oversize: int = 0
+    max_parked_combined: int = 0
+    max_parked_combined_date: str = ""
+    max_fullest_combined: int = 0
+    max_fullest_combined_date: str = ""
+    total_bikes_registered: int = 0
+    max_bikes_registered: int = 0
+    min_max_temperature: float = None
+    max_max_temperature: float = None
+    total_precipitation: float = 0
+    max_precipitation: float = 0
+    total_remaining_combined: int = 0
+    max_remaining_combined: int = 0
+    total_hours_open: float = 0
+    total_days_open: int = 0
+    total_visit_hours: float = 0
+    visits_mean: str = ""
+    visits_median: str = ""
+    num_visit_modes_occurrences = 0
+    visits_modes: list = field(default_factory=list)
+
+    @staticmethod
+    def fetch_from_db(
+        conn: sqlite3.Connection,
+        orgsite_id: int,
+        start_date: str = "",
+        end_date: str = "",
+    ) -> "MultiDayTotals":
+
+        start_date = start_date or "0000-00-00"
+        end_date = end_date or "9999-99-99"
+
+        totals = MultiDayTotals()
+
+        # Query for combined aggregates from DAY
+        query_combined = """
+        SELECT
+            SUM(num_parked_combined) AS total_parked_combined,
+            SUM(num_parked_regular) AS total_parked_regular,
+            SUM(num_parked_oversize) AS total_parked_oversize,
+            SUM(bikes_registered) AS total_bikes_registered,
+            MAX(bikes_registered) AS max_bikes_registered,
+            MIN(max_temperature) AS min_max_temperature,
+            MAX(max_temperature) AS max_max_temperature,
+            SUM(precipitation) AS total_precipitation,
+            MAX(precipitation) AS max_precipitation,
+            SUM(num_remaining_combined) AS total_remaining_combined,
+            MAX(num_remaining_combined) AS max_remaining_combined,
+            SUM((julianday(time_closed) - julianday(time_open)) * 24) AS total_hours_open,
+            COUNT(DISTINCT date) AS total_days_open
+        FROM DAY
+        WHERE orgsite_id = ? AND date BETWEEN ? AND ?;
+        """
+
+        # Query for max combined bikes
+        query_max_combined_bikes = """
+        SELECT
+            num_parked_combined AS max_parked_combined,
+            date AS max_parked_combined_date
+        FROM DAY
+        WHERE orgsite_id = ? AND date BETWEEN ? AND ?
+        ORDER BY num_parked_combined DESC
+        LIMIT 1;
+        """
+
+        # Query for max fullest combined
+        query_max_fullest_combined = """
+        SELECT
+            num_fullest_combined AS max_fullest_combined,
+            date AS max_fullest_combined_date
+        FROM DAY
+        WHERE orgsite_id = ? AND date BETWEEN ? AND ?
+        ORDER BY num_fullest_combined DESC
+        LIMIT 1;
+        """
+
+        # Query for total visit hours
+        query_total_visit_hours = """
+        SELECT
+            SUM(duration) / 60.0 AS total_visit_hours
+        FROM
+            VISIT
+        WHERE
+            day_id IN (
+                SELECT id FROM DAY
+                WHERE orgsite_id = ?
+                AND date BETWEEN ? AND ?
+            );
+        """
+
+        # Query for individual visit durations
+        query_visit_durations = """
+        SELECT
+            duration
+        FROM
+            VISIT
+        WHERE
+            day_id IN (
+                SELECT id FROM DAY
+                WHERE orgsite_id = ?
+                AND date BETWEEN ? AND ?
+            );
+        """
+
+        with conn:
+            cursor = conn.cursor()
+
+            # Execute combined query and set results to totals
+            cursor.execute(query_combined, (orgsite_id, start_date, end_date))
+            result = cursor.fetchone()
+            (
+                totals.total_parked_combined,
+                totals.total_parked_regular,
+                totals.total_parked_oversize,
+                totals.total_bikes_registered,
+                totals.max_bikes_registered,
+                totals.min_max_temperature,
+                totals.max_max_temperature,
+                totals.total_precipitation,
+                totals.max_precipitation,
+                totals.total_remaining_combined,
+                totals.max_remaining_combined,
+                totals.total_hours_open,
+                totals.total_days_open,
+            ) = result
+
+            # Execute max combined bikes query and set results to totals
+            cursor.execute(query_max_combined_bikes, (orgsite_id, start_date, end_date))
+            max_combined_bikes_result = cursor.fetchone()
+            if max_combined_bikes_result:
+                (
+                    totals.max_parked_combined,
+                    totals.max_parked_combined_date,
+                ) = max_combined_bikes_result
+
+            # Execute max fullest combined query and set results to totals
+            cursor.execute(
+                query_max_fullest_combined, (orgsite_id, start_date, end_date)
+            )
+            max_fullest_combined_result = cursor.fetchone()
+            if max_fullest_combined_result:
+                (
+                    totals.max_fullest_combined,
+                    totals.max_fullest_combined_date,
+                ) = max_fullest_combined_result
+
+            # Execute total visit hours query and set results to totals
+            cursor.execute(query_total_visit_hours, (orgsite_id, start_date, end_date))
+            total_visit_hours_result = cursor.fetchone()
+            if total_visit_hours_result:
+                totals.total_visit_hours = total_visit_hours_result[0]
+
+            # Execute individual visit durations query and process results
+            cursor.execute(query_visit_durations, (orgsite_id, start_date, end_date))
+            visit_durations = [row[0] for row in cursor.fetchall()]
+
+            # Calculate mean, median, and modes from visit_durations
+            if visit_durations:
+                totals.visits_mean = mean(visit_durations)
+                totals.visits_median = median(visit_durations)
+                totals.visits_modes, totals.num_visit_modes_occurrences = (
+                    ut.calculate_visit_modes(visit_durations)
+                )
+
+        # Now 'totals' object has all the required data populated
+        return totals
 
 
 def db_connect(db_file) -> sqlite3.Connection:

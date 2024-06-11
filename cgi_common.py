@@ -60,13 +60,13 @@ WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
 WHAT_SUMMARY_FREQUENCIES = "SQ"
 WHAT_AUDIT = "Au"
-WHAT_PERIOD = "PS"
-WHAT_PERIOD_FOREVER = "pF"
-WHAT_PERIOD_YEAR = "pY"
-WHAT_PERIOD_QUARTER = "pQ"
-WHAT_PERIOD_MONTH = "pM"
-WHAT_PERIOD_WEEK = "pW"
-WHAT_PERIOD_CUSTOM = "pC"
+WHAT_DATERANGE = "PS"
+WHAT_DATERANGE_FOREVER = "pF"
+WHAT_DATERANGE_YEAR = "pY"
+WHAT_DATERANGE_QUARTER = "pQ"
+WHAT_DATERANGE_MONTH = "pM"
+WHAT_DATERANGE_WEEK = "pW"
+WHAT_DATERANGE_CUSTOM = "pC"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"
@@ -432,26 +432,26 @@ class SingleDay:
 
 
 @dataclass
-class AllDaysTotals:
+class MultiDayTotals:
     """Summary data for all days."""
 
-    total_total_bikes: int = 0
-    total_regular_bikes: int = 0
-    total_oversize_bikes: int = 0
-    max_total_bikes: int = 0
-    max_total_bikes_date: str = ""
-    max_max_bikes: int = 0
-    max_max_bikes_date: str = ""
-    total_registrations: int = 0
-    max_registrations: int = 0
-    min_temperature: float = None
+    total_parked_combined: int = 0
+    total_parked_regular: int = 0
+    total_parked_oversize: int = 0
+    max_parked_combined: int = 0
+    max_parked_combined_date: str = ""
+    max_fullest_combined: int = 0
+    max_fullest_combined_date: str = ""
+    total_bikes_registered: int = 0
+    max_bikes_registered: int = 0
+    min_max_temperature: float = None
     max_temperature: float = None
-    total_precip: float = 0
-    max_precip: float = 0
-    total_leftovers: int = 0
-    max_leftovers: int = 0
-    total_valet_hours: float = 0
-    total_valet_days: int = 0
+    total_precipitation: float = 0
+    max_precipitation: float = 0
+    total_remaining_combined: int = 0
+    max_remaining_combined: int = 0
+    total_hours_open: float = 0
+    total_days_open: int = 0
     total_visit_hours: float = 0
     visits_mean: str = ""
     visits_median: str = ""
@@ -593,7 +593,7 @@ def get_season_summary_data(
     ttdb: sqlite3.Connection,
     season_dailies: list[SingleDay],
     include_visit_stats: bool = False,
-) -> AllDaysTotals:
+) -> MultiDayTotals:
     """Fetch whole-season data, limited to date range represented in season_dailies.
 
     If include_visit_stats is True then includes those, else they are undefined.
@@ -609,23 +609,23 @@ def get_season_summary_data(
     dates_list = [d.date for d in season_dailies]
     where = f'where date >= "{min(dates_list)}" and date <= "{max(dates_list)}"'
 
-    summ = AllDaysTotals()
+    summ = MultiDayTotals()
     set_obj_from_sql(
         ttdb,
         f"""
         select
-            sum(parked_total) total_total_bikes,
-            sum(parked_regular) total_regular_bikes,
-            sum(parked_oversize) total_oversize_bikes,
-            sum(registrations) total_registrations,
-            max(registrations) max_registrations,
-            min(temp) min_temperature,
+            sum(parked_total) total_parked_combined,
+            sum(parked_regular) total_parked_regular,
+            sum(parked_oversize) total_parked_oversize,
+            sum(registrations) total_bikes_registered,
+            max(registrations) max_bikes_registered,
+            min(temp) min_max_temperature,
             max(temp) max_temperature,
-            sum(precip_mm) total_precip,
-            max(precip_mm) max_precip,
-            sum(leftover) total_leftovers,
-            max(leftover) max_leftovers,
-            count(date) total_valet_days
+            sum(precip_mm) total_precipitation,
+            max(precip_mm) max_precipitation,
+            sum(leftover) total_remaining_combined,
+            max(leftover) max_remaining_combined,
+            count(date) total_days_open
         from day
         {where};
         """,
@@ -636,8 +636,8 @@ def get_season_summary_data(
         ttdb,
         f"""
             SELECT
-                parked_total as max_total_bikes,
-                date as max_total_bikes_date
+                parked_total as max_parked_combined,
+                date as max_parked_combined_date
             FROM day
             {where}
             ORDER BY parked_total DESC, date ASC
@@ -650,8 +650,8 @@ def get_season_summary_data(
         ttdb,
         f"""
             SELECT
-                max_total as max_max_bikes,
-                date as max_max_bikes_date
+                max_total as max_fullest_combined,
+                date as max_fullest_combined_date
             FROM day
             {where}
             ORDER BY max_total DESC, date ASC
@@ -660,8 +660,8 @@ def get_season_summary_data(
         summ,
     )
 
-    # Still need to calculate total_valet_hours
-    summ.total_valet_hours = (
+    # Still need to calculate total_hours_open
+    summ.total_hours_open = (
         sum([d.valet_close.num - d.valet_open.num for d in season_dailies]) / 60
     )
 
