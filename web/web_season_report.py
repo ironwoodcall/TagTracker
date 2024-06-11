@@ -281,6 +281,16 @@ def totals_table(conn: sqlite3.Connection):
             ytd_totals.max_fullest_combined,
             *[day_totals[day].max_fullest_combined for day in day_totals.keys()],
         ),
+        (
+            "Total precipitation",
+            ytd_totals.total_precipitation,
+            *[day_totals[day].total_precipitation for day in day_totals.keys()],
+        ),
+        (
+            "Max temperature",
+            ytd_totals.max_max_temperature,
+            *[day_totals[day].max_max_temperature for day in day_totals.keys()],
+        ),
     ]
 
     print("")
