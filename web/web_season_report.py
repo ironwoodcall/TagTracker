@@ -286,6 +286,7 @@ def totals_table(conn: sqlite3.Connection):
     print("")
     print("<table class='general_table'>")
 
+
     # Table header
     header_html = f"  <tr><th>Summary</th><th>YTD<br>{selected_year}</th>"
     for day, _ in day_totals.items():

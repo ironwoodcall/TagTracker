@@ -23,6 +23,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+# FIXME: this is ignorant about orgs, ids, geography of sites
 
 import argparse
 import csv
@@ -44,28 +45,28 @@ class NewVals:
 
     def __init__(
         self,
-        registrations: int = None,
-        abandoned: int = None,
+        # registrations: int = None,
+        # abandoned: int = None,
         precip: float = None,
         max_temp: float = None,
         min_temp: float = None,
         mean_temp: float = None,
         rainfall: float = None,
-        sunset: str = None,
+        # sunset: str = None,
     ) -> None:
-        self.registrations = registrations
-        self.abandoned = abandoned
+        # self.registrations = registrations
+        # self.abandoned = abandoned
         self.precip = precip
         self.max_temp = max_temp
         self.min_temp = min_temp
         self.mean_temp = mean_temp
         self.rainfall = rainfall
-        self.sunset = sunset
+        # self.sunset = sunset
 
     def dump(self):
         """Dump object contents. Mostly here for debug work."""
         return (
-            f"{self.registrations=}; {self.abandoned=}; {self.precip=}; "
+            f"{self.precip=}; "
             f"{self.max_temp=}; {self.min_temp=}; {self.mean_temp=}"
         )
 
@@ -143,7 +144,7 @@ def get_wx_changes(
     db_data = db.db_fetch(
         ttdb,
         "select "
-        "   date, registrations, leftover, precip_mm, temp "
+        "   date, precipitation, max_temperature "
         "from day "
         f"{where}"
         "order by date",
@@ -164,7 +165,7 @@ def get_wx_changes(
             and new[existing.date].precip is not None
         ):
             sqls.append(
-                f"update day set precip_mm = {new[existing.date].precip} "
+                f"update day set precipitation = {new[existing.date].precip} "
                 f"where date = '{existing.date}';"
             )
         if (
@@ -173,69 +174,69 @@ def get_wx_changes(
             and new[existing.date].max_temp is not None
         ):
             sqls.append(
-                f"update day set temp = {new[existing.date].max_temp} "
+                f"update day set max_temperature = {new[existing.date].max_temp} "
                 f"where date = '{existing.date}';"
             )
     return sqls
 
 
 # -------------------
-def read_sun_data(source_csv: str) -> dict[str, NewVals]:
-    """Get sunset data from NRCan data file for given range of dates.
+# def read_sun_data(source_csv: str) -> dict[str, NewVals]:
+#     """Get sunset data from NRCan data file for given range of dates.
 
-    Using whole-year text file produced from solar calculator at
-    https://nrc.canada.ca/en/research-development/products-services/software-applications/sun-calculator/
+#     Using whole-year text file produced from solar calculator at
+#     https://nrc.canada.ca/en/research-development/products-services/software-applications/sun-calculator/
 
-    Fields of interest:
-        0: Data as "Mmm D YYYY"
-        5: sunset
-        6: civilian twilight
-        7: nautical twilight
+#     Fields of interest:
+#         0: Data as "Mmm D YYYY"
+#         5: sunset
+#         6: civilian twilight
+#         7: nautical twilight
 
-    """
+#     """
 
-    MONTHS = { #pylint:disable=invalid-name
-        "Jan": "01",
-        "Feb": "02",
-        "Mar": "03",
-        "Apr": "04",
-        "May": "05",
-        "Jun": "06",
-        "Jul": "07",
-        "Aug": "08",
-        "Sep": "09",
-        "Oct": "10",
-        "Nov": "11",
-        "Dec": "12",
-    }
+#     MONTHS = { #pylint:disable=invalid-name
+#         "Jan": "01",
+#         "Feb": "02",
+#         "Mar": "03",
+#         "Apr": "04",
+#         "May": "05",
+#         "Jun": "06",
+#         "Jul": "07",
+#         "Aug": "08",
+#         "Sep": "09",
+#         "Oct": "10",
+#         "Nov": "11",
+#         "Dec": "12",
+#     }
 
-    results = {}
-    with open(source_csv, "r", newline="", encoding="utf-8") as csvfile:
-        for row in csv.reader(csvfile):
-            if not row or not row[0]:
-                if args.verbose:
-                    print(f"discarding sun csv row {row}")
-                continue
-            # Break first element into date elements
-            datebits = row[0].split()
-            if len(datebits) != 3:
-                if args.verbose:
-                    print(f"discarding bad date in sun csv row {row}")
-                continue
-            maybedate = f"{datebits[2]}-{MONTHS[datebits[0]]}-{('0'+datebits[1])[-2:]}"
-            thisdate = ut.date_str(maybedate)
-            if not thisdate:
-                continue
-            if args.verbose:
-                print(f"have date: {thisdate}")
-            results[thisdate] = NewVals(
-                sunset=VTime(oneval(row, 6)),
-            )
-        if args.verbose:
-            [ # pylint:disable=expression-not-assigned
-                print(f"{d}: {s.sunset}") for d, s in results.items()
-            ]
-    return results
+#     results = {}
+#     with open(source_csv, "r", newline="", encoding="utf-8") as csvfile:
+#         for row in csv.reader(csvfile):
+#             if not row or not row[0]:
+#                 if args.verbose:
+#                     print(f"discarding sun csv row {row}")
+#                 continue
+#             # Break first element into date elements
+#             datebits = row[0].split()
+#             if len(datebits) != 3:
+#                 if args.verbose:
+#                     print(f"discarding bad date in sun csv row {row}")
+#                 continue
+#             maybedate = f"{datebits[2]}-{MONTHS[datebits[0]]}-{('0'+datebits[1])[-2:]}"
+#             thisdate = ut.date_str(maybedate)
+#             if not thisdate:
+#                 continue
+#             if args.verbose:
+#                 print(f"have date: {thisdate}")
+#             results[thisdate] = NewVals(
+#                 sunset=VTime(oneval(row, 6)),
+#             )
+#         if args.verbose:
+#             [ # pylint:disable=expression-not-assigned
+#                 print(f"{d}: {s.sunset}") for d, s in results.items()
+#             ]
+#     return results
 
 
 def get_sun_changes(
@@ -365,11 +366,11 @@ class ProgArgs:
             metavar="FILE",
             help="Read sunset times from csv file of NR Canada sunrise/sunset times",
         )
-        parser.add_argument(
-            "--day-end",
-            metavar="FILE",
-            help="Read registrations/leftovers from csv file of day-end-form gsheet data",
-        )
+        # parser.add_argument(
+        #     "--day-end",
+        #     metavar="FILE",
+        #     help="Read registrations/leftovers from csv file of day-end-form gsheet data",
+        # )
         parser.add_argument("--verbose", action="store_true", default=False)
         return parser.parse_args()
 
