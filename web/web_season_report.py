@@ -368,6 +368,8 @@ def season_summary(ttdb: sqlite3.Connection):
         <button onclick="window.location.href='{summaries_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Period<br>Summaries</b></button>
+          """)
+    print(f"""
        &nbsp;&nbsp;
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
