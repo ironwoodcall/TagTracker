@@ -51,57 +51,6 @@ import tt_printer as pr
 #pylint:enable=wrong-import-position
 
 
-def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: k.MaybeTag) -> None:
-    """Report a tag's history."""
-
-    tagid = TagID(maybe_tag)
-    if not tagid:
-        print(f"Not a tagid: '{ut.untaint(tagid.original)}'")
-        sys.exit()
-
-    cursor = ttdb.cursor()
-    query = """
-    SELECT
-        d.date,
-        v.time_in,
-        v.time_out
-    FROM
-        VISIT v
-    JOIN
-        DAY d ON v.day_id = d.id
-    WHERE
-        v.bike_id = ? AND d.orgsite_id = ?
-    ORDER BY
-        d.date DESC;
-    """
-    orgsite_id = 1  # FIXME hardwired orgsite_id
-    rows = cursor.execute(query, (tagid, orgsite_id)).fetchall()
-    cursor.close()
-
-    print(f"<h1>History of tag {tagid.upper()}</h1>")
-    print(f"{cc.main_and_back_buttons(1)}<br>")
-
-    print(f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>")
-    print()
-    if not rows:
-        print(f"No record that {tagid.upper()} ever used<br />")
-    else:
-        print("<table class=general_table>")
-        print("<style>td {text-align: right;}</style>")
-        print("<tr><th>Date</th><th>BikeIn</th><th>BikeOut</th></tr>")
-        for row in rows:
-            date,time_in,time_out = row[0],VTime(row[1]),VTime(row[2])
-            link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=date)
-            print(
-                f"<tr><td>"
-                f"<a href='{link}'>{date}</a>"
-                "</td>"
-                f"<td>{time_in.tidy}</td><td>{time_out.tidy}</td></tr>"
-            )
-        print("</table>")
-    print("</body></html>")
-
-
 def datafile(ttdb: sqlite3.Connection, date: str = ""):
     """Print a reconstructed datafile for the given date."""
     thisday = ut.date_str(date)
@@ -336,7 +285,7 @@ if not what:
     sys.exit()
 
 if what == cc.WHAT_TAG_HISTORY:
-    one_tag_history_report(database, tag)
+    web_tags_report.one_tag_history_report(database, tag)
 elif what == cc.WHAT_BLOCKS:
     web_block_report.blocks_report(database)
 elif what == cc.WHAT_BLOCKS_DOW:
