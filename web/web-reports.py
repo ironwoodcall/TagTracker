@@ -54,38 +54,49 @@ import tt_printer as pr
 def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: k.MaybeTag) -> None:
     """Report a tag's history."""
 
-    this_tag = TagID(maybe_tag)
-    if not this_tag:
-        print(f"Not a tag: '{ut.untaint(this_tag.original)}'")
+    tagid = TagID(maybe_tag)
+    if not tagid:
+        print(f"Not a tagid: '{ut.untaint(tagid.original)}'")
         sys.exit()
-    # Fetch all info about this tag.
-    ##(last_date, last_in, last_out) = ("", "", "")
-    rows = db.db_fetch(
-        ttdb,
-        "select date,time_in,time_out "
-        "from visit "
-        f"where tag = '{this_tag.lower()}' "
-        "order by date desc;",
-    )
-    print(f"<h1>History of tag {this_tag.upper()}</h1>")
+
+    cursor = ttdb.cursor()
+    query = """
+    SELECT
+        d.date,
+        v.time_in,
+        v.time_out
+    FROM
+        VISIT v
+    JOIN
+        DAY d ON v.day_id = d.id
+    WHERE
+        v.bike_id = ? AND d.orgsite_id = ?
+    ORDER BY
+        d.date DESC;
+    """
+    orgsite_id = 1  # FIXME hardwired orgsite_id
+    rows = cursor.execute(query, (tagid, orgsite_id)).fetchall()
+    cursor.close()
+
+    print(f"<h1>History of tag {tagid.upper()}</h1>")
     print(f"{cc.main_and_back_buttons(1)}<br>")
 
     print(f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>")
     print()
     if not rows:
-        print(f"No record that {this_tag.upper()} ever used<br />")
+        print(f"No record that {tagid.upper()} ever used<br />")
     else:
         print("<table class=general_table>")
         print("<style>td {text-align: right;}</style>")
         print("<tr><th>Date</th><th>BikeIn</th><th>BikeOut</th></tr>")
         for row in rows:
-            out = VTime(row.time_out).tidy
-            link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date)
+            date,time_in,time_out = row[0],VTime(row[1]),VTime(row[2])
+            link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=date)
             print(
                 f"<tr><td>"
-                f"<a href='{link}'>{row.date}</a>"
+                f"<a href='{link}'>{date}</a>"
                 "</td>"
-                f"<td>{VTime(row.time_in).tidy}</td><td>{out}</td></tr>"
+                f"<td>{time_in.tidy}</td><td>{time_out.tidy}</td></tr>"
             )
         print("</table>")
     print("</body></html>")
