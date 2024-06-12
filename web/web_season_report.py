@@ -192,7 +192,7 @@ def totals_table(conn: sqlite3.Connection):
         """Print a single row of data."""
         row_html = (
             f"<tr><td style='text-align:left'>{label}</td>"
-            f"<td style='text-align:right'>{_p(ytd_value)}</td>"
+            f"<td style='text-align:right;border-right: 2px solid gray;'>{_p(ytd_value)}</td>"
         )
         for day_value in day_values:
             row_html += f"<td style='text-align:right'>{_p(day_value)}</td>"
@@ -298,7 +298,7 @@ def totals_table(conn: sqlite3.Connection):
     print("<table class='general_table'>")
 
     # Table header
-    header_html = f"  <tr><th>Summary</th><th>YTD<br>{selected_year}</th>"
+    header_html = f"  <tr><th>Summary</th><th style='border-right: 2px solid gray;'>YTD<br>{selected_year}</th>"
     for day, _ in day_totals.items():
         daylabel = "Today" if day == today else day
         header_html += f"<th>{daylabel}<br>{ut.dow_str(day)}</th>"
@@ -335,7 +335,7 @@ def season_summary(ttdb: sqlite3.Connection):
     print("</div>")
     print("<br>")
 
-    print("<br>Limited further detail unavailable for now<br><br>")
+    print("<br>Only limited further detail currently available:<br><br>")
     if False:
         print(
             f"""

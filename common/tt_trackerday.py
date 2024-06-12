@@ -575,10 +575,11 @@ class TrackerDay:
                 json.dump(data, file, indent=4)
         except Exception:  # pylint:disable=broad-exception-caught
             if custom_filepath:
+                print(f"PROBLEM: Unable to save data file file {what_filepath}")
                 return False
             else:
                 print(
-                    f"\n\nCRITICAL ERROR: Unable to save data to file {what_filepath}\n\n"
+                    f"\n\nCRITICAL PROBLEM: Unable to save data to file {what_filepath}\n\n"
                 )
                 raise
         return True
