@@ -560,12 +560,12 @@ def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
     for tagid,bike in biketags.items():
         if bike.bike_type == k.REGULAR:
             reg.add(tagid)
-        elif bike_type == k.OVERSIZE:
+        elif bike.bike_type == k.OVERSIZE:
             ovr.add(tagid)
     day.regular_tagids = frozenset(reg)
     day.oversize_tagids = frozenset(ovr)
     day.retired_tagids = frozenset()
-
+    ut.squawk(f"{len(day.regular_tagids)=},{len(day.oversize_tagids)=}")
 
     day.determine_tagids_conformity()
     return day

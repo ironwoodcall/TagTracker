@@ -149,6 +149,9 @@ def audit_report(
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix:3>} "
+        greatest_num = ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids)
+        if greatest_num is None:
+            continue
         for i in range(
             0, ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1
         ):
