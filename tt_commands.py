@@ -297,8 +297,8 @@ def prompt_user() -> str:
     if cfg.INCLUDE_TIME_IN_PROMPT:
         pr.iprint(f"{VTime('now').short}", end="")
     pr.iprint(f"Bike tag or command {cfg.CURSOR}", style=k.PROMPT_STYLE, end="")
-    user_str = pr.tt_inp()
-    return user_str.strip()
+    user_str = pr.tt_inp().lower().strip("\\][ \t")
+    return user_str
 
 
 def subprompt_user(prompt: str) -> str:
