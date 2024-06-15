@@ -497,9 +497,11 @@ def fetch_day_summary(
 def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
     """Create one day's TrackerDay from the database."""
     # Do we have info about the day?  Need its open/close times
+    if not isinstance(day_id,int):
+        ut.squawk(f"db2day received non-int {day_id=}")
     curs = ttdb.cursor()
     row = curs.execute(
-        "select date, time_open,time_closed,registrations "
+        "select date, time_open,time_closed,bikes_registered "
         f"from day where day.id = {day_id}"
     ).fetchone()
     if not row:
@@ -536,10 +538,13 @@ def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
                     f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type"
                 )
         if tagid not in biketags:
-            biketags[tagid] = BikeTag(tagid=tagid, bike_type=bike_type)
+            biketags[tagid] = None
+        biketag = BikeTag(tagid=tagid, bike_type=bike_type)
         visit = BikeVisit(tagid=tagid, time_in=row[1], time_out=row[2])
-        biketags[tagid].visits.append(visit)
+        biketag.visits.append(visit)
+        biketags[tagid] = biketag
     # Set BikeTag's statuses (none will be RETIRED)
+    day.biketags = biketags
     for biketag in biketags.values():
         biketag: BikeTag
         if not biketag.visits:
@@ -548,6 +553,19 @@ def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
             biketag.status = BikeTag.DONE
         else:
             biketag.status = BikeTag.IN_USE
+
+    # Set the tag context lists
+    reg = set()
+    ovr = set()
+    for tagid,bike in biketags.items():
+        if bike.bike_type == k.REGULAR:
+            reg.add(tagid)
+        elif bike_type == k.OVERSIZE:
+            ovr.add(tagid)
+    day.regular_tagids = frozenset(reg)
+    day.oversize_tagids = frozenset(ovr)
+    day.retired_tagids = frozenset()
+
 
     day.determine_tagids_conformity()
     return day

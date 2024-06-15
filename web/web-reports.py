@@ -30,7 +30,7 @@ import urllib.parse
 sys.path.append("../")
 sys.path.append("./")
 
-#pylint:disable=wrong-import-position
+# pylint:disable=wrong-import-position
 import web_common as cc
 import web_block_report
 from web_day_detail import one_day_tags_report, day_frequencies_report
@@ -48,7 +48,8 @@ from common.tt_time import VTime
 import common.tt_util as ut
 import tt_tag_inv
 import tt_printer as pr
-#pylint:enable=wrong-import-position
+
+# pylint:enable=wrong-import-position
 
 
 def datafile(ttdb: sqlite3.Connection, date: str = ""):
@@ -87,12 +88,23 @@ def datafile(ttdb: sqlite3.Connection, date: str = ""):
     print(f"{df.HEADER_COLOURS}")
 
 
-def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
+def web_audit_report(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    date: str,
+    whattime: VTime,
+):
     """Print audit report."""
     whattime = VTime(whattime)
     thisday = ut.date_str(date)
     if not thisday:
         cc.bad_date(thisday)
+
+    # Find this day's day_id
+    cursor = ttdb.cursor()
+    day_id = db.fetch_day_id(cursor=cursor,date=thisday,maybe_orgsite_id=orgsite_id)
+    cursor.close()
+
     # Make this page have a black background
     print("<style>body {background-color:black;color:white}</style>")
 
@@ -100,7 +112,7 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
 
     print("<h2>Audit</h2>")
     print("<pre>")
-    day = db.db2day(ttdb, thisday)
+    day = db.db2day(ttdb=ttdb,day_id=day_id)
     if not day:
         print("<b>no information for this day</b><br>")
         return
@@ -110,10 +122,10 @@ def web_audit_report(ttdb: sqlite3.Connection, date: str, whattime: VTime):
     print("<h2>Bike registrations</h2>")
     print(f"<p>&nbsp;&nbsp;Registrations today: {day.registrations}\n</p>")
 
-    print("<h2>Busyness</h2>")
-    print("<pre>")
+    # print("<h2>Busyness</h2>")
+    # print("<pre>")
     # rep.busyness_report(day, [qtime])
-    print("\n</pre>")
+    # print("\n</pre>")
 
     print("<h2>Tag inventory</h2>")
     print("<pre>")
@@ -221,8 +233,8 @@ def webpage_footer(ttdb: sqlite3.Connection):
 
 # =================================================================
 
-org_handle = "no_org"   # FIXME
-caller_org = "no_org"   # FIXME - read from web auth via env
+org_handle = "no_org"  # FIXME
+caller_org = "no_org"  # FIXME - read from web auth via env
 
 print("Content-type: text/html\n\n\n")
 
@@ -242,9 +254,7 @@ k.set_html_style()
 QUERY_STRING = ut.untaint(os.environ.get("QUERY_STRING", ""))
 if os.getenv("TAGTRACKER_DEBUG"):
     print(
-        "<pre style='color:red'>"
-        "\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n"
-        "</pre>"
+        "<pre style='color:red'>" "\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n" "</pre>"
     )
 query_params = urllib.parse.parse_qs(QUERY_STRING)
 what = query_params.get("what", [""])[0]
@@ -311,7 +321,7 @@ elif what == cc.WHAT_DATAFILE:
 elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_enry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
-    web_audit_report(database, "today", VTime("now"))
+    web_audit_report(database, orgsite_id=1,date="today", whattime=VTime("now")) # FIXME: orgsite_id
 elif what in [
     cc.WHAT_DATERANGE,
     cc.WHAT_DATERANGE_WEEK,
@@ -323,7 +333,9 @@ elif what in [
 elif what == cc.WHAT_DATERANGE_CUSTOM:
     date_start = query_params.get("start_date", ["0000-00-00"])[0]
     date_end = query_params.get("end_date", ["9999-99-99"])[0]
-    web_daterange_summaries.period_summary(database,period_type=what,start_date=date_start,end_date=date_end)
+    web_daterange_summaries.period_summary(
+        database, period_type=what, start_date=date_start, end_date=date_end
+    )
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)
