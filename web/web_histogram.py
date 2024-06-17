@@ -175,22 +175,35 @@ def times_hist_table(
         days_of_week: list = None,
     ) -> str:
         """Make sql query to fetch the time values from one column."""
-        # convert days of week from ISO8601 to as-used by sqlite3
+        orgsite_id = 1  # FIXME: orgsite_id hardcoded
 
-        filter_items = [f"{time_column} != ''"]
+        # convert days of week from ISO8601 to as-used by sqlite3
+        filter_items = [f"{time_column} != ''",f"D.orgsite_id = {orgsite_id}"]
         if start_date:
-            filter_items.append(f"DATE >= '{start_date}'")
+            filter_items.append(f"D.DATE >= '{start_date}'")
         if end_date:
-            filter_items.append(f"DATE <= '{end_date}'")
+            filter_items.append(f"D.DATE <= '{end_date}'")
         if days_of_week:
             cc.test_dow_parameter(days_of_week,list_ok=True)
             dow_bits = [int(s) for s in days_of_week.split(",")]
             zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
             filter_items.append(
-                f"""strftime('%w',DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
+                f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
                 #f"""strftime('%w',DATE) IN ('{days_of_week}')"""
             )
         sql = f"SELECT {time_column} FROM VISIT WHERE {' AND '.join(filter_items)};"
+
+        sql = f"""
+SELECT
+    V.{time_column}
+FROM
+    DAY D
+JOIN
+    VISIT V ON D.id = V.day_id
+WHERE {' AND '.join(filter_items)};
+        """
+        # ut.squawk(f"{sql=}")
+
         return sql
 
     sql_query = make_sql(query_column, start_date, end_date, days_of_week)
