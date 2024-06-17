@@ -336,18 +336,23 @@ def season_summary(ttdb: sqlite3.Connection):
     print("<br>")
 
     print("<br>Only limited further detail currently available:<br><br>")
-    if False:
-        print(
-            f"""
+    print(
+        f"""
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Today's<br>Visits<br>Detail</b></button>
         &nbsp;&nbsp;
+        """
+    )
+    if False:
+        print(
+            f"""
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Daily<br>Visits<br>Activity</b></button>
         &nbsp;&nbsp;
+
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
           <b>Overall<br>Visits<br>Graphs</b></button>
@@ -368,15 +373,17 @@ def season_summary(ttdb: sqlite3.Connection):
         <button onclick="window.location.href='{summaries_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Period<br>Summaries</b></button>
-          """)
-    print(f"""
+          """
+        )
+    print(
+        f"""
        &nbsp;&nbsp;
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Tags<br>Inventory</b></button>
         <br><br>
           """
-        )
+    )
 
 
 def season_detail(
