@@ -194,7 +194,9 @@ def one_day_tags_report(
         visits.append(visit)
 
     tag_reuses = len(visits) - len(set([v.tag for v in visits]))
-    tag_reuse_pct = tag_reuses/len(visits) if visits else 0
+    # Reuse % is proportion of returns that were then reused.
+    bikes_returned = len([v for v in visits if v.time_out and v.time_out > ""])
+    tag_reuse_pct = tag_reuses/bikes_returned if bikes_returned else 0
 
     # Process the rows
     stats = VisitStats([v.duration for v in visits])
@@ -550,7 +552,7 @@ def summary_table(
         <tr><td colspan=2>Bikes remaining:</td>
             <td  width=40 style='{highlights.css_bg_fg(int(day_data.num_remaining_combined>0)*HIGHLIGHT_WARN)}'>
                 {day_data.num_remaining_combined}</td></tr>
-        <tr><td colspan=2>Tag reuses: (n={tag_reuses})</td>
+        <tr><td colspan=2>Reuse of returned tags: (n={tag_reuses})</td>
             <td  width=40>
                 {tag_reuse_pct:.0%}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
