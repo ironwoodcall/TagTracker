@@ -193,6 +193,9 @@ def one_day_tags_report(
         )
         visits.append(visit)
 
+    tag_reuses = len(visits) - len(set([v.tag for v in visits]))
+    tag_reuse_pct = tag_reuses/len(visits) if visits else 0
+
     # Process the rows
     stats = VisitStats([v.duration for v in visits])
     visits = sorted(visits, key=lambda x: x.tag)
@@ -257,11 +260,13 @@ def one_day_tags_report(
     ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
-    summary_table(day_data, stats, highlights, is_today, suspicious)
+
+    summary_table(day_data, stats, tag_reuses, tag_reuse_pct, highlights, is_today, suspicious)
     legend_table(daylight, duration_colors)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##print("</div><div>")
+
     mini_freq_tables(ttdb, thisday)
     print("</div>")
     print("</div>")
@@ -498,6 +503,8 @@ def visits_table(
 def summary_table(
     day_data: DayTotals,
     stats: VisitStats,
+    tag_reuses:int,
+    tag_reuse_pct:float,
     highlights: dc.Dimension,
     is_today: bool,
     suspicious: int,
@@ -543,6 +550,9 @@ def summary_table(
         <tr><td colspan=2>Bikes remaining:</td>
             <td  width=40 style='{highlights.css_bg_fg(int(day_data.num_remaining_combined>0)*HIGHLIGHT_WARN)}'>
                 {day_data.num_remaining_combined}</td></tr>
+        <tr><td colspan=2>Tag reuses: (n={tag_reuses})</td>
+            <td  width=40>
+                {tag_reuse_pct:.0%}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
             <td>{day_data.bikes_registered}</td></tr>
             """
