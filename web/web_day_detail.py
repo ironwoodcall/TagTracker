@@ -193,7 +193,7 @@ def one_day_tags_report(
         )
         visits.append(visit)
 
-    tag_reuses = len(visits) - len(set([v.tag for v in visits]))
+    tag_reuses = len(visits) - len(set(v.tag for v in visits))
     # Reuse % is proportion of returns that were then reused.
     bikes_returned = len([v for v in visits if v.time_out and v.time_out > ""])
     tag_reuse_pct = tag_reuses/bikes_returned if bikes_returned else 0
@@ -208,14 +208,14 @@ def one_day_tags_report(
             visits[i - 1].next_time_in = v.time_in
             visits[i - 1].next_tag = v.tag
 
-    # leftovers = len([t.time_out for t in rows if t.time_out <= ""])
-    suspicious = len(
-        [
-            t.next_time_in
-            for t in visits
-            if t.next_time_in < t.time_in and t.time_out <= ""
-        ]
-    )
+    # # leftovers = len([t.time_out for t in rows if t.time_out <= ""])
+    # suspicious = len(
+    #     [
+    #         t.next_time_in
+    #         for t in visits
+    #         if t.next_time_in < t.time_in and t.time_out <= ""
+    #     ]
+    # )
 
     daylight = dc.Dimension()
     daylight.add_config(VTime("07:30").num, "LightSkyBlue")
@@ -263,7 +263,7 @@ def one_day_tags_report(
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
 
-    summary_table(day_data, stats, tag_reuses, tag_reuse_pct, highlights, is_today, suspicious)
+    summary_table(day_data, stats, tag_reuses, tag_reuse_pct, highlights, is_today)
     legend_table(daylight, duration_colors)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
@@ -455,11 +455,11 @@ def visits_table(
         # Tag
         tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, qtag=v.tag)
         c = "color:auto;"
-        if v.next_time_in < time_in and time_out <= "" and not is_today:
-            if v.tag[:1] == v.next_tag[:1]:
-                c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
-            elif v.next_tag:
-                c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
+        # if v.next_time_in < time_in and time_out <= "" and not is_today:
+        #     if v.tag[:1] == v.next_tag[:1]:
+        #         c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
+        #     elif v.next_tag:
+        #         c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
         print(
             f"<td style='text-align:center;{c}'><a href='{tag_link}'>{v.tag}</a></td>"
         )
@@ -509,7 +509,7 @@ def summary_table(
     tag_reuse_pct:float,
     highlights: dc.Dimension,
     is_today: bool,
-    suspicious: int,
+    # suspicious: int,
 ):
     def fmt_none(obj) -> object:
         if obj is None:
@@ -580,15 +580,15 @@ def summary_table(
                 <td>{fmt_none(day_data.precipitation)}</td></tr>
     """
         )
-    if not is_today and suspicious:
-        print(
-            f"""
-            <tr><td colspan=2>Bikes possibly never checked in:</td>
-            <td style='text-align:right;
-                {highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>
-                {suspicious}</td></tr>
-        """
-        )
+    # if not is_today and suspicious:
+    #     print(
+    #         f"""
+    #         <tr><td colspan=2>Bikes possibly never checked in:</td>
+    #         <td style='text-align:right;
+    #             {highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>
+    #             {suspicious}</td></tr>
+    #     """
+    #     )
     # de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=day_data.date)
     # df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=day_data.date)
     # print(
