@@ -350,17 +350,3 @@ class DaySummary:
 
         return whole_day
 
-        # num_incoming = {k.REGULAR:0,k.OVERSIZE:0,k.COMBINED:0}
-        # for block in blocks.values():
-        #     block: PeriodDetail
-        #     for bike_type in [k.REGULAR, k.OVERSIZE, k.COMBINED]:
-        #         whole_day.num_incoming[bike_type] += block.num_incoming[bike_type]
-        #         whole_day.num_outgoing[bike_type] += block.num_outgoing[bike_type]
-        #         whole_day.num_on_hand[bike_type] = (
-        #             whole_day.num_incoming[bike_type]
-        #             - whole_day.num_outgoing[bike_type]
-        #         )
-        #         if block.num_fullest[bike_type] > whole_day.num_fullest[bike_type]:
-        #             whole_day.num_fullest[bike_type] = block.num_fullest[bike_type]
-        #             whole_day.time_fullest[bike_type] = block.time_fullest[bike_type]
-        # return whole_day

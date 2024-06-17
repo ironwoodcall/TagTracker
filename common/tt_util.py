@@ -380,50 +380,6 @@ def line_wrapper(
     return lines
 
 
-def _calculate_visit_frequencies(
-    durations_list: list, category_width: int = 30
-) -> collections.Counter:
-    """Helper function for calculating modes."""
-    durations = []
-    for d in durations_list:
-        if isinstance(d, int):
-            durations.append(d)
-        else:
-            durations.append(VTime(d).num)
-    durations = [d for d in durations if isinstance(d, int)]
-
-    # Make a new list of the durations, categorized
-    categorized = [(d // category_width) * category_width for d in durations]
-
-    # Count how many are in each category
-    return collections.Counter(categorized)
-
-
-def calculate_visit_modes(
-    durations_list: list, category_width: int = BLOCK_DURATION
-) -> tuple[list[VTime], int]:
-    """Calculate the mode(s) for the list of durations.
-
-    The elements in durations can be VTime, str, or int,
-    as long as they all evaluate to a VTime.
-
-    For purposes of determining mode, times within one
-    block of time of length category_width are
-    considered identical.  Defaulit 30 (1/2 hour)
-
-    Returns a list of sorted VTimes().tidy of all the centre times of
-    the modes and the number of times it/they occurred.
-    """
-    freq_list = _calculate_visit_frequencies(durations_list, category_width)
-    mosts = freq_list.most_common()
-    occurences = mosts[0][1]
-    modes_numeric = sorted([element for element, count in mosts if count == occurences])
-    modes_list = [f"{VTime(x+category_width/2).short}" for x in modes_numeric]
-    # modes_list = []
-    # modes_list = [x.tidy for x in modes_list]
-
-    return modes_list, occurences
-
 
 def time_distribution(
     times_list: list[str],

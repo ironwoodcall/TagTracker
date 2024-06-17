@@ -22,8 +22,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import statistics
-
 import common.tt_constants as k
 from common.tt_time import VTime
 from common.tt_tag import TagID
@@ -32,6 +30,7 @@ from common.tt_tag import TagID
 from common.tt_trackerday import TrackerDay
 import common.tt_util as ut
 from common.tt_daysummary import DaySummary, PeriodDetail, MomentDetail
+from common.tt_statistics import VisitStats
 
 # import tt_block
 import tt_printer as pr
@@ -229,7 +228,6 @@ def visit_lengths_by_category_report(durations_list: list[int]) -> None:
         If lower is missing, uses anything below upper
         If upper is missing, uses anything above lower
         """
-        noun = "Visit"
         if not lower and not upper:
             pr.iprint(
                 f"PROGRAM ERROR: called one_range(lower='{lower}'," f"upper='{upper}')",
@@ -237,13 +235,13 @@ def visit_lengths_by_category_report(durations_list: list[int]) -> None:
             )
             return None
         if not lower:
-            header = f"{noun}s < {upper:3.1f}h:"
+            header = f"Visits < {upper:3.1f}h:"
             lower = 0
         elif not upper:
-            header = f"{noun}s >= {lower:3.1f}h:"
+            header = f"Visits >= {lower:3.1f}h:"
             upper = 999
         else:
-            header = f"{noun}s {lower:3.1f}-{upper:3.1f}h:"
+            header = f"Visits {lower:3.1f}-{upper:3.1f}h:"
         # Count visits in this time range.
         num = 0
         for d in durations_list:
@@ -266,39 +264,21 @@ def visit_statistics_report(durations_list: list[int]) -> None:
     On entry:
         durations_list is a list of visit durations.
     """
-    noun = "visit"
-
     def one_line(key: str, value: str) -> None:
         """Print one line."""
         pr.iprint(f"{key:17s}{value}", style=k.NORMAL_STYLE)
 
-    def visits_mode(durations_list: list[int]) -> None:
-        """Calculate and print the mode info."""
-        # Find the mode value(s), with visit durations rounded
-        # to nearest ROUND_TO_NEAREST time.
-        modes, mode_occurences = ut.calculate_visit_modes(
-            durations_list, category_width=MODE_ROUND_TO_NEAREST
-        )
-        modes_str = ",".join(modes)
-        modes_str = (
-            f"{modes_str}  ({mode_occurences} occurences; "
-            f"{MODE_ROUND_TO_NEAREST} minute categories)"
-        )
-        one_line("Mode visit:", modes_str)
+    stats = VisitStats(durations_list)
 
-    longest = max(durations_list, default=None)
-    shortest = min(durations_list, default=None)
     pr.iprint()
     pr.iprint("Visit-length statistics", style=k.SUBTITLE_STYLE)
-    one_line(f"Longest {noun}:", f"{VTime(longest).tidy}")
-    one_line(f"Shortest {noun}:", f"{VTime(shortest).tidy}")
+    one_line("Longest visit:", stats.longest)
+    one_line("Shortest visit:", stats.shortest)
     # Make a list of stay-lengths (for mean, median, mode)
-    one_line(f"Mean {noun}:", VTime(statistics.mean(durations_list)).tidy)
-    one_line(
-        f"Median {noun}:",
-        VTime(statistics.median(durations_list)).tidy,
-    )
-    visits_mode(durations_list)
+    one_line("Mean visit:", stats.mean)
+    one_line("Median visit:",stats.median)
+    modes_str = f"{','.join(stats.modes)} ({stats.mode_occurences} occurences)"
+    one_line("Mode visit:", modes_str)
 
 
 def highwater_report(summary: DaySummary) -> None:

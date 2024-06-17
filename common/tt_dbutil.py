@@ -29,6 +29,7 @@ from typing import Iterable
 # from collections import defaultdict
 from dataclasses import dataclass, field
 from statistics import mean, median
+from common.tt_statistics import VisitStats
 
 from common.tt_trackerday import TrackerDay
 from common.tt_daysummary import DaySummary, DayTotals, PeriodDetail
@@ -735,11 +736,11 @@ class MultiDayTotals:
 
             # Calculate mean, median, and modes from visit_durations
             if visit_durations:
-                totals.visits_mean = mean(visit_durations)
-                totals.visits_median = median(visit_durations)
-                totals.visits_modes, totals.num_visit_modes_occurrences = (
-                    ut.calculate_visit_modes(visit_durations)
-                )
+                stats = VisitStats(visit_durations)
+                totals.visits_mean = stats.mean
+                totals.visits_median = stats.median
+                totals.visits_modes = stats.modes
+                totals.num_visit_modes_occurrences = stats.mode_occurences
 
         # Now 'totals' object has all the required data populated
         return totals

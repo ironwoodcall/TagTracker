@@ -23,7 +23,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import sqlite3
-from statistics import mean, median
 from dataclasses import dataclass
 
 import common.tt_dbutil as db
@@ -31,6 +30,7 @@ from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
 from common.tt_daysummary import DayTotals
+from common.tt_statistics import VisitStats
 import web_common as cc
 import datacolors as dc
 import web.web_estimator as web_estimator
@@ -133,13 +133,13 @@ def one_day_tags_report(
 ):
     @dataclass
     class _VisitRow:
-        tag:str = ""
-        next_tag:str = ""
-        bike_type:str = "?"
-        time_in:str = ""
-        next_time_in:str = ""
-        time_out:str = ""
-        duration:int = None
+        tag: str = ""
+        next_tag: str = ""
+        bike_type: str = "?"
+        time_in: str = ""
+        next_time_in: str = ""
+        time_out: str = ""
+        duration: int = None
 
     thisday = ut.date_str(whatday)
     if not thisday:
@@ -152,13 +152,16 @@ def one_day_tags_report(
     else:
         day_str = ut.date_str(thisday, dow_str_len=10)
 
-    orgsite_id = 1 # hardwired orgsite_id
+    orgsite_id = 1  # hardwired orgsite_id
 
     cursor = ttdb.cursor()
-    day_id = db.fetch_day_id(cursor=cursor,date=thisday,maybe_orgsite_id=orgsite_id)
+    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=orgsite_id)
     if not day_id:
         cursor.close()
         return
+
+    day_data: DayTotals = db.fetch_day_totals(cursor=cursor,day_id=day_id)
+
 
     # In the code below, 'next_*' are empty placeholders
     sql = f"""
@@ -170,23 +173,29 @@ def one_day_tags_report(
         order by bike_id asc
     """
     rows = cursor.execute(sql).fetchall()
-    cursor.close()
+
     if not rows:
+        cursor.close()
         return
+    cursor.close()    # day_data.min_stay = VTime(min(durations)).tidy
     # if not rows:
     #     print(f"<pre>No activity recorded for {thisday}")
     #     sys.exit()
 
-
     visits = []
     for row in rows:
-        visit = _VisitRow(tag=TagID(row[0]),bike_type=row[1],time_in=VTime(row[2]),time_out=VTime(row[3]),duration=row[4])
+        visit = _VisitRow(
+            tag=TagID(row[0]),
+            bike_type=row[1],
+            time_in=VTime(row[2]),
+            time_out=VTime(row[3]),
+            duration=row[4],
+        )
         visits.append(visit)
 
-
     # Process the rows
-    durations = [VTime(v.duration).num for v in visits]
-    visits = sorted(visits,key=lambda x: x.tag)
+    stats = VisitStats([v.duration for v in visits])
+    visits = sorted(visits, key=lambda x: x.tag)
     # rows = sorted(rows, key=lambda x: x.tag)
     # Calculate next_tag and next_time_in values
     for i, v in enumerate(visits):
@@ -231,10 +240,11 @@ def one_day_tags_report(
         return
 
     # Get overall stats for the day FIXME: got these above as a DayTotals obj
-    day_data:db.MultiDayTotals = db.MultiDayTotals.fetch_from_db(ttdb,orgsite_id=orgsite_id,start_date=thisday,end_date=thisday)
 
-    # day_data: cc.SingleDay = cc.get_days_data(ttdb, thisday, thisday)[0]
-    # day_data.min_stay = VTime(min(durations)).tidy
+    # day_data: db.MultiDayTotals = db.MultiDayTotals.fetch_from_db(
+    #     ttdb, orgsite_id=orgsite_id, start_date=thisday, end_date=thisday
+    # )
+
     # day_data.max_stay = VTime(max(durations)).tidy
     # day_data.mean_stay = VTime(mean(durations)).tidy
     # day_data.median_stay = VTime(median(durations)).tidy
@@ -247,7 +257,7 @@ def one_day_tags_report(
     ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
-    summary_table(day_data, highlights, is_today, suspicious)
+    summary_table(day_data, stats, highlights, is_today, suspicious)
     legend_table(daylight, duration_colors)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
@@ -486,7 +496,11 @@ def visits_table(
 
 
 def summary_table(
-    day_data: DayTotals, highlights: dc.Dimension, is_today: bool, suspicious: int
+    day_data: DayTotals,
+    stats: VisitStats,
+    highlights: dc.Dimension,
+    is_today: bool,
+    suspicious: int,
 ):
     def fmt_none(obj) -> object:
         if obj is None:
@@ -538,20 +552,20 @@ def summary_table(
         print(
             f"""
             <tr><td colspan=2>Shortest visit:</td>
-                <td>{day_data.min_stay}</td></tr>
+                <td>{stats.shortest}</td></tr>
             <tr><td colspan=2>Longest visit:</td>
-                <td>{day_data.max_stay}</td></tr>
+                <td>{stats.longest}</td></tr>
             <tr><td colspan=2>Mean visit length:</td>
-                <td>{day_data.mean_stay}</td></tr>
+                <td>{stats.mean}</td></tr>
             <tr><td colspan=2>Median visit length:</td>
-                <td>{day_data.median_stay}</td></tr>
-            <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')}
-                    visit length ({day_data.modes_occurences} occurences):</td>
-                <td>{'<br>'.join(day_data.modes_stay)}</td></tr>
+                <td>{stats.median}</td></tr>
+            <tr><td colspan=2>{ut.plural(len(stats.modes),'Mode')}
+                    visit length ({stats.mode_occurences} occurences):</td>
+                <td>{'<br>'.join(stats.modes)}</td></tr>
             <tr><td colspan=2>High temperature:</td>
-                <td>{fmt_none(day_data.temperature)}</td></tr>
+                <td>{fmt_none(day_data.max_temperature)}</td></tr>
             <tr><td colspan=2>Precipitation:</td>
-                <td>{fmt_none(day_data.precip)}</td></tr>
+                <td>{fmt_none(day_data.precipitation)}</td></tr>
     """
         )
     if not is_today and suspicious:
@@ -563,15 +577,14 @@ def summary_table(
                 {suspicious}</td></tr>
         """
         )
-    de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=day_data.date)
-    df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=day_data.date)
-
-    print(
-        f"""
-        <tr><td colspan=3><a href='{de_link}'>Data entry reports</a></td></tr>
-        <tr><td colspan=3><a href='{df_link}'>Reconstructed datafile</a></td></tr>
-        """
-    )
+    # de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=day_data.date)
+    # df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=day_data.date)
+    # print(
+    #     f"""
+    #     <tr><td colspan=3><a href='{de_link}'>Data entry reports</a></td></tr>
+    #     <tr><td colspan=3><a href='{df_link}'>Reconstructed datafile</a></td></tr>
+    #     """
+    # )
     print("</table><p></p>")
 
 
@@ -585,7 +598,7 @@ def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
     print(
         f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>"
-            "Medium</td>"
+        "Medium</td>"
     )
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.max)}>Long</td>")
     print("</table><p></p>")
