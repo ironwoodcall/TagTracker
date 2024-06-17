@@ -24,14 +24,16 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import sqlite3
 from statistics import mean, median
+from dataclasses import dataclass
 
 import common.tt_dbutil as db
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
+from common.tt_daysummary import DayTotals
 import web_common as cc
 import datacolors as dc
-import tt_estimator
+import web.web_estimator as web_estimator
 import web_histogram
 
 
@@ -129,6 +131,16 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
 def one_day_tags_report(
     ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = "", pages_back: int = 1
 ):
+    @dataclass
+    class _VisitRow:
+        tag:str = ""
+        next_tag:str = ""
+        bike_type:str = "?"
+        time_in:str = ""
+        next_time_in:str = ""
+        time_out:str = ""
+        duration:int = None
+
     thisday = ut.date_str(whatday)
     if not thisday:
         cc.bad_date(whatday)
@@ -140,36 +152,53 @@ def one_day_tags_report(
     else:
         day_str = ut.date_str(thisday, dow_str_len=10)
 
+    orgsite_id = 1 # hardwired orgsite_id
+
+    cursor = ttdb.cursor()
+    day_id = db.fetch_day_id(cursor=cursor,date=thisday,maybe_orgsite_id=orgsite_id)
+    if not day_id:
+        cursor.close()
+        return
+
     # In the code below, 'next_*' are empty placeholders
     sql = f"""
         select
-           tag, '' next_tag, type bike_type,
-           time_in, '' next_time_in, time_out, duration
+           bike_id, bike_type,
+           time_in, time_out, duration
         from visit
-        where date = '{thisday}'
-        order by tag asc
+        where day_id = {day_id}
+        order by bike_id asc
     """
-    rows = db.db_fetch(ttdb, sql)
+    rows = cursor.execute(sql).fetchall()
+    cursor.close()
+    if not rows:
+        return
     # if not rows:
     #     print(f"<pre>No activity recorded for {thisday}")
     #     sys.exit()
 
+
+    visits = []
+    for row in rows:
+        visit = _VisitRow(tag=TagID(row[0]),bike_type=row[1],time_in=VTime(row[2]),time_out=VTime(row[3]),duration=row[4])
+        visits.append(visit)
+
+
     # Process the rows
-    durations = [VTime(v.duration).num for v in rows]
-    for v in rows:
-        v.tag = TagID(v.tag)
-    rows = sorted(rows, key=lambda x: x.tag)
+    durations = [VTime(v.duration).num for v in visits]
+    visits = sorted(visits,key=lambda x: x.tag)
+    # rows = sorted(rows, key=lambda x: x.tag)
     # Calculate next_tag and next_time_in values
-    for i, v in enumerate(rows):
+    for i, v in enumerate(visits):
         if i >= 1:
-            rows[i - 1].next_time_in = v.time_in
-            rows[i - 1].next_tag = v.tag
+            visits[i - 1].next_time_in = v.time_in
+            visits[i - 1].next_tag = v.tag
 
     # leftovers = len([t.time_out for t in rows if t.time_out <= ""])
     suspicious = len(
         [
             t.next_time_in
-            for t in rows
+            for t in visits
             if t.next_time_in < t.time_in and t.time_out <= ""
         ]
     )
@@ -197,20 +226,22 @@ def one_day_tags_report(
     print(_nav_buttons(ttdb, thisday, pages_back))
     print("<br><br>")
 
-    if not rows:
+    if not visits:
         print(f"No information in database for {thisday}")
         return
 
-    # Get overall stats for the day
-    day_data: cc.SingleDay = cc.get_days_data(ttdb, thisday, thisday)[0]
-    day_data.min_stay = VTime(min(durations)).tidy
-    day_data.max_stay = VTime(max(durations)).tidy
-    day_data.mean_stay = VTime(mean(durations)).tidy
-    day_data.median_stay = VTime(median(durations)).tidy
+    # Get overall stats for the day FIXME: got these above as a DayTotals obj
+    day_data:db.MultiDayTotals = db.MultiDayTotals.fetch_from_db(ttdb,orgsite_id=orgsite_id,start_date=thisday,end_date=thisday)
 
-    day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(
-        durations, 30
-    )
+    # day_data: cc.SingleDay = cc.get_days_data(ttdb, thisday, thisday)[0]
+    # day_data.min_stay = VTime(min(durations)).tidy
+    # day_data.max_stay = VTime(max(durations)).tidy
+    # day_data.mean_stay = VTime(mean(durations)).tidy
+    # day_data.median_stay = VTime(median(durations)).tidy
+
+    # day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(
+    #     durations, 30
+    # )
 
     ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
     ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
@@ -230,7 +261,7 @@ def one_day_tags_report(
     visits_table(
         thisday,
         is_today,
-        rows,
+        visits,
         highlights,
         daylight,
         duration_colors,
@@ -455,7 +486,7 @@ def visits_table(
 
 
 def summary_table(
-    day_data: cc.SingleDay, highlights: dc.Dimension, is_today: bool, suspicious: int
+    day_data: DayTotals, highlights: dc.Dimension, is_today: bool, suspicious: int
 ):
     def fmt_none(obj) -> object:
         if obj is None:
@@ -464,9 +495,9 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = tt_estimator.Estimator(time_closed=day_data.valet_close)
+        est = web_estimator.Estimator(time_closed=day_data.time_closed)
         est.guess()
-        if est.state != tt_estimator.ERROR and est.time_closed > VTime("now"):
+        if est.state != web_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
             est_max = est.bikes_so_far + est.max
             the_estimate = (
@@ -479,9 +510,9 @@ def summary_table(
     print(
         f"""
         <tr><td colspan=3>Hours of operation:
-            {day_data.valet_open.tidy} - {day_data.valet_close.tidy}</td></tr>
+            {day_data.time_open.tidy} - {day_data.time_closed.tidy}</td></tr>
         <tr><td colspan=2>Total bikes parked (visits):</td>
-            <td>{day_data.total_bikes}</td></tr>
+            <td>{day_data.num_parked_combined}</td></tr>
             """
     )
     if is_today and the_estimate is not None:
@@ -493,13 +524,13 @@ def summary_table(
         )
     print(
         f"""
-        <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td>
-            <td>{day_data.max_bikes}</td></tr>
+        <tr><td colspan=2>Most bikes at once (at {day_data.time_fullest_combined.tidy}):</td>
+            <td>{day_data.num_fullest_combined}</td></tr>
         <tr><td colspan=2>Bikes remaining:</td>
-            <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers>0)*HIGHLIGHT_WARN)}'>
-                {day_data.leftovers}</td></tr>
+            <td  width=40 style='{highlights.css_bg_fg(int(day_data.num_remaining_combined>0)*HIGHLIGHT_WARN)}'>
+                {day_data.num_remaining_combined}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
-            <td>{day_data.registrations}</td></tr>
+            <td>{day_data.bikes_registered}</td></tr>
             """
     )
 

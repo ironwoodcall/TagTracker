@@ -361,7 +361,7 @@ def fetch_orgsite_id(
 ) -> int:
     """Fetch the PK id from the orgsite table.
 
-    If not found and insert_new, canoptionally create a new record."""
+    If not found and insert_new, will create a new record."""
 
     site_handle = site_handle.strip().lower()
     if args.verbose:

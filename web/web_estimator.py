@@ -36,11 +36,17 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 """
 
+
+
 import urllib.request
 import os
 import sys
 import math
 import statistics
+
+sys.path.append("../")
+sys.path.append("./")
+
 
 import web_base_config as wcfg
 import common.tt_util as ut
@@ -342,6 +348,8 @@ class Estimator:
 
     DBFILE = wcfg.DB_FILENAME
 
+    orgsite_id = 1  # FIXME hardwired orgsite
+
     def __init__(
         self,
         bikes_so_far="",
@@ -441,9 +449,15 @@ class Estimator:
 
     def _bikes_right_now(self) -> int:
         today = ut.date_str("today")
+        cursor = self.database.cursor()
+        day_id = db.fetch_day_id(cursor=cursor,date=today,maybe_orgsite_id=self.orgsite_id)
+        if not day_id:
+            print("no data matches this day")
+            return None
+        # ut.squawk(f"{day_id=}")
         rows = db.db_fetch(
             self.database,
-            f"select count(date) from visit where date = '{today}' and time_in > ''",
+            f"select count(time_in) from visit where day_id = {day_id} and time_in > ''",
             ["count"],
         )
         if not rows:
@@ -457,47 +471,66 @@ class Estimator:
         else:
             dow_set = "(1,2,3,4,5)"
         today = ut.date_str("today")
+
         sql = f"""
-            WITH all_dates AS (
-                SELECT DISTINCT date
-                FROM visit
-            )
             SELECT
-                day.date AS date,
-                COALESCE(v1.before, 0) AS before,
-                COALESCE(v2.after, 0) AS after
-            FROM day
-            LEFT JOIN (
-                SELECT
-                    all_dates.date,
-                    COUNT(visit.date) AS before
-                FROM
-                    all_dates
-                LEFT JOIN
-                    visit ON all_dates.date = visit.date
-                        AND visit.time_in <= "{self.as_of_when}"
-                GROUP BY
-                    all_dates.date
-            ) AS v1 ON day.date = v1.date
-            LEFT JOIN (
-                SELECT
-                    all_dates.date,
-                    COUNT(visit.date) AS after
-                FROM all_dates
-                LEFT JOIN
-                    visit ON all_dates.date = visit.date
-                        AND visit.time_in > "{self.as_of_when}"
-                GROUP BY
-                    all_dates.date
-            ) AS v2 ON day.date = v2.date
+                D.date,
+                SUM(CASE WHEN V.time_in <= '13:00' THEN 1 ELSE 0 END) AS befores,
+                SUM(CASE WHEN V.time_in > '13:00' THEN 1 ELSE 0 END) AS afters
+            FROM
+                DAY D
+            JOIN
+                VISIT V ON D.id = V.day_id
             WHERE
-                day.weekday IN {dow_set}
-                AND day.time_closed = "{self.time_closed}"
-                AND day.date != "{today}"
-            ORDER BY
-                day.date;
+                D.orgsite_id = {self.orgsite_id}
+                AND D.weekday IN {dow_set}
+                AND D.date != '{today}'
+            GROUP BY
+                D.date;
         """
         return sql
+
+        # sql = f"""
+        #     WITH all_dates AS (
+        #         SELECT DISTINCT date
+        #         FROM visit
+        #     )
+        #     SELECT
+        #         day.date AS date,
+        #         COALESCE(v1.before, 0) AS before,
+        #         COALESCE(v2.after, 0) AS after
+        #     FROM day
+        #     LEFT JOIN (
+        #         SELECT
+        #             all_dates.date,
+        #             COUNT(visit.date) AS before
+        #         FROM
+        #             all_dates
+        #         LEFT JOIN
+        #             visit ON all_dates.date = visit.date
+        #                 AND visit.time_in <= "{self.as_of_when}"
+        #         GROUP BY
+        #             all_dates.date
+        #     ) AS v1 ON day.date = v1.date
+        #     LEFT JOIN (
+        #         SELECT
+        #             all_dates.date,
+        #             COUNT(visit.date) AS after
+        #         FROM all_dates
+        #         LEFT JOIN
+        #             visit ON all_dates.date = visit.date
+        #                 AND visit.time_in > "{self.as_of_when}"
+        #         GROUP BY
+        #             all_dates.date
+        #     ) AS v2 ON day.date = v2.date
+        #     WHERE
+        #         day.weekday IN {dow_set}
+        #         AND day.time_closed = "{self.time_closed}"
+        #         AND day.date != "{today}"
+        #     ORDER BY
+        #         day.date;
+        # """
+        # return sql
 
     def _fetch_raw_data(self) -> None:
         """Get raw data from the database into self.befores, self.afters."""
