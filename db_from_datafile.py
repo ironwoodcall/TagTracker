@@ -60,11 +60,11 @@ from common.tt_dbutil import SQL_CRITICAL_ERRORS, SQL_MODERATE_ERRORS
 # import tt_globals
 import common.tt_util as ut
 from common.tt_trackerday import TrackerDay, TrackerDayError
-from common.tt_biketag import BikeTag, BikeTagError
+from common.tt_biketag import BikeTagError
 from common.tt_bikevisit import BikeVisit
 
 from common.tt_daysummary import DaySummary, PeriodDetail
-from common.tt_time import VTime
+# from common.tt_time import VTime
 from common.tt_constants import REGULAR, OVERSIZE, COMBINED
 
 # Pre-declare this global for linting purposes.
@@ -623,7 +623,7 @@ def insert_into_visit(
                 day_id,
                 visit.time_in,
                 visit.time_out,
-                visit.duration(day.time_closed),
+                visit.duration(day.time_closed,is_close_of_business=True),
                 biketype,
                 visit.tagid,
             ),
