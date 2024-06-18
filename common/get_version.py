@@ -29,6 +29,14 @@ from datetime import datetime
 
 def get_git_root():
     try:
+        git_root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], stderr=subprocess.STDOUT).strip().decode('utf-8')
+        return git_root
+    except subprocess.CalledProcessError as e:
+        print(f"Error determining git root: {e.output.decode('utf-8')}")
+        raise
+
+def OLD_get_git_root():
+    try:
         git_root = (
             subprocess.check_output(["git", "rev-parse", "--show-toplevel"])
             .strip()
@@ -36,6 +44,7 @@ def get_git_root():
         )
         return git_root
     except subprocess.CalledProcessError:
+        raise
         return None
 
 
