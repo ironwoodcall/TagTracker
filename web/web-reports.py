@@ -46,6 +46,7 @@ import tt_datafile as df
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
+from common.get_version import get_version_info
 import tt_tag_inv
 import tt_printer as pr
 
@@ -228,7 +229,7 @@ def webpage_footer(ttdb: sqlite3.Connection):
 
     print(db.db_latest(ttdb))
 
-    print(f"TagTracker version {ut.get_version()}")
+    print(f"TagTracker version {get_version_info()}")
 
 
 # =================================================================
