@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TagTracker report that rolls up data by periods (week/month/etc).
+"""TagTracker report that rolls up data by dateranges (week/month/etc).
 
 Copyright (C) 2023-2024 Julias Hocking and Todd Glover
 
@@ -28,19 +28,20 @@ from datetime import datetime, timedelta
 import os
 
 # import tt_util as ut
-import tt_dbutil as db
-import cgi_common as cc
+import common.tt_dbutil as db
+import web_common as cc
 
-PERIOD_NAMES = {
-    cc.WHAT_PERIOD_WEEK: "Weeks",
-    cc.WHAT_PERIOD_MONTH: "Months",
-    cc.WHAT_PERIOD_QUARTER: "Quarters",
-    cc.WHAT_PERIOD_YEAR: "Years",
-    cc.WHAT_PERIOD_FOREVER: "All Data"
+DATERANGE_NAMES = {
+    cc.WHAT_DATERANGE_WEEK: "Weeks",
+    cc.WHAT_DATERANGE_MONTH: "Months",
+    cc.WHAT_DATERANGE_QUARTER: "Quarters",
+    cc.WHAT_DATERANGE_YEAR: "Years",
+    cc.WHAT_DATERANGE_FOREVER: "All Data"
 }
 
 
-class PeriodGroup:
+# FIXME: this can disappear when the _DateRangeRow goes away
+class _DateRangeGroup:
     """Keep totals (int), average (float), max (int) or dates of occurence (str)."""
 
     def __init__(self, default=None):
@@ -51,8 +52,10 @@ class PeriodGroup:
         self.reg529 = default
 
 
-class PeriodRow:
-    """One table-row of period-summary data."""
+# FIXME: Can use a dict of start_date:MultiDayTotals instead of this.
+# It's slightly different data but this set was not blessed or anything
+class _DateRangeRow:
+    """One table-row of daterange-summary data."""
 
     def __init__(self) -> None:
         self.label: str = ""
@@ -60,17 +63,17 @@ class PeriodRow:
         self.end_date: str = ""
         self.days: int = 0
         self.hours: int = 0
-        self.totals = PeriodGroup(0)
-        self.means = PeriodGroup(0.0)
-        self.maxs = PeriodGroup(0)
-        self.when_max = PeriodGroup("")
+        self.totals = _DateRangeGroup(0)
+        self.means = _DateRangeGroup(0.0)
+        self.maxs = _DateRangeGroup(0)
+        self.when_max = _DateRangeGroup("")
 
-    def in_period(self, date) -> bool:
-        """Checks if date is in this period."""
+    def in_daterange(self, date) -> bool:
+        """Checks if date is in this daterange."""
         return self.start_date <= date <= self.end_date
 
     def aggregate(self, day_dbrow):
-        """Aggregates this db row into this period summary."""
+        """Aggregates this db row into this daterange summary."""
         self.days += 1
         self.hours += day_dbrow.hours
         self.totals.all_bikes += day_dbrow.parked_total
@@ -106,51 +109,51 @@ class PeriodRow:
             self.means.reg529 = self.totals.reg529 / self.days
 
 
-def period_summary(
+def daterange_summary(
     ttdb,
-    period_type: str = "",
+    daterange_type: str = "",
     start_date: str = "",
     end_date: str = "",
     pages_back: int = 1,
 ):
-    """Present a period summary page for a given period_type etc.
+    """Present a daterange summary page for a given daterange_type etc.
 
-    If no period_type or just WHAT_PERIOD, does them all.
+    If no daterange_type or just WHAT_DATERANGE, does them all.
     """
 
-    _period_summary_pagetop(pages_back)
+    _daterange_summary_pagetop(pages_back)
 
     print("<br><br><br>")
 
-    all_periods = [
-        cc.WHAT_PERIOD_FOREVER,
-        cc.WHAT_PERIOD_YEAR,
-        cc.WHAT_PERIOD_QUARTER,
-        cc.WHAT_PERIOD_MONTH,
-        cc.WHAT_PERIOD_WEEK,
+    all_dateranges = [
+        cc.WHAT_DATERANGE_FOREVER,
+        cc.WHAT_DATERANGE_YEAR,
+        cc.WHAT_DATERANGE_QUARTER,
+        cc.WHAT_DATERANGE_MONTH,
+        cc.WHAT_DATERANGE_WEEK,
     ]
-    if not period_type or period_type == cc.WHAT_PERIOD:
-        periods_list = all_periods
+    if not daterange_type or daterange_type == cc.WHAT_DATERANGE:
+        dateranges_list = all_dateranges
     else:
-        periods_list = [period_type]
+        dateranges_list = [daterange_type]
 
-    for period in periods_list:
-        if period not in all_periods and period != cc.WHAT_PERIOD_CUSTOM:
-            print(f"<br><br><pre>unknown period '{period}'</pre><br><br>")
+    for daterange in dateranges_list:
+        if daterange not in all_dateranges and daterange != cc.WHAT_DATERANGE_CUSTOM:
+            print(f"<br><br><pre>unknown daterange '{daterange}'</pre><br><br>")
             continue
-        _period_summary_table(ttdb, start_date, end_date, period, pages_back)
+        _daterange_summary_table(ttdb, start_date, end_date, daterange, pages_back)
         print("<br><br><br>")
 
 
-def _period_summary_pagetop(pages_back: int = 1):
+def _daterange_summary_pagetop(pages_back: int = 1):
     print(f"<h1>{cc.titleize(': Summaries')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
 
 
-def _fetch_period_summary_rows(
-    ttdb, range_start, range_end, period_type
-) -> list[PeriodRow]:
-    """Fetch db data to make list of period summary rows.
+def _fetch_daterange_summary_rows(
+    ttdb, range_start, range_end, daterange_type
+) -> list[_DateRangeRow]:
+    """Fetch db data to make list of daterange summary rows.
 
     Fetch is limited to the given date range (if given)
     List will be sorted by label
@@ -172,75 +175,75 @@ def _fetch_period_summary_rows(
     if not dbrows:
         return []
 
-    # Create PeriodRow objects and initialize variables
-    period_rows = []
-    current_period = None
+    # Create _DateRangeRow objects and initialize variables
+    daterange_rows = []
+    current_daterange = None
 
     # Iterate through all dbrows
     for row in dbrows:
         date = row.date
 
-        # If it's a new period, create a new PeriodRow
-        if current_period is None or not current_period.in_period(date):
-            if current_period is not None and current_period.days:
-                period_rows.append(current_period)  # Append the previous period
-            current_period = PeriodRow()
-            if period_type == cc.WHAT_PERIOD_CUSTOM:
+        # If it's a new daterange, create a new _DateRangeRow
+        if current_daterange is None or not current_daterange.in_daterange(date):
+            if current_daterange is not None and current_daterange.days:
+                daterange_rows.append(current_daterange)  # Append the previous daterange
+            current_daterange = _DateRangeRow()
+            if daterange_type == cc.WHAT_DATERANGE_CUSTOM:
                 (
-                    current_period.start_date,
-                    current_period.end_date,
-                    current_period.label,
+                    current_daterange.start_date,
+                    current_daterange.end_date,
+                    current_daterange.label,
                 ) = (range_start,range_end,"Custom date span")
             else:
                 (
-                    current_period.start_date,
-                    current_period.end_date,
-                    current_period.label,
-                ) = _period_params(date, period_type=period_type)
+                    current_daterange.start_date,
+                    current_daterange.end_date,
+                    current_daterange.label,
+                ) = _daterange_params(date, daterange_type=daterange_type)
 
-        # Aggregate statistics for the current period
-        current_period.aggregate(row)
+        # Aggregate statistics for the current daterange
+        current_daterange.aggregate(row)
 
-    # Append the last period after the loop ends
-    if current_period is not None and current_period.days:
-        period_rows.append(current_period)
+    # Append the last daterange after the loop ends
+    if current_daterange is not None and current_daterange.days:
+        daterange_rows.append(current_daterange)
 
-    # Calculate means for values of the periods
-    for p in period_rows:
+    # Calculate means for values of the dateranges
+    for p in daterange_rows:
         p.finalize()
 
-    return period_rows
+    return daterange_rows
 
 
-def _period_params(onedate, period_type) -> tuple[str, str, str]:
-    """Calculate parameters for one period.
+def _daterange_params(onedate, daterange_type) -> tuple[str, str, str]:
+    """Calculate parameters for one daterange.
 
-    On entry onedate is a date anywhere in a desired period.
+    On entry onedate is a date anywhere in a desired daterange.
 
     Returns
-        label for the period. E.g. for 2024-02-22
+        label for the daterange. E.g. for 2024-02-22
             Y 2024
             M 2024-02
             Q 2024-Q1 (starts Jan/Apr/Jul/Sep 1)
             W 2024-02-19 (starts a monday)
-        first date in the period (YYY-MM-DD)
-        last date in the period (YYYY-MM-DD)
+        first date in the daterange (YYY-MM-DD)
+        last date in the daterange (YYYY-MM-DD)
 
     """
 
     # Convert input date string to datetime object
     date = datetime.strptime(onedate, "%Y-%m-%d")
 
-    # Determine start and end dates of the period based on period type
-    if period_type == cc.WHAT_PERIOD_FOREVER:
+    # Determine start and end dates of the daterange based on daterange type
+    if daterange_type == cc.WHAT_DATERANGE_FOREVER:
         start_date = "0000-00-00" # Sorts less than any date string
         end_date = "9999-99-99"  # Sorts greater than any date string
         label = "All data"
-    elif period_type == cc.WHAT_PERIOD_YEAR:
+    elif daterange_type == cc.WHAT_DATERANGE_YEAR:
         start_date = date.replace(month=1, day=1).strftime("%Y-%m-%d")
         end_date = date.replace(month=12, day=31).strftime("%Y-%m-%d")
         label = f"Y {start_date[:4]}"
-    elif period_type == cc.WHAT_PERIOD_QUARTER:
+    elif daterange_type == cc.WHAT_DATERANGE_QUARTER:
         quarter_start_month = ((date.month - 1) // 3) * 3 + 1
         start_date = date.replace(month=quarter_start_month, day=1).strftime("%Y-%m-%d")
         end_date = (
@@ -248,29 +251,29 @@ def _period_params(onedate, period_type) -> tuple[str, str, str]:
         ).replace(day=1) - timedelta(days=1)
         end_date = end_date.strftime("%Y-%m-%d")
         label = f"Q {date.year}-Q{(quarter_start_month - 1) // 3 + 1}"
-    elif period_type == cc.WHAT_PERIOD_MONTH:
+    elif daterange_type == cc.WHAT_DATERANGE_MONTH:
         month_start = date.replace(day=1)
         start_date = month_start.strftime("%Y-%m-%d")
         sometime_next_month = month_start + timedelta(days=32)
         end_date = sometime_next_month.replace(day=1).strftime("%Y-%m-%d")
         label = f"M {start_date[:7]}"
-    elif period_type == cc.WHAT_PERIOD_WEEK:
+    elif daterange_type == cc.WHAT_DATERANGE_WEEK:
         start_date = (date - timedelta(days=date.weekday())).strftime("%Y-%m-%d")
         end_date = (date + timedelta(days=6 - date.weekday())).strftime("%Y-%m-%d")
         label = f"W {start_date}"
     else:
-        raise ValueError(f"Invalid period_type {period_type}")
+        raise ValueError(f"Invalid daterange_type {daterange_type}")
 
     # Return start_date, end_date, and label
     return start_date, end_date, label
 
 
-def _period_summary_table_top(period_type,start_date:str="",end_date:str=""):
-    """Print the table def and header row for one period-summaries table."""
-    if period_type == cc.WHAT_PERIOD_CUSTOM:
+def _daterange_summary_table_top(daterange_type,start_date:str="",end_date:str=""):
+    """Print the table def and header row for one daterange-summaries table."""
+    if daterange_type == cc.WHAT_DATERANGE_CUSTOM:
         name = f"{start_date} to {end_date}"
     else:
-        name = PERIOD_NAMES[period_type]
+        name = DATERANGE_NAMES[daterange_type]
     print("<table class='general_table'>")
     print(
         f"<tr><th colspan=17>Summary of {name}</th></tr>"
@@ -309,8 +312,8 @@ def _period_summary_table_top(period_type,start_date:str="",end_date:str=""):
     )
 
 
-def _one_period_summary_row(pd: PeriodRow, pages_back: int):
-    """Print one table row in a periods table."""
+def _one_daterange_summary_row(pd: _DateRangeRow, pages_back: int):
+    """Print one table row in a dateranges table."""
 
     # Calculate links to day detail for days of maximum values
     max_all_bikes_link = cc.selfref(
@@ -359,30 +362,30 @@ def _one_period_summary_row(pd: PeriodRow, pages_back: int):
     )
 
 
-def _period_summary_table(
+def _daterange_summary_table(
     ttdb: sqlite3.Connection,
     range_start: str,
     range_end: str,
-    period_type: str,
+    daterange_type: str,
     pages_back: int,
 ):
-    """Calculate and print a table for a given period type.
+    """Calculate and print a table for a given daterange type.
 
-    Looks at all the periods within the given date range;
+    Looks at all the dateranges within the given date range;
     either start or end can be empty.
     """
 
-    period_rows = _fetch_period_summary_rows(
-        ttdb, range_start=range_start, range_end=range_end, period_type=period_type
+    daterange_rows = _fetch_daterange_summary_rows(
+        ttdb, range_start=range_start, range_end=range_end, daterange_type=daterange_type
     )
 
-    if not period_rows:
+    if not daterange_rows:
         return
-    _period_summary_table_top(period_type,range_start,range_end)
+    _daterange_summary_table_top(daterange_type,range_start,range_end)
 
-    for onerow in period_rows:
-        onerow: PeriodRow
-        _one_period_summary_row(onerow, pages_back=pages_back)
+    for onerow in daterange_rows:
+        onerow: _DateRangeRow
+        _one_daterange_summary_row(onerow, pages_back=pages_back)
 
     # table bottom
     print("</table>")

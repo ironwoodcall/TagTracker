@@ -26,8 +26,8 @@ import subprocess
 import random
 
 # import tt_globals
-import tt_constants as k
-import tt_util as ut
+import common.tt_constants as k
+import common.tt_util as ut
 import client_base_config as cfg
 import tt_printer as pr
 
@@ -39,6 +39,8 @@ class NoiseMaker:
     player = cfg.SOUND_PLAYER
     enabled = cfg.SOUND_ENABLED
     _initialized = False
+    # Queue for sound codes
+    _queue = []
 
     # These can be files or folders full of sounds
     bike_in = cfg.SOUND_BIKE_IN
@@ -164,3 +166,20 @@ class NoiseMaker:
             stdin=subprocess.DEVNULL,
         )
 
+    @classmethod
+    def queue_reset(cls):
+        """Clears the sound queue."""
+        cls._queue = []
+
+    @classmethod
+    def queue_add(cls,*sound_codes):
+        """Adds spund_code(s) to the sound queue."""
+        cls._queue.append(*sound_codes)
+
+    @classmethod
+    def queue_play(cls):
+        """Play & reset the sounds queue."""
+        ut.squawk(f"{cls._queue=}",cfg.DEBUG)
+        if cls._queue:
+            cls.play(*cls._queue)
+            cls.queue_reset()

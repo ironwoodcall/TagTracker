@@ -30,9 +30,9 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import sqlite3
 
-import tt_dbutil as db
+import common.tt_dbutil as db
 import datacolors as dc
-import cgi_common as cc
+import web_common as cc
 
 
 def leftovers_report(ttdb: sqlite3.Connection):

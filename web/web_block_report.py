@@ -26,11 +26,11 @@ import sqlite3
 import copy
 from collections import defaultdict
 
-import tt_dbutil as db
-from tt_time import VTime
-import tt_util as ut
-import tt_block
-import cgi_common as cc
+import common.tt_dbutil as db
+from common.tt_time import VTime
+import common.tt_util as ut
+# import tt_block
+import web_common as cc
 import datacolors as dc
 import colortable
 
@@ -239,7 +239,7 @@ def print_the_html(
         print(f"<td style=width:auto;><a href='{dow_report_link}'>{dayname}</a></td>")
 
         # Find which time block had the greatest num of bikes this day.
-        fullest_block_this_day = tt_block.block_start(thisday.day_max_bikes_time)
+        fullest_block_this_day = ut.block_start(thisday.day_max_bikes_time)
 
         # Print the blocks for this day.
         html = ""

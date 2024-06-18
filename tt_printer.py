@@ -33,12 +33,10 @@ try:
 except ImportError:
     pass
 
-import tt_util as ut
+import common.tt_util as ut
 import client_base_config as cfg
-import tt_constants as k
-import tt_notes as notes
-from tt_time import VTime
-
+import common.tt_constants as k
+from common.tt_time import VTime
 
 # Amount to indent normal output. iprint() indents in units of _INDENT
 _INDENT = "  "
@@ -246,33 +244,6 @@ def text_alert(message: str = "", style=None) -> None:
     _save_cursor_position()
     _print_message_at_location(1, 1, padded_message)
     _restore_cursor_position()
-
-
-# This dict holds static control data for the print_tag_notes function.
-_print_tag_notes_key_prev = "prev_tag"
-_print_tag_notes_key_printed = "printed"
-_print_tag_notes_control = {
-    _print_tag_notes_key_prev: "",
-    _print_tag_notes_key_printed: False,
-}
-
-
-def print_tag_notes(tag: str, reset: bool = False):
-    """Print notes for a given tag.
-
-    Only prints if not *already* printed .. what a kludge...
-    and can be called with 'reset' flag to allow printing again.
-    Will also reset if the tag is not the same as the previously-used tag.
-    """
-    if reset or tag != _print_tag_notes_control[_print_tag_notes_key_prev]:
-        _print_tag_notes_control[_print_tag_notes_key_printed] = False
-
-    if tag and not _print_tag_notes_control[_print_tag_notes_key_printed]:
-        for line in notes.Notes.find(tag):
-            iprint(line, style=k.WARNING_STYLE)
-        _print_tag_notes_control[_print_tag_notes_key_printed] = True
-
-    _print_tag_notes_control[_print_tag_notes_key_prev] = tag
 
 
 def clear_screen():

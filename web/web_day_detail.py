@@ -23,16 +23,18 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import sqlite3
-from statistics import mean, median
+from dataclasses import dataclass
 
-import tt_dbutil as db
-from tt_tag import TagID
-from tt_time import VTime
-import tt_util as ut
-import cgi_common as cc
+import common.tt_dbutil as db
+from common.tt_tag import TagID
+from common.tt_time import VTime
+import common.tt_util as ut
+from common.tt_daysummary import DayTotals
+from common.tt_statistics import VisitStats
+import web_common as cc
 import datacolors as dc
-import tt_estimator
-import cgi_histogram
+import web.web_estimator as web_estimator
+import web_histogram
 
 
 HIGHLIGHT_NONE = 0
@@ -129,6 +131,16 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
 def one_day_tags_report(
     ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = "", pages_back: int = 1
 ):
+    @dataclass
+    class _VisitRow:
+        tag: str = ""
+        next_tag: str = ""
+        bike_type: str = "?"
+        time_in: str = ""
+        next_time_in: str = ""
+        time_out: str = ""
+        duration: int = None
+
     thisday = ut.date_str(whatday)
     if not thisday:
         cc.bad_date(whatday)
@@ -140,39 +152,70 @@ def one_day_tags_report(
     else:
         day_str = ut.date_str(thisday, dow_str_len=10)
 
+    orgsite_id = 1  # hardwired orgsite_id
+
+    cursor = ttdb.cursor()
+    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=orgsite_id)
+    if not day_id:
+        cursor.close()
+        return
+
+    day_data: DayTotals = db.fetch_day_totals(cursor=cursor,day_id=day_id)
+
+
     # In the code below, 'next_*' are empty placeholders
     sql = f"""
         select
-           tag, '' next_tag, type bike_type,
-           time_in, '' next_time_in, time_out, duration
+           bike_id, bike_type,
+           time_in, time_out, duration
         from visit
-        where date = '{thisday}'
-        order by tag asc
+        where day_id = {day_id}
+        order by bike_id asc
     """
-    rows = db.db_fetch(ttdb, sql)
+    rows = cursor.execute(sql).fetchall()
+
+    if not rows:
+        cursor.close()
+        return
+    cursor.close()    # day_data.min_stay = VTime(min(durations)).tidy
     # if not rows:
     #     print(f"<pre>No activity recorded for {thisday}")
     #     sys.exit()
 
-    # Process the rows
-    durations = [VTime(v.duration).num for v in rows]
-    for v in rows:
-        v.tag = TagID(v.tag)
-    rows = sorted(rows, key=lambda x: x.tag)
-    # Calculate next_tag and next_time_in values
-    for i, v in enumerate(rows):
-        if i >= 1:
-            rows[i - 1].next_time_in = v.time_in
-            rows[i - 1].next_tag = v.tag
+    visits = []
+    for row in rows:
+        visit = _VisitRow(
+            tag=TagID(row[0]),
+            bike_type=row[1],
+            time_in=VTime(row[2]),
+            time_out=VTime(row[3]),
+            duration=row[4],
+        )
+        visits.append(visit)
 
-    # leftovers = len([t.time_out for t in rows if t.time_out <= ""])
-    suspicious = len(
-        [
-            t.next_time_in
-            for t in rows
-            if t.next_time_in < t.time_in and t.time_out <= ""
-        ]
-    )
+    tag_reuses = len(visits) - len(set(v.tag for v in visits))
+    # Reuse % is proportion of returns that were then reused.
+    bikes_returned = len([v for v in visits if v.time_out and v.time_out > ""])
+    tag_reuse_pct = tag_reuses/bikes_returned if bikes_returned else 0
+
+    # Process the rows
+    stats = VisitStats([v.duration for v in visits])
+    visits = sorted(visits, key=lambda x: x.tag)
+    # rows = sorted(rows, key=lambda x: x.tag)
+    # Calculate next_tag and next_time_in values
+    for i, v in enumerate(visits):
+        if i >= 1:
+            visits[i - 1].next_time_in = v.time_in
+            visits[i - 1].next_tag = v.tag
+
+    # # leftovers = len([t.time_out for t in rows if t.time_out <= ""])
+    # suspicious = len(
+    #     [
+    #         t.next_time_in
+    #         for t in visits
+    #         if t.next_time_in < t.time_in and t.time_out <= ""
+    #     ]
+    # )
 
     daylight = dc.Dimension()
     daylight.add_config(VTime("07:30").num, "LightSkyBlue")
@@ -197,30 +240,35 @@ def one_day_tags_report(
     print(_nav_buttons(ttdb, thisday, pages_back))
     print("<br><br>")
 
-    if not rows:
+    if not visits:
         print(f"No information in database for {thisday}")
         return
 
-    # Get overall stats for the day
-    day_data: cc.SingleDay = cc.get_days_data(ttdb, thisday, thisday)[0]
-    day_data.min_stay = VTime(min(durations)).tidy
-    day_data.max_stay = VTime(max(durations)).tidy
-    day_data.mean_stay = VTime(mean(durations)).tidy
-    day_data.median_stay = VTime(median(durations)).tidy
+    # Get overall stats for the day FIXME: got these above as a DayTotals obj
 
-    day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(
-        durations, 30
-    )
+    # day_data: db.MultiDayTotals = db.MultiDayTotals.fetch_from_db(
+    #     ttdb, orgsite_id=orgsite_id, start_date=thisday, end_date=thisday
+    # )
+
+    # day_data.max_stay = VTime(max(durations)).tidy
+    # day_data.mean_stay = VTime(mean(durations)).tidy
+    # day_data.median_stay = VTime(median(durations)).tidy
+
+    # day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(
+    #     durations, 30
+    # )
 
     ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
     ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
-    summary_table(day_data, highlights, is_today, suspicious)
+
+    summary_table(day_data, stats, tag_reuses, tag_reuse_pct, highlights, is_today)
     legend_table(daylight, duration_colors)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##print("</div><div>")
+
     mini_freq_tables(ttdb, thisday)
     print("</div>")
     print("</div>")
@@ -230,7 +278,7 @@ def one_day_tags_report(
     visits_table(
         thisday,
         is_today,
-        rows,
+        visits,
         highlights,
         daylight,
         duration_colors,
@@ -274,7 +322,7 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
         column, title, subtitle, color = parameters
         title = f"<h2>{title}</h2>"
         print(
-            cgi_histogram.times_hist_table(
+            web_histogram.times_hist_table(
                 ttdb,
                 query_column=column,
                 start_date=today,
@@ -298,7 +346,7 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
         column, title, color = parameters
         title = f"<a href='{cc.selfref(cc.WHAT_ONE_DAY_FREQUENCIES,qdate=today)}'>{title}</a>"
         print(
-            cgi_histogram.times_hist_table(
+            web_histogram.times_hist_table(
                 ttdb,
                 query_column=column,
                 start_date=today,
@@ -407,11 +455,11 @@ def visits_table(
         # Tag
         tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, qtag=v.tag)
         c = "color:auto;"
-        if v.next_time_in < time_in and time_out <= "" and not is_today:
-            if v.tag[:1] == v.next_tag[:1]:
-                c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
-            elif v.next_tag:
-                c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
+        # if v.next_time_in < time_in and time_out <= "" and not is_today:
+        #     if v.tag[:1] == v.next_tag[:1]:
+        #         c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
+        #     elif v.next_tag:
+        #         c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
         print(
             f"<td style='text-align:center;{c}'><a href='{tag_link}'>{v.tag}</a></td>"
         )
@@ -455,7 +503,13 @@ def visits_table(
 
 
 def summary_table(
-    day_data: cc.SingleDay, highlights: dc.Dimension, is_today: bool, suspicious: int
+    day_data: DayTotals,
+    stats: VisitStats,
+    tag_reuses:int,
+    tag_reuse_pct:float,
+    highlights: dc.Dimension,
+    is_today: bool,
+    # suspicious: int,
 ):
     def fmt_none(obj) -> object:
         if obj is None:
@@ -464,9 +518,9 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = tt_estimator.Estimator(closing_time=day_data.valet_close)
+        est = web_estimator.Estimator(time_closed=day_data.time_closed)
         est.guess()
-        if est.state != tt_estimator.ERROR and est.closing_time > VTime("now"):
+        if est.state != web_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
             est_max = est.bikes_so_far + est.max
             the_estimate = (
@@ -479,9 +533,9 @@ def summary_table(
     print(
         f"""
         <tr><td colspan=3>Hours of operation:
-            {day_data.valet_open.tidy} - {day_data.valet_close.tidy}</td></tr>
+            {day_data.time_open.tidy} - {day_data.time_closed.tidy}</td></tr>
         <tr><td colspan=2>Total bikes parked (visits):</td>
-            <td>{day_data.total_bikes}</td></tr>
+            <td>{day_data.num_parked_combined}</td></tr>
             """
     )
     if is_today and the_estimate is not None:
@@ -493,13 +547,16 @@ def summary_table(
         )
     print(
         f"""
-        <tr><td colspan=2>Most bikes at once (at {day_data.max_bikes_time.tidy}):</td>
-            <td>{day_data.max_bikes}</td></tr>
+        <tr><td colspan=2>Most bikes at once (at {day_data.time_fullest_combined.tidy}):</td>
+            <td>{day_data.num_fullest_combined}</td></tr>
         <tr><td colspan=2>Bikes remaining:</td>
-            <td  width=40 style='{highlights.css_bg_fg(int(day_data.leftovers>0)*HIGHLIGHT_WARN)}'>
-                {day_data.leftovers}</td></tr>
+            <td  width=40 style='{highlights.css_bg_fg(int(day_data.num_remaining_combined>0)*HIGHLIGHT_WARN)}'>
+                {day_data.num_remaining_combined}</td></tr>
+        <tr><td colspan=2>Reuse of returned tags: (n={tag_reuses})</td>
+            <td  width=40>
+                {tag_reuse_pct:.0%}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
-            <td>{day_data.registrations}</td></tr>
+            <td>{day_data.bikes_registered}</td></tr>
             """
     )
 
@@ -507,40 +564,39 @@ def summary_table(
         print(
             f"""
             <tr><td colspan=2>Shortest visit:</td>
-                <td>{day_data.min_stay}</td></tr>
+                <td>{stats.shortest}</td></tr>
             <tr><td colspan=2>Longest visit:</td>
-                <td>{day_data.max_stay}</td></tr>
+                <td>{stats.longest}</td></tr>
             <tr><td colspan=2>Mean visit length:</td>
-                <td>{day_data.mean_stay}</td></tr>
+                <td>{stats.mean}</td></tr>
             <tr><td colspan=2>Median visit length:</td>
-                <td>{day_data.median_stay}</td></tr>
-            <tr><td colspan=2>{ut.plural(len(day_data.modes_stay),'Mode')}
-                    visit length ({day_data.modes_occurences} occurences):</td>
-                <td>{'<br>'.join(day_data.modes_stay)}</td></tr>
+                <td>{stats.median}</td></tr>
+            <tr><td colspan=2>{ut.plural(len(stats.modes),'Mode')}
+                    visit length ({stats.mode_occurences} occurences):</td>
+                <td>{'<br>'.join(stats.modes)}</td></tr>
             <tr><td colspan=2>High temperature:</td>
-                <td>{fmt_none(day_data.temperature)}</td></tr>
+                <td>{fmt_none(day_data.max_temperature)}</td></tr>
             <tr><td colspan=2>Precipitation:</td>
-                <td>{fmt_none(day_data.precip)}</td></tr>
+                <td>{fmt_none(day_data.precipitation)}</td></tr>
     """
         )
-    if not is_today and suspicious:
-        print(
-            f"""
-            <tr><td colspan=2>Bikes possibly never checked in:</td>
-            <td style='text-align:right;
-                {highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>
-                {suspicious}</td></tr>
-        """
-        )
-    de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=day_data.date)
-    df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=day_data.date)
-
-    print(
-        f"""
-        <tr><td colspan=3><a href='{de_link}'>Data entry reports</a></td></tr>
-        <tr><td colspan=3><a href='{df_link}'>Reconstructed datafile</a></td></tr>
-        """
-    )
+    # if not is_today and suspicious:
+    #     print(
+    #         f"""
+    #         <tr><td colspan=2>Bikes possibly never checked in:</td>
+    #         <td style='text-align:right;
+    #             {highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>
+    #             {suspicious}</td></tr>
+    #     """
+    #     )
+    # de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=day_data.date)
+    # df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=day_data.date)
+    # print(
+    #     f"""
+    #     <tr><td colspan=3><a href='{de_link}'>Data entry reports</a></td></tr>
+    #     <tr><td colspan=3><a href='{df_link}'>Reconstructed datafile</a></td></tr>
+    #     """
+    # )
     print("</table><p></p>")
 
 
@@ -554,7 +610,7 @@ def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.min)}>Short</td>")
     print(
         f"<td style={duration_colors.css_bg_fg((duration_colors.min+duration_colors.max)/2)}>"
-            "Medium</td>"
+        "Medium</td>"
     )
     print(f"<td style={duration_colors.css_bg_fg(duration_colors.max)}>Long</td>")
     print("</table><p></p>")

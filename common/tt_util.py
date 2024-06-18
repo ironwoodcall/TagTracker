@@ -29,9 +29,13 @@ import re
 import collections
 import random
 import string
+from pathlib import Path
 
-from tt_time import VTime
-from tt_tag import TagID
+
+# import client_base_config as cfg
+from common.tt_time import VTime
+from common.tt_tag import TagID
+from common.tt_constants import BLOCK_DURATION
 
 
 def find_on_path(filename):
@@ -56,44 +60,27 @@ def find_on_path(filename):
         return None
 
 
-def top_level_script() -> str:
-    """Return filename of highest-level calling script.
-
-    This is specifically intended to let a module determine
-    whether or not it is being called by the tagtracker desktop
-    (data entry) script."""
-
-    frame = sys._getframe()
-    while frame.f_back:
-        frame = frame.f_back
-    top = frame.f_globals.get("__file__", None)
-    top = top if top else ""
-    return top
-
-
-def squawk(whatever: str = "") -> None:
+def squawk(whatever: str = "", yes_print_this: bool = True) -> str:
     """Print whatever with file & linenumber in front of it.
 
     This is intended for programming errors not prettiness.
+
+    Will only print if yes_print_this is True. (This flag is meant
+    to allow squawk to be sensitive to a DEBUG flag)
 
     Additional caller info:
         caller_path = f.f_globals['__file__'] (though fails if squawk()
             called from interpreter, as __file__ not in globals at that point)
         caller_file = os.path.basename(caller_path)
     """
+    if not yes_print_this:
+        return
+
     f = sys._getframe(1)  # pylint:disable=protected-access
     caller_module = f.f_globals["__name__"]
     caller_function = f.f_code.co_name
     caller_line_no = f.f_lineno
     print(f"{caller_module}:{caller_function}():{caller_line_no}: {whatever}")
-
-
-def decomment(string: str) -> str:
-    """Remove any part of the string that starts with '#'."""
-    r = re.match(r"^([^#]*) *#", string)
-    if r:
-        return r.group(1)
-    return string
 
 
 def date_str(
@@ -153,24 +140,6 @@ def date_str(
     return thisday.strftime("%Y-%m-%d")
 
 
-def date_offset(start_date: str, offset: int) -> str:
-    """Return a day some number of days before or after a date.
-
-    start_date: is any date string that date_str() will recognize
-    offset: is the number of days later(+) or earlier(-)
-    Returns:
-        YYYY-MM-DD of date which is offset from start_date
-        "" if start_date is bad
-    """
-    start_date = date_str(start_date)
-    if not start_date:
-        return ""
-    offset_day = datetime.datetime.strptime(
-        start_date, "%Y-%m-%d"
-    ) + datetime.timedelta(offset)
-    return offset_day.strftime("%Y-%m-%d")
-
-
 def dow_int(date_or_dayname: str) -> int:
     """Get ISO day of week from a date or weekday name."""
     date = date_str(date_or_dayname)
@@ -193,11 +162,13 @@ def dow_int(date_or_dayname: str) -> int:
     return None
 
 
-def dow_str(iso_dow: int, dow_str_len: int = 0) -> str:
-    """Return int ISO day of week as a str of length dow_str_len.
+def dow_str(iso_dow_or_date: int, dow_str_len: int = 0) -> str:
+    """Return YYYY-MM-DD or ISO day of week as a str of length dow_str_len.
 
     If dow_len is not specified then returns whole dow name.
     """
+    if isinstance(iso_dow_or_date,str):
+        iso_dow = dow_int(iso_dow_or_date)
     iso_dow = str(iso_dow)
     dow_str_len = dow_str_len if dow_str_len else 99
     d = datetime.datetime.strptime(f"2023-1-{iso_dow}", "%Y-%W-%u")
@@ -221,50 +192,21 @@ def most_recent_dow(iso_day) -> str:
     most_recent_date = current_date - datetime.timedelta(days=day_difference)
     return most_recent_date.strftime("%Y-%m-%d")
 
+def date_offset(date:str, offset:int) -> str:
+    """Get a date before or after the given date."""
+    # Convert input date string to datetime object
+    input_date = datetime.datetime.strptime(date, '%Y-%m-%d')
 
-def get_time() -> VTime:
-    """Return current time as string: HH:MM."""
-    # FIXME: get_time() deprecated, use VTime("now") instead
-    return VTime(datetime.datetime.today().strftime("%H:%M"))
+    # Calculate the offset
+    delta = datetime.timedelta(days=offset)
 
+    # Apply the offset to the input date
+    result_date = input_date + delta
 
-def time_int(maybe_time: str | int | float | None) -> int | None:
-    """Return maybe_time (str or int) to number of minutes since midnight or "".
+    # Convert result date back to string in the same format
+    result_date_str = result_date.strftime('%Y-%m-%d')
 
-        Input can be int (minutes since midnight) or a string
-    that might be a time in HH:MM.
-
-    Return is either None (doesn't look like a valid time) or
-    will be an integer between 0 and 1440.
-
-    Warning: edge case: if given "00:00" or 0, this will return 0,
-    which can test as False in a boolean argument.  In cases where 0
-    might be a legitimate time, test for the type of the return or
-    test whether "is None".
-    """
-    # FIXME: time_int() deprecated, use VTime() instead
-    if isinstance(maybe_time, float):
-        maybe_time = round(maybe_time)
-    if isinstance(maybe_time, str):
-        r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
-        if not (r):
-            return None
-        h = int(r.group(1))
-        m = int(r.group(2))
-        # Test for an impossible time
-        if h > 24 or m > 59 or (h * 60 + m) > 1440:
-            return None
-        return h * 60 + m
-    if isinstance(maybe_time, int):
-        # Test for impossible time.
-        if not (0 <= maybe_time <= 1440):
-            return None
-        return maybe_time
-    if maybe_time is None:
-        return None
-    # Not an int, not a str, not None.
-    squawk(f"PROGRAM ERROR: called time_int({maybe_time=})")
-    return None
+    return result_date_str
 
 
 def iso_timestamp() -> str:
@@ -272,53 +214,31 @@ def iso_timestamp() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def time_str(
-    maybe_time: int | str | float | None,
-    allow_now: bool = False,
-    default_now: bool = False,
-) -> VTime:
-    """Return maybe_time as HH:MM (or "").
+def block_start(atime: int | str) -> VTime:
+    """Return the start time of the block that contains time 'atime'.
 
-    Input can be int/float (duration or minutes since midnight),
-    or a string that *might* be a time in [H]H[:]MM.
-
-    Special case: "now" will return current time if allowed
-    by flag "allow_now".
-
-    If default_now is True, then will return current time when input is blank.
-
-    Return is either "" (doesn't look like a valid time) or
-    will be HH:MM, always length 5 (i.e. 09:00 not 9:00)
+    'atime' can be minutes since midnight or HHMM.
     """
-    # FIXME: time_str() deprecated, use VTime() object
-    if not maybe_time and default_now:
-        return VTime("now")
-    if isinstance(maybe_time, float):
-        maybe_time = round(maybe_time)
-    if isinstance(maybe_time, str):
-        if maybe_time.lower() == "now" and allow_now:
-            return VTime("now")
-        r = re.match(r"^ *([012]*[0-9]):?([0-5][0-9]) *$", maybe_time)
-        if not (r):
-            return VTime("")
-        h = int(r.group(1))
-        m = int(r.group(2))
-        # Test for an impossible time
-        if h > 24 or m > 59 or (h * 60 + m) > 1440:
-            return VTime("")
-    elif maybe_time is None:
-        return VTime("")
-    elif not isinstance(maybe_time, int):
-        squawk(f"PROGRAM ERROR: called time_str({maybe_time=})")
-        return VTime("")
-    elif isinstance(maybe_time, int):
-        # Test for impossible time.
-        if not (0 <= maybe_time <= 1440):
-            return VTime("")
-        h = maybe_time // 60
-        m = maybe_time % 60
-    # Return 5-digit time string
-    return VTime(f"{h:02d}:{m:02d}")
+    # Get time in minutes
+    atime = VTime(atime)
+    if not atime:
+        return ""
+    # which block of time does it fall in?
+    block_start_min = (atime.num // BLOCK_DURATION) * BLOCK_DURATION
+    return VTime(block_start_min)
+
+
+def block_end(atime: int | str) -> VTime:
+    """Return the last minute of the timeblock that contains time 'atime'.
+
+    'atime' can be minutes since midnight or HHMM.
+    """
+    # Get block start
+    start = block_start(atime)
+    # Calculate block end
+    end = start.num + BLOCK_DURATION - 1
+    # Return as minutes or HHMM
+    return VTime(end)
 
 
 def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
@@ -370,11 +290,10 @@ def splitline(inp: str) -> list[str]:
     return tokens
 
 
-def get_version() -> str:
-    """Return system version number from changelog.txt.
 
-    If it looks like a git repo, will also try to include a ref from that.
-    """
+
+def get_version() -> str:
+    """Return git repo ref."""
     version_str = ""
 
     # Git ref
@@ -406,14 +325,6 @@ def get_version() -> str:
     # Full version string now
     # version_str = f"{version_str} ({git_str})"
     return git_str
-
-
-def OLD_plural(count: int) -> str:
-    """Get an "s" if count indicates one is needed."""
-    if isinstance(count, (int, float)) and count == 1:
-        return ""
-    else:
-        return "s"
 
 
 def untaint(tainted: str) -> str:
@@ -468,49 +379,6 @@ def line_wrapper(
 
     return lines
 
-
-def calculate_visit_frequencies(
-    durations_list: list, category_width: int = 30
-) -> collections.Counter:
-    durations = []
-    for d in durations_list:
-        if isinstance(d, int):
-            durations.append(d)
-        else:
-            durations.append(VTime(d).num)
-    durations = [d for d in durations if isinstance(d, int)]
-
-    # Make a new list of the durations, categorized
-    categorized = [(d // category_width) * category_width for d in durations]
-
-    # Count how many are in each category
-    return collections.Counter(categorized)
-
-
-def calculate_visit_modes(
-    durations_list: list, category_width: int = 30
-) -> tuple[list[VTime], int]:
-    """Calculate the mode(s) for the list of durations.
-
-    The elements in durations can be VTime, str, or int,
-    as long as they all evaluate to a VTime.
-
-    For purposes of determining mode, times within one
-    block of time of length category_width are
-    considered identical.  Defaulit 30 (1/2 hour)
-
-    Returns a list of sorted VTimes().tidy of all the centre times of
-    the modes and the number of times it/they occurred.
-    """
-    freq_list = calculate_visit_frequencies(durations_list, category_width)
-    mosts = freq_list.most_common()
-    occurences = mosts[0][1]
-    modes_numeric = sorted([element for element, count in mosts if count == occurences])
-    modes_list = [f"{VTime(x+category_width/2).tidy}" for x in modes_numeric]
-    # modes_list = []
-    # modes_list = [x.tidy for x in modes_list]
-
-    return modes_list, occurences
 
 
 def time_distribution(

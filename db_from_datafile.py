@@ -22,7 +22,7 @@ By default this avoids repeating a previously successful datafile load
 by keeping a datafile_loads table in the database.  The --force option
 will force reloading.
 
-Copyright (C) 2024 Julias Hocking & Todd Glover
+Copyright (C) 2024 Todd Glover & Julias Hocking
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting
@@ -51,20 +51,27 @@ from dataclasses import dataclass, field
 import subprocess
 from datetime import datetime
 import hashlib
-from collections import defaultdict
 
-import tt_datafile
-import tt_dbutil
+# import tt_datafile
+import common.tt_dbutil as db
+from common.tt_dbutil import SQL_CRITICAL_ERRORS, SQL_MODERATE_ERRORS
 
 # import tt_globals
-import tt_util as ut
-from tt_trackerday import TrackerDay
+import common.tt_util as ut
+from common.tt_trackerday import TrackerDay, TrackerDayError
+from common.tt_biketag import BikeTagError
+from common.tt_bikevisit import BikeVisit
 
-from tt_event import Event
-from tt_time import VTime
+from common.tt_daysummary import DaySummary, PeriodDetail
+# from common.tt_time import VTime
+from common.tt_constants import REGULAR, OVERSIZE, COMBINED
 
 # Pre-declare this global for linting purposes.
 args = None
+
+
+# Default org_handle -- make this match default text in CREATE_DATABASE sql script
+DEFAULT_ORG = "no_org"
 
 # Values for good & bad status
 STATUS_GOOD = "GOOD"  # File has not (yet) been rejected or had errors
@@ -76,79 +83,86 @@ STATUS_SKIP_NEWER = "SKIP_NEWER"  # Skip file because another same-named is newe
 
 # Names for tables and columns.s
 # Table for logging datafile loads
-TABLE_LOADS = "datafile_loads"
-COL_FINGERPRINT = "fingerprint"
-COL_DATAFILE = "filename"
-COL_TIMESTAMP = "timestamp"
+TABLE_LOADS = "dataloads"
+COL_DAYID = "day_id"
+COL_FINGERPRINT = "datafile_fingerprint"
+COL_DATAFILE = "datafile_name"
+COL_TIMESTAMP = "datafile_timestamp"
+COL_BATCH = "batch"
+## COL_DATE = "date" FIXME: v2 this uses a DAY_ID
 # (Also uses COL_DATE and COL_BATCH)
 
-# Table of individual bike visits
-TABLE_VISITS = "visit"
-COL_ID = "id"  # text date.tag PK
-COL_DATE = "date"
-COL_TAG = "tag"
-COL_BIKETYPE = "type"
-COL_TIME_IN = "time_in"
-COL_TIME_OUT = "time_out"
-COL_DURATION = "duration"
-COL_NOTES = "notes"
-COL_BATCH = "batch"
+# # Table of individual bike visits
+# TABLE_VISITS = "visit"
+# COL_ID = "id"  # text date.tag PK
+# COL_DATE = "date"
+# COL_TAG = "tag"
+# COL_BIKETYPE = "type"
+# COL_TIME_IN = "time_in"
+# COL_TIME_OUT = "time_out"
+# COL_DURATION = "duration"
+# COL_NOTES = "notes"
+# COL_BATCH = "batch"
 
-# Table of day summaries
-TABLE_DAYS = "day"
-# COL_DATE name reused - text date PK
-COL_REGULAR = "parked_regular"  # int count
-COL_OVERSIZE = "parked_oversize"  # int count
-COL_TOTAL = "parked_total"  # int sum of 2 above
-COL_TOTAL_LEFTOVER = "leftover"  # int count
-COL_MAX_REGULAR = "max_reg"  # int count of max regular bikes
-COL_MAX_REGULAR_TIME = "time_max_reg"  # HHMM time
-COL_MAX_OVERSIZE = "max_over"  # int count of max oversize bikes
-COL_MAX_OVERSIZE_TIME = "time_max_over"  # HHMM time
-COL_MAX_TOTAL = "max_total"  # int sum of 2 above
-COL_MAX_TOTAL_TIME = "time_max_total"  # HHMM
-COL_TIME_OPEN = "time_open"  # HHMM opening time
-COL_TIME_CLOSE = "time_closed"  # HHMM closing time
-COL_DAY_OF_WEEK = "weekday"  # ISO 8601-compliant 1-7 M-S
-COL_PRECIP_MM = "precip_mm"  # mm (bulk pop from EnvCan dat)
-COL_TEMP = "temp"
-COL_SUNSET = "sunset"  # HHMM time at sunset - same
-COL_EVENT = "event"  # brief name of nearby event
-COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
-COL_REGISTRATIONS = "registrations"  # num of bike registrations recorded
-# COL_NOTES name reused
-# COL_BATCH name reused
+# # Table of day summaries
+# TABLE_DAYS = "day"
+# # COL_DATE name reused - text date PK
+# COL_REGULAR = "parked_regular"  # int count
+# COL_OVERSIZE = "parked_oversize"  # int count
+# COL_TOTAL = "parked_total"  # int sum of 2 above
+# COL_TOTAL_LEFTOVER = "leftover"  # int count
+# COL_MAX_REGULAR = "max_reg"  # int count of max regular bikes
+# COL_MAX_REGULAR_TIME = "time_max_reg"  # HHMM time
+# COL_MAX_OVERSIZE = "max_over"  # int count of max oversize bikes
+# COL_MAX_OVERSIZE_TIME = "time_max_over"  # HHMM time
+# COL_MAX_TOTAL = "max_total"  # int sum of 2 above
+# COL_MAX_TOTAL_TIME = "time_max_total"  # HHMM
+# COL_TIME_OPEN = "time_open"  # HHMM opening time
+# COL_TIME_CLOSE = "time_closed"  # HHMM closing time
+# COL_DAY_OF_WEEK = "weekday"  # ISO 8601-compliant 1-7 M-S
+# COL_PRECIP_MM = "precip_mm"  # mm (bulk pop from EnvCan dat)
+# COL_TEMP = "temp"
+# COL_SUNSET = "sunset"  # HHMM time at sunset - same
+# COL_EVENT = "event"  # brief name of nearby event
+# COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
+# COL_REGISTRATIONS = "registrations"  # num of bike registrations recorded
+# # COL_NOTES name reused
+# # COL_BATCH name reused
 
-# Table of tags contexts
-TABLE_TAGS_CONTEXT = "taglist"
-COL_REGULAR_CONTEXT = "regular"
-COL_OVERSIZE_CONTEXT = "oversize"
-COL_RETIRED_CONTEXT = "retired"
+# # Table of tags contexts
+# TABLE_TAGS_CONTEXT = "taglist"
+# COL_REGULAR_CONTEXT = "regular"
+# COL_OVERSIZE_CONTEXT = "oversize"
+# COL_RETIRED_CONTEXT = "retired"
 
 # Bike-type codes. Must match check constraint in code table TYPES.CODE
-REGULAR = "R"
-OVERSIZE = "O"
+# REGULAR = "R"
+# OVERSIZE = "O"
 
 
-@dataclass
-class DayStats:
-    # Summary stats & such for one day.
-    # This makes up most of a record for a DAY row,
-    date: str
-    regular_parked: int = 0
-    oversize_parked: int = 0
-    total_parked: int = 0
-    total_leftover: int = 0
-    max_regular_num: int = 0
-    max_regular_time: VTime = ""
-    max_oversize_num: int = 0
-    max_oversize_time: VTime = ""
-    max_total_num: int = 0
-    max_total_time: VTime = ""
-    time_open: VTime = ""
-    time_close: VTime = ""
-    weekday: int = None
-    registrations: int = 0
+class DBError(Exception):
+    pass
+
+
+# @dataclass
+# class DayStats:
+#     # Summary stats & such for one day.
+#     # This makes up most of a record for a DAY row,
+#     date: str
+#     regular_parked: int = 0
+#     oversize_parked: int = 0
+#     total_parked: int = 0
+#     total_leftover: int = 0
+#     max_regular_num: int = 0
+#     max_regular_time: VTime = ""
+#     max_oversize_num: int = 0
+#     max_oversize_time: VTime = ""
+#     max_total_num: int = 0
+#     max_total_time: VTime = ""
+#     time_open: VTime = ""
+#     time_close: VTime = ""
+#     weekday: int = None
+#     registrations: int = 0
 
 
 @dataclass
@@ -209,35 +223,25 @@ class FileInfo:
                 print_first_line(error_msg)
 
 
-def create_logtable(dbconx: sqlite3.Connection):
-    """Creates the load-logging table in the database."""
-    if args.verbose:
-        print(f"Assuring table {TABLE_LOADS} exists.")
-    error_msg = sql_exec_and_error(
-        f"""CREATE TABLE IF NOT EXISTS
-        {TABLE_LOADS} (
-            {COL_DATE}  TEXT PRIMARY KEY NOT NULL,
-            {COL_DATAFILE} TEXT NOT NULL,
-            {COL_TIMESTAMP} TEXT NOT NULL,
-            {COL_FINGERPRINT} TEXT NOT NULL,
-            {COL_BATCH} TEXT NOT NULL
-        );""",
-        dbconx,
-    )
-    if error_msg:
-        Statuses.set_bad(f"    SQL error creating datafile_loads: {error_msg}")
-        dbconx.close()
-        sys.exit(1)
-
-
-def calc_stay_length(hhmm_in: str, hhmm_out: str) -> str:
-    """Calculate a str duration from a str time in and out."""
-    t_in = VTime(hhmm_in).num
-    t_out = VTime(hhmm_out).num
-    t_stay = t_out - t_in
-    hhmm_stay = VTime(t_stay)
-
-    return hhmm_stay
+# def create_logtable(dbconx: sqlite3.Connection):
+#     """Creates the load-logging table in the database."""
+#     if args.verbose:
+#         print(f"Assuring table {TABLE_LOADS} exists.")
+#     error_msg = sql_exec_and_error(
+#         f"""CREATE TABLE IF NOT EXISTS
+#         {TABLE_LOADS} (
+#             {COL_DATE}  TEXT PRIMARY KEY NOT NULL,
+#             {COL_DATAFILE} TEXT NOT NULL,
+#             {COL_TIMESTAMP} TEXT NOT NULL,
+#             {COL_FINGERPRINT} TEXT NOT NULL,
+#             {COL_BATCH} TEXT NOT NULL
+#         );""",
+#         dbconx,
+#     )
+#     if error_msg:
+#         Statuses.set_bad(f"    SQL error creating datafile_loads: {error_msg}")
+#         dbconx.close()
+#         sys.exit(1)
 
 
 def is_linux() -> bool:
@@ -287,11 +291,14 @@ def get_file_fingerprint(file_path):
 
 def get_load_fingerprints(dbconx: sqlite3.Connection) -> list[str]:
     """Get a list of the fingerprints of files last loaded ok."""
-    create_logtable(dbconx)
-    rows = tt_dbutil.db_fetch(
-        dbconx, f"SELECT {COL_FINGERPRINT} FROM {TABLE_LOADS}", ["fingerprint"]
-    )
-    fingerprints = [r.fingerprint for r in rows]
+
+    # FIXME: probably want to do for only this organization's scope?
+
+    cursor = dbconx.cursor()
+    rows = cursor.execute(f"SELECT {COL_FINGERPRINT} FROM {TABLE_LOADS}").fetchall()
+    fingerprints = [r[0] for r in rows]
+    cursor.close()
+
     return fingerprints
 
 
@@ -306,405 +313,552 @@ def get_file_timestamp(file_path):
         return None
 
 
-def get_bike_type(tag: str, day: TrackerDay) -> str:
-    if tag in day.regular:
-        return REGULAR
-    elif tag in day.oversize:
-        return OVERSIZE
-    else:
-        return ""
+def fetch_existing_weather(
+    cursor: sqlite3.Connection.cursor, date: str, orgsite_id: int
+) -> tuple[float, float]:
+    """Fetch any existing temp and precip data from the given day.
+
+    This uses data and orgsite_id since day_id not known at time this is called."""
+    if args.verbose:
+        print(f"   Fetching existing weather (temp/precip) for {orgsite_id=}/'{date}'.")
+    row = cursor.execute(
+        f"SELECT max_temperature, precipitation FROM day WHERE orgsite_id = {orgsite_id} AND date = '{date}';"
+    ).fetchone()
+
+    if not row:
+        return None, None
+
+    return row[0], row[1]
 
 
-def calc_day_stats(filename: str, day: TrackerDay) -> DayStats:
-    """Figure out the stats for a DAY row."""
+# FIXME: use versions in tt_dbutil
+def fetch_org_id(cursor: sqlite3.Connection.cursor, org_handle: str) -> int:
+    """Fetch the org id."""
+    org_handle = org_handle.strip().lower()
+    if args.verbose:
+        print(f"   Fetching org_id for '{org_handle}'.")
+    row = cursor.execute(
+        f"SELECT id FROM org WHERE org_handle = '{org_handle}';"
+    ).fetchone()
 
-    row = DayStats(day.date)
-    row.registrations = day.registrations
-    row.regular_parked = 0
-    row.oversize_parked = 0
-    for tag in day.bikes_in.keys():
-        bike_type = get_bike_type(tag, day)
-        if bike_type == REGULAR:
-            row.regular_parked += 1
-        elif bike_type == OVERSIZE:
-            row.oversize_parked += 1
+    if not row:
+        raise DBError(f"No match for org_handle '{org_handle}'.")
+
+    this_id = row[0]
+    if not isinstance(this_id, int):
+        raise DBError(f"Not integer: org.id '{this_id}' (type {type(this_id)})")
+    return this_id
+
+
+# FIXME: separate making new into its own.  Use fetch_*() from tt_dbutil
+def fetch_orgsite_id(
+    cursor: sqlite3.Connection.cursor,
+    site_handle: str,
+    org_id: int,
+    site_name: str = "",
+    insert_new: bool = False,
+) -> int:
+    """Fetch the PK id from the orgsite table.
+
+    If not found and insert_new, will create a new record."""
+
+    site_handle = site_handle.strip().lower()
+    if args.verbose:
+        print(f"   Fetching orgsite_id for '{site_handle}', org_id {org_id}.")
+
+    row = cursor.execute(
+        f"SELECT id FROM orgsite WHERE site_handle = '{site_handle}' AND org_id = {org_id};",
+    ).fetchone()
+    if not row:
+        if not insert_new:
+            raise DBError(
+                f"No match for site_handle '{site_handle}' with org_id {org_id}."
+            )
         else:
-            msg = f"   Can not tell tag type for tag {tag}"
-            Statuses.files[filename].set_bad(msg)
-    row.total_parked = row.regular_parked + row.oversize_parked
-    row.total_leftover = len(day.bikes_in) - len(day.bikes_out)
-    if row.total_leftover < 0:
-        msg = "    Total leftovers is negative"
-        Statuses.files[filename].set_bad(msg)
-        return None
+            this_id = cursor.execute(
+                "INSERT INTO orgsite (org_id,site_handle,site_name) VALUES (?,?,?)",
+                (org_id, site_handle, site_name),
+            ).lastrowid
+            return this_id
 
-    # Highwater values
-    events = Event.calc_events(day)
-    row.max_regular_num = max([x.num_here_regular for x in events.values()],default=0)
-    row.max_oversize_num = max([x.num_here_oversize for x in events.values()],default=0)
-    row.max_total_num = max([x.num_here_total for x in events.values()],default=0)
-    row.max_regular_time = None
-    row.max_oversize_time = None
-    row.max_total_time = None
-    # Find the first time at which these took place
-    for atime in sorted(events.keys()):
-        if (
-            events[atime].num_here_regular >= row.max_regular_num
-            and not row.max_regular_time
-        ):
-            row.max_regular_time = atime
-        if (
-            events[atime].num_here_oversize >= row.max_oversize_num
-            and not row.max_oversize_time
-        ):
-            row.max_oversize_time = atime
-        if events[atime].num_here_total >= row.max_total_num and not row.max_total_time:
-            row.max_total_time = atime
-
-    # Open and close times
-    if day.opening_time and day.closing_time:
-        row.time_open = day.opening_time
-        row.time_close = day.closing_time
-    else:  # guess with bike check-ins
-        row.time_open = day.earliest_event()
-        row.time_close = day.latest_event()
-    if not row.time_close:
-        msg = "Can not find or guess a closing time"
-        Statuses.files[filename].set_bad(msg)
-        return None
-
-    # Find int day of week
-    row.weekday = ut.dow_int(row.date)
-
-    return row
+    this_id = row[0]
+    if not isinstance(this_id, int):
+        raise DBError(f"Not integer: orgsite.id '{this_id}' (type {type(this_id)})")
+    return this_id
 
 
-def fetch_reg_from_db(dbconx: sqlite3.Connection, date: str) -> int:
-    """Get any existing registration info from the DB; return int or None."""
+def fetch_day_id(
+    cursor: sqlite3.Connection.cursor, date: str, orgsite_id: int, null_ok: bool = True
+) -> int:
+    """Fetch the DAY id for this date/site.
+
+    If null_ok, then it's ok if no matching record; otherwise a DBError."""
     if args.verbose:
-        print("   Fetching any existing bike registration info from DB.")
-    rows = tt_dbutil.db_fetch(
-        dbconx,
-        f"SELECT {COL_REGISTRATIONS} FROM {TABLE_DAYS} WHERE DATE = '{date}'",
-        ["registrations"],
-    )
-    if not rows:
-        return None
-    return rows[0].registrations
+        print(f"   Fetching day_id for {orgsite_id=}/'{date}'.")
+    row = cursor.execute(
+        f"SELECT id FROM day WHERE orgsite_id = {orgsite_id} AND date = '{date}';"
+    ).fetchone()
+
+    if not row:
+        if null_ok:
+            return None
+        raise DBError(f"No match for {orgsite_id=}/{date=}.")
+
+    this_id = row[0]
+    if not isinstance(this_id, int):
+        raise DBError(f"Not integer: day.id '{this_id}' (type {type(this_id)})")
+
+    return this_id
 
 
-def calc_reg_value(day_summary: DayStats, dbconx: sqlite3.Connection) -> int:
-    """Calculate what bike registrations count to use."""
-    # Figure out what value to use for registrations.
-    # This is yucky for legacy support reasons: before approx 2024-02
-    # the count of registrations came from a separate day-end from, not
-    # the datafile.  So this selects the existing value or the datafile
-    # value, whichever is greater.
+def insert_new_orgsite(
+    cursor: sqlite3.Connection.cursor,
+    org_id: int,
+    site_handle: str,
+    site_name: str = "",
+) -> int:
+    """Insert new org/site into orgsite table, returns orgsite_id."""
+    this_id = cursor.execute(
+        "INSERT INTO orgsite (org_id,site_handle,site_name) VALUES (?,?,?)",
+        (org_id, site_handle, site_name),
+    ).lastrowid
+    return this_id
 
-    # db_reg    df_reg      result
-    # None      None        None
-    # None      not None    df_reg
-    # not None  None        db_reg
-    # not None  not None    max(df_reg, db_reg)
 
-    db_reg = fetch_reg_from_db(dbconx, day_summary.date)
-    df_reg = day_summary.registrations
-    winner = "nowhere"
-    if db_reg is None and df_reg is None:
-        result = "NULL"
-    elif db_reg is None:
-        result = df_reg
-        winner = "datafile"
-    elif df_reg is None:
-        result = db_reg
-        winner = "database"
-    elif df_reg > db_reg:
-        result = df_reg
-        winner = "datafile"
-    else:
-        result = db_reg
-        winner = "database"
+def delete_one_day_data(cursor: sqlite3.Connection.cursor, date: str, orgsite_id: int):
+    """Delete one complete day's data from all tables."""
+
+    day_id = db.fetch_day_id(cursor=cursor, date=date, maybe_orgsite_id=orgsite_id)
 
     if args.verbose:
-        print(f"   Using registration value {result} from {winner}.")
+        print(f"   Deleting records for '{orgsite_id=}'/'{date}'.")
 
-    return result
+    if day_id is not None:
+        cursor.execute(f"DELETE FROM VISIT WHERE day_id = {day_id}")
+        cursor.execute(f"DELETE FROM BLOCK WHERE day_id = {day_id}")
+        cursor.execute(f"DELETE FROM DATALOADS WHERE day_id = {day_id}")
+        cursor.execute(f"DELETE FROM DAY WHERE id = {day_id}")
 
 
-def day_summary_into_db(
-    filename: str, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
-) -> bool:
-    """Load into the DAY table.  Return T or F to indicate success."""
+def insert_into_day(
+    orgsite_id: int,
+    td: TrackerDay,
+    summary: DaySummary,
+    batch_id: str,
+    cursor: sqlite3.Connection.cursor,
+) -> int:
+    """Load into the DAY table.  Returns the rowid of the record inserted. None if failed."""
 
-    # Figure out what bike registrations count value to use.  (!!!!yuck)
-    reg = calc_reg_value(day_summary, dbconx)
-
-    # This requires some fancy footwork in order to
-    #   1) use the value for registration that is the greater of
-    #       the existing value and the value from the datafile
-    #   2) preserve any existing environmental values (rain, temp, sunset)
+    # This requires some fancy footwork in order to preserve any existing
+    # environmental values (rain, temp, sunset)
     # since the INSERT OR REPLACE really does do a REPLACE, meaning
     # that (unlike an update), any columns not specifcally names are
     # set to their default values
 
-    # Insert/replace this day's summary info
+    # Insert/replace this day's summary info.
+    # Have to delete and replace since doing an INSERT OR REPLACE
+    # changes the PK id.  So *could* turn constraints off, update the
+    # FKs, then turn back on, but this seems simpler since will be adding
+    # new VISIT and BLOCK data anyway.  The cost is that must cache the
+    # environmental data (temperature and precipitation).
+
+    # Fetch current temp and precip
+    existing_temp, existing_precip = fetch_existing_weather(
+        cursor=cursor, date=td.date, orgsite_id=orgsite_id
+    )
+
+    # Delete existing data for this day
+    delete_one_day_data(cursor=cursor, date=td.date, orgsite_id=orgsite_id)
+
     if args.verbose:
         print("   Adding day summary to database.")
-    sql_error = sql_exec_and_error(
-        f"""INSERT OR REPLACE INTO {TABLE_DAYS} (
-                {COL_DATE},
-                {COL_REGULAR},
-                {COL_OVERSIZE},
-                {COL_TOTAL},
-                {COL_TOTAL_LEFTOVER},
-                {COL_MAX_REGULAR},
-                {COL_MAX_REGULAR_TIME},
-                {COL_MAX_OVERSIZE},
-                {COL_MAX_OVERSIZE_TIME},
-                {COL_MAX_TOTAL},
-                {COL_MAX_TOTAL_TIME},
-                {COL_TIME_OPEN},
-                {COL_TIME_CLOSE},
-                {COL_DAY_OF_WEEK},
-                {COL_REGISTRATIONS},
-                {COL_PRECIP_MM},
-                {COL_TEMP},
-                {COL_SUNSET},
-                {COL_BATCH}
-            ) VALUES (
-                '{day_summary.date}',
-                {day_summary.regular_parked},
-                {day_summary.oversize_parked},
-                {day_summary.total_parked},
-                {day_summary.total_leftover},
-                {day_summary.max_regular_num},
-                '{day_summary.max_regular_time}',
-                {day_summary.max_oversize_num},
-                '{day_summary.max_oversize_time}',
-                {day_summary.max_total_num},
-                '{day_summary.max_total_time}',
-                '{day_summary.time_open}',
-                '{day_summary.time_close}',
-                {day_summary.weekday},
-                {reg},
-                (SELECT {COL_PRECIP_MM} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
-                (SELECT {COL_TEMP} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
-                (SELECT {COL_SUNSET} FROM {TABLE_DAYS} WHERE {COL_DATE} = '{day_summary.date}'),
-                '{batch}'
-            );""",
-        dbconx,
-    )
-    # Did it work? (No error message means success.)
-    if sql_error:
-        Statuses.files[filename].set_bad(
-            f"SQL error adding to {TABLE_DAYS}: {sql_error}"
+
+    # Save to DAY table
+    cursor.execute(
+        """
+        INSERT INTO DAY (
+            orgsite_id,
+            date,
+            time_open,
+            time_closed,
+            weekday,
+
+            num_parked_regular,
+            num_parked_oversize,
+            num_parked_combined,
+
+            num_remaining_regular,
+            num_remaining_oversize,
+            num_remaining_combined,
+
+            num_fullest_regular,
+            num_fullest_oversize,
+            num_fullest_combined,
+
+            time_fullest_regular,
+            time_fullest_oversize,
+            time_fullest_combined,
+
+            bikes_registered,
+            batch,
+
+            max_temperature,
+            precipitation
         )
-        return False
-
-    return True
-
-def day_tags_context_into_db(
-    file_info: FileInfo,
-    day: TrackerDay,
-    day_summary: DayStats,
-    batch: str,
-    dbconx: sqlite3.Connection,
-) -> bool:
-    """Load tags context into database."""
-
-    if args.verbose:
-        print("   Adding lists of retired, regular and oversize tags to database.")
-
-    regular_tags = ",".join(sorted(list(day.regular)))
-    oversize_tags = ",".join(sorted(list(day.oversize)))
-    retired_tags = ",".join(sorted(list(day.retired)))
-
-    sql_error = sql_exec_and_error(
-        f"""INSERT OR REPLACE INTO {TABLE_TAGS_CONTEXT} (
-                {COL_DATE},
-                {COL_REGULAR_CONTEXT},
-                {COL_OVERSIZE_CONTEXT},
-                {COL_RETIRED_CONTEXT}
-            ) VALUES (
-                '{day_summary.date}',
-                '{regular_tags}',
-                '{oversize_tags}',
-                '{retired_tags}'
-            );""",
-        dbconx,
-    )
-    # Did it work? (No error message means success.)
-    if sql_error:
-        file_info.set_bad(
-            f"SQL error adding to {TABLE_TAGS_CONTEXT}: {sql_error}"
+        VALUES (
+            ?,?,?,?,?,
+            ?,?,?,    ?,?,?,   ?,?,?,   ?,?,?,
+            ?,?,
+            ?,?
         )
-        return False
+    """,
+        (
+            # td.org_id,  # Add org_id to TrackerDay class
+            # td.site_id,  # Add site_id to TrackerDay class
+            orgsite_id,
+            summary.whole_day.date,
+            summary.whole_day.time_open,
+            summary.whole_day.time_closed,
+            ut.dow_int(td.date),
+            summary.whole_day.num_parked_regular,
+            summary.whole_day.num_parked_oversize,
+            summary.whole_day.num_parked_combined,
+            summary.whole_day.num_remaining_regular,
+            summary.whole_day.num_remaining_oversize,
+            summary.whole_day.num_remaining_combined,
+            summary.whole_day.num_fullest_regular,
+            summary.whole_day.num_fullest_oversize,
+            summary.whole_day.num_fullest_combined,
+            summary.whole_day.time_fullest_regular,
+            summary.whole_day.time_fullest_oversize,
+            summary.whole_day.time_fullest_combined,
+            td.registrations.num_registrations,
+            batch_id,
+            existing_temp,
+            existing_precip,
+        ),
+    )
 
-    return True
+    day_id = cursor.lastrowid
+
+    return day_id
 
 
-def day_visits_into_db(
-    file_info: FileInfo,
+# def day_tags_context_into_db(
+#     file_info: FileInfo,
+#     day: OldTrackerDay,
+#     day_totals: DayStats,
+#     batch: str,
+#     dbconx: sqlite3.Connection,
+# ) -> bool:
+#     """Load tags context into database."""
+
+#     if args.verbose:
+#         print("   Adding lists of retired, regular and oversize tags to database.")
+
+#     regular_tags = ",".join(sorted(list(day.regular)))
+#     oversize_tags = ",".join(sorted(list(day.oversize)))
+#     retired_tags = ",".join(sorted(list(day.retired)))
+
+#     sql_error = sql_exec_and_error(
+#         f"""INSERT OR REPLACE INTO {TABLE_TAGS_CONTEXT} (
+#                 {COL_DATE},
+#                 {COL_REGULAR_CONTEXT},
+#                 {COL_OVERSIZE_CONTEXT},
+#                 {COL_RETIRED_CONTEXT}
+#             ) VALUES (
+#                 '{day_totals.date}',
+#                 '{regular_tags}',
+#                 '{oversize_tags}',
+#                 '{retired_tags}'
+#             );""",
+#         dbconx,
+#     )
+#     # Did it work? (No error message means success.)
+#     if sql_error:
+#         file_info.set_bad(f"SQL error adding to {TABLE_TAGS_CONTEXT}: {sql_error}")
+#         return False
+
+#     return True
+
+
+def insert_into_visit(
     day: TrackerDay,
-    day_summary: DayStats,
-    batch: str,
-    dbconx: sqlite3.Connection,
+    cursor: sqlite3.Connection.cursor,
+    day_id: int,
 ) -> bool:
     """Load this day's visits into the database."""
-    if args.verbose:
-        print("   Deleting any existing visits info for this day from database.")
-    sql_error = sql_exec_and_error(
-        f"DELETE FROM {TABLE_VISITS} WHERE date = '{day_summary.date}'", dbconx
-    )
-    if sql_error:
-        file_info.set_bad(f"Error deleting VISIT rows: {sql_error}")
-        return False
+    # if args.verbose:
+    #     print("   Deleting any existing visits info for this day from database.")
+    # sql_error = sql_exec_and_error(
+    #     f"DELETE FROM {TABLE_VISITS} WHERE date = '{day_totals.date}'", dbconx
+    # )
+    # if sql_error:
+    #     file_info.set_bad(f"Error deleting VISIT rows: {sql_error}")
+    #     return False
 
     if args.verbose:
-        print(f"   Adding {len(day.bikes_in)} visits to database.")
-    for tag, time_in in day.bikes_in.items():
-        time_in = VTime(time_in)
+        print(f"   Adding {len(day.all_visits())} visits to database.")
 
-        # Insert VISIT rows one at a time
-        if tag in day.bikes_out:
-            time_out = VTime(day.bikes_out[tag])
-            dur_end = time_out
-        else:  # no check-out recorded
-            dur_end = day_summary.time_close
-            time_out = ""  # empty str for no time
-        time_stay = calc_stay_length(time_in, dur_end)
-        biketype = get_bike_type(tag, day)
-        sql_error = sql_exec_and_error(
-            f"""INSERT INTO {TABLE_VISITS} (
-                    {COL_ID},
-                    {COL_DATE},
-                    {COL_TAG},
-                    {COL_BIKETYPE},
-                    {COL_TIME_IN},
-                    {COL_TIME_OUT},
-                    {COL_DURATION},
-                    {COL_BATCH}
-                    ) VALUES (
-                    '{day_summary.date}.{tag}',
-                    '{day_summary.date}',
-                    '{tag}',
-                    '{biketype}',
-                    '{time_in}',
-                    '{time_out}',
-                    '{time_stay}',
-                    '{batch}');""",
-            dbconx,
+    for visit in day.all_visits():
+        visit: BikeVisit
+        biketype = "R" if day.biketags[visit.tagid].bike_type == REGULAR else "O"
+
+        # Save to VISIT table
+        cursor.execute(
+            """
+            INSERT INTO VISIT (
+                day_id,
+                time_in,
+                time_out,
+                duration,
+                bike_type,
+                bike_id
+            )
+
+            VALUES (?,?,?,?,?,?)
+        """,
+            (
+                day_id,
+                visit.time_in,
+                visit.time_out,
+                visit.duration(day.time_closed,is_close_of_business=True),
+                biketype,
+                visit.tagid,
+            ),
         )
-        if sql_error:
-            file_info.set_bad(f"Error inserting {TABLE_VISITS} tag {tag}: {sql_error}")
-            return False
     return True
 
 
-def fileload_results_into_db(
-    file_info: FileInfo, day_summary: DayStats, batch: str, dbconx: sqlite3.Connection
+def insert_into_block(
+    summary: DaySummary,
+    cursor: sqlite3.Connection.cursor,
+    day_id: int,
+) -> bool:
+    """Load this day's block data into the database."""
+
+    if args.verbose:
+        print(f"   Adding {len(summary.blocks)} data blocks to database.")
+
+    for block in summary.blocks.values():
+        block: PeriodDetail
+        # Save to BLOCK table
+        cursor.execute(
+            """
+            INSERT INTO block (
+
+                day_id,
+                time_start,
+
+                num_incoming_regular,
+                num_incoming_oversize,
+                num_incoming_combined,
+
+                num_outgoing_regular,
+                num_outgoing_oversize,
+                num_outgoing_combined,
+
+                num_on_hand_regular,
+                num_on_hand_oversize,
+                num_on_hand_combined,
+
+                num_fullest_regular,
+                num_fullest_oversize,
+                num_fullest_combined,
+
+                time_fullest_regular,
+                time_fullest_oversize,
+                time_fullest_combined
+
+
+            )
+
+            VALUES (?,?,  ?,?,?,  ?,?,?,  ?,?,?,  ?,?,?, ?,?,?)
+        """,
+            (
+                day_id,
+                block.time_start,
+                block.num_incoming[REGULAR],
+                block.num_incoming[OVERSIZE],
+                block.num_incoming[COMBINED],
+                block.num_outgoing[REGULAR],
+                block.num_outgoing[OVERSIZE],
+                block.num_outgoing[COMBINED],
+                block.num_on_hand[REGULAR],
+                block.num_on_hand[OVERSIZE],
+                block.num_on_hand[COMBINED],
+                block.num_fullest[REGULAR],
+                block.num_fullest[OVERSIZE],
+                block.num_fullest[COMBINED],
+                block.time_fullest[REGULAR],
+                block.time_fullest[OVERSIZE],
+                block.time_fullest[COMBINED],
+            ),
+        )
+    return True
+
+
+def insert_into_dataloads(
+    file_info: FileInfo, day_id: int, batch: str, dbconx: sqlite3.Connection
 ) -> bool:
     """Update table that tracks load successes."""
     if args.verbose:
-        print(f"   Updating fileload info for {day_summary.date} into database.")
+        print(f"   Updating fileload info for {file_info.basename} into database.")
     sql = f"""
         INSERT OR REPLACE INTO {TABLE_LOADS} (
-            {COL_DATE},
+            {COL_DAYID},
             {COL_DATAFILE},
             {COL_TIMESTAMP},
             {COL_FINGERPRINT},
             {COL_BATCH}
         ) VALUES (
-            '{day_summary.date}',
+            '{day_id}',
             '{file_info.name}',
             '{file_info.timestamp}',
             '{file_info.fingerprint}',
             '{batch}'
         ) """
-    sql_error = sql_exec_and_error(sql, dbconx)
-    if sql_error:
-        file_info.set_bad(f"Error updating {TABLE_LOADS} table: {sql_error}")
+    cursor = dbconx.cursor()
+    try:
+        cursor.execute(sql)
+    except tuple(SQL_MODERATE_ERRORS) as e:
+        print(f"Non-fatal error occurred: {e}")
         return False
+    except tuple(SQL_CRITICAL_ERRORS) as e:
+        print(f"Fatal error occurred: {e}")
+        raise
+    finally:
+        cursor.close()
+
     return True
 
 
-def datafile_into_db(filename: str, batch, dbconx) -> str:
-    """Record one datafile to the database, returns date.
-
-    Reads the datafile, looking for errors.
-    Calculates summary stats, loads DAY and VISIT tables.
-    Saves the file info & fingerprint to LOAD_INFO table.
-
-    Returns the date of the file's data if successful (else "")
-    Status is also Statuses.files[filename], which is a FileInfo object.
-    """
-
+def read_datafile(filename: str) -> tuple[TrackerDay, DaySummary]:
+    """Read and prepare one filename into TrackerDay & DaySummary obects."""
     file_info: FileInfo = Statuses.files[filename]
 
     if not os.path.isfile(filename):
         file_info.set_bad("File not found")
-        return ""
+        return None, None
 
     if args.verbose:
         print(f"Reading {filename}:")
 
-    read_errors = []
-    day = tt_datafile.read_datafile(f"{filename}", err_msgs=read_errors)
-    if not day.date:
-        msg = "Unable to read date from file. Skipping file."
+    try:
+        day = TrackerDay.load_from_file(filename)
+    except (TrackerDayError, BikeTagError) as e:
+        msg = f"Error reading file {filename=}: {e}. Skipping file."
         file_info.set_bad(msg)
-        return ""
-    if read_errors:
-        msg = ["Errors reading datafile"] + read_errors
+        # print(msg)
+        return None, None
+
+    lint_msgs = day.lint_check(strict_datetimes=True, allow_quick_checkout=True)
+    if lint_msgs:
+        msg = [f"Errors reading datafile {filename}:"] + lint_msgs
         file_info.set_bad(msg)
-        return ""
+        return None, None
+
+    day_summary = DaySummary(day=day, as_of_when="24:00")
+    return day, day_summary
+
+
+def one_datafile_into_db(filename: str, batch, dbconx) -> str:
+    """Record one datafile to the database, returns date.
+
+    Reads the datafile, looking for errors.
+    Calculates summary stats, tables.
+    Saves the file info & fingerprint to LOAD_INFO table.
+
+    Returns the date of the file's data if successful (else "")
+    Status is also Statuses.files[filename], which is a FileInfo object.
+
+    This should create then destroy a cursor, which means rollback or commit.
+    """
+
+    day, day_summary = read_datafile(filename=filename)
+    if day is None or day_summary is None:
+        return None
+
+    # Datafile fully loaded, now start db stuff
+    cursor = sql_begin_transaction(dbconx=dbconx)
     if args.verbose:
-        print(
-            f"   Date:{day.date}  Open:{day.opening_time}-{day.closing_time}"
-            f"  Bikes:{len(day.bikes_in)} "
-            f"Leftover:{len(day.bikes_in)-len(day.bikes_out)}  "
-            f"Registrations:{day.registrations}"
+        print("   Fetching org and orgsize ids")
+    org_id = db.fetch_org_id(cursor=cursor, org_handle=args.org)
+    if org_id is None:
+        raise DBError(f"No org matches {args.org_handle}")
+    orgsite_id = db.fetch_orgsite_id(
+        cursor=cursor, site_handle=day.site_handle, maybe_org_id=org_id, null_ok=True
+    )
+    if orgsite_id is None:
+        if args.verbose:
+            print(f"  Adding new orgsite {args.org=},{day.site_handle=}")
+        orgsite_id = insert_new_orgsite(
+            cursor=cursor,
+            org_id=org_id,
+            site_handle=day.site_handle,
+            site_name=day.site_name,
         )
 
-    day_summary = calc_day_stats(filename, day)
+    if args.verbose:
+        print(
+            f"   Date:{day.date}  Open:{day.time_open}-{day.time_closed}"
+            f"  Visits:{day_summary.whole_day.num_parked_combined}  "
+            f"Leftover:{day_summary.whole_day.num_remaining_combined}  "
+            f"Registrations:{day.registrations.num_registrations}"
+        )
 
-    sql_begin_transaction(dbconx)
+    # Save data to database
+    try:
 
-    # Day summary
-    if not day_summary_into_db(filename, day_summary, batch, dbconx):
+        day_id = insert_into_day(
+            td=day,
+            summary=day_summary,
+            orgsite_id=orgsite_id,
+            batch_id=batch,
+            cursor=cursor,
+        )
+        insert_into_visit(
+            day=day,
+            cursor=cursor,
+            day_id=day_id,
+        )
+        insert_into_block(
+            summary=day_summary,
+            cursor=cursor,
+            day_id=day_id,
+        )
+        # day_tags_context_into_db(file_info, day, day_totals, batch, dbconx)
+        # day_blocks_into_db()
+
+        insert_into_dataloads(
+            Statuses.files[filename], day_id=day_id, batch=batch, dbconx=dbconx
+        )
+
+    except (sqlite3.Error, DBError) as err:
+        print(f"Error:{err}", file=sys.stderr)
         dbconx.rollback()
         return ""
 
-    # Visits info
-    if not day_visits_into_db(file_info, day, day_summary, batch, dbconx):
-        dbconx.rollback()
-        return ""
+    finally:
+        cursor.close()
 
-    # Tags context (regular/oversize/retired tags)
-    if not day_tags_context_into_db(file_info, day, day_summary, batch, dbconx):
-        dbconx.rollback()
-        return ""
-
-
-    # Successful load (pending commit), put it in the loads log
-    if not fileload_results_into_db(file_info, day_summary, batch, dbconx):
-        dbconx.rollback()
-        return ""
-
-    dbconx.commit()  # commit one datafile transaction
+    dbconx.commit()  # commit as one datafile transaction
 
     if args.verbose:
-        print(f"   Committed {day_summary.date}.")
+        print(
+            f"   Committed {day_summary.whole_day.num_parked_combined} visits for {day.date}."
+        )
 
-    return day_summary.date
+    return day.date
 
 
-def sql_begin_transaction(dbconx: sqlite3.Connection):
+def sql_begin_transaction(dbconx: sqlite3.Connection) -> sqlite3.Connection.cursor:
     curs = dbconx.cursor()
     curs.execute("BEGIN;")
+    return curs
 
 
-def sql_exec_and_error(sql_statement: str, dbconx) -> str:
+def sql_exec_and_error(sql_statement: str, dbconx) -> int:
     """Execute a SQL statement, returns error message (if any).
 
     Presumably there is no error if the return is empty.
@@ -749,6 +903,13 @@ def get_args() -> argparse.Namespace:
         action="store_true",
         help="if files have same basename, only consider "
         "the one that is closer to the tail of of the file list",
+    )
+    parser.add_argument(
+        "-o",
+        "--org",
+        type=str,
+        default=DEFAULT_ORG,
+        help=f"Organization org_handle (default: '{DEFAULT_ORG}')",
     )
     parser.add_argument(
         "dataglob", type=str, nargs="+", help="Fileglob(s) of datafiles to load"
@@ -886,7 +1047,7 @@ def skip_non_newest_dups():
             newest_stamp = max(fi_list, key=get_fileinfo_timestamp)
             for dup_fi in fi_list:
                 dup_fi: FileInfo
-                if dup_fi.timestamp != newest_stamp:
+                if dup_fi.timestamp != newest_stamp.timestamp:
                     dup_fi.status = STATUS_SKIP_NEWER
     if args.verbose:
         print(
@@ -894,7 +1055,7 @@ def skip_non_newest_dups():
         )
 
 
-def print_summary(loaded_dates: dict[str:int]):
+def print_summary():
     """A chatty summary of what took place."""
     for info in Statuses.files.values():
         info: FileInfo
@@ -918,13 +1079,6 @@ def print_summary(loaded_dates: dict[str:int]):
             finfo: FileInfo
             if finfo.status == STATUS_BAD:
                 print(f"    {f}: {finfo.errors} errors")
-    num_dup_dates = sum([x - 1 for d, x in loaded_dates.items() if d])
-    if num_dup_dates:
-        print(f"Dates for which more that one datafile loaded: {num_dup_dates}")
-        if args.verbose:
-            for date, count in sorted(loaded_dates.items()):
-                if date and count > 1:
-                    print(f"    {date}: {count} files")
 
 
 def main():
@@ -932,23 +1086,26 @@ def main():
 
     Statuses.files = {}
 
-    global args
+    global args  # pylint:disable=global-statement
     args = get_args()
     ordered_file_list = find_datafiles(args.dataglob)
     if not args.quiet:
         print(f"Load requested for {len(ordered_file_list)} files.")
 
     if args.verbose:
-        print("Getting metadata for files.")
+        print("Calculating metadata of datafiles.")
     get_files_metadata(ordered_file_list)
 
     database_file = args.dbfile
     if args.verbose:
         print(f"Connecting to database {database_file}.")
-    dbconx = tt_dbutil.db_connect(database_file)
+    dbconx = db.db_connect(database_file)
     if not dbconx:
         print(f"Error: unable to connect to db {database_file}", file=sys.stderr)
-        dbconx.close()
+        try:
+            dbconx.close()
+        except Exception as e:
+            print(f"Error {e}")
         sys.exit(1)
 
     if args.tail_only:
@@ -960,7 +1117,11 @@ def main():
     # Get a list of fingerprints of previous good loads.
     if args.verbose:
         print("Fetching fingerprints of previous datafile loads.")
-    good_fingerprints = get_load_fingerprints(dbconx)
+    try:
+        good_fingerprints = get_load_fingerprints(dbconx=dbconx)
+    except tuple(SQL_MODERATE_ERRORS + SQL_CRITICAL_ERRORS) as e:
+        print(f"SQL error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Decide which files to ignore becuase previously loaded ok
     for finfo in Statuses.files.values():
@@ -971,6 +1132,7 @@ def main():
             and finfo.fingerprint in good_fingerprints
         ):
             finfo.status = STATUS_SKIP_GOOD
+
     if not args.quiet:
         num_skipped = Statuses.num_files(STATUS_SKIP_GOOD)
         # ut.squawk(f"{num_skipped=},{args.force=},{args.quiet=}")
@@ -992,14 +1154,18 @@ def main():
     if num_good:
         if args.verbose:
             print("Assuring foreign key constraints are enabled.")
-        sql_error = sql_exec_and_error("PRAGMA foreign_keys=ON;", dbconx)
-        if sql_error:
-            print(
-                "Error: couldn't enable SQLite foreign key constraints", file=sys.stderr
-            )
-            dbconx.close()
+        try:
+            cursor = dbconx.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON;")
+            dbconx.commit()
+        except tuple(SQL_MODERATE_ERRORS) as e:
+            print(f"SQL error: {e}", file=sys.stderr)
             sys.exit(1)
-        dbconx.commit()
+        except tuple(SQL_CRITICAL_ERRORS) as e:
+            print(f"Serious SQL error occurred: {e}", file=sys.stderr)
+            raise
+        finally:
+            cursor.close()
 
         batch = Statuses.start_time[
             :-3
@@ -1008,19 +1174,25 @@ def main():
             print(f"Batch ID is {batch}.")
 
     # Load the datafiles.
-    dates_loaded_ok = defaultdict(int)
     for file_name in sorted(
         [f.name for f in Statuses.files.values() if f.status == STATUS_GOOD]
     ):
-        this_date = datafile_into_db(file_name, batch, dbconx)
-        dates_loaded_ok[this_date] += 1
+        try:
+            one_datafile_into_db(file_name, batch, dbconx)
+
+        except tuple(SQL_MODERATE_ERRORS) as e:
+            print(f"SQL error: {e}")
+            continue
+        except tuple(SQL_CRITICAL_ERRORS) as e:
+            print(f"Serious SQL error occurred: {e}")
+            raise
 
     if args.verbose:
         print("Closing database connection.")
     dbconx.close()
 
     if not args.quiet:
-        print_summary(dates_loaded_ok)
+        print_summary()
 
     if Statuses.errors:
         sys.exit(1)

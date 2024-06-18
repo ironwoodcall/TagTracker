@@ -27,17 +27,22 @@ import os
 import sqlite3
 from dataclasses import dataclass, field
 import copy
-import statistics
 import urllib
 from datetime import datetime, timedelta
 
-from web_base_config import SITE_NAME
+
+from web.web_base_config import SITE_NAME
 
 # from tt_conf import SITE_NAME
-from tt_time import VTime
-from tt_tag import TagID
-import tt_dbutil as db
-import tt_util as ut
+from common.tt_time import VTime
+from common.tt_tag import TagID
+import common.tt_dbutil as db
+import common.tt_util as ut
+from common.tt_daysummary import DayTotals
+
+# from common.tt_trackerday import TrackerDay
+# from common.tt_daysummary import DaySummary, PeriodDetail, MomentDetail, DayTotals
+
 
 # Set up debugging .. maybe
 if "TAGTRACKER_DEBUG" in os.environ:
@@ -60,13 +65,13 @@ WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
 WHAT_SUMMARY_FREQUENCIES = "SQ"
 WHAT_AUDIT = "Au"
-WHAT_PERIOD = "PS"
-WHAT_PERIOD_FOREVER = "pF"
-WHAT_PERIOD_YEAR = "pY"
-WHAT_PERIOD_QUARTER = "pQ"
-WHAT_PERIOD_MONTH = "pM"
-WHAT_PERIOD_WEEK = "pW"
-WHAT_PERIOD_CUSTOM = "pC"
+WHAT_DATERANGE = "PS"
+WHAT_DATERANGE_FOREVER = "pF"
+WHAT_DATERANGE_YEAR = "pY"
+WHAT_DATERANGE_QUARTER = "pQ"
+WHAT_DATERANGE_MONTH = "pM"
+WHAT_DATERANGE_WEEK = "pW"
+WHAT_DATERANGE_CUSTOM = "pC"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"
@@ -87,6 +92,56 @@ ORDER_FORWARD = "forward"
 ORDER_REVERSE = "reverse"
 
 
+class WebAuth:
+    """Manage aspects of web/data authorization.
+
+    I might want to ask these kinds of questions or store this data:
+        Can this web user see this data-org's data?
+        What is the name of this user-org?  Data-org?
+        What 'where' clause can I use/add to filter what this user-org
+        can see?
+
+    For right now seems reasonable to limit to a single orgsite
+
+    """
+
+    def __init__(self):
+        self.user_org_id:int = None
+        self.user_org_handle:str = None
+        self.user_org_name:str = None
+
+        self.visible_org_ids:list = None
+
+        self.visible_orgsite_ids:list=None
+        self.visible_orgsite_handles:list = None
+        self.visible_orgsite_names:list = None
+
+        self.org_info:dict = None
+        self.orgsite_info:dict = None
+
+
+        pass
+
+    def owner_org(self):
+        pass
+
+    def user_org(self):
+        pass
+
+    def orgsite_choices(self, user_org ) -> list[int]:
+            """Return list of orgsite choices visible to this user_org."""
+
+    def orgsite_where(self,user_org_id,data_orgsite_id,table:str,standalone_clause:bool=False) -> str:
+        """Return 'WHERE ... or 'AND ... to filter what allowed to see.
+
+        E.g. WHERE DAY.ORGISTE = id
+        or AND VISIT.DAY_ID in (id,id.id) AND DAY.ORGSITE_ID IN (id,id id)
+
+        Looks in ORG table to get list of data orgs this user_org can see.
+        Create a list of orgsite ids this user can see.
+        """
+
+
 def test_dow_parameter(dow_parameter: str, list_ok: bool = False):
     """Check if dow_parameter is ok."""
     if list_ok:
@@ -100,7 +155,7 @@ def test_dow_parameter(dow_parameter: str, list_ok: bool = False):
 
 def titleize(title: str = "") -> str:
     """Puts SITE_NAME in front of title and makes it pretty."""
-    name = SITE_NAME if SITE_NAME else "Bike Parking Service"
+    name = SITE_NAME or "Bike Parking Service"
     if not title:
         return name
     return f"{SITE_NAME} {title}"
@@ -368,6 +423,7 @@ def bad_date(bad_date_str: str = ""):
     )
 
 
+# FIXME: Use PeriodDetail?
 @dataclass
 class SingleBlock:
     """Data about a single timeblock."""
@@ -383,6 +439,7 @@ class SingleBlock:
         return self.num_in + self.num_out
 
 
+# FIXME: Use DaysTotal (or whatever it's called?)
 @dataclass
 class BlocksSummary:
     """Summary of all blocks for a single day (or all days)."""
@@ -399,6 +456,7 @@ class BlocksSummary:
 _allblocks = {t: SingleBlock() for t in range(6 * 60, 24 * 60, 30)}
 
 
+# # FIXME: surely use a DaysTotal or whatever tho DaysTotal will need stats.
 @dataclass
 class SingleDay:
     """Data about a single day."""
@@ -431,103 +489,80 @@ class SingleDay:
     #     return self.leftovers
 
 
-@dataclass
-class DaysSummary:
-    """Summary data for all days."""
-
-    total_total_bikes: int = 0
-    total_regular_bikes: int = 0
-    total_oversize_bikes: int = 0
-    max_total_bikes: int = 0
-    max_total_bikes_date: str = ""
-    max_max_bikes: int = 0
-    max_max_bikes_date: str = ""
-    total_registrations: int = 0
-    max_registrations: int = 0
-    min_temperature: float = None
-    max_temperature: float = None
-    total_precip: float = 0
-    max_precip: float = 0
-    total_leftovers: int = 0
-    max_leftovers: int = 0
-    total_valet_hours: float = 0
-    total_valet_days: int = 0
-    total_visit_hours: float = 0
-    visits_mean: str = ""
-    visits_median: str = ""
-    visits_modes: list = None
-    visits_modes_occurences = 0
-
 
 def get_days_data(
     ttdb: sqlite3.Connection,
     min_date: str = "",
     max_date: str = "",
-) -> list[SingleDay]:
-    """Create the list of SingleDay data, some info loaded but not the block data.
+) -> list[DayTotals]:
+    """Create the list of totals about a set of days.
 
-    If min_date &/or max_date are present, will restrict dates to those
-
-    Does not load:
-        blocks
-        mean, median, modes
     """
 
-    where = ""
-    if min_date:
-        where += f" DAY.date >= '{min_date}'"
-    if max_date:
-        where += f"{' AND' if where else ''} DAY.date <= '{max_date}'"
-    where = f"WHERE{where}" if where else ""
+    cursor = ttdb.cursor()
+    day_ids = db.fetch_day_id_list(cursor=cursor,orgsite_id=1,min_date=min_date,max_date=max_date)
 
-    sql = f"""
-        SELECT
-            DAY.date,
-            DAY.weekday dow,
-            DAY.time_open AS valet_open,
-            DAY.time_closed AS valet_close,
-            DAY.parked_regular AS regular_bikes,
-            DAY.parked_oversize AS oversize_bikes,
-            DAY.parked_total AS total_bikes,
-            DAY.max_total AS max_bikes,
-            DAY.time_max_total AS max_bikes_time,
-            DAY.registrations,
-            DAY.precip_mm AS precip,
-            DAY.temp AS temperature,
-            DAY.sunset AS dusk,
-            DAY.leftover AS leftovers
-        FROM DAY
-        {where}
-        GROUP BY DAY.date, DAY.time_open, DAY.time_closed, DAY.parked_regular, DAY.parked_oversize,
-            DAY.parked_total, DAY.max_total, DAY.time_max_total, DAY.registrations, DAY.precip_mm,
-            DAY.temp, DAY.sunset, DAY.leftover;
-        """
+    totals_list = []
+    for day_id in day_ids:
+        # day = DayTotals()
+        day = db.fetch_day_totals(cursor=cursor,day_id=day_id)
+        totals_list.append(day)
+    return totals_list
 
-    dbrows = db.db_fetch(ttdb, sql)
-    # There mught be nothing.
-    ##ut.squawk(f"{sql=}\n")
-    if not dbrows:
-        return [SingleDay()]
-    # Look for properties in common (these are the ones we will copy over)
-    shared_properties = set(
-        prop
-        for prop in dbrows[0].__dict__.keys()
-        if prop[0] != "_" and prop in SingleDay.__annotations__
-    )
-    days = []
-    for r in dbrows:
-        # Copy any commmon properties
-        d = SingleDay()
-        for prop in shared_properties:
-            setattr(d, prop, getattr(r, prop))
-        # Fix up any that are to be VTimes
-        d.valet_open = VTime(d.valet_open)
-        d.valet_close = VTime(d.valet_close)
-        d.max_bikes_time = VTime(d.max_bikes_time)
-        d.dusk = VTime(d.dusk)
+    # where = ""
+    # if min_date:
+    #     where += f" DAY.date >= '{min_date}'"
+    # if max_date:
+    #     where += f"{' AND' if where else ''} DAY.date <= '{max_date}'"
+    # where = f"WHERE{where}" if where else ""
 
-        days.append(d)
-    return days
+    # sql = f"""
+    #     SELECT
+    #         DAY.date,
+    #         DAY.weekday dow,
+    #         DAY.time_open AS valet_open,
+    #         DAY.time_closed AS valet_close,
+    #         DAY.num_regular AS regular_bikes,
+    #         DAY.num_oversize AS oversize_bikes,
+    #         DAY.num_combined AS total_bikes,
+    #         DAY.num_fullest_combined AS max_bikes,
+    #         DAY.time_fullest_combined AS max_bikes_time,
+    #         DAY.bikes_registered,
+    #         DAY.precipitation AS precip,
+    #         DAY.max_max_temperature AS temperature,
+    #         DAY.num_leftover AS leftovers
+    #     FROM DAY
+    #     {where}
+    #     GROUP BY DAY.date, DAY.time_open, DAY.time_closed, DAY.num_regular, DAY.num_oversize,
+    #         DAY.num_combined, DAY.num_fullest_combined, DAY.time_fullest_combined, DAY.bikes_registered, DAY.precipitation,
+    #         DAY.max_max_temperature, DAY.num_leftover;
+    #     """
+
+    # dbrows = db.db_fetch(ttdb, sql)
+    # # There mught be nothing.
+    # ##ut.squawk(f"{sql=}\n")
+    # if not dbrows:
+    #     return [SingleDay()]
+    # # Look for properties in common (these are the ones we will copy over)
+    # shared_properties = set(
+    #     prop
+    #     for prop in dbrows[0].__dict__.keys()
+    #     if prop[0] != "_" and prop in SingleDay.__annotations__
+    # )
+    # days = []
+    # for r in dbrows:
+    #     # Copy any commmon properties
+    #     d = SingleDay()
+    #     for prop in shared_properties:
+    #         setattr(d, prop, getattr(r, prop))
+    #     # Fix up any that are to be VTimes
+    #     d.valet_open = VTime(d.valet_open)
+    #     d.valet_close = VTime(d.valet_close)
+    #     d.max_bikes_time = VTime(d.max_bikes_time)
+    #     d.dusk = VTime(d.dusk)
+
+    #     days.append(d)
+    # return days
 
 
 def get_common_properties(obj1: object, obj2: object) -> list:
@@ -555,141 +590,6 @@ def copy_properties(
 
     for prop in common_properties:
         setattr(target, prop, getattr(source, prop))
-
-
-def get_visit_stats(
-    ttdb: sqlite3.Connection,
-) -> tuple[float, VTime, VTime, list[str], int]:
-    """Calculate stats for visit length.
-
-    Returns:
-        total visit hours: float
-        mean: VTime
-        median: VTime
-        modes: list of str VTime().tidy
-        mode_occurances: the number of visits of mode duration
-    """
-    visits = db.db_fetch(ttdb, "select duration from visit")
-    durations = [VTime(v.duration).num for v in visits]
-    ##durations = sorted([d for d in durations if d])
-    num_visits = len(durations)
-    total_duration = sum(durations)  # minutes
-    if num_visits <= 0:
-        return 0, "", "", [], 0
-    mean = statistics.mean(durations)
-    median = statistics.median(durations)
-    modes, modes_occurences = ut.calculate_visit_modes(durations)
-
-    return (
-        (total_duration / 60),
-        VTime(mean).tidy,
-        VTime(median).tidy,
-        modes,
-        modes_occurences,
-    )
-
-
-def get_season_summary_data(
-    ttdb: sqlite3.Connection,
-    season_dailies: list[SingleDay],
-    include_visit_stats: bool = False,
-) -> DaysSummary:
-    """Fetch whole-season data, limited to date range represented in season_dailies.
-
-    If include_visit_stats is True then includes those, else they are undefined.
-    """
-
-    def set_obj_from_sql(database: sqlite3.Connection, sql_query: str, target: object):
-        """Sets target's properties from row 0 of the return from SQL."""
-        dbrows: list[db.DBRow] = db.db_fetch(database, sql_query)
-        if not dbrows:
-            return
-        copy_properties(dbrows[0], target)
-
-    dates_list = [d.date for d in season_dailies]
-    where = f'where date >= "{min(dates_list)}" and date <= "{max(dates_list)}"'
-
-    summ = DaysSummary()
-    set_obj_from_sql(
-        ttdb,
-        f"""
-        select
-            sum(parked_total) total_total_bikes,
-            sum(parked_regular) total_regular_bikes,
-            sum(parked_oversize) total_oversize_bikes,
-            sum(registrations) total_registrations,
-            max(registrations) max_registrations,
-            min(temp) min_temperature,
-            max(temp) max_temperature,
-            sum(precip_mm) total_precip,
-            max(precip_mm) max_precip,
-            sum(leftover) total_leftovers,
-            max(leftover) max_leftovers,
-            count(date) total_valet_days
-        from day
-        {where};
-        """,
-        summ,
-    )
-
-    set_obj_from_sql(
-        ttdb,
-        f"""
-            SELECT
-                parked_total as max_total_bikes,
-                date as max_total_bikes_date
-            FROM day
-            {where}
-            ORDER BY parked_total DESC, date ASC
-            LIMIT 1;
-        """,
-        summ,
-    )
-
-    set_obj_from_sql(
-        ttdb,
-        f"""
-            SELECT
-                max_total as max_max_bikes,
-                date as max_max_bikes_date
-            FROM day
-            {where}
-            ORDER BY max_total DESC, date ASC
-            LIMIT 1;
-        """,
-        summ,
-    )
-
-    # Still need to calculate total_valet_hours
-    summ.total_valet_hours = (
-        sum([d.valet_close.num - d.valet_open.num for d in season_dailies]) / 60
-    )
-
-    # Stats about visits
-    if include_visit_stats:
-        (
-            summ.total_visit_hours,
-            summ.visits_mean,
-            summ.visits_median,
-            summ.visits_modes,
-            summ.visits_modes_occurences,
-        ) = get_visit_stats(ttdb)
-    else:
-        (
-            summ.total_visit_hours,
-            summ.visits_mean,
-            summ.visits_median,
-            summ.visits_modes,
-            summ.visits_modes_occurences,
-        ) = (
-            0,
-            "",
-            "",
-            [],
-            0,
-        )
-
-    return summ
 
 
 def fetch_daily_visit_data(ttdb: sqlite3.Connection, in_or_out: str) -> list[db.DBRow]:

@@ -26,7 +26,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 from datetime import datetime
 from client_base_config import SEASON_HOURS,SPECIAL_HOURS
-from tt_constants import MaybeDate
+from common.tt_constants import MaybeDate
 
 def get_default_hours(date_str:MaybeDate) -> tuple[str,str]:
     """Look for opening/closing hours for this date.
@@ -34,7 +34,7 @@ def get_default_hours(date_str:MaybeDate) -> tuple[str,str]:
     Reads data structures SEASON_HOURS and SPECIAL_HOURS from
     client config file.
 
-    If no match or string isbad, returns "","".
+    If no match or string is bad, returns "","".
     """
     # Find the day of the week (& test for a badly formed date string).
     try:

@@ -22,14 +22,18 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+from common.tt_tag import TagID
 import tt_printer as pr
-import tt_util as ut
+import common.tt_util as ut
 import client_base_config as cfg
-from tt_time import VTime
-import tt_constants as k
+from common.tt_time import VTime
+import common.tt_constants as k
 import tt_default_hours
+from common.tt_trackerday import TrackerDay
+from tt_sounds import NoiseMaker
 
 # Import pyfiglet if it's available.
+# (To create ascii art splash screen.)
 try:
     import random
     import pyfiglet
@@ -44,9 +48,9 @@ def splash():
     if not splash_top_pyfiglet():
         splash_top_default()
     pr.iprint()
-    pr.iprint("TagTracker by Julias Hocking")
-    pr.iprint(f"Version: {ut.get_version()}")
+    pr.iprint(f"TagTracker version: {ut.get_version()}")
     pr.iprint("See github.com/ironwoodcall/tagtracker for version details.")
+    pr.iprint()
 
 
 def splash_top_pyfiglet():
@@ -125,66 +129,28 @@ def splash_top_default():
         )
 
 
-def show_help():
-    """Show help_message with colour style highlighting.
 
-    Prints first non-blank line as title;
-    lines that are flush-left as subtitles;
-    other lines in normal style.
-    """
-    title_done = False
-    for line in k.HELP_MESSAGE.split("\n"):
-        if not line:
-            pr.iprint()
-        elif not title_done:
-            title_done = True
-            pr.iprint(line, style=k.TITLE_STYLE)
-        elif line[0] != " ":
-            pr.iprint(line, style=k.SUBTITLE_STYLE)
-        else:
-            pr.iprint(line, style=k.NORMAL_STYLE)
-
-
-def show_notes(notes_obj, header: bool = False, styled: bool = True) -> None:
-    """Print notes."""
-    notes_list = notes_obj.fetch()
-    pr.iprint()
-
-    if header:
-        if notes_list:
-            pr.iprint("Today's notes:", style=k.TITLE_STYLE)
-        else:
-            pr.iprint("There are no notes yet today.")
-            pr.iprint("(To create a note, enter NOTE [note text])")
-    for line in notes_list:
-        if styled:
-            pr.iprint(line, style=k.WARNING_STYLE)
-        else:
-            pr.iprint(line, style=k.NORMAL_STYLE)
-
-
-def confirm_hours(
-    date: k.MaybeDate, current_open: k.MaybeTime, current_close: k.MaybeTime
-) -> tuple[bool, VTime, VTime]:
+def confirm_hours(today: TrackerDay) -> bool:
+    #     date: k.MaybeDate, current_open: k.MaybeTime, current_close: k.MaybeTime
+    # ) -> tuple[bool, VTime, VTime]:
     """Get/set operating hours.
 
     Returns flag True if values have changed
-    and new (or unchanged) open and close times as as tuple:
-        changed:bool, open:VTime, closed:VTime
 
     Logic:
     - On entry, current_open/close are either times or ""
     - If "", sets from defaults
     - Prompts user for get/confirm
-    - Returns result tuple
+    - Changes values in TrackerDay
 
     """
-    maybe_open, maybe_close = (current_open, current_close)
+    maybe_open = today.time_open
+    maybe_close = today.time_closed
     if not maybe_open or not maybe_close:
         # Set any blank value from config'd defaults
-        default_open, default_close = tt_default_hours.get_default_hours(date)
-        maybe_open = maybe_open if maybe_open else default_open
-        maybe_close = maybe_close if maybe_close else default_close
+        default_open, default_close = tt_default_hours.get_default_hours(today.date)
+        maybe_open = maybe_open or default_open
+        maybe_close = maybe_close or default_close
 
     # Prompt user to get/confirm times
     done = False
@@ -193,16 +159,20 @@ def confirm_hours(
         new_open, new_close = get_operating_hours(new_open, new_close)
         if new_open >= new_close:
             pr.iprint(
-                "Closing time must be later than opening time", style=k.ERROR_STYLE
+                f"Closing time must be later than opening time {new_open}",
+                style=k.ERROR_STYLE,
             )
         else:
             done = True
     # Has anything changed?
-    return (
-        bool(new_open != current_open or new_close != current_close),
-        new_open,
-        new_close,
+    data_changed = bool(
+        new_open != today.time_open or new_close != today.time_closed
     )
+    # Save the changed
+    today.time_open = new_open
+    today.time_closed = new_close
+    # Done, return whether data has changed
+    return data_changed
 
 
 def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]:
@@ -217,10 +187,14 @@ def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]
                     f"Enter new 24-hour HHMM {prompt_bit} time or press <Enter> "
                     f"to leave as {current_time.short}: ",
                     end="",
-                    style=k.PROMPT_STYLE,
+                    style=k.SUBPROMPT_STYLE,
                 )
             else:
-                pr.iprint(f"Enter 24-hour HHMM {prompt_bit} time: ", end="")
+                pr.iprint(
+                    f"Enter 24-hour HHMM {prompt_bit} time: ",
+                    end="",
+                    style=k.SUBPROMPT_STYLE,
+                )
             inp = pr.tt_inp().strip()
             if current_time and not inp:
                 return current_time
@@ -246,6 +220,47 @@ def get_operating_hours(opening: str = "", closing: str = "") -> tuple[str, str]
     opening = get_one_time(opening, "opening")
     closing = get_one_time(closing, "closing")
     return opening, closing
+
+
+def check_bike_time_reasonable(bike_time: VTime, day: TrackerDay) -> bool:
+    """Check if 'bike_time' is reasonably close to operating hours.
+
+    Will give an error message if not.
+
+    Returns True if seems reasonable, False otherwise.
+    If operating hours not set, returns True.
+    """
+
+    if day.bike_time_reasonable(bike_time):
+        return True
+
+    pr.iprint(
+        f"Time ({bike_time.short}) is too far outside open hours "
+        f"({day.time_open.short}-{day.time_closed.short}).",
+        style=k.WARNING_STYLE,
+    )
+    NoiseMaker.play(k.ALERT)
+    return False
+
+
+def check_tagid_usable(tagid: TagID, today: TrackerDay) -> bool:
+    """Checks if tagid is usable, error msg if not.
+
+    In this context, usable means REGULAR or OVERSIZE and
+    not RETIRED.
+
+    Returns True if usable, False if not.
+    """
+    if tagid in today.all_usable_tags():
+        return True
+
+    if tagid in today.retired_tagids:
+        msg = f"Tag {tagid} is retired."
+    else:
+        msg = f"No tag '{tagid.original}' available today."
+    pr.iprint(msg, style=k.WARNING_STYLE)
+    NoiseMaker.play(k.ALERT)
+    return False
 
 
 def data_owner_notice():

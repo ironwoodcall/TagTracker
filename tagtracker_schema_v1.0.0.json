@@ -1,0 +1,82 @@
+{
+    "//": "Schema for TagTracker daily data file",
+    "//": "Copyright 2024 Todd Glover",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "version": "1.0.1",
+    "type": "object",
+    "properties": {
+      "site_name": {
+        "type": "string"
+      },
+      "site_handle": {
+        "type": "string"
+      },
+      "date": {
+        "type": "string",
+        "format": "date"
+      },
+      "time_open": {
+        "type": "string",
+        "format": "time"
+      },
+      "time_closed": {
+        "type": "string",
+        "format": "time"
+      },
+      "registrations": {
+        "type": ["integer", "null"]
+      },
+      "visits": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "time_in": {
+              "type": "string",
+              "format": "time"
+            },
+            "time_out": {
+              "type": ["string", "null"],
+              "format": "time"
+            },
+            "bike_size": {
+              "type": "string",
+              "enum": ["regular", "oversized"]
+            },
+            "tag_id": {
+              "type": ["string", "null"]
+            }
+          },
+          "required": ["time_in", "bike_size"]
+        }
+      },
+      "regular_tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "oversize_tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "retired_tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "total_regular": {
+        "type": "integer"
+      },
+      "total_oversize": {
+        "type": "integer"
+      },
+      "total_parked": {
+        "type": "integer"
+      }
+    },
+    "required": ["site_name", "site_handle","date", "time_open", "time_closed"]
+  }

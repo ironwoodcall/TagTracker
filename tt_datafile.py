@@ -1,6 +1,6 @@
 """TagTracker by Julias Hocking.
 
-Functions to save and retrieve data (TrackerDay objects) in datafiles.
+Functions to save and retrieve data (OldTrackerDay objects) in datafiles.
 
 Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
@@ -30,16 +30,16 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 """
 
-import os
+# import os
 import re
 
 # import tempfile
 
-import tt_constants as k
-from tt_tag import TagID
-from tt_time import VTime
-import tt_util as ut
-from tt_trackerday import TrackerDay
+import common.tt_constants as k
+from common.tt_tag import TagID
+from common.tt_time import VTime
+import common.tt_util as ut
+from common.tt_trackerday import OldTrackerDay
 import client_base_config as cfg
 
 # Header strings to use in datafile and tags- config file
@@ -59,63 +59,20 @@ HEADER_COLOURS = "Colour codes:"
 HEADER_NOTES = "Notes:"
 HEADER_REGISTRATIONS = "Registrations:"
 
-
 def datafile_name(folder: str, whatdate: str = "today") -> str:
     """Return the name of the data file (datafile) to read/write."""
     # Use default filename
     date = ut.date_str(whatdate)
     if not date:
         return ""
-    return f"{folder}/{cfg.DATA_BASENAME}{date}.dat"
+    return f"{folder}/{cfg.DATA_BASENAME}{date}.json"
 
 
-def write_datafile(datafile: str, content: list[str], make_bak: bool) -> bool:
-    """Write 'content' to datafile, possibly saving old as .bak.
-
-    On entry:
-        datafile is the filepath of the current datafile, which might exist
-        content is a list of strings that are the content to write
-        make_bak, if True, make the existing datafile '.bak'
-
-    To avoid a "Invalid cross-device link" error, make the tmp file
-    inthe same folder as the datafile will be.
-    """
-
-    # Write the content to a temporary file
-    temp_filename = f"{datafile}.tmp"
-    try:
-        with open(temp_filename, mode="w", encoding="utf-8") as temp_file:
-            for line in content:
-                temp_file.write(line)
-                temp_file.write("\n")
-    except OSError as e:
-        ut.squawk(
-            f"PROBLEM: Unable to create temporary datafile '{temp_filename}': {e}"
-        )
-        return False
-
-    # If datafile already exists and making .bak, change it to .bak
-    if make_bak and os.path.exists(datafile):
-        try:
-            os.replace(datafile, f"{datafile}.bak")
-        except OSError as e:
-            ut.squawk(f"PROBLEM: Unable to change '{datafile}' to .bak: {e}")
-            return False
-
-    # Rename the temp file to the datafile name
-    try:
-        os.replace(temp_filename, datafile)
-    except OSError as e:
-        ut.squawk(f"PROBLEM: Unable to change '{temp_filename}'to '{datafile}': {e}")
-        return False
-
-    # Success
-    return True
 
 
 def _read_time_or_date(
     line: str,
-    data: TrackerDay,
+    data: OldTrackerDay,
     err_count: int,
     err_msgs: list[str],
     filename: str,
@@ -128,7 +85,7 @@ def _read_time_or_date(
 
     Parameters:
         - line: The current line being processed.
-        - data: The TrackerDay object to update with the processed data.
+        - data: The OldTrackerDay object to update with the processed data.
         - err_msgs: A list to which any error messages will be appended.
         - filename: The name of the file being processed.
         - line_num: The line number of the current line.
@@ -174,9 +131,9 @@ def _read_time_or_date(
                 fline=line_num,
             )
         if header in [HEADER_OPENS, HEADER_OLD_OPENS]:
-            data.opening_time = maybetime
+            data.time_open = maybetime
         else:
-            data.closing_time = maybetime
+            data.time_closed = maybetime
     else:
         ut.squawk(f"Unexpected unrecognition of header {header} line {line_num}")
         return err_count + 1
@@ -209,11 +166,11 @@ def _read_error_msg(
 
 def read_datafile(
     filename: str, err_msgs: list[str], usable_tags: list[TagID] = None
-) -> TrackerDay:
-    """Fetch tag data from file into a TrackerDay object.
+) -> OldTrackerDay:
+    """Fetch tag data from file into a OldTrackerDay object.
 
     Read data from a pre-existing data file, returns the info in a
-    TrackerDay object.  If no file, TrackerDay will be mostly blank.
+    OldTrackerDay object.  If no file, OldTrackerDay will be mostly blank.
 
     err_msgs is the (presumably empty) list, to which any error messages
     will be appended.  If no messages are added, then it means this
@@ -224,7 +181,7 @@ def read_datafile(
     checking takes place.
     """
 
-    data = TrackerDay()
+    data = OldTrackerDay()
     errors = 0  # How many errors found reading datafile?
     section = None
     with open(filename, "r", encoding="utf-8") as f:
@@ -323,27 +280,7 @@ def read_datafile(
                 continue
 
             if section == k.COLOURS:
-                # Read the colour dictionary
-                bits = ut.splitline(line)
-                if len(bits) < 2:
-                    errors = _read_error_msg(
-                        f"Bad colour code '{line}",
-                        err_msgs,
-                        errs=errors,
-                        fname=filename,
-                        fline=line_num,
-                    )
-                    continue
-                if bits[0] in data.colour_letters:
-                    errors = _read_error_msg(
-                        f"Duplicate colour code '{bits[0]}",
-                        err_msgs,
-                        errs=errors,
-                        fname=filename,
-                        fline=line_num,
-                    )
-                    continue
-                data.colour_letters[bits[0]] = " ".join(bits[1:])
+                # Ignore the colour dictionary
                 continue
 
             if section in [k.REGULAR, k.OVERSIZE, k.RETIRED]:
@@ -476,80 +413,117 @@ def read_datafile(
 
     if errors:
         err_msgs.append(f"Found {errors} errors in datafile {filename}")
-    # If no colour dictionary, fake one up
-    if not data.colour_letters:
-        data.fill_colour_dict_gaps()
+
     # Return today's working data.
     return data
 
 
-def prep_datafile_info(data: TrackerDay) -> list[str]:
-    """Prepare a list of lines to write to the datafile."""
-    lines = []
-    lines.append(
-        "# TagTracker datafile (data file) created on "
-        f"{ut.date_str('today')} {VTime('now')}"
-    )
-    lines.append(f"# TagTracker version {ut.get_version()}")
-    # For convenience, show # of leftovers & latest event
-    if data.bikes_in:
-        latest_event = max(list(data.bikes_in.values()) + list(data.bikes_out.values()))
-        leftovers = len(data.bikes_in) - len(data.bikes_out)
-        lines.append(f"# {leftovers} bikes left as of {latest_event}")
-    else:
-        lines.append("# No bikes")
-    # Date, opening & closing hours
-    if data.date:
-        lines.append(f"{HEADER_DATE} {data.date}")
-    if data.opening_time:
-        lines.append(f"{HEADER_OPENS} {data.opening_time}")
-    if data.closing_time:
-        lines.append(f"{HEADER_CLOSES} {data.closing_time}")
-    if data.registrations:
-        lines.append(f"{HEADER_REGISTRATIONS} {data.registrations}")
+# def prep_datafile_info(data: OldTrackerDay) -> list[str]:
+#     """Prepare a list of lines to write to the datafile."""
+#     lines = []
+#     lines.append(
+#         "# TagTracker datafile (data file) created on "
+#         f"{ut.date_str('today')} {VTime('now')}"
+#     )
+#     lines.append(f"# TagTracker version {ut.get_version()}")
+#     # For convenience, show # of leftovers & latest event
+#     if data.bikes_in:
+#         latest_event = max(list(data.bikes_in.values()) + list(data.bikes_out.values()))
+#         leftovers = len(data.bikes_in) - len(data.bikes_out)
+#         lines.append(f"# {leftovers} bikes left as of {latest_event}")
+#     else:
+#         lines.append("# No bikes")
+#     # Date, opening & closing hours
+#     if data.date:
+#         lines.append(f"{HEADER_DATE} {data.date}")
+#     if data.time_open:
+#         lines.append(f"{HEADER_OPENS} {data.time_open}")
+#     if data.time_closed:
+#         lines.append(f"{HEADER_CLOSES} {data.time_closed}")
+#     if data.registrations:
+#         lines.append(f"{HEADER_REGISTRATIONS} {data.registrations}")
 
-    lines.append(HEADER_BIKES_IN)
-    for tag, atime in data.bikes_in.items():  # for each bike checked in
-        lines.append(f"{tag.canon},{atime}")  # add a line "tag,time"
-    lines.append(HEADER_BIKES_OUT)
-    for tag, atime in data.bikes_out.items():  # for each  checked
-        lines.append(f"{tag.canon},{atime}")  # add a line "tag,time"
-    # Save any operator notes.
-    lines.append(HEADER_NOTES)
-    lines.extend(data.notes)
-    # Also write tag info of which bikes are oversize, which are regular.
-    # This to make complete bundles for historic information
-    lines.append("# Following sections are context for the check-ins/outs")
-    lines.append(HEADER_REGULAR)
-    for group in ut.taglists_by_prefix(data.regular):
-        lines.append(" ".join(group).lower())
-    lines.append(HEADER_OVERSIZE)
-    for group in ut.taglists_by_prefix(data.oversize):
-        lines.append(" ".join(group).lower())
-    lines.append(HEADER_RETIRED)
-    lines.append(" ".join(data.retired).lower())
-    lines.append(HEADER_COLOURS)
-    for letter, name in data.colour_letters.items():
-        lines.append(f"{letter.lower()},{name}")
-    lines.append("# Normal end of file")
-    return lines
+#     lines.append(HEADER_BIKES_IN)
+#     for tag, atime in data.bikes_in.items():  # for each bike checked in
+#         lines.append(f"{tag.canon},{atime}")  # add a line "tag,time"
+#     lines.append(HEADER_BIKES_OUT)
+#     for tag, atime in data.bikes_out.items():  # for each  checked
+#         lines.append(f"{tag.canon},{atime}")  # add a line "tag,time"
+#     # Save any operator notes.
+#     lines.append(HEADER_NOTES)
+#     lines.extend(data.notes)
+#     # Also write tag info of which bikes are oversize, which are regular.
+#     # This to make complete bundles for historic information
+#     lines.append("# Following sections are context for the check-ins/outs")
+#     lines.append(HEADER_REGULAR)
+#     for group in ut.taglists_by_prefix(data.regular):
+#         lines.append(" ".join(group).lower())
+#     lines.append(HEADER_OVERSIZE)
+#     for group in ut.taglists_by_prefix(data.oversize):
+#         lines.append(" ".join(group).lower())
+#     lines.append(HEADER_RETIRED)
+#     lines.append(" ".join(data.retired).lower())
+#     lines.append("# Normal end of file")
+#     return lines
 
 
-def write_datafile_old(filename: str, data: TrackerDay) -> bool:
-    """Write current data to today's data file.
+# def write_datafile_old(filename: str, data: OldTrackerDay) -> bool:
+#     """Write current data to today's data file.
 
-    Return True if succeeded, False if failed.
-    """
-    lines = prep_datafile_info(data)
-    # Write the data to the file.
-    try:
-        with open(filename, "w", encoding="utf-8") as f:  # write stored lines to file
-            for line in lines:
-                f.write(line)
-                f.write("\n")
-    except OSError:
-        ut.squawk(f"PROBLEM: Unable to create datafile '{filename}'")
-        return False
-    return True
+#     Return True if succeeded, False if failed.
+#     """
+#     lines = prep_datafile_info(data)
+#     # Write the data to the file.
+#     try:
+#         with open(filename, "w", encoding="utf-8") as f:  # write stored lines to file
+#             for line in lines:
+#                 f.write(line)
+#                 f.write("\n")
+#     except OSError:
+#         ut.squawk(f"PROBLEM: Unable to create datafile '{filename}'")
+#         return False
+#     return True
 
 
+# def write_datafile(datafile: str, content: list[str], make_bak: bool) -> bool:
+#     """Write 'content' to datafile, possibly saving old as .bak.
+
+#     On entry:
+#         datafile is the filepath of the current datafile, which might exist
+#         content is a list of strings that are the content to write
+#         make_bak, if True, make the existing datafile '.bak'
+
+#     To avoid a "Invalid cross-device link" error, make the tmp file
+#     inthe same folder as the datafile will be.
+#     """
+
+#     # Write the content to a temporary file
+#     temp_filename = f"{datafile}.tmp"
+#     try:
+#         with open(temp_filename, mode="w", encoding="utf-8") as temp_file:
+#             for line in content:
+#                 temp_file.write(line)
+#                 temp_file.write("\n")
+#     except OSError as e:
+#         ut.squawk(
+#             f"PROBLEM: Unable to create temporary datafile '{temp_filename}': {e}"
+#         )
+#         return False
+
+#     # If datafile already exists and making .bak, change it to .bak
+#     if make_bak and os.path.exists(datafile):
+#         try:
+#             os.replace(datafile, f"{datafile}.bak")
+#         except OSError as e:
+#             ut.squawk(f"PROBLEM: Unable to change '{datafile}' to .bak: {e}")
+#             return False
+
+#     # Rename the temp file to the datafile name
+#     try:
+#         os.replace(temp_filename, datafile)
+#     except OSError as e:
+#         ut.squawk(f"PROBLEM: Unable to change '{temp_filename}'to '{datafile}': {e}")
+#         return False
+
+#     # Success
+#     return True

@@ -25,6 +25,8 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     """
+import sys
+import re
 
 # Screen appearance
 SCREEN_WIDTH = 80  # characters
@@ -51,11 +53,16 @@ SOUND_ENABLED = True
 # If set to 0 (or anything else that evalues False), no monitoring is done.
 INTERNET_MONITORING_FREQUENCY = 10
 
+# Site name identifier goes into the datafile, used in aggregation
+SITE_NAME = "Default Site"
+SITE_HANDLE = "bikeparking"  # This is used in aggregation and filenames
+
 # Files and folder locations
 DATA_FOLDER = "../data"  # Folder to keep datafiles in
-DATA_BASENAME = "bikeparking_"  # Files will be {BASENAME}YY-MM-DD.dat
+# (DATA_BASENAME is set following import of local config, below)
+
 # Where and how often to publish reports
-REPORTS_FOLDER = ""
+REPORTS_FOLDER = "../reports"
 PUBLISH_FREQUENCY = 15  # minutes. "0" means do not publish
 
 # Echo captures full transcripts of a day's TT session
@@ -72,6 +79,9 @@ MAX_NOTE_LENGTH = 80
 
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 10  # mins
+
+# This is for development debugging
+DEBUG = False
 
 # Stubs here; the default hours should be defined in the local config file.
 # They would look something like this:
@@ -137,6 +147,19 @@ except Exception as e:  # pylint:disable=broad-exception-caught
     print(f"   Error message: {e}")
     print("Contact TagTracker admin.")
     print()
-    import sys
-
     sys.exit(1)
+
+# Final checks of local config and adjustments based on it.
+
+# SITE_HANDLE forms filename and database ID parts.
+if not re.match(r'^[a-zA-Z0-9_\-.\~!]+$',SITE_HANDLE) or len(SITE_HANDLE) > 32:
+    print()
+    print("** Configuration error: **")
+    print("   SITE_HANDLE has unsuitable characters or is too long (max len 32).")
+    print("Contact TagTracker admin.")
+    print()
+    sys.exit(1)
+
+# Filenames are based on SITE_HANDLE
+DATA_BASENAME = f"{SITE_HANDLE}_"  # Files will be {BASENAME}YY-MM-DD.dat
+

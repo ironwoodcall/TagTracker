@@ -27,7 +27,7 @@ if [[ "$tt_pids" != "" ]] ; then
     sleep 1
 fi
 
-echo "Starting TagTracker..."
+echo "Starting TagTracker in $TAGTRACKER_HOME..."
 echo
 
 cd "$TAGTRACKER_HOME/bin" || exit 1

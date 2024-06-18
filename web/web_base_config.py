@@ -29,7 +29,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 # Arbitrary string to describe this location
 SITE_NAME = ""
-TAGS_UPPERCASE = False
+TAGS_UPPERCASE = True
 
 # data owner -- If set, the program will display this data owner notice on
 # web pages and when tagtracker starts.

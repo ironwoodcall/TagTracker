@@ -25,6 +25,185 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 */
 
 
+-- Create tables for bikeparkingdb
+--
+-- Reminder: set PRAGMA FOREIGN KEYS = ON; at session starts
+
+-- There would be a 1:1 corrrespondence between 'id' and 'handle' values.
+-- 'id' column is useful in code; 'handle' is useful for URLs and things
+-- that might be helpful for maintenance and urL parameters etc
+
+-- Note to self: comments at end of lines are retained in the schema definition
+-- so using them keeps them visible in the '.sch' command in sqlite3
+
+CREATE TABLE ORG (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_handle TEXT NOT NULL,   -- shortform text form of org
+    org_name TEXT,  -- optional(?) descriptive name of org
+    can_view_orgs TEXT,    -- list of org_handles whose data this org can see
+    UNIQUE (org_handle)
+);
+
+INSERT INTO ORG (org_handle,org_name,can_view_orgs) VALUES ("no_org","Default Org","*");
+
+-- A site is an arbitrary name of a location or event an org manages.
+-- It affects aggregations of an org's data but is not tied to authorization
+CREATE TABLE ORGSITE ( -- arbitrary sites used by an org. Not tied to authz.
+    id integer PRIMARY KEY AUTOINCREMENT,
+    org_id INTEGER DEFAULT 1,   -- FIXME right now everything goes under one org
+    site_handle TEXT DEFAULT 'unspecified', -- human-handy reference to the site
+    site_name TEXT, -- optional long name of the site
+    FOREIGN KEY (org_id) REFERENCES ORG (id),
+    UNIQUE (org_id, site_handle)
+);
+
+
+CREATE TABLE DAY (  -- Summary data about one org at one site on one day
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- org_id INTEGER, -- is this needed?
+    orgsite_id INTEGER,
+    -- site_handle TEXT NOT NULL, -- don't need this if have orgsite_id
+
+    date DATE
+        NOT NULL
+        CHECK(
+            date LIKE '____-__-__'
+            AND date BETWEEN '2000-01-01' AND '2100-01-01'
+        ),
+
+
+    time_open TEXT
+        CHECK (
+            time_open LIKE "__:__"
+            AND time_open BETWEEN '00:00' AND '24:00'
+        ),
+    time_closed TEXT
+        CHECK (
+            time_closed LIKE "__:__"
+            AND time_closed BETWEEN '00:00' AND '24:00'
+        ),
+    weekday INTEGER NOT NULL,
+
+    num_parked_regular INTEGER,
+    num_parked_oversize INTEGER,
+    num_parked_combined INTEGER,
+
+    num_remaining_regular INTEGER,
+    num_remaining_oversize INTEGER,
+    num_remaining_combined INTEGER,
+
+    -- num_leftover INTEGER,
+
+    num_fullest_regular INTEGER,
+    num_fullest_oversize INTEGER,
+    num_fullest_combined INTEGER,
+
+    time_fullest_regular TEXT,
+    time_fullest_oversize TEXT,
+    time_fullest_combined TEXT,
+
+    bikes_registered INTEGER,
+    -- weather statistics are looked up online from government sources
+    max_temperature FLOAT, -- to be looked up online, can be null
+    precipitation FLOAT, -- to be looked up online, can be null
+    -- time_dusk TEXT -- to be looked up online, can be null
+    --    CHECK (
+    --        time_open LIKE "__:__"
+    --        AND time_open BETWEEN '00:00' AND '24:00'
+    --    ),
+
+    batch TEXT,
+    -- FOREIGN KEY (org_id) REFERENCES ORG (id),
+    FOREIGN KEY (orgsite_id) REFERENCES ORGSITE (id),
+    -- UNIQUE ( date,org_id,orgsite_id)
+    UNIQUE ( date,orgsite_id)
+);
+CREATE INDEX day_date_idx on day (date);
+-- CREATE INDEX day_org_id_idx on day (org_id);
+-- CREATE INDEX day_orgsite_id_idx on day (orgsite_id);
+
+CREATE TABLE VISIT ( -- one bike visit for one org/site/date
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day_id INTEGER,
+    time_in TEXT --
+        NOT NULL
+        CHECK (
+            time_in LIKE "__:__"
+            AND time_in BETWEEN '00:00' AND '24:00'
+        ),
+    time_out TEXT
+            CHECK (
+            time_in = "" OR (time_in LIKE "__:__"
+            AND time_in BETWEEN '00:00' AND '24:00')
+        ),
+    duration INTEGER,
+    bike_type TEXT
+        CHECK (bike_type IN ('R', 'O')),
+    bike_id TEXT, -- optional str to identify the bike (eg a tagid)
+    FOREIGN KEY (day_id) REFERENCES DAY (id) ON DELETE CASCADE
+);
+
+CREATE TABLE BLOCK ( -- activity in a given half hour for an org/site/date
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day_id INTEGER,
+    time_start TEXT
+        NOT NULL
+        CHECK(
+            time_start LIKE "__:__"
+            AND time_start BETWEEN '00:00' AND '24:00'
+        ),
+
+        num_incoming_regular INTEGER,
+        num_incoming_oversize INTEGER,
+        num_incoming_combined INTEGER,
+
+        num_outgoing_regular INTEGER,
+        num_outgoing_oversize INTEGER,
+        num_outgoing_combined INTEGER,
+
+        num_on_hand_regular INTEGER,
+        num_on_hand_oversize INTEGER,
+        num_on_hand_combined INTEGER,
+
+        num_fullest_regular INTEGER,
+        num_fullest_oversize INTEGER,
+        num_fullest_combined INTEGER,
+
+        time_fullest_regular TEXT
+        CHECK(
+            time_fullest_regular LIKE "__:__"
+            AND time_fullest_regular BETWEEN '00:00' AND '24:00'
+        ),
+         time_fullest_oversize TEXT
+        CHECK(
+            time_fullest_oversize LIKE "__:__"
+            AND time_fullest_oversize BETWEEN '00:00' AND '24:00'
+        ),
+        time_fullest_combined TEXT
+        CHECK(
+            time_fullest_combined LIKE "__:__"
+            AND time_fullest_combined BETWEEN '00:00' AND '24:00'
+        ),
+
+    FOREIGN KEY (day_id) REFERENCES DAY (id) ON DELETE CASCADE
+);
+
+-- Information about the most recent successful data load
+CREATE TABLE DATALOADS ( -- info about most recent successful data loads
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day_id INTEGER,
+    datafile_name TEXT, -- absolute path to file from which data loaded
+    datafile_fingerprint TEXT, -- fingerprint (eg md5) of the file
+    datafile_timestamp TEXT, -- timestamp of the file
+    load_timestamp TEXT,    -- time at which the file was loaded
+    batch TEXT,
+    FOREIGN KEY (day_id) REFERENCES DAY (id) ON DELETE CASCADE
+);
+
+
+
+/*
+
 -- Create bike types table - referenced by visit constraints
 CREATE TABLE IF NOT EXISTS types (
     code  TEXT PRIMARY KEY NOT NULL,
@@ -92,3 +271,5 @@ CREATE TABLE IF NOT EXISTS taglist (
 CREATE VIEW visit_except_today AS SELECT * FROM visit WHERE date < strftime('%Y-%m-%d');
 
 CREATE VIEW day_except_today AS SELECT * FROM day WHERE date < strftime('%Y-%m-%d');
+
+*/

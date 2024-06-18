@@ -27,7 +27,7 @@ import argparse
 import os
 import sys
 import tt_dbutil as db
-import tt_util as ut
+import common.tt_util as ut
 
 
 def parse_args() -> argparse.Namespace:

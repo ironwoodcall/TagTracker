@@ -22,70 +22,63 @@ Copyright (C) 2023-2024 Julias Hocking and Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
-import tt_constants as k
-from tt_time import VTime
-from tt_tag import TagID
-from tt_realtag import Stay
-from tt_trackerday import TrackerDay
-import tt_util as ut
+import common.tt_constants as k
+from common.tt_time import VTime
+from common.tt_tag import TagID
+from common.tt_trackerday import TrackerDay
+import common.tt_util as ut
 import tt_printer as pr
 import client_base_config as cfg
 import tt_reports as rep
 
 
-def notes_bit(day: TrackerDay) -> None:
-    """Add a 'notes' section to a report."""
-    pr.iprint()
+DEFAULT_RETIRED_TAG_STR = " ●"
 
-    pr.iprint("Today's notes:", style=k.SUBTITLE_STYLE)
-    if day.notes:
-        for line in day.notes:
-            pr.iprint(line, style=k.NORMAL_STYLE, num_indents=1)
-    else:
-        pr.iprint("There are no notes yet today.", num_indents=2)
+# def notes_bit(day: OldTrackerDay) -> None:
+#     """Add a 'notes' section to a report."""
+#     pr.iprint()
+
+#     pr.iprint("Today's notes:", style=k.SUBTITLE_STYLE)
+#     if day.notes:
+#         for line in day.notes:
+#             pr.iprint(line, style=k.NORMAL_STYLE, num_indents=1)
+#     else:
+#         pr.iprint("There are no notes yet today.", num_indents=2)
 
 
 def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
     """Print summary table of # of bikes in, out and still onsite."""
-    # Count the totals
-    visits = Stay.calc_stays(day, as_of_when=as_of_when)
-    bikes_on_hand = [v.tag for v in visits.values() if v.still_here]
-    ##print(' '.join(bikes_on_hand))
-    num_bikes_on_hand = len(bikes_on_hand)
-    regular_in = 0
-    regular_out = 0
-    oversize_in = 0
-    oversize_out = 0
-    for v in visits.values():
-        if v.type == k.REGULAR:
-            regular_in += 1
-            if not v.still_here:
-                regular_out += 1
-        elif v.type == k.OVERSIZE:
-            oversize_in += 1
-            if not v.still_here:
-                oversize_out += 1
+    # # Count the totals
 
-    sum_in = regular_in + oversize_in
-    sum_out = regular_out + oversize_out
-    sum_on_hand = regular_in + oversize_in - regular_out - oversize_out
+    total_in, regular_in, oversize_in = day.num_bikes_parked(as_of_when)
+    total_out, regular_out, oversize_out = day.num_bikes_returned(as_of_when)
+
+    # Count bikes currently onsite
+    regular_onsite = 0
+    oversize_onsite = 0
+    for tagid in day.tags_in_use(as_of_when=as_of_when):
+        if day.biketags[tagid].bike_type == k.REGULAR:
+            regular_onsite += 1
+        else:
+            oversize_onsite += 1
+    total_onsite = regular_onsite + oversize_onsite
+    ut.squawk(f"{total_onsite=}, {day.num_tags_in_use(as_of_when)=}", cfg.DEBUG)
 
     # Print summary of bikes in/out/here
     pr.iprint()
     pr.iprint("Summary             Regular Oversize Total", style=k.SUBTITLE_STYLE)
     pr.iprint(
-        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}" f"    {sum_in:4d}"
+        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}"
+        f"    {total_in:4d}"
     )
     pr.iprint(
         f"Bikes returned out:   {regular_out:4d}    {oversize_out:4d}"
-        f"    {sum_out:4d}"
+        f"    {total_out:4d}"
     )
     pr.iprint(
-        f"Bikes onsite:         {(regular_in-regular_out):4d}"
-        f"    {(oversize_in-oversize_out):4d}    {sum_on_hand:4d}"
+        f"Bikes onsite:         {(regular_onsite):4d}"
+        f"    {(oversize_onsite):4d}    {total_onsite:4d}"
     )
-    if sum_on_hand != num_bikes_on_hand:
-        ut.squawk(f"inout_summary() {num_bikes_on_hand=} != {sum_on_hand=}")
 
 
 def audit_report(
@@ -93,6 +86,7 @@ def audit_report(
     args: list[str],
     include_notes: bool = True,
     include_returns: bool = False,
+    retired_tag_str: str = DEFAULT_RETIRED_TAG_STR,
 ) -> None:
     """Create & display audit report as at a particular time.
 
@@ -110,16 +104,16 @@ def audit_report(
     """
 
     # What time will this audit report reflect?
-    as_of_when = (args + ["now"])[0]
+    as_of_when = args[0] if args else "now"
     as_of_when = VTime(as_of_when)
     if not as_of_when:
         pr.iprint("Unrecognized time", style=k.WARNING_STYLE)
         return False
 
-    # Audit report header. Special case if request is for "24:00"
+    # Audit report header.
     pr.iprint()
     pr.iprint(
-        f"Audit report for {day.date} {as_of_when.as_at}",
+        f"Audit report for {day.date} {rep.time_description(as_of_when,day=day)}",
         style=k.TITLE_STYLE,
     )
     rep.later_events_warning(day, as_of_when)
@@ -127,25 +121,15 @@ def audit_report(
     # Summary of bikes in a& bikes out
     inout_summary(day, as_of_when)
 
-    # Get rid of any check-ins or -outs later than the requested time.
-    # (Yes I know there's a slicker way to do this but this is nice and clear.)
-    check_ins_to_now = {}
-    for tag, ctime in day.bikes_in.items():
-        if ctime <= as_of_when:
-            check_ins_to_now[tag] = ctime
-    check_outs_to_now = {}
-    for tag, ctime in day.bikes_out.items():
-        if ctime <= as_of_when:
-            check_outs_to_now[tag] = ctime
-    bikes_on_hand = {}
-    for tag, ctime in check_ins_to_now.items():
-        if tag not in check_outs_to_now:
-            bikes_on_hand[tag] = ctime
+    # Want list of biketags on hand and those returned but not reused
+    tags_in_use = day.tags_in_use(as_of_when=as_of_when)
+    tags_done = day.tags_done(as_of_when)
+    ut.squawk(f"{tags_done=}",cfg.DEBUG)
 
     # Tags matrixes
     # Tags broken down by prefix (for tags matrix)
-    prefixes_on_hand = ut.tagnums_by_prefix(bikes_on_hand.keys())
-    prefixes_returned_out = ut.tagnums_by_prefix(check_outs_to_now.keys())
+    prefixes_on_hand = ut.tagnums_by_prefix(tags_in_use)
+    prefixes_returned_out = ut.tagnums_by_prefix(tags_done)
     returns_by_colour = {}
     for prefix, numbers in prefixes_returned_out.items():
         colour_code = prefix[:-1]  # prefix without the tag_letter
@@ -155,22 +139,26 @@ def audit_report(
             returns_by_colour[colour_code] += len(numbers)
 
     NO_ITEM_STR = "  "  # what to show when there's no tag
-    RETIRED_TAG_STR = " ●"
     pr.iprint()
     # Bikes still; onsite
     pr.iprint(
         f"Bikes still onsite at {as_of_when.short}"
-        f" ({RETIRED_TAG_STR} --> retired tag)",
+        f" ({retired_tag_str} --> retired tag)",
         style=k.SUBTITLE_STYLE,
     )
     for prefix in sorted(prefixes_on_hand.keys()):
         numbers = prefixes_on_hand[prefix]
         line = f"{prefix:3>} "
-        for i in range(0, ut.greatest_tagnum(prefix, day.regular, day.oversize) + 1):
+        greatest_num = ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids)
+        if greatest_num is None:
+            continue
+        for i in range(
+            0, ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1
+        ):
             if i in numbers:
                 s = f"{i:02d}"
-            elif TagID(f"{prefix}{i}") in day.retired:
-                s = RETIRED_TAG_STR
+            elif TagID(f"{prefix}{i}") in day.retired_tagids:
+                s = retired_tag_str
             else:
                 s = NO_ITEM_STR
             line = f"{line} {s}"
@@ -181,17 +169,18 @@ def audit_report(
     # Bikes returned out -- tags matrix.
     if include_returns:
         pr.iprint()
-        pr.iprint("Bikes returned", style=k.SUBTITLE_STYLE)
+        pr.iprint("Tags available for re-use", style=k.SUBTITLE_STYLE)
         for prefix in sorted(prefixes_returned_out.keys()):
             numbers = prefixes_returned_out[prefix]
             line = f"{prefix:3>} "
             for i in range(
-                0, ut.greatest_tagnum(prefix, day.regular, day.oversize) + 1
+                0,
+                ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1,
             ):
                 if i in numbers:
                     s = f"{i:02d}"
-                elif TagID(f"{prefix}{i}") in day.retired:
-                    s = RETIRED_TAG_STR
+                elif TagID(f"{prefix}{i}") in day.retired_tagids:
+                    s = retired_tag_str
                 else:
                     s = NO_ITEM_STR
                 line = f"{line} {s}"
@@ -199,7 +188,7 @@ def audit_report(
         if not prefixes_returned_out:
             pr.iprint("-no bikes-")
 
-    if include_notes:
-        notes_bit(day)
+    # if include_notes:
+    #     notes_bit(day)
 
     return

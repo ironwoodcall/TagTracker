@@ -33,7 +33,7 @@ try:
 except (ModuleNotFoundError,ImportError):
     POSSIBLE = False
 
-import tt_util as ut
+import common.tt_util as ut
 
 # Constants for model states
 INCOMPLETE = "incomplete"  # initialized but not ready to use
