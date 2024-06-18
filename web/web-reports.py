@@ -52,40 +52,40 @@ import tt_printer as pr
 # pylint:enable=wrong-import-position
 
 
-def datafile(ttdb: sqlite3.Connection, date: str = ""):
-    """Print a reconstructed datafile for the given date."""
-    thisday = ut.date_str(date)
-    if not thisday:
-        cc.bad_date(date)
+# def datafile(ttdb: sqlite3.Connection, date: str = ""):
+#     """Print a reconstructed datafile for the given date."""
+#     thisday = ut.date_str(date)
+#     if not thisday:
+#         cc.bad_date(date)
 
-    print(f"<h1>Reconstructed datafile for {ut.date_str(thisday)}</h1>")
-    print(f"{cc.main_and_back_buttons(1)}<br>")
+#     print(f"<h1>Reconstructed datafile for {ut.date_str(thisday)}</h1>")
+#     print(f"{cc.main_and_back_buttons(1)}<br>")
 
-    print("<pre>")
+#     print("<pre>")
 
-    day = db.db2day(ttdb, thisday)
-    print(f"# TagTracker datafile for {thisday}")
-    print(f"# Reconstructed on {ut.date_str('today')} at {VTime('now')}")
-    print(f"{df.HEADER_DATE} {day.date}")
-    print(f"{df.HEADER_OPENS} {day.time_open}")
-    print(f"{df.HEADER_CLOSES} {day.time_closed}")
-    print(f"{df.HEADER_BIKES_IN}")
-    sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
-    for this_tag, atime in sorted_bikes:
-        formatted_tag = f"{this_tag.lower()},   "[:6]
-        print(f"  {formatted_tag}{atime}")
-    print(f"{df.HEADER_BIKES_OUT}")
-    sorted_bikes = sorted(day.bikes_out.items(), key=lambda x: x[1])
-    for this_tag, atime in sorted_bikes:
-        formatted_tag = f"{this_tag.lower()},   "[:6]
-        print(f"  {formatted_tag}{atime}")
-    print(f"{df.HEADER_REGULAR}")
-    ut.line_wrapper(" ".join(sorted(day.regular)), print_handler=pr.iprint)
-    print(f"{df.HEADER_OVERSIZE}")
-    ut.line_wrapper(" ".join(sorted(day.oversize)), print_handler=pr.iprint)
-    print(f"{df.HEADER_RETIRED}")
-    ut.line_wrapper(" ".join(sorted(day.retired)), print_handler=pr.iprint)
-    print(f"{df.HEADER_COLOURS}")
+#     day = db.db2day(ttdb, thisday)
+#     print(f"# TagTracker datafile for {thisday}")
+#     print(f"# Reconstructed on {ut.date_str('today')} at {VTime('now')}")
+#     print(f"{df.HEADER_DATE} {day.date}")
+#     print(f"{df.HEADER_OPENS} {day.time_open}")
+#     print(f"{df.HEADER_CLOSES} {day.time_closed}")
+#     print(f"{df.HEADER_BIKES_IN}")
+#     sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
+#     for this_tag, atime in sorted_bikes:
+#         formatted_tag = f"{this_tag.lower()},   "[:6]
+#         print(f"  {formatted_tag}{atime}")
+#     print(f"{df.HEADER_BIKES_OUT}")
+#     sorted_bikes = sorted(day.bikes_out.items(), key=lambda x: x[1])
+#     for this_tag, atime in sorted_bikes:
+#         formatted_tag = f"{this_tag.lower()},   "[:6]
+#         print(f"  {formatted_tag}{atime}")
+#     print(f"{df.HEADER_REGULAR}")
+#     ut.line_wrapper(" ".join(sorted(day.regular)), print_handler=pr.iprint)
+#     print(f"{df.HEADER_OVERSIZE}")
+#     ut.line_wrapper(" ".join(sorted(day.oversize)), print_handler=pr.iprint)
+#     print(f"{df.HEADER_RETIRED}")
+#     ut.line_wrapper(" ".join(sorted(day.retired)), print_handler=pr.iprint)
+#     print(f"{df.HEADER_COLOURS}")
 
 
 def web_audit_report(
@@ -316,8 +316,8 @@ elif what == cc.WHAT_ONE_DAY:
     one_day_tags_report(database, whatday=qdate, sort_by=sort_by, pages_back=pages_back)
 elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
     day_frequencies_report(database, whatday=qdate)
-elif what == cc.WHAT_DATAFILE:
-    datafile(database, qdate)
+# elif what == cc.WHAT_DATAFILE:
+#     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_enry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:

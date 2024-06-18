@@ -28,7 +28,6 @@ from typing import Iterable
 
 # from collections import defaultdict
 from dataclasses import dataclass, field
-from statistics import mean, median
 from common.tt_statistics import VisitStats
 
 from common.tt_trackerday import TrackerDay
@@ -566,7 +565,7 @@ def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
     day.regular_tagids = frozenset(reg)
     day.oversize_tagids = frozenset(ovr)
     day.retired_tagids = frozenset()
-    ut.squawk(f"{len(day.regular_tagids)=},{len(day.oversize_tagids)=}")
+    # ut.squawk(f"{len(day.regular_tagids)=},{len(day.oversize_tagids)=}")
 
     day.determine_tagids_conformity()
     return day

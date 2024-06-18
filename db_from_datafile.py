@@ -51,7 +51,6 @@ from dataclasses import dataclass, field
 import subprocess
 from datetime import datetime
 import hashlib
-from collections import defaultdict
 
 # import tt_datafile
 import common.tt_dbutil as db
