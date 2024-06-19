@@ -475,8 +475,8 @@ class Estimator:
         sql = f"""
             SELECT
                 D.date,
-                SUM(CASE WHEN V.time_in <= '13:00' THEN 1 ELSE 0 END) AS befores,
-                SUM(CASE WHEN V.time_in > '13:00' THEN 1 ELSE 0 END) AS afters
+                SUM(CASE WHEN V.time_in <= '{self.as_of_when}' THEN 1 ELSE 0 END) AS befores,
+                SUM(CASE WHEN V.time_in > '{self.as_of_when}' THEN 1 ELSE 0 END) AS afters
             FROM
                 DAY D
             JOIN
@@ -485,6 +485,7 @@ class Estimator:
                 D.orgsite_id = {self.orgsite_id}
                 AND D.weekday IN {dow_set}
                 AND D.date != '{today}'
+                AND D.time_closed = '{self.time_closed}'
             GROUP BY
                 D.date;
         """
