@@ -31,9 +31,8 @@ def get_git_root():
     try:
         git_root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], stderr=subprocess.STDOUT).strip().decode('utf-8')
         return git_root
-    except subprocess.CalledProcessError as e:
-        print(f"Error determining git root: {e.output.decode('utf-8')}")
-        raise
+    except subprocess.CalledProcessError:
+        return None
 
 def OLD_get_git_root():
     try:
@@ -44,7 +43,6 @@ def OLD_get_git_root():
         )
         return git_root
     except subprocess.CalledProcessError:
-        raise
         return None
 
 
@@ -112,7 +110,6 @@ def get_git_info():
         ).strftime("%Y-%m-%d %H:%M")
 
         s = f"{branch} ({commit_hash}: {commit_date})"
-        print(f"<br><h1>{s=}</h1><br>")
         return s
     except subprocess.CalledProcessError:
         return None
@@ -149,7 +146,7 @@ def get_version_info():
         return git_info
     else:
         latest_file_date = get_latest_file_date()
-        return f"latest file date ZZZ {latest_file_date}"
+        return f"is latest file date is {latest_file_date}"
 
 
 if __name__ == "__main__":
