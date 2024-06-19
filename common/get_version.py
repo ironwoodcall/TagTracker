@@ -146,7 +146,7 @@ def get_version_info():
         return git_info
     else:
         latest_file_date = get_latest_file_date()
-        return f"is latest file date is {latest_file_date}"
+        return f"has latest file date {latest_file_date}"
 
 
 if __name__ == "__main__":
