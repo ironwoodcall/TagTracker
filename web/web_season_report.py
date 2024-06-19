@@ -301,7 +301,8 @@ def totals_table(conn: sqlite3.Connection):
     header_html = f"  <tr><th>Summary</th><th style='border-right: 2px solid gray;'>YTD<br>{selected_year}</th>"
     for day, _ in day_totals.items():
         daylabel = "Today" if day == today else day
-        header_html += f"<th>{daylabel}<br>{ut.dow_str(day)}</th>"
+        daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=day)
+        header_html += f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
     header_html += "</tr>"
     print(header_html)
 
