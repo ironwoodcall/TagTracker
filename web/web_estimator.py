@@ -37,7 +37,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 
-
 import urllib.request
 import os
 import sys
@@ -47,14 +46,17 @@ import statistics
 sys.path.append("../")
 sys.path.append("./")
 
-
+# pylint: disable=wrong-import-position
 import web_base_config as wcfg
 import common.tt_util as ut
 from common.tt_time import VTime
 import common.tt_dbutil as db
 import tt_default_hours
+
 # import client_base_config as cfg
-import tt_estimator_rf as rf
+import web.web_estimator_rf as rf
+
+# pylint: enable=wrong-import-position
 
 # These are model states
 INCOMPLETE = "incomplete"  # initialized but not ready to use
@@ -224,28 +226,28 @@ class LRModel:
 
         self.further_bikes = None
 
-    def calculate_nrmse(self):
-        sum_squared_errors = sum(
-            (y - (self.slope * x + self.intercept)) ** 2 for x, y in self.xy_data
-        )
-        rmse = math.sqrt(sum_squared_errors / self.num_points)
+    # def calculate_nrmse(self):
+    #     sum_squared_errors = sum(
+    #         (y - (self.slope * x + self.intercept)) ** 2 for x, y in self.xy_data
+    #     )
+    #     rmse = math.sqrt(sum_squared_errors / self.num_points)
 
-        range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
-        if range_y == 0:
-            self.nmrse = "DIV/0"
-        else:
-            self.nrmse = rmse / range_y
+    #     range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
+    #     if range_y == 0:
+    #         self.nmrse = "DIV/0"
+    #     else:
+    #         self.nrmse = rmse / range_y
 
-    def calculate_nmae(self):
-        sum_absolute_errors = sum(
-            abs(y - (self.slope * x + self.intercept)) for x, y in self.xy_data
-        )
-        range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
-        divisor = self.num_points * range_y
-        if divisor == 0:
-            self.nmae = "DIV/0"
-        else:
-            self.nmae = sum_absolute_errors / divisor
+    # def calculate_nmae(self):
+    #     sum_absolute_errors = sum(
+    #         abs(y - (self.slope * x + self.intercept)) for x, y in self.xy_data
+    #     )
+    #     range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
+    #     divisor = self.num_points * range_y
+    #     if divisor == 0:
+    #         self.nmae = "DIV/0"
+    #     else:
+    #         self.nmae = sum_absolute_errors / divisor
 
     def calculate_model(self, xy_data):
         if self.state == ERROR:
@@ -298,8 +300,8 @@ class LRModel:
             self.correlation_coefficient = "DIV/0"
             self.r_squared = "DIV/0"
 
-        self.calculate_nrmse()
-        self.calculate_nmae()
+        # self.calculate_nrmse()
+        # self.calculate_nmae()
 
         self.state = READY
 
@@ -333,12 +335,12 @@ class LRModel:
             f"    Based on {self.num_points} "
             f"data {ut.plural(self.num_points,'point')} "
         )
-        nrmse_str = _format_measure(self.nrmse)
-        nmae_str = _format_measure(self.nmae)
-        if nmae_str == "?" and nrmse_str == "?":
-            lines.append("    Model quality can not be calculated.")
-        else:
-            lines.append(f"    NMAE {nmae_str}; NRMSE {nrmse_str} [lower is better].")
+        # nrmse_str = _format_measure(self.nrmse)
+        # nmae_str = _format_measure(self.nmae)
+        # if nmae_str == "?" and nrmse_str == "?":
+        #     lines.append("    Model quality can not be calculated.")
+        # else:
+        #     lines.append(f"    NMAE {nmae_str}; NRMSE {nrmse_str} [lower is better].")
 
         return lines
 
@@ -450,7 +452,9 @@ class Estimator:
     def _bikes_right_now(self) -> int:
         today = ut.date_str("today")
         cursor = self.database.cursor()
-        day_id = db.fetch_day_id(cursor=cursor,date=today,maybe_orgsite_id=self.orgsite_id)
+        day_id = db.fetch_day_id(
+            cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id
+        )
         if not day_id:
             print("no data matches this day")
             return None
@@ -490,48 +494,6 @@ class Estimator:
                 D.date;
         """
         return sql
-
-        # sql = f"""
-        #     WITH all_dates AS (
-        #         SELECT DISTINCT date
-        #         FROM visit
-        #     )
-        #     SELECT
-        #         day.date AS date,
-        #         COALESCE(v1.before, 0) AS before,
-        #         COALESCE(v2.after, 0) AS after
-        #     FROM day
-        #     LEFT JOIN (
-        #         SELECT
-        #             all_dates.date,
-        #             COUNT(visit.date) AS before
-        #         FROM
-        #             all_dates
-        #         LEFT JOIN
-        #             visit ON all_dates.date = visit.date
-        #                 AND visit.time_in <= "{self.as_of_when}"
-        #         GROUP BY
-        #             all_dates.date
-        #     ) AS v1 ON day.date = v1.date
-        #     LEFT JOIN (
-        #         SELECT
-        #             all_dates.date,
-        #             COUNT(visit.date) AS after
-        #         FROM all_dates
-        #         LEFT JOIN
-        #             visit ON all_dates.date = visit.date
-        #                 AND visit.time_in > "{self.as_of_when}"
-        #         GROUP BY
-        #             all_dates.date
-        #     ) AS v2 ON day.date = v2.date
-        #     WHERE
-        #         day.weekday IN {dow_set}
-        #         AND day.time_closed = "{self.time_closed}"
-        #         AND day.date != "{today}"
-        #     ORDER BY
-        #         day.date;
-        # """
-        # return sql
 
     def _fetch_raw_data(self) -> None:
         """Get raw data from the database into self.befores, self.afters."""
@@ -616,16 +578,12 @@ class Estimator:
         else:
             dayname = "weekday"
 
-        lines = ["How many more bikes?"]
-
         one_line = (
             f"Estimating for a typical {dayname} with {self.bikes_so_far} "
             f"{ut.plural(self.bikes_so_far,'bike')} parked by {self.as_of_when.short}, "
             f"closing at {self.time_closed}:"
         )
-        lines = (
-            lines + [""] + [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
-        )
+        lines = [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
 
         predictions = []
         lines += [""] + self.simple_model.result_msg()
@@ -648,19 +606,20 @@ class Estimator:
             else:
                 prediction_str = f"{min_day_total} to {max_day_total}"
 
+        lines = [
+            "How many more bikes?",
+            "",
+            f"Expect a total of {prediction_str} bikes for the day.",
+            "",
+        ] + lines
+
         one_line = (
-            f"From these models, "
-            f"expect a total of {prediction_str} bikes for the day."
-        )
-        one_line = (
-            f"{one_line}  Estimation performed at "
+            "Estimation performed at "
             f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
         )
         if self.as_of_when < "12:30":
             one_line = f"{one_line}  Estimates early in the day may be of low quality."
-        lines = (
-            lines + [""] + [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
-        )
+        lines = lines + [""] + [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
 
         return lines
 
