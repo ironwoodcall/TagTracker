@@ -27,17 +27,12 @@ import os
 from datetime import datetime
 
 
-def get_git_root():
-    try:
-        git_root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], stderr=subprocess.STDOUT).strip().decode('utf-8')
-        return git_root
-    except subprocess.CalledProcessError:
-        return None
-
-def OLD_get_git_root():
+def _get_git_root():
     try:
         git_root = (
-            subprocess.check_output(["git", "rev-parse", "--show-toplevel"])
+            subprocess.check_output(
+                ["git", "rev-parse", "--show-toplevel"], stderr=subprocess.STDOUT
+            )
             .strip()
             .decode("utf-8")
         )
@@ -46,8 +41,8 @@ def OLD_get_git_root():
         return None
 
 
-def get_git_info():
-    git_root = get_git_root()
+def _get_git_info():
+    git_root = _get_git_root()
     if git_root is None:
         return None
 
@@ -115,7 +110,7 @@ def get_git_info():
         return None
 
 
-def get_latest_file_date():
+def _get_latest_file_date():
     latest_date = None
     for root, dirs, files in os.walk("."):
         # Exclude directories that start with 'tmp', '.', or '_'
@@ -141,11 +136,11 @@ def get_latest_file_date():
 
 
 def get_version_info():
-    git_info = get_git_info()
+    git_info = _get_git_info()
     if git_info:
         return git_info
     else:
-        latest_file_date = get_latest_file_date()
+        latest_file_date = _get_latest_file_date()
         return f"has latest file date {latest_file_date}"
 
 
