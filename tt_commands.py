@@ -401,9 +401,9 @@ def _chunkize_for_one_arg(
             if tag:
                 # Check for and remove duplicate
                 if tag in tagslist:
-                    parsed.message = f"Ignoring duplicate tagid '{tag.original}'."
-                    continue
-                tagslist.append(tag)
+                    parsed.message = f"Ignoring duplicate of tagid '{tag.original}'."
+                else:
+                    tagslist.append(tag)
                 del arg_parts[0]
             else:
                 break
