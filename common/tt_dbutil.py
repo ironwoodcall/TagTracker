@@ -523,36 +523,68 @@ def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
     curs.close()
 
     biketags: dict[VTime, BikeTag] = {}
+
     for row in rows:
         tagid = TagID(row[0])
-        if row[3] == "R":
-            bike_type = k.REGULAR
-        elif row[3] == "O":
-            bike_type = k.OVERSIZE
-        else:
-            bike_type = k.UNKNOWN
-        if tagid in biketags:
-            # FIXME: support a biketag with multiple bike_types
-            if bike_type != biketags[tagid].bike_type:
-                print(
-                    f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type"
-                )
+
+        bike_type = {
+            "R": k.REGULAR,
+            "O": k.OVERSIZE
+        }.get(row[3], k.UNKNOWN)
+
         if tagid not in biketags:
-            biketags[tagid] = None
-        biketag = BikeTag(tagid=tagid, bike_type=bike_type)
+            biketags[tagid] = BikeTag(tagid=tagid, bike_type=bike_type)
+        else:
+            if biketags[tagid].bike_type != bike_type:
+                print(f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type")
+
         visit = BikeVisit(tagid=tagid, time_in=row[1], time_out=row[2])
-        biketag.visits.append(visit)
-        biketags[tagid] = biketag
-    # Set BikeTag's statuses (none will be RETIRED)
+        biketags[tagid].visits.append(visit)
+
     day.biketags = biketags
+
     for biketag in biketags.values():
-        biketag: BikeTag
         if not biketag.visits:
             biketag.status = BikeTag.UNUSED
         elif biketag.visits[-1].time_out:
             biketag.status = BikeTag.DONE
         else:
             biketag.status = BikeTag.IN_USE
+
+
+    # biketags: dict[VTime, BikeTag] = {}
+    # for row in rows:
+    #     tagid = TagID(row[0])
+    #     if row[3] == "R":
+    #         bike_type = k.REGULAR
+    #     elif row[3] == "O":
+    #         bike_type = k.OVERSIZE
+    #     else:
+    #         bike_type = k.UNKNOWN
+
+    #     if tagid in biketags:
+    #         # FIXME: support a biketag with multiple bike_types
+    #         if bike_type != biketags[tagid].bike_type:
+    #             print(
+    #                 f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type"
+    #             )
+    #     if tagid not in biketags:
+    #         biketags[tagid] = None
+    #         biketag = BikeTag(tagid=tagid, bike_type=bike_type)
+    #     else:
+    #         biketag = biketags[tagid]
+    #     visit = BikeVisit(tagid=tagid, time_in=row[1], time_out=row[2])
+    #     biketag.visits.append(visit)
+    #     biketags[tagid] = biketag    # Set BikeTag's statuses (none will be RETIRED)
+    # day.biketags = biketags
+    # for biketag in biketags.values():
+    #     biketag: BikeTag
+    #     if not biketag.visits:
+    #         biketag.status = BikeTag.UNUSED
+    #     elif biketag.visits[-1].time_out:
+    #         biketag.status = BikeTag.DONE
+    #     else:
+    #         biketag.status = BikeTag.IN_USE
 
     # Set the tag context lists
     reg = set()

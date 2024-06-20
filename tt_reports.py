@@ -115,6 +115,8 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
     else:
         start_time = VTime(start_time)
         end_time = VTime(end_time)
+
+    ut.squawk(f"{args=}; {start_time=},{end_time=}")
     # Anything we can work with?
     if not start_time or not end_time or start_time > end_time:
         pr.iprint(
@@ -146,6 +148,8 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
 
     for moment_time in sorted(summary.moments.keys()):
         moment: MomentDetail = summary.moments[moment_time]
+        if end_time > moment_time < start_time:
+            continue
 
         if not current_block_end:
             current_block_end = ut.block_end(moment_time)
