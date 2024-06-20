@@ -91,15 +91,15 @@ class BikeTag:
 
         Can check in at the given time if:
             - is DONE or UNUSED
-            - is not earlier that prior check-out
+            - is not earlier than prior check-out
 
         """
         if self.status not in {self.DONE, self.UNUSED}:
             raise BikeTagError(f"Tag {self.tagid} is already checked in or is retired.")
-        if self.status == self.DONE and bike_time <= self.latest_visit().time_out:
+        if self.status == self.DONE and bike_time < self.latest_visit().time_out:
             raise BikeTagError(
                 f"Check-in at {bike_time.short} for tag {self.tagid} "
-                "must be later than prior check-out."
+                f"cannot be earlier than than prior check-out ({self.latest_visit().time_out})."
             )
         self.start_visit(bike_time)
 
