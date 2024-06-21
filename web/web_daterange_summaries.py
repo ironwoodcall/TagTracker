@@ -25,7 +25,6 @@ Copyright (C) 2023-2024 Julias Hocking and Todd Glover
 
 import sqlite3
 from datetime import datetime, timedelta
-import os
 
 # import tt_util as ut
 import common.tt_dbutil as db
@@ -158,18 +157,25 @@ def _fetch_daterange_summary_rows(
     Fetch is limited to the given date range (if given)
     List will be sorted by label
     """
+    orgsite_id = 1  # FIXME: hardcoded orgsite_id
     range_start = range_start if range_start else "0000-00-00"
     range_end = range_end if range_end else "9999-99-99"
 
-    sql = f"""SELECT
-        date,
-        ROUND((julianday(time_closed) - julianday(time_open)) * 24, 2) AS hours,
-        parked_regular, parked_oversize,parked_total,
-        max_reg, max_over, max_total,
-        registrations
+    sql = f"""
+        SELECT
+            date,
+            ROUND((julianday(time_closed) - julianday(time_open)) * 24, 2) AS hours,
+            num_parked_regular parked_regular,
+            num_parked_oversize parked_oversize,
+            num_parked_combined parked_total,
+            num_fullest_regular max_reg,
+            num_fullest_oversize max_over,
+            num_fullest_combined max_total,
+            bikes_registered registrations
         FROM day
         WHERE date >= '{range_start}' and date <= '{range_end}'
-        ORDER BY date
+            AND orgsite_id = {orgsite_id}
+        ORDER BY date DESC
     """
     dbrows = db.db_fetch(ttdb, sql)
     if not dbrows:

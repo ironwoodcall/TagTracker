@@ -330,12 +330,12 @@ elif what in [
     cc.WHAT_DATERANGE_QUARTER,
     cc.WHAT_DATERANGE_YEAR,
 ]:
-    web_daterange_summaries.period_summary(database, what)
+    web_daterange_summaries.daterange_summary(database, what)
 elif what == cc.WHAT_DATERANGE_CUSTOM:
     date_start = query_params.get("start_date", ["0000-00-00"])[0]
     date_end = query_params.get("end_date", ["9999-99-99"])[0]
-    web_daterange_summaries.period_summary(
-        database, period_type=what, start_date=date_start, end_date=date_end
+    web_daterange_summaries.daterange_summary(
+        database, daterange_type=what, start_date=date_start, end_date=date_end
     )
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")

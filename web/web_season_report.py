@@ -302,7 +302,9 @@ def totals_table(conn: sqlite3.Connection):
     for day, _ in day_totals.items():
         daylabel = "Today" if day == today else day
         daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=day)
-        header_html += f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
+        header_html += (
+            f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
+        )
     header_html += "</tr>"
     print(header_html)
 
@@ -368,14 +370,13 @@ def season_summary(ttdb: sqlite3.Connection):
         &nbsp;&nbsp;
           """
     )
-    if False:
-        print(
-            f"""
+    print(
+        f"""
         <button onclick="window.location.href='{summaries_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Period<br>Summaries</b></button>
           """
-        )
+    )
     print(
         f"""
        &nbsp;&nbsp;
