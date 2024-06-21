@@ -349,22 +349,22 @@ def season_summary(ttdb: sqlite3.Connection):
         """
     )
     print(
-            f"""
+        f"""
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Daily<br>Visits<br>Activity</b></button>
         &nbsp;&nbsp;
-        """)
-    if False:
-        print(
-            f"""
+        """
+    )
+    print(
+        f"""
 
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
           <b>Overall<br>Visits<br>Graphs</b></button>
 
         """
-        )
+    )
     print(
         f"""
         <br><br>
