@@ -168,8 +168,8 @@ def dow_str(iso_dow_or_date: int, dow_str_len: int = 0) -> str:
     If dow_len is not specified then returns whole dow name.
     """
     if isinstance(iso_dow_or_date,str):
-        iso_dow = dow_int(iso_dow_or_date)
-    iso_dow = str(iso_dow)
+        iso_dow_or_date = dow_int(iso_dow_or_date)
+    iso_dow = str(iso_dow_or_date)
     dow_str_len = dow_str_len if dow_str_len else 99
     d = datetime.datetime.strptime(f"2023-1-{iso_dow}", "%Y-%W-%u")
     return date_str(d.strftime("%Y-%m-%d"), dow_str_len=dow_str_len)
