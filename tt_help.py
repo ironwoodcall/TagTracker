@@ -51,7 +51,7 @@ Information and reports
   Show recent activity         :  RECENT [time] [time]
   Show audit info              :  AUDIT [time]
   Show day-end stats report    :  STATS [time]
-  Show data as on paper form   :  DATAFORM
+  Graph of busy- and fullness  :  GRAPH
   Show tag configurations      :  TAGS
   Show chart of all activity   :  CHART
   Estimate further bikes today :  ESTIMATE
@@ -148,6 +148,22 @@ Description
     >>> wa3 bf6 bf7
   Is identical to:
     >>> INOUT wa3 bf6 bf7
+""",
+
+    CmdKeys.CMD_GRAPHS: """
+Command: GRAPH [end_time]
+
+Can be invoked as
+  {}
+
+Arguments:
+    [end_time] : optional ending time for graphs (default: end of day)
+
+Description
+    Shows histograms representing how busy (bikes in + out) and how
+    full the site is through the day.  If optional [end_time] is supplied
+    then only data up to that time is incorporated in the graphs.
+
 """,
 }
 
