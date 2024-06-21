@@ -6,6 +6,7 @@ import common.tt_util as ut
 import common.tt_dbutil as db
 import web_common as cc
 
+
 def html_histogram(
     data: dict,
     num_data_rows: int = 20,
@@ -14,7 +15,7 @@ def html_histogram(
     subtitle: str = "",
     table_width: int = 40,
     border_color: str = "black",
-    mini:bool=False
+    mini: bool = False,
 ) -> str:
     """Create an html histogram from a dictionary.
 
@@ -132,7 +133,9 @@ def html_histogram(
                     )
                 else:
                     # White background cells above the data
-                    html_table += f"<td class='{prefix}-emptiness-cell'>{empty_text}</td>"
+                    html_table += (
+                        f"<td class='{prefix}-emptiness-cell'>{empty_text}</td>"
+                    )
 
         html_table += "</tr>\n"
 
@@ -152,9 +155,9 @@ def times_hist_table(
     end_date: str = None,
     days_of_week: str = None,
     title: str = "",
-    subtitle:str = "",
+    subtitle: str = "",
     color: str = None,
-    mini:bool=False
+    mini: bool = False,
 ) -> str:
     """Create one html histogram table on lengths of visit.
 
@@ -178,18 +181,18 @@ def times_hist_table(
         orgsite_id = 1  # FIXME: orgsite_id hardcoded
 
         # convert days of week from ISO8601 to as-used by sqlite3
-        filter_items = [f"{time_column} != ''",f"D.orgsite_id = {orgsite_id}"]
+        filter_items = [f"{time_column} != ''", f"D.orgsite_id = {orgsite_id}"]
         if start_date:
             filter_items.append(f"D.DATE >= '{start_date}'")
         if end_date:
             filter_items.append(f"D.DATE <= '{end_date}'")
         if days_of_week:
-            cc.test_dow_parameter(days_of_week,list_ok=True)
+            cc.test_dow_parameter(days_of_week, list_ok=True)
             dow_bits = [int(s) for s in days_of_week.split(",")]
             zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
             filter_items.append(
                 f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
-                #f"""strftime('%w',DATE) IN ('{days_of_week}')"""
+                # f"""strftime('%w',DATE) IN ('{days_of_week}')"""
             )
         sql = f"SELECT {time_column} FROM VISIT WHERE {' AND '.join(filter_items)};"
 
@@ -207,10 +210,8 @@ WHERE {' AND '.join(filter_items)};
         return sql
 
     sql_query = make_sql(query_column, start_date, end_date, days_of_week)
-    rows = db.db_fetch(
-        ttdb, sql_query, ["time_column"]
-    )
-    #print(f"{sql_query=};{len(rows)=}; {query_column=}")
+    rows = db.db_fetch(ttdb, sql_query, ["time_column"])
+    # print(f"{sql_query=};{len(rows)=}; {query_column=}")
     times_list = [r.time_column for r in rows]
     if query_column == "duration":
         start_time, end_time = ("00:00", "12:00")
@@ -226,8 +227,10 @@ WHERE {' AND '.join(filter_items)};
         top_text = title
         bottom_text = subtitle
         rows = 20
-    return html_histogram(times_freq, rows, color, mini=mini, title=top_text,subtitle=bottom_text)
-    #return chartjs_histogram(times_freq,400,400,bar_color=color,title=top_text,subtitle=bottom_text,)
+    return html_histogram(
+        times_freq, rows, color, mini=mini, title=top_text, subtitle=bottom_text
+    )
+    # return chartjs_histogram(times_freq,400,400,bar_color=color,title=top_text,subtitle=bottom_text,)
 
 
 if __name__ == "__main__":

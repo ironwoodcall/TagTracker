@@ -338,7 +338,6 @@ def season_summary(ttdb: sqlite3.Connection):
     print("</div>")
     print("<br>")
 
-    print("<br>Only limited further detail currently available:<br><br>")
     print(
         f"""
         <br>
