@@ -103,7 +103,7 @@ def web_audit_report(
 
     # Find this day's day_id
     cursor = ttdb.cursor()
-    day_id = db.fetch_day_id(cursor=cursor,date=thisday,maybe_orgsite_id=orgsite_id)
+    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=orgsite_id)
     cursor.close()
 
     # Make this page have a black background
@@ -112,7 +112,7 @@ def web_audit_report(
     print("<h2>Audit</h2>")
     print("<pre>")
 
-    day = db.db2day(ttdb=ttdb,day_id=day_id)
+    day = db.db2day(ttdb=ttdb, day_id=day_id)
     if not day:
         print("<b>no information for this day</b><br>")
         return
@@ -314,7 +314,13 @@ elif what == cc.WHAT_SUMMARY_FREQUENCIES:
 elif what == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
 elif what == cc.WHAT_ONE_DAY:
-    one_day_tags_report(database, orgsite_id=ORGSITE_ID,whatday=qdate, sort_by=sort_by, pages_back=pages_back)
+    one_day_tags_report(
+        database,
+        orgsite_id=ORGSITE_ID,
+        whatday=qdate,
+        sort_by=sort_by,
+        pages_back=pages_back,
+    )
 elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
     day_frequencies_report(database, whatday=qdate)
 # elif what == cc.WHAT_DATAFILE:
@@ -322,20 +328,21 @@ elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
 elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_enry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
-    web_audit_report(database, orgsite_id=1,date="today", whattime=VTime("now")) # FIXME: orgsite_id
+    web_audit_report(
+        database, orgsite_id=1, date="today", whattime=VTime("now")
+    )  # FIXME: orgsite_id
 elif what in [
     cc.WHAT_DATERANGE,
     cc.WHAT_DATERANGE_WEEK,
     cc.WHAT_DATERANGE_MONTH,
     cc.WHAT_DATERANGE_QUARTER,
     cc.WHAT_DATERANGE_YEAR,
+    cc.WHAT_DATERANGE_CUSTOM,
 ]:
-    web_daterange_summaries.daterange_summary(database, what)
-elif what == cc.WHAT_DATERANGE_CUSTOM:
     date_start = query_params.get("start_date", ["0000-00-00"])[0]
     date_end = query_params.get("end_date", ["9999-99-99"])[0]
     web_daterange_summaries.daterange_summary(
-        database, daterange_type=what, start_date=date_start, end_date=date_end
+        database, what, start_date=date_start, end_date=date_end
     )
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")

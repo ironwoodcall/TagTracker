@@ -128,6 +128,26 @@ def fetch_orgsite_id(
     return this_id
 
 
+def fetch_date_range_limits(    conn_or_cursor,  orgsite_id:int
+) -> tuple[str,str]:
+    """Fetch the min and max date range for a given orgsite_id."""
+
+    # Determine if the input is a connection or a cursor
+    if isinstance(conn_or_cursor, sqlite3.Connection):
+        curs = conn_or_cursor.cursor()
+        should_close_cursor = True
+    else:
+        curs = conn_or_cursor
+        should_close_cursor = False
+
+    # Execute the query and fetch all rows
+    raw_rows = curs.execute(f"select min(date),max(date) from day where orgsite_id = {orgsite_id}").fetchone()
+    if should_close_cursor:
+        curs.close()
+    if not raw_rows:
+        return None,None
+    return raw_rows[0],raw_rows[1]
+
 def fetch_day_id(
     cursor: sqlite3.Connection.cursor,
     date: str,
