@@ -36,16 +36,16 @@ import web_block_report
 from web_day_detail import one_day_tags_report, day_frequencies_report
 import web_season_report
 import web_tags_report
-import web.web_daterange_summaries as web_daterange_summaries
-import common.tt_constants as k
-import common.tt_dbutil as db
-import web.web_base_config as wcfg
-import tt_reports as rep
-import tt_audit_report as aud
-import tt_datafile as df
+import web_daterange_summaries
+import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
+from common.get_version import get_version_info
+import common.tt_constants as k
+import common.tt_dbutil as db
+import tt_reports as rep
+import tt_audit_report as aud
 import tt_tag_inv
 import tt_printer as pr
 
@@ -94,7 +94,8 @@ def web_audit_report(
     date: str,
     whattime: VTime,
 ):
-    """Print audit report."""
+    """Print web audit report."""
+
     whattime = VTime(whattime)
     thisday = ut.date_str(date)
     if not thisday:
@@ -107,11 +108,10 @@ def web_audit_report(
 
     # Make this page have a black background
     print("<style>body {background-color:black;color:white}</style>")
-
     print(f"<h1>Parking attendant report {thisday}</h1>")
-
     print("<h2>Audit</h2>")
     print("<pre>")
+
     day = db.db2day(ttdb=ttdb,day_id=day_id)
     if not day:
         print("<b>no information for this day</b><br>")
@@ -228,13 +228,14 @@ def webpage_footer(ttdb: sqlite3.Connection):
 
     print(db.db_latest(ttdb))
 
-    print(f"TagTracker version {ut.get_version()}")
+    print(f"TagTracker version {get_version_info()}")
 
 
 # =================================================================
 
 org_handle = "no_org"  # FIXME
 caller_org = "no_org"  # FIXME - read from web auth via env
+ORGSITE_ID = 1  # FIXME hardwired. (This one uc so sub-functions can't read orgsite_id)
 
 print("Content-type: text/html\n\n\n")
 
@@ -313,7 +314,7 @@ elif what == cc.WHAT_SUMMARY_FREQUENCIES:
 elif what == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
 elif what == cc.WHAT_ONE_DAY:
-    one_day_tags_report(database, whatday=qdate, sort_by=sort_by, pages_back=pages_back)
+    one_day_tags_report(database, orgsite_id=ORGSITE_ID,whatday=qdate, sort_by=sort_by, pages_back=pages_back)
 elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
     day_frequencies_report(database, whatday=qdate)
 # elif what == cc.WHAT_DATAFILE:
@@ -329,12 +330,12 @@ elif what in [
     cc.WHAT_DATERANGE_QUARTER,
     cc.WHAT_DATERANGE_YEAR,
 ]:
-    web_daterange_summaries.period_summary(database, what)
+    web_daterange_summaries.daterange_summary(database, what)
 elif what == cc.WHAT_DATERANGE_CUSTOM:
     date_start = query_params.get("start_date", ["0000-00-00"])[0]
     date_end = query_params.get("end_date", ["9999-99-99"])[0]
-    web_daterange_summaries.period_summary(
-        database, period_type=what, start_date=date_start, end_date=date_end
+    web_daterange_summaries.daterange_summary(
+        database, daterange_type=what, start_date=date_start, end_date=date_end
     )
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")

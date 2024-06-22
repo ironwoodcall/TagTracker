@@ -82,7 +82,7 @@ class CmdKeys:
     CMD_BIKE_INOUT = "BIKE_INOUT"  # Guess, but won't re-use a tag.
     CMD_BIKE_OUT = "BIKE_OUT"  # Explicit
     CMD_BUSY = "BUSY"
-    CMD_BUSY_CHART = "BUSY_CHART"
+    CMD_GRAPHS = "BUSY_CHART"
     CMD_CHART = "CHART"
     CMD_DEBUG = "DEBUG"
     CMD_DELETE = "DELETE"
@@ -169,8 +169,8 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
-    CmdKeys.CMD_BUSY_CHART: CmdConfig(
-        invoke=["busy-chart", "busy_chart"],
+    CmdKeys.CMD_GRAPHS: CmdConfig(
+        invoke=["graph","graphs","g","busy-chart", "busy-graph","full-graph","full-chart"],
         arg_configs=[
             ArgConfig(ARG_TIME, optional=True),
         ],
@@ -401,9 +401,9 @@ def _chunkize_for_one_arg(
             if tag:
                 # Check for and remove duplicate
                 if tag in tagslist:
-                    parsed.message = f"Ignoring duplicate tagid '{tag.original}'."
-                    continue
-                tagslist.append(tag)
+                    parsed.message = f"Ignoring duplicate of tagid '{tag.original}'."
+                else:
+                    tagslist.append(tag)
                 del arg_parts[0]
             else:
                 break

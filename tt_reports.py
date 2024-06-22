@@ -35,7 +35,7 @@ from common.tt_statistics import VisitStats
 # import tt_block
 import tt_printer as pr
 
-# import client_base_config as cfg
+import client_base_config as cfg
 
 
 # Time ranges for categorizing stay-lengths, in hours.
@@ -115,6 +115,8 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
     else:
         start_time = VTime(start_time)
         end_time = VTime(end_time)
+
+    ut.squawk(f"{args=}; {start_time=},{end_time=}")
     # Anything we can work with?
     if not start_time or not end_time or start_time > end_time:
         pr.iprint(
@@ -146,6 +148,8 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
 
     for moment_time in sorted(summary.moments.keys()):
         moment: MomentDetail = summary.moments[moment_time]
+        if end_time > moment_time < start_time:
+            continue
 
         if not current_block_end:
             current_block_end = ut.block_end(moment_time)
@@ -264,6 +268,7 @@ def visit_statistics_report(durations_list: list[int]) -> None:
     On entry:
         durations_list is a list of visit durations.
     """
+
     def one_line(key: str, value: str) -> None:
         """Print one line."""
         pr.iprint(f"{key:17s}{value}", style=k.NORMAL_STYLE)
@@ -276,7 +281,7 @@ def visit_statistics_report(durations_list: list[int]) -> None:
     one_line("Shortest visit:", stats.shortest)
     # Make a list of stay-lengths (for mean, median, mode)
     one_line("Mean visit:", stats.mean)
-    one_line("Median visit:",stats.median)
+    one_line("Median visit:", stats.median)
     modes_str = f"{','.join(stats.modes)} ({stats.mode_occurences} occurences)"
     one_line("Mode visit:", modes_str)
 
@@ -455,82 +460,84 @@ def summary_report(day: TrackerDay, args: list) -> None:
     registrations_report(day)
 
 
+def busy_graph(day: TrackerDay, as_of_when: str = "") -> None:
+    """Make a quick & dirty graph of busyness."""
+    in_marker = "+"  # OØ OX  <>  ↓↑
+    out_marker = "x"
 
-# def busy_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
-#     """Make a quick & dirty graph of busyness."""
-#     in_marker = "+"  # OØ OX  <>  ↓↑
-#     out_marker = "x"
+    as_of_when = as_of_when if as_of_when else "24:00"
+    if not day.all_visits():
+        pr.iprint()
+        pr.iprint("-no bikes-", style=k.WARNING_STYLE)
+        return
 
-#     as_of_when = as_of_when if as_of_when else "24:00"
-#     if not day.bikes_in:
-#         pr.iprint()
-#         pr.iprint("-no bikes-", style=k.WARNING_STYLE)
-#         return
+    daysum = DaySummary(day=day, as_of_when=as_of_when)
+    blocks = daysum.blocks
+    # ut.squawk(f"{[b.num_incoming for b in blocks.values()]=}")
+    max_ins = max([b.num_incoming[k.COMBINED] for b in blocks.values()], default=0)
+    max_outs = max([b.num_outgoing[k.COMBINED] for b in blocks.values()], default=0)
+    max_needed = max_ins + max_outs + 10
+    available_width = cfg.SCREEN_WIDTH
+    scale_factor = (max_needed // available_width) + 1
+    ##scale_factor = round((max_activity / available_width))
+    ##scale_factor = max(scale_factor, 1)
 
-#     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
-#     max_ins = max([b.num_ins for b in blocks.values()] + [0])
-#     max_outs = max([b.num_outs for b in blocks.values()] + [0])
-#     max_needed = max_ins + max_outs + 10
-#     available_width = cfg.SCREEN_WIDTH
-#     scale_factor = (max_needed // available_width) + 1
-#     ##scale_factor = round((max_activity / available_width))
-#     ##scale_factor = max(scale_factor, 1)
+    # Print graph
+    pr.iprint()
+    pr.iprint(f"Chart of busyness for {day.date}", style=k.TITLE_STYLE)
+    pr.iprint(
+        f"Each marker represents {scale_factor} "
+        f"{ut.plural(scale_factor,'bike')} in ({in_marker}) or out ({out_marker})",
+        style=k.SUBTITLE_STYLE,
+    )
+    ins_field_width = round(max_ins / scale_factor) + 1
+    for start in sorted(blocks.keys()):
+        blk: PeriodDetail
+        blk = blocks[start]
+        insize = round(blk.num_incoming[k.COMBINED] / scale_factor)
+        outsize = round(blk.num_outgoing[k.COMBINED] / scale_factor)
 
-#     # Print graph
-#     pr.iprint()
-#     pr.iprint(f"Chart of busyness for {day.date}", style=k.TITLE_STYLE)
-#     pr.iprint(
-#         f"Each marker represents {scale_factor} "
-#         f"{ut.plural(scale_factor,'bike')} in ({in_marker}) or out ({out_marker})",
-#         style=k.SUBTITLE_STYLE,
-#     )
-#     ins_field_width = round(max_ins / scale_factor) + 1
-#     for start in sorted(blocks.keys()):
-#         blk: tt_block.Block
-#         blk = blocks[start]
-#         insize = round(blk.num_ins / scale_factor)
-#         outsize = round(blk.num_outs / scale_factor)
-
-#         pr.iprint(
-#             f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  "
-#             f"{start}  {out_marker * outsize}"
-#         )
+        pr.iprint(
+            f"{' ' * (ins_field_width-insize)}{(in_marker * insize)}  "
+            f"{start}  {out_marker * outsize}"
+        )
 
 
-# def fullness_graph(day: OldTrackerDay, as_of_when: str = "") -> None:
-#     """Make a quick & dirty graph of how full the site is."""
-#     regular_marker = "r"
-#     oversize_marker = "O"
+def fullness_graph(day: TrackerDay, as_of_when: str = "") -> None:
+    """Make a quick & dirty graph of how full the site is."""
+    regular_marker = "r"
+    oversize_marker = "O"
 
-#     as_of_when = as_of_when if as_of_when else "24:00"
+    as_of_when = as_of_when if as_of_when else "24:00"
+    if not day.all_visits():
+        pr.iprint()
+        pr.iprint("-no bikes-", style=k.WARNING_STYLE)
+        return
 
-#     blocks = tt_block.calc_blocks(day, as_of_when=as_of_when)
-#     if not day.bikes_in:
-#         pr.iprint()
-#         pr.iprint("-no bikes-", style=k.WARNING_STYLE)
-#         return
+    daysum = DaySummary(day=day, as_of_when=as_of_when)
+    blocks = daysum.blocks
 
-#     max_full = max([b.num_here for b in blocks.values()] + [0])
-#     available_width = cfg.SCREEN_WIDTH - 10
-#     scale_factor = round((max_full / available_width))
-#     scale_factor = max(scale_factor, 1)
-#     # Print graph
-#     pr.iprint()
-#     pr.iprint(
-#         f"Max bikes onsite within a time block for {day.date}",
-#         style=k.TITLE_STYLE,
-#     )
-#     pr.iprint(
-#         f"Each marker represents {scale_factor} regular ({regular_marker}) "
-#         f"or oversize ({oversize_marker}) {ut.plural(scale_factor,'bike')}",
-#         style=k.SUBTITLE_STYLE,
-#     )
-#     for start in sorted(blocks.keys()):
-#         b: tt_block.Block
-#         b = blocks[start]
-#         regs = round(b.max_here_regular / scale_factor)
-#         overs = round(b.max_here_oversize / scale_factor)
-#         pr.iprint(f"{start} {regular_marker * regs}{oversize_marker * overs}")
+    max_full = daysum.whole_day.num_fullest_combined
+    # max_full = max([b.num_here for b in blocks.values()] + [0])
+    available_width = cfg.SCREEN_WIDTH - 10
+    scale_factor = round((max_full / available_width))
+    scale_factor = max(scale_factor, 1)
+    # Print graph
+    pr.iprint()
+    pr.iprint(
+        f"Max bikes onsite within a time block for {day.date}",
+        style=k.TITLE_STYLE,
+    )
+    pr.iprint(
+        f"Each marker represents {scale_factor} regular ({regular_marker}) "
+        f"or oversize ({oversize_marker}) {ut.plural(scale_factor,'bike')}",
+        style=k.SUBTITLE_STYLE,
+    )
+    for start in sorted(blocks.keys()):
+        b: PeriodDetail = blocks[start]
+        regs = round(b.num_fullest[k.REGULAR] / scale_factor)
+        overs = round(b.num_fullest[k.OVERSIZE] / scale_factor)
+        pr.iprint(f"{start} {regular_marker * regs}{oversize_marker * overs}")
 
 
 # def qstack_report(visits: dict) -> None:

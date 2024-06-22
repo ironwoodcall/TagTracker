@@ -29,6 +29,7 @@ from collections import defaultdict
 import common.tt_dbutil as db
 from common.tt_time import VTime
 import common.tt_util as ut
+
 # import tt_block
 import web_common as cc
 import datacolors as dc
@@ -40,6 +41,8 @@ Y_TOP_COLOR = "royalblue"
 NORMAL_MARKER = chr(0x25A0)  # chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
 HIGHLIGHT_MARKER = chr(0x2B24)  # chr(0x25cf) #chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
 
+
+# FIXME: This block report could read blocks data from db instead of recalculating it
 
 class _OneBlock:
     """Data about a single timeblock."""
@@ -67,39 +70,44 @@ class _OneDay:
         self.blocks = copy.deepcopy(_OneDay._allblocks)
 
 
-def process_iso_dow(iso_dow) -> tuple[str, str]:
+def _process_iso_dow(iso_dow, orgsite_id: int) -> tuple[str, str]:
     # Use dow to make report title prefix, and day filter for SQL queries.
     if iso_dow:
         iso_dow = int(iso_dow)
     if not iso_dow:
         title_bit = ""
-        day_where_clause = ""
+        day_where_clause = f"where orgsite_id = {orgsite_id}"
     else:
         # sqlite uses unix dow, so need to adjust dow from 1->7 to 0->6.
         title_bit = f"{ut.dow_str(iso_dow)} "
-        day_where_clause = f" where strftime('%w',date) = '{iso_dow % 7}' "
+        day_where_clause = (
+            f" where orgsite_id = {orgsite_id} "
+            f"and strftime('%w',date) = '{iso_dow % 7}' "
+        )
 
     return title_bit, day_where_clause
 
 
-def fetch_visit_data(ttdb: sqlite3.Connection, day_filter: str, in_or_out: str):
+def _fetch_visit_data(ttdb: sqlite3.Connection, day_filter: str, in_or_out: str) -> list[db.DBRow]:
     sel = (
         "select "
-        "    date,"
-        f"    round(2*(julianday(time_{in_or_out})-julianday('00:15'))*24,0)/2 block, "
-        f"    count(time_{in_or_out}) num_bikes "
-        "from visit "
+        "    day.date,"
+        f"    round(2*(julianday(visit.time_{in_or_out})-julianday('00:15'))*24,0)/2 block, "
+        f"    count(visit.time_{in_or_out}) num_bikes "
+        "from day "
+        "JOIN visit ON visit.day_id = day.id"
         f"    {day_filter} "
         "group by date,block;"
     )
     return db.db_fetch(ttdb, sel)
 
 
-def fetch_day_data(ttdb: sqlite3.Connection, day_filter: str):
+def _fetch_day_data(ttdb: sqlite3.Connection, day_filter: str):
     sel = (
         "select "
-        "   date, parked_total day_total_bikes, "
-        "      max_total day_max_bikes, time_max_total day_max_bikes_time "
+        "   date, num_parked_combined day_total_bikes, "
+        "      num_fullest_combined day_max_bikes, "
+        "      time_fullest_combined day_max_bikes_time "
         "from day "
         f"  {day_filter} "
         "   order by date desc"
@@ -305,12 +313,15 @@ def blocks_report(
     for ISO int dow (1=Monday-->7=Sunday)
 
     """
-    cc.test_dow_parameter(iso_dow, list_ok=False)
-    title_bit, where = process_iso_dow(iso_dow)
 
-    dayrows = fetch_day_data(ttdb, where)
-    visitrows_in = fetch_visit_data(ttdb, where, "in")
-    visitrows_out = fetch_visit_data(ttdb, where, "out")
+    orgsite_id = 1  # orgsite_id hardcoded
+
+    cc.test_dow_parameter(iso_dow, list_ok=False)
+    title_bit, day_where_clause = _process_iso_dow(iso_dow,orgsite_id=orgsite_id)
+
+    dayrows:list[db.DBRow] = _fetch_day_data(ttdb, day_where_clause)
+    visitrows_in:list[db.DBRow] = _fetch_visit_data(ttdb, day_where_clause, "in")
+    visitrows_out:list[db.DBRow] = _fetch_visit_data(ttdb, day_where_clause, "out")
 
     # Create structures for the html tables
     tabledata, day_maxes = process_day_data(dayrows)

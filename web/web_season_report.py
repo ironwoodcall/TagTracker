@@ -301,7 +301,10 @@ def totals_table(conn: sqlite3.Connection):
     header_html = f"  <tr><th>Summary</th><th style='border-right: 2px solid gray;'>YTD<br>{selected_year}</th>"
     for day, _ in day_totals.items():
         daylabel = "Today" if day == today else day
-        header_html += f"<th>{daylabel}<br>{ut.dow_str(day)}</th>"
+        daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=day)
+        header_html += (
+            f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
+        )
     header_html += "</tr>"
     print(header_html)
 
@@ -335,7 +338,6 @@ def season_summary(ttdb: sqlite3.Connection):
     print("</div>")
     print("<br>")
 
-    print("<br>Only limited further detail currently available:<br><br>")
     print(
         f"""
         <br>
@@ -345,36 +347,39 @@ def season_summary(ttdb: sqlite3.Connection):
         &nbsp;&nbsp;
         """
     )
-    if False:
-        print(
-            f"""
+    print(
+        f"""
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Daily<br>Visits<br>Activity</b></button>
         &nbsp;&nbsp;
+        """
+    )
+    print(
+        f"""
 
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
           <b>Overall<br>Visits<br>Graphs</b></button>
-        <br><br>
+
         """
-        )
+    )
     print(
         f"""
+        <br><br>
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Daily<br>Summaries</b></button>
         &nbsp;&nbsp;
           """
     )
-    if False:
-        print(
-            f"""
+    print(
+        f"""
         <button onclick="window.location.href='{summaries_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Period<br>Summaries</b></button>
           """
-        )
+    )
     print(
         f"""
        &nbsp;&nbsp;

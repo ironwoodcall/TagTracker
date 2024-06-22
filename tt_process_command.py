@@ -541,8 +541,6 @@ def process_command(
         pr.iprint(
             "'BUSY' command is now part of 'STATS' command.", style=k.WARNING_STYLE
         )
-    # elif cmd == CmdKeys.CMD_BUSY_CHART:
-    #     rep.busy_graph(pack_day_data())
     elif cmd == CmdKeys.CMD_CHART:
         rep.full_chart(day=today)
     elif cmd == CmdKeys.CMD_DEBUG:
@@ -561,6 +559,10 @@ def process_command(
         return
     # elif cmd == CmdKeys.CMD_FULL_CHART:
     #     rep.fullness_graph(pack_day_data())
+    elif cmd == CmdKeys.CMD_GRAPHS:
+        when = args[0] if args else ""
+        rep.busy_graph(day=today,as_of_when=when)
+        rep.fullness_graph(day=today,as_of_when=when)
     elif cmd == CmdKeys.CMD_HELP:
         tt_help.help_command(args)
     elif cmd == CmdKeys.CMD_HOURS:

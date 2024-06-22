@@ -27,7 +27,8 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 try:
     import numpy as np
     from sklearn.ensemble import RandomForestRegressor
-    from sklearn.metrics import mean_absolute_error, mean_squared_error
+    # from sklearn.metrics import mean_squared_error
+    # from sklearn.metrics import mean_absolute_error
 
     POSSIBLE = True
 except (ModuleNotFoundError,ImportError):
@@ -58,29 +59,29 @@ class RandomForestRegressorModel:
         self.rf_model = None
         self.X_train = None
         self.y_train = None
-        self.nmae = None
-        self.nrmse = None
+        # self.nmae = None
+        # self.nrmse = None
 
         self.further_bikes = None
         self.error = ""
         self.state = INCOMPLETE
 
-    def calculate_normalized_errors(self):
-        # Predict using the random forest model
-        predicted_afters = self.rf_model.predict(
-            np.array(self.befores).reshape(-1, 1)
-        )
+    # def calculate_normalized_errors(self):
+    #     # Predict using the random forest model
+    #     predicted_afters = self.rf_model.predict(
+    #         np.array(self.befores).reshape(-1, 1)
+    #     )
 
         # Calculate MAE and RMSE
-        mae = mean_absolute_error(self.afters, predicted_afters)
-        rmse = np.sqrt(mean_squared_error(self.afters, predicted_afters))
+        # mae = mean_absolute_error(self.afters, predicted_afters)
+        # rmse = np.sqrt(mean_squared_error(self.afters, predicted_afters))
 
         # Calculate the range of the actual values
-        range_actual = max(self.afters) - min(self.afters)
+        # range_actual = max(self.afters) - min(self.afters)
 
         # Calculate NMAE and NRMSE
-        self.nmae = mae / range_actual
-        self.nrmse = rmse / range_actual
+        # self.nmae = mae / range_actual
+        # self.nrmse = rmse / range_actual
 
     def create_model(self, dates, befores, afters):
         if not POSSIBLE:
@@ -96,7 +97,7 @@ class RandomForestRegressorModel:
         self.rf_model.fit(self.X_train, self.y_train)
         self.state = READY
 
-        self.calculate_normalized_errors()
+        # self.calculate_normalized_errors()
 
     def guess(self, bikes_so_far):
         if self.state == ERROR:
@@ -127,15 +128,15 @@ class RandomForestRegressorModel:
         )
         lines.append(f"    Based on {len(self.befores)} "
                      f"data {ut.plural(len(self.befores),'point')}")
-        nmae_str = _format_measure(self.nmae)
-        nrmse_str = _format_measure(self.nrmse)
-        if nmae_str == "?" and nrmse_str == "?":
-            lines.append("    Model quality can not be calculated.")
-        else:
-            lines.append(
-                f"    NMAE {nmae_str}; "
-                f"NRMSE {nrmse_str} [lower is better]."
-            )
+        # nmae_str = _format_measure(self.nmae)
+        # nrmse_str = _format_measure(self.nrmse)
+        # if nmae_str == "?" and nrmse_str == "?":
+        #     lines.append("    Model quality can not be calculated.")
+        # else:
+        #     lines.append(
+        #         f"    NMAE {nmae_str}; "
+        #         f"NRMSE {nrmse_str} [lower is better]."
+        #     )
 
         return lines
 

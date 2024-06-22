@@ -30,6 +30,7 @@ from common.tt_time import VTime
 import common.tt_constants as k
 import tt_default_hours
 from common.tt_trackerday import TrackerDay
+from common.get_version import get_version_info
 from tt_sounds import NoiseMaker
 
 # Import pyfiglet if it's available.
@@ -48,7 +49,7 @@ def splash():
     if not splash_top_pyfiglet():
         splash_top_default()
     pr.iprint()
-    pr.iprint(f"TagTracker version: {ut.get_version()}")
+    pr.iprint(f"TagTracker version: {get_version_info()}")
     pr.iprint("See github.com/ironwoodcall/tagtracker for version details.")
     pr.iprint()
 

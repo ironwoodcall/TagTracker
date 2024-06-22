@@ -45,7 +45,7 @@ BAR_MARKERS = {"R": chr(0x25CF), "O": chr(0x25A0)}
 BAR_COL_WIDTH = 80
 
 
-def _nav_buttons(ttdb, thisday, pages_back) -> str:
+def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
     """Make nav buttons for the one-day report."""
 
     def find_prev_next_date(current_date, direction):
@@ -118,7 +118,9 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
             onclick="window.location.href='{link}';">{label}</button>
             """
 
-    dbrows = db.db_fetch(ttdb, "SELECT DATE FROM DAY ORDER BY DATE")
+    dbrows = db.db_fetch(
+        ttdb, f"SELECT DATE FROM DAY WHERE ORGSITE_ID = '{orgsite_id}' ORDER BY DATE "
+    )
     all_dates = sorted([r.date for r in dbrows])
 
     buttons = f"{cc.main_and_back_buttons(pages_back)}&nbsp;&nbsp;&nbsp;&nbsp;"
@@ -129,7 +131,11 @@ def _nav_buttons(ttdb, thisday, pages_back) -> str:
 
 
 def one_day_tags_report(
-    ttdb: sqlite3.Connection, whatday: str = "", sort_by: str = "", pages_back: int = 1
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    whatday: str = "",
+    sort_by: str = "",
+    pages_back: int = 1,
 ):
     @dataclass
     class _VisitRow:
@@ -152,16 +158,21 @@ def one_day_tags_report(
     else:
         day_str = ut.date_str(thisday, dow_str_len=10)
 
-    orgsite_id = 1  # hardwired orgsite_id
+    h1 = cc.titleize(f"<br>{thisday} ({day_str}) Detail")
+    html = f"<h1>{h1}</h1>"
+    print(html)
+
+    print(_nav_buttons(ttdb, orgsite_id, thisday, pages_back))
+    print("<br><br>")
 
     cursor = ttdb.cursor()
     day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=orgsite_id)
     if not day_id:
+        print(f"<br>No information in database for {thisday}<br><br>")
         cursor.close()
         return
 
-    day_data: DayTotals = db.fetch_day_totals(cursor=cursor,day_id=day_id)
-
+    day_data: DayTotals = db.fetch_day_totals(cursor=cursor, day_id=day_id)
 
     # In the code below, 'next_*' are empty placeholders
     sql = f"""
@@ -177,7 +188,7 @@ def one_day_tags_report(
     if not rows:
         cursor.close()
         return
-    cursor.close()    # day_data.min_stay = VTime(min(durations)).tidy
+    cursor.close()  # day_data.min_stay = VTime(min(durations)).tidy
     # if not rows:
     #     print(f"<pre>No activity recorded for {thisday}")
     #     sys.exit()
@@ -196,7 +207,7 @@ def one_day_tags_report(
     tag_reuses = len(visits) - len(set(v.tag for v in visits))
     # Reuse % is proportion of returns that were then reused.
     bikes_returned = len([v for v in visits if v.time_out and v.time_out > ""])
-    tag_reuse_pct = tag_reuses/bikes_returned if bikes_returned else 0
+    tag_reuse_pct = tag_reuses / bikes_returned if bikes_returned else 0
 
     # Process the rows
     stats = VisitStats([v.duration for v in visits])
@@ -232,13 +243,6 @@ def one_day_tags_report(
     duration_colors = dc.Dimension()
     duration_colors.add_config(0, "white")
     duration_colors.add_config(VTime("1200").num, "teal")
-
-    h1 = cc.titleize(f"<br>{thisday} ({day_str}) Detail")
-    html = f"<h1>{h1}</h1>"
-    print(html)
-
-    print(_nav_buttons(ttdb, thisday, pages_back))
-    print("<br><br>")
 
     if not visits:
         print(f"No information in database for {thisday}")
@@ -505,8 +509,8 @@ def visits_table(
 def summary_table(
     day_data: DayTotals,
     stats: VisitStats,
-    tag_reuses:int,
-    tag_reuse_pct:float,
+    tag_reuses: int,
+    tag_reuse_pct: float,
     highlights: dc.Dimension,
     is_today: bool,
     # suspicious: int,
