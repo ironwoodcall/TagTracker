@@ -133,7 +133,7 @@ def daterange_summary(
     _daterange_summary_pagetop(start_date,end_date,pages_back)
 
     self_url = cc.selfref(
-        what=cc.WHAT_DATERANGE_CUSTOM,
+        what=cc.WHAT_DATERANGE,
         start_date=start_date,
         end_date=end_date,
         pages_back=pages_back,
