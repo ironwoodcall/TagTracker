@@ -58,59 +58,76 @@ class HMS_VTime(str):
     A careful review of code looking for places that assume a particular length
     or a particular level of matching to (eg) "24:00" would be needed as well.
     """
+
     # FIXME: VTime() object with seconds-precision... needs work
     # Hour/Minute time pattern accepts time with or without colon
-    _TIME_PATTERN_HM = re.compile(r'^(\d+):?(\d{2})$')
+    _TIME_PATTERN_HM = re.compile(r"^(\d+):?(\d{2})$")
     # HMS time pattern is [H]H:MM:SS - always with colons
-    _TIME_PATTERN_HMS = re.compile(r'^(\d+):(\d{2}):(\d{2})$')
+    _TIME_PATTERN_HMS = re.compile(r"^(\d+):(\d{2}):(\d{2})$")
 
     def __new__(cls, maybe_time: str = "", allow_large=False):
-        time_str, time_seconds, time_dt, time_full = cls._convert_time(maybe_time, allow_large)
+        time_str, time_seconds, time_dt, time_full = cls._convert_time(
+            maybe_time, allow_large
+        )
         this = super().__new__(cls, time_str)
         this.num_seconds = time_seconds
         this.num = time_seconds // 60 if time_seconds is not None else None
         this.time_dt = time_dt
-        this.tidy = time_str.replace('0', ' ', 1) if time_str.startswith('0') else time_str
-        this.short = time_str[1:] if time_str.startswith('0') else time_str
+        this.tidy = (
+            time_str.replace("0", " ", 1) if time_str.startswith("0") else time_str
+        )
+        this.short = time_str[1:] if time_str.startswith("0") else time_str
         this.original = str(maybe_time).strip()
         this.full = time_full
         return this
 
     @classmethod
-    def _convert_time(cls, maybe_time, allow_large=False) -> tuple[str, int, datetime, str]:
+    def _convert_time(
+        cls, maybe_time, allow_large=False
+    ) -> tuple[str, int, datetime, str]:
         if isinstance(maybe_time, (int, float)):
-            maybe_time = round(maybe_time * 60) if isinstance(maybe_time, float) else maybe_time * 60
+            maybe_time = (
+                round(maybe_time * 60)
+                if isinstance(maybe_time, float)
+                else maybe_time * 60
+            )
             if maybe_time < 0 or (not allow_large and maybe_time >= 86400):
-                return '', None, None, ''
-            time_dt = datetime.combine(datetime.today(), datetime.min.time()) + timedelta(seconds=maybe_time)
-            time_full = time_dt.strftime('%H:%M:%S')
+                return "", None, None, ""
+            time_dt = datetime.combine(
+                datetime.today(), datetime.min.time()
+            ) + timedelta(seconds=maybe_time)
+            time_full = time_dt.strftime("%H:%M:%S")
             return cls._int_to_time(maybe_time // 60), maybe_time, time_dt, time_full
 
         elif isinstance(maybe_time, str):
             maybe_time = maybe_time.strip()
             if maybe_time.lower().startswith("now"):
-                match = re.match(r'^now\s*([+-]\d+)?$', maybe_time, re.IGNORECASE)
+                match = re.match(r"^now\s*([+-]\d+)?$", maybe_time, re.IGNORECASE)
                 if match:
                     minutes_offset = int(match.group(1)) if match.group(1) else 0
                     now = datetime.now() + timedelta(minutes=minutes_offset)
                     hours, minutes, seconds = now.hour, now.minute, now.second
                     total_seconds = hours * 3600 + minutes * 60 + seconds
-                    time_full = now.strftime('%H:%M:%S')
-                    return f'{hours:02}:{minutes:02}', total_seconds, now, time_full
+                    time_full = now.strftime("%H:%M:%S")
+                    return f"{hours:02}:{minutes:02}", total_seconds, now, time_full
 
             match = cls._TIME_PATTERN_HM.match(maybe_time)
             if match:
                 hours = int(match.group(1))
                 minutes = int(match.group(2))
                 if hours > 24 and not allow_large or minutes > 59:
-                    return '', None, None, ''
+                    return "", None, None, ""
                 total_seconds = hours * 3600 + minutes * 60
-                time_dt = datetime.combine(datetime.today(), datetime.min.time()) + timedelta(seconds=total_seconds)
-                time_full = time_dt.strftime('%H:%M:%S')
-                return f'{hours:02}:{minutes:02}', total_seconds, time_dt, time_full
-        return '', None, None, ''
+                time_dt = datetime.combine(
+                    datetime.today(), datetime.min.time()
+                ) + timedelta(seconds=total_seconds)
+                time_full = time_dt.strftime("%H:%M:%S")
+                return f"{hours:02}:{minutes:02}", total_seconds, time_dt, time_full
+        return "", None, None, ""
 
-    def __init__(self, maybe_time: str = "", allow_large=False):  # pylint: disable=unused-argument
+    def __init__(
+        self, maybe_time: str = "", allow_large=False
+    ):  # pylint: disable=unused-argument
         """This is here only so that IDE will know the structure of a HMS_VTime."""
         if False:  # pylint: disable=using-constant-test
             self.num_seconds: int = None
@@ -125,7 +142,7 @@ class HMS_VTime(str):
     def _int_to_time(int_time) -> str:
         hours = int_time // 60
         minutes = int_time % 60
-        return f'{hours:02}:{minutes:02}'
+        return f"{hours:02}:{minutes:02}"
 
     @property
     def time_in_seconds(self) -> int:
@@ -175,32 +192,38 @@ class HMS_VTime(str):
     NULL = None
 
     @classmethod
-    def set_null_value(cls,value):
+    def set_null_value(cls, value):
         cls.NULL = value
+
 
 HMS_VTime.set_null_value(HMS_VTime("null"))
 
+
 class HM_VTime(str):
     # Precompile regex pattern for valid formats with optional colon
-    _TIME_PATTERN_HM = re.compile(r'^(\d+):?(\d{2})$')
+    _TIME_PATTERN_HM = re.compile(r"^(\d+):?(\d{2})$")
 
-    def __new__(cls, maybe_time:str="", allow_large=False):
-        time_str,time_int = cls._convert_time(maybe_time, allow_large)
+    def __new__(cls, maybe_time: str = "", allow_large=False):
+        time_str, time_int = cls._convert_time(maybe_time, allow_large)
         this = super().__new__(cls, time_str)
         this.num = time_int
-        this.tidy = time_str.replace('0', ' ', 1) if time_str.startswith('0') else time_str
-        this.short = time_str[1:] if time_str.startswith('0') else time_str
+        this.tidy = (
+            time_str.replace("0", " ", 1) if time_str.startswith("0") else time_str
+        )
+        this.short = time_str[1:] if time_str.startswith("0") else time_str
         this.original = str(maybe_time).strip()
         return this
 
     @classmethod
-    def _convert_time(cls,maybe_time, allow_large=False) -> tuple[str,int]:
-        if isinstance(maybe_time,(int,float)):
+    def _convert_time(cls, maybe_time, allow_large=False) -> tuple[str, int]:
+        if isinstance(maybe_time, (int, float)):
             # See if in range.
-            maybe_time = round(maybe_time) if isinstance(maybe_time,float) else maybe_time
+            maybe_time = (
+                round(maybe_time) if isinstance(maybe_time, float) else maybe_time
+            )
             if maybe_time < 0 or (not allow_large and maybe_time >= 1440):
-                return ('',None)
-            return cls._int_to_time(maybe_time),maybe_time
+                return ("", None)
+            return cls._int_to_time(maybe_time), maybe_time
 
         elif isinstance(maybe_time, str):
             maybe_time = maybe_time.strip()
@@ -208,32 +231,34 @@ class HM_VTime(str):
             if maybe_time.lower() == "now":
                 now = datetime.now()
                 hours, minutes = now.hour, now.minute
-                return f'{hours:02}:{minutes:02}', hours * 60 + minutes
+                return f"{hours:02}:{minutes:02}", hours * 60 + minutes
             # Pattern match for HH:MM
             match = cls._TIME_PATTERN_HM.match(maybe_time)
             if match:
                 hours = int(match.group(1))
                 minutes = int(match.group(2))
             else:
-                return '',None
+                return "", None
             if hours > 24 and not allow_large or minutes > 59:
-                return '',None
-            return f'{hours:02}:{minutes:02}', hours*60+minutes
-        return '',None
+                return "", None
+            return f"{hours:02}:{minutes:02}", hours * 60 + minutes
+        return "", None
 
-    def __init__(self, maybe_time:str="", allow_large=False): #pylint:disable=unused-argument
+    def __init__(
+        self, maybe_time: str = "", allow_large=False
+    ):  # pylint:disable=unused-argument
         """This is here only so that IDE will know the structure of a VTime."""
-        if False: # pylint: disable=using-constant-test
-            self.num:int = None
-            self.short:str = None
-            self.tidy:str = None
-            self.original:str = None
+        if False:  # pylint: disable=using-constant-test
+            self.num: int = None
+            self.short: str = None
+            self.tidy: str = None
+            self.original: str = None
 
     @staticmethod
     def _int_to_time(int_time) -> str:
         hours = int_time // 60
         minutes = int_time % 60
-        return f'{hours:02}:{minutes:02}'
+        return f"{hours:02}:{minutes:02}"
 
     # Comparisons are between str representations of itself and other
     def __eq__(self, other) -> bool:
@@ -264,5 +289,6 @@ class HM_VTime(str):
         not necessary since it will never contain alpha characters.
         """
         return hash(str(self))
+
 
 VTime = HM_VTime
