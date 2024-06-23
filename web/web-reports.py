@@ -295,6 +295,10 @@ html_head()
 if not what:
     sys.exit()
 
+date_start = query_params.get("start_date", ["0000-00-00"])[0]
+date_end = query_params.get("end_date", ["9999-99-99"])[0]
+
+
 if what == cc.WHAT_TAG_HISTORY:
     web_tags_report.one_tag_history_report(database, tag)
 elif what == cc.WHAT_BLOCKS:
@@ -309,7 +313,12 @@ elif what == cc.WHAT_SUMMARY:
     web_season_report.season_summary(database)
 elif what == cc.WHAT_SUMMARY_FREQUENCIES:
     web_season_report.season_frequencies_report(
-        database, dow_parameter=dow_parameter, title_bit=text, pages_back=pages_back
+        database,
+        dow_parameter=dow_parameter,
+        title_bit=text,
+        pages_back=pages_back,
+        start_date=date_start,
+        end_date=date_end,
     )
 elif what == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
@@ -339,10 +348,8 @@ elif what in [
     cc.WHAT_DATERANGE_YEAR,
     cc.WHAT_DATERANGE_CUSTOM,
 ]:
-    date_start = query_params.get("start_date", ["0000-00-00"])[0]
-    date_end = query_params.get("end_date", ["9999-99-99"])[0]
     web_daterange_summaries.daterange_summary(
-        database, what, start_date=date_start, end_date=date_end
+        database, what, start_date=date_start, end_date=date_end,pages_back=pages_back
     )
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")

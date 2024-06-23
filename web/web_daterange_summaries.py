@@ -125,6 +125,9 @@ def daterange_summary(
 
     # Fetch date range limits from the database
     db_start_date, db_end_date = db.fetch_date_range_limits(ttdb, orgsite_id=orgsite_id)
+    if not db_start_date or not db_end_date:
+        print(f"No data found for {orgsite_id=}")
+        return
 
     # Adjust start_date and end_date based on fetched limits
     start_date = max(start_date or db_start_date, db_start_date)
@@ -136,7 +139,7 @@ def daterange_summary(
         what=cc.WHAT_DATERANGE,
         start_date=start_date,
         end_date=end_date,
-        pages_back=pages_back,
+        pages_back=pages_back+1,
     )
     print("<br>")
     print(

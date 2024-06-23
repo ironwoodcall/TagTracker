@@ -28,6 +28,7 @@ import common.tt_util as ut
 import web_common as cc
 import datacolors as dc
 import web_histogram
+from web_daterange_selector import generate_date_filter_form
 import common.tt_dbutil as db
 from common.tt_time import VTime
 from common.tt_daysummary import DayTotals
@@ -39,7 +40,7 @@ BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 
-def _freq_nav_buttons(pages_back) -> str:
+def _freq_nav_buttons(pages_back, start_date: str = "", end_date: str = "") -> str:
     """Make nav buttons for the season-frequency report.
 
     Buttons will be "Mon", "Tue", "Wed", etc, "All days", "Weekdays",
@@ -51,6 +52,8 @@ def _freq_nav_buttons(pages_back) -> str:
         onclick="window.location.href='{
             cc.selfref(
                 what=cc.WHAT_SUMMARY_FREQUENCIES,
+                start_date=start_date,
+                end_date=end_date,
                 pages_back=pages_back + 1,
                 text_note=""
             )
@@ -62,6 +65,8 @@ def _freq_nav_buttons(pages_back) -> str:
         onclick="window.location.href='{
             cc.selfref(
                 what=cc.WHAT_SUMMARY_FREQUENCIES,
+                start_date=start_date,
+                end_date=end_date,
                 qdow="1,2,3,4,5",
                 pages_back=pages_back + 1,
                 text_note="weekdays"
@@ -73,6 +78,8 @@ def _freq_nav_buttons(pages_back) -> str:
         onclick="window.location.href='{
             cc.selfref(
                 what=cc.WHAT_SUMMARY_FREQUENCIES,
+                start_date=start_date,
+                end_date=end_date,
                 qdow="6,7",
                 pages_back=pages_back + 1,
                 text_note="weekends"
@@ -84,6 +91,8 @@ def _freq_nav_buttons(pages_back) -> str:
     for d in range(1, 8):
         link = cc.selfref(
             what=cc.WHAT_SUMMARY_FREQUENCIES,
+            start_date=start_date,
+            end_date=end_date,
             qdow=d,
             pages_back=pages_back + 1,
             text_note=ut.dow_str(d, 10) + "s",
@@ -104,7 +113,26 @@ def season_frequencies_report(
     dow_parameter: str = "",
     title_bit: str = "",
     pages_back: int = 0,
+    start_date: str = "",
+    end_date: str = "",
 ):
+    """Web page showing histograms of visit frequency distributions."""
+
+    orgsite_id = 1  # FIXME: orgsite_id hardcoded
+
+    # Fetch date range limits from the database
+    db_start_date, db_end_date = db.fetch_date_range_limits(
+        ttdb,
+        orgsite_id=orgsite_id,
+    )
+    if not db_start_date or not db_end_date:
+        print(f"No data found for {orgsite_id=}")
+        return
+
+    # Adjust start_date and end_date based on fetched limits
+    start_date = max(start_date or db_start_date, db_start_date)
+    end_date = min(end_date or db_end_date, db_end_date)
+
     title_bit = title_bit if title_bit else "all days of the week"
     table_vars = (
         (
@@ -128,10 +156,22 @@ def season_frequencies_report(
     )
     back_button = f"{cc.main_and_back_buttons(pages_back)}<p></p>"
 
-    h1 = "Distribution of visits"
+    h1 = f"Distribution of visits {start_date} to {end_date}"
     h1 = f"{h1} for {title_bit}" if title_bit else h1
     print(f"<h1>{h1}</h1>")
-    print(_freq_nav_buttons(pages_back))
+    print(_freq_nav_buttons(pages_back, start_date=start_date, end_date=end_date))
+    self_url = cc.selfref(
+        what=cc.WHAT_SUMMARY_FREQUENCIES,
+        qdow=dow_parameter,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=pages_back + 1,
+    )
+    print(
+        generate_date_filter_form(
+            self_url, default_start_date=start_date, default_end_date=end_date
+        )
+    )
 
     for parameters in table_vars:
         column, title, subtitle, color = parameters
@@ -140,36 +180,41 @@ def season_frequencies_report(
         print(
             web_histogram.times_hist_table(
                 ttdb,
+                orgsite_id=orgsite_id,
                 query_column=column,
                 days_of_week=dow_parameter,
                 color=color,
                 title=title,
                 subtitle=subtitle,
+                start_date=start_date,
+                end_date=end_date,
             )
         )
         print("<br><br>")
     print(back_button)
 
 
-def mini_freq_tables(ttdb: sqlite3.Connection):
-    table_vars = (
-        ("duration", "Visit length", "teal"),
-        ("time_in", "Time in", "crimson"),
-        ("time_out", "Time out", "royalblue"),
-    )
-    for parameters in table_vars:
-        column, title, color = parameters
-        title = f"<a href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'>{title}</a>"
-        print(
-            web_histogram.times_hist_table(
-                ttdb,
-                query_column=column,
-                mini=True,
-                color=color,
-                title=title,
-            )
-        )
-        print("<br>")
+# def mini_freq_tables(ttdb: sqlite3.Connection):
+#     table_vars = (
+#         ("duration", "Visit length", "teal"),
+#         ("time_in", "Time in", "crimson"),
+#         ("time_out", "Time out", "royalblue"),
+#     )
+#     orgsite_id = 1 # hardcoded orgsite_id FIXME
+#     for parameters in table_vars:
+#         column, title, color = parameters
+#         title = f"<a href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'>{title}</a>"
+#         print(
+#             web_histogram.times_hist_table(
+#                 ttdb,
+#                 orgsite_id=orgsite_id,
+#                 query_column=column,
+#                 mini=True,
+#                 color=color,
+#                 title=title,
+#             )
+#         )
+#         print("<br>")
 
 
 def totals_table(conn: sqlite3.Connection):
