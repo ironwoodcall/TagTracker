@@ -150,6 +150,7 @@ def html_histogram(
 
 def times_hist_table(
     ttdb: sqlite3.Connection,
+    orgsite_id:int,
     query_column: str,
     start_date: str = None,
     end_date: str = None,

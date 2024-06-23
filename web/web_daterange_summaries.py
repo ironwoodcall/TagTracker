@@ -29,13 +29,14 @@ from datetime import datetime, timedelta
 # import tt_util as ut
 import common.tt_dbutil as db
 import web_common as cc
+from web_daterange_selector import generate_date_filter_form
 
 DATERANGE_NAMES = {
     cc.WHAT_DATERANGE_WEEK: "Weeks",
     cc.WHAT_DATERANGE_MONTH: "Months",
     cc.WHAT_DATERANGE_QUARTER: "Quarters",
     cc.WHAT_DATERANGE_YEAR: "Years",
-    cc.WHAT_DATERANGE_FOREVER: "All Data"
+    cc.WHAT_DATERANGE_FOREVER: "All Data",
 }
 
 
@@ -120,7 +121,32 @@ def daterange_summary(
     If no daterange_type or just WHAT_DATERANGE, does them all.
     """
 
-    _daterange_summary_pagetop(pages_back)
+    orgsite_id = 1  # FIXME hardcoded orgsite_id
+
+    # Fetch date range limits from the database
+    db_start_date, db_end_date = db.fetch_date_range_limits(ttdb, orgsite_id=orgsite_id)
+    if not db_start_date or not db_end_date:
+        print(f"No data found for {orgsite_id=}")
+        return
+
+    # Adjust start_date and end_date based on fetched limits
+    start_date = max(start_date or db_start_date, db_start_date)
+    end_date = min(end_date or db_end_date, db_end_date)
+
+    _daterange_summary_pagetop(start_date,end_date,pages_back)
+
+    self_url = cc.selfref(
+        what=cc.WHAT_DATERANGE,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=pages_back+1,
+    )
+    print("<br>")
+    print(
+        generate_date_filter_form(
+            self_url, default_start_date=start_date, default_end_date=end_date
+        )
+    )
 
     print("<br><br><br>")
 
@@ -143,9 +169,9 @@ def daterange_summary(
         _daterange_summary_table(ttdb, start_date, end_date, daterange, pages_back)
         print("<br><br><br>")
 
-
-def _daterange_summary_pagetop(pages_back: int = 1):
-    print(f"<h1>{cc.titleize(': Summaries')}</h1>")
+def _daterange_summary_pagetop(start_date,end_date,pages_back: int = 1):
+    print(f"<h1>{cc.titleize(f'<br>Summaries from {start_date} to {end_date}')}</h1>")
+    # print(f"<h2>Summary of data from {start_date} to {end_date}</h2>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
 
 
@@ -192,14 +218,16 @@ def _fetch_daterange_summary_rows(
         # If it's a new daterange, create a new _DateRangeRow
         if current_daterange is None or not current_daterange.in_daterange(date):
             if current_daterange is not None and current_daterange.days:
-                daterange_rows.append(current_daterange)  # Append the previous daterange
+                daterange_rows.append(
+                    current_daterange
+                )  # Append the previous daterange
             current_daterange = _DateRangeRow()
             if daterange_type == cc.WHAT_DATERANGE_CUSTOM:
                 (
                     current_daterange.start_date,
                     current_daterange.end_date,
                     current_daterange.label,
-                ) = (range_start,range_end,"Custom date span")
+                ) = (range_start, range_end, "Custom date span")
             else:
                 (
                     current_daterange.start_date,
@@ -242,7 +270,7 @@ def _daterange_params(onedate, daterange_type) -> tuple[str, str, str]:
 
     # Determine start and end dates of the daterange based on daterange type
     if daterange_type == cc.WHAT_DATERANGE_FOREVER:
-        start_date = "0000-00-00" # Sorts less than any date string
+        start_date = "0000-00-00"  # Sorts less than any date string
         end_date = "9999-99-99"  # Sorts greater than any date string
         label = "All data"
     elif daterange_type == cc.WHAT_DATERANGE_YEAR:
@@ -274,16 +302,16 @@ def _daterange_params(onedate, daterange_type) -> tuple[str, str, str]:
     return start_date, end_date, label
 
 
-def _daterange_summary_table_top(daterange_type,start_date:str="",end_date:str=""):
+def _daterange_summary_table_top(
+    daterange_type, start_date: str = "", end_date: str = ""
+):
     """Print the table def and header row for one daterange-summaries table."""
     if daterange_type == cc.WHAT_DATERANGE_CUSTOM:
         name = f"{start_date} to {end_date}"
     else:
         name = DATERANGE_NAMES[daterange_type]
     print("<table class='general_table'>")
-    print(
-        f"<tr><th colspan=17>Summary of {name}</th></tr>"
-    )
+    print(f"<tr><th colspan=17>Summary of {name}</th></tr>")
     print("<style>td {text-align: right;}</style>")
 
     print(
@@ -322,28 +350,17 @@ def _one_daterange_summary_row(pd: _DateRangeRow, pages_back: int):
     """Print one table row in a dateranges table."""
 
     # Calculate links to day detail for days of maximum values
-    max_all_bikes_link = cc.selfref(
-        cc.WHAT_ONE_DAY,
-        qdate=pd.when_max.all_bikes
-    )
+    max_all_bikes_link = cc.selfref(cc.WHAT_ONE_DAY, qdate=pd.when_max.all_bikes)
     max_regular_bikes_link = cc.selfref(
-        cc.WHAT_ONE_DAY,
-        qdate=pd.when_max.regular_bikes
+        cc.WHAT_ONE_DAY, qdate=pd.when_max.regular_bikes
     )
     max_oversize_bikes_link = cc.selfref(
-        cc.WHAT_ONE_DAY,
-        qdate=pd.when_max.oversize_bikes
+        cc.WHAT_ONE_DAY, qdate=pd.when_max.oversize_bikes
     )
-    max_fullest_link = cc.selfref(
-        cc.WHAT_ONE_DAY,
-        qdate=pd.when_max.fullest
-    )
-    max_reg529_link = cc.selfref(
-        cc.WHAT_ONE_DAY,
-        qdate=pd.when_max.reg529
-    )
+    max_fullest_link = cc.selfref(cc.WHAT_ONE_DAY, qdate=pd.when_max.fullest)
+    max_reg529_link = cc.selfref(cc.WHAT_ONE_DAY, qdate=pd.when_max.reg529)
 
-    TD="<td  style='text-align: right;'>"
+    TD = "<td  style='text-align: right;'>"
     print(
         "<tr>"
         f"{TD}{pd.label}</td>"
@@ -382,12 +399,15 @@ def _daterange_summary_table(
     """
 
     daterange_rows = _fetch_daterange_summary_rows(
-        ttdb, range_start=range_start, range_end=range_end, daterange_type=daterange_type
+        ttdb,
+        range_start=range_start,
+        range_end=range_end,
+        daterange_type=daterange_type,
     )
 
     if not daterange_rows:
         return
-    _daterange_summary_table_top(daterange_type,range_start,range_end)
+    _daterange_summary_table_top(daterange_type, range_start, range_end)
 
     for onerow in daterange_rows:
         onerow: _DateRangeRow

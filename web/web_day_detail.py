@@ -291,11 +291,16 @@ def one_day_tags_report(
     )
 
 
-def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
+def day_frequencies_report(
+    ttdb: sqlite3.Connection,
+    whatday: str = "",
+):
     today = ut.date_str(whatday)
     if not today:
         print(f"Not a valid date: {whatday}")
         return
+
+    orgsite_id = 1  # FIXME orgsize_id hardcoded
 
     table_vars = (
         (
@@ -328,6 +333,7 @@ def day_frequencies_report(ttdb: sqlite3.Connection, whatday: str = ""):
         print(
             web_histogram.times_hist_table(
                 ttdb,
+                orgsite_id=orgsite_id,
                 query_column=column,
                 start_date=today,
                 end_date=today,
@@ -346,12 +352,14 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
         ("time_in", "Time in", "crimson"),
         ("time_out", "Time out", "royalblue"),
     )
+    orgsite_id = 1  # FIXME hardcoded orgsite_id
     for parameters in table_vars:
         column, title, color = parameters
         title = f"<a href='{cc.selfref(cc.WHAT_ONE_DAY_FREQUENCIES,qdate=today)}'>{title}</a>"
         print(
             web_histogram.times_hist_table(
                 ttdb,
+                orgsite_id=orgsite_id,
                 query_column=column,
                 start_date=today,
                 end_date=today,

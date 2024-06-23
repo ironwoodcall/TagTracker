@@ -106,19 +106,18 @@ class WebAuth:
     """
 
     def __init__(self):
-        self.user_org_id:int = None
-        self.user_org_handle:str = None
-        self.user_org_name:str = None
+        self.user_org_id: int = None
+        self.user_org_handle: str = None
+        self.user_org_name: str = None
 
-        self.visible_org_ids:list = None
+        self.visible_org_ids: list = None
 
-        self.visible_orgsite_ids:list=None
-        self.visible_orgsite_handles:list = None
-        self.visible_orgsite_names:list = None
+        self.visible_orgsite_ids: list = None
+        self.visible_orgsite_handles: list = None
+        self.visible_orgsite_names: list = None
 
-        self.org_info:dict = None
-        self.orgsite_info:dict = None
-
+        self.org_info: dict = None
+        self.orgsite_info: dict = None
 
         pass
 
@@ -128,10 +127,12 @@ class WebAuth:
     def user_org(self):
         pass
 
-    def orgsite_choices(self, user_org ) -> list[int]:
-            """Return list of orgsite choices visible to this user_org."""
+    def orgsite_choices(self, user_org) -> list[int]:
+        """Return list of orgsite choices visible to this user_org."""
 
-    def orgsite_where(self,user_org_id,data_orgsite_id,table:str,standalone_clause:bool=False) -> str:
+    def orgsite_where(
+        self, user_org_id, data_orgsite_id, table: str, standalone_clause: bool = False
+    ) -> str:
         """Return 'WHERE ... or 'AND ... to filter what allowed to see.
 
         E.g. WHERE DAY.ORGISTE = id
@@ -317,32 +318,35 @@ def selfref(
     qsort: str = "",
     qdir: str = "",
     text_note: str = "",
+    start_date: str = "",
+    end_date: str = "",
     pages_back=None,
 ) -> str:
     """Return a self-reference with the given parameters."""
 
     me = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
-    parms = []
-    if what:
-        parms.append(f"what={what}")
-    if qdate:
-        parms.append(f"date={qdate}")
-    if qtime:
-        parms.append(f"time={qtime}")
-    if qtag:
-        parms.append(f"tag={qtag}")
-    if qdow:
-        parms.append(f"dow={qdow}")
-    if qsort:
-        parms.append(f"sort={qsort}")
-    if qdir:
-        parms.append(f"dir={qdir}")
-    if text_note:
-        parms.append(f"text={text_note}")
-    if pages_back is not None:
-        parms.append(f"back={pages_back}")
-    parms_str = f"?{'&'.join(parms)}" if parms else ""
-    return f"{me}{ut.untaint(parms_str)}"
+    params = {
+        "what": what,
+        "date": qdate,
+        "start_date": start_date,
+        "end_date": end_date,
+        "time": qtime,
+        "tag": qtag,
+        "dow": qdow,
+        "sort": qsort,
+        "dir": qdir,
+        "text": text_note,
+        # pages_back might legitimately be 0
+        "back": pages_back if pages_back is not None else "",
+    }
+
+    # Filter out None and empty strings
+    filtered_params = {key: value for key, value in params.items() if value}
+
+    # Create parameter strings
+    params_str = "&".join(f"{key}={value}" for key, value in filtered_params.items())
+
+    return f"{me}{ut.untaint('?' + params_str if params_str else '')}"
 
 
 def style() -> str:
@@ -489,23 +493,23 @@ class SingleDay:
     #     return self.leftovers
 
 
-
 def get_days_data(
     ttdb: sqlite3.Connection,
     min_date: str = "",
     max_date: str = "",
 ) -> list[DayTotals]:
-    """Create the list of totals about a set of days.
+    """Create the list of totals about a set of days."""
 
-    """
-
+    orgsite_id = 1  # FIXME: hardcoded orgsite_id
     cursor = ttdb.cursor()
-    day_ids = db.fetch_day_id_list(cursor=cursor,orgsite_id=1,min_date=min_date,max_date=max_date)
+    day_ids = db.fetch_day_id_list(
+        cursor=cursor, orgsite_id=orgsite_id, min_date=min_date, max_date=max_date
+    )
 
     totals_list = []
     for day_id in day_ids:
         # day = DayTotals()
-        day = db.fetch_day_totals(cursor=cursor,day_id=day_id)
+        day = db.fetch_day_totals(cursor=cursor, day_id=day_id)
         totals_list.append(day)
     return totals_list
 
