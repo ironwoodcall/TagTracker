@@ -259,7 +259,7 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_STATS: CmdConfig(
-        invoke=["statistics", "stats", "stat", "s"],
+        invoke=["statistics", "stat", "stats", "s"],
         arg_configs=[
             ArgConfig(ARG_TIME, optional=True),
         ],
