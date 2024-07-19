@@ -34,7 +34,7 @@ import sqlite3
 
 import common.tt_dbutil as db
 import common.tt_util as ut
-from common.tt_time import VTime
+# from common.tt_time import VTime
 
 
 class NewVals:
@@ -366,11 +366,6 @@ class ProgArgs:
             metavar="FILE",
             help="Read sunset times from csv file of NR Canada sunrise/sunset times",
         )
-        # parser.add_argument(
-        #     "--day-end",
-        #     metavar="FILE",
-        #     help="Read registrations/leftovers from csv file of day-end-form gsheet data",
-        # )
         parser.add_argument("--verbose", action="store_true", default=False)
         return parser.parse_args()
 

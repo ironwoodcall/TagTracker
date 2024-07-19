@@ -182,12 +182,12 @@ class BikeTag:
         # Iterate through to see if this is IN_USE
         for visit in self.visits:
             if (
-                visit.time_in < as_of_when
+                visit.time_in <= as_of_when
                 and visit.time_out
                 and as_of_when < visit.time_out
             ):
                 return self.IN_USE
-            if visit.time_in < as_of_when and not visit.time_out:
+            if visit.time_in <= as_of_when and not visit.time_out:
                 return self.IN_USE
         # Not in use, so must be DONE
         return self.DONE

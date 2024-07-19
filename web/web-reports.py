@@ -255,7 +255,7 @@ k.set_html_style()
 QUERY_STRING = ut.untaint(os.environ.get("QUERY_STRING", ""))
 if os.getenv("TAGTRACKER_DEBUG"):
     print(
-        "<pre style='color:red'>" "\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n" "</pre>"
+        "<pre style='color:red'>\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n" "</pre>"
     )
 query_params = urllib.parse.parse_qs(QUERY_STRING)
 what = query_params.get("what", [""])[0]
