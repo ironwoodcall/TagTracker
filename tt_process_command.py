@@ -397,24 +397,53 @@ def query_command(day: TrackerDay, targets: list[TagID]) -> None:
     pr.iprint()
     for tagid in targets:
         msgs = []
-        biketag: BikeTag = day.biketags[tagid]
-        if biketag.status == biketag.UNUSED:
-            msgs = [f"Tag {tagid} not used yet today."]
-        elif biketag.status == biketag.RETIRED:
-            msgs = [f"Tag {tagid} is retired."]
+        if tagid not in day.biketags:
+            msgs = [f"Tag {tagid} unknown."]
         else:
-            msgs = []
-            for i, visit in enumerate(biketag.visits, start=1):
-                visit: BikeVisit
-                msg = f"Tag {tagid} visit {i}: bike in at {visit.time_in.tidy}; "
-                if visit.time_out:
-                    msg += f"out at {visit.time_out.tidy}"
-                else:
-                    msg += "still on-site."
-                msgs.append(msg)
+            biketag: BikeTag = day.biketags[tagid]
+            if biketag.status == biketag.UNUSED:
+                msgs = [f"Tag {tagid} not used yet today."]
+            elif biketag.status == biketag.RETIRED:
+                msgs = [f"Tag {tagid} is retired."]
+            else:
+                msgs = []
+                for i, visit in enumerate(biketag.visits, start=1):
+                    visit: BikeVisit
+                    msg = f"Tag {tagid} visit {i}: bike in at {visit.time_in.tidy}; "
+                    if visit.time_out:
+                        msg += f"out at {visit.time_out.tidy}"
+                    else:
+                        msg += "still on-site."
+                    msgs.append(msg)
 
         for msg in msgs:
             pr.iprint(msg, style=k.ANSWER_STYLE)
+
+
+def leftovers_query(today: TrackerDay):
+    """List last check-in times for any bikes on-site."""
+
+    msgs = {}
+    for tagid in today.tags_in_use(as_of_when="now"):
+        bike = today.biketags[tagid]
+        msgs[tagid] = ""
+        if not bike.visits:
+            msgs[tagid] += " logic error"
+            continue
+        last_visit: BikeVisit = bike.visits[-1]
+        msgs[tagid] += f"  Visit: {len(bike.visits)}  In: {last_visit.time_in}"
+        if last_visit.time_out:
+            msgs[tagid] += f"  Out: {last_visit.time_out}"
+
+    pr.iprint()
+    pr.iprint("Most recent check-in times for bikes left on-site", style=k.ANSWER_STYLE)
+    if not msgs:
+        pr.iprint("No bikes on-site")
+        return
+    max_tagid_len = max([len(tagid) for tagid in msgs])
+    for tagid in sorted(msgs.keys()):
+        msgs[tagid] = f"{tagid.upper()}" + " " * (max_tagid_len - len(tagid)) + msgs[tagid]
+        pr.iprint(msgs[tagid], style=k.NORMAL_STYLE)
 
 
 def set_tag_case(want_uppercase: bool) -> None:
@@ -561,16 +590,18 @@ def process_command(
     #     rep.fullness_graph(pack_day_data())
     elif cmd == CmdKeys.CMD_GRAPHS:
         when = args[0] if args else ""
-        rep.busy_graph(day=today,as_of_when=when)
-        rep.fullness_graph(day=today,as_of_when=when)
+        rep.busy_graph(day=today, as_of_when=when)
+        rep.fullness_graph(day=today, as_of_when=when)
     elif cmd == CmdKeys.CMD_HELP:
         tt_help.help_command(args)
     elif cmd == CmdKeys.CMD_HOURS:
         data_changed = bits.confirm_hours(today=today)
+    elif cmd == CmdKeys.CMD_LEFTOVERS:
+        leftovers_query(today=today)
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
     elif cmd == CmdKeys.CMD_NOTES:
-        data_changed = tt_notes.notes_command(notes_obj=today.notes,args=args)
+        data_changed = tt_notes.notes_command(notes_obj=today.notes, args=args)
     elif cmd == CmdKeys.CMD_PUBLISH:
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
@@ -598,7 +629,6 @@ def process_command(
 
     NoiseMaker.queue_play()
     return data_changed
-
 
 
 def lint_report(

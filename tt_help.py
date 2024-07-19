@@ -50,6 +50,7 @@ Information and reports
   Show info about one tag      :  QUERY <tag(s)>
   Show recent activity         :  RECENT [time] [time]
   Show audit info              :  AUDIT [time]
+  Show times for leftovers     :  LEFT
   Show day-end stats report    :  STATS [time]
   Graph of busy- and fullness  :  GRAPH
   Show tag configurations      :  TAGS
@@ -87,6 +88,20 @@ Description
 
   If the tag has been used previously, this will re-use the tag for
   this new visit.
+""",
+
+    CmdKeys.CMD_LEFTOVERS: """
+Command: LEFT <tag(s)> [time]
+
+Can be invoked as
+  {}
+
+Description
+  Lists the most recent check-in times for any bikes currently on-site.
+
+  This is to make it easier to find phone numbers for any bikes that
+  are left on-site as the end of day approaches.
+
 """,
 
     CmdKeys.CMD_NOTES: """
