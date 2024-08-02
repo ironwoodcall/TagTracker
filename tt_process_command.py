@@ -424,6 +424,9 @@ def leftovers_query(today: TrackerDay):
     """List last check-in times for any bikes on-site."""
 
     msgs = {}
+    # leftover_checkin has tuples of (tagid,check-in time), for sorting.
+    leftover_checkin = []
+
     for tagid in today.tags_in_use(as_of_when="now"):
         bike = today.biketags[tagid]
         msgs[tagid] = ""
@@ -435,14 +438,22 @@ def leftovers_query(today: TrackerDay):
         if last_visit.time_out:
             msgs[tagid] += f"  Out: {last_visit.time_out}"
 
+        leftover_checkin.append((tagid, last_visit.time_in))
+
+    # Sort by check-in times
+    leftover_checkin.sort(key=lambda x: x[1])
+
     pr.iprint()
     pr.iprint("Most recent check-in times for bikes left on-site", style=k.ANSWER_STYLE)
     if not msgs:
         pr.iprint("No bikes on-site")
         return
+
     max_tagid_len = max([len(tagid) for tagid in msgs])
-    for tagid in sorted(msgs.keys()):
-        msgs[tagid] = f"{tagid.upper()}" + " " * (max_tagid_len - len(tagid)) + msgs[tagid]
+    for tagid, _ in leftover_checkin:
+        msgs[tagid] = (
+            f"{tagid.upper()}" + " " * (max_tagid_len - len(tagid)) + msgs[tagid]
+        )
         pr.iprint(msgs[tagid], style=k.NORMAL_STYLE)
 
 
