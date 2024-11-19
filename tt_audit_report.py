@@ -169,7 +169,7 @@ def audit_report(
     # Bikes returned out -- tags matrix.
     if include_returns:
         pr.iprint()
-        pr.iprint("Tags available for re-use", style=k.SUBTITLE_STYLE)
+        pr.iprint(f"Tags potentially available for re-use ({len(tags_done)} tags)", style=k.SUBTITLE_STYLE)
         for prefix in sorted(prefixes_returned_out.keys()):
             numbers = prefixes_returned_out[prefix]
             line = f"{prefix:3>} "
