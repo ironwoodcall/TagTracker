@@ -116,9 +116,6 @@ class BikeTag:
         # become previous to the new check-in.
         latest_visit = self.latest_visit()
         latest_visit_time_out = latest_visit.time_out if latest_visit else None
-        print(
-            f"{bike_time=}; {self.status=}; {self.previous_check_out()=}; {latest_visit==None=}; {latest_visit_time_out=}"
-        )
 
         if new_check_in:
             # New check-in. status will be UNUSED or DONE
