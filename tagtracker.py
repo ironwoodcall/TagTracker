@@ -45,6 +45,7 @@ if sys.version_info < (3, 10):
 import common.tt_constants as k
 from common.tt_tag import TagID
 import tt_reports as rep
+
 # from tt_realtag import Stay
 from common.tt_time import VTime
 import common.tt_util as ut
@@ -58,12 +59,7 @@ import tt_publish as pub
 from tt_process_command import process_command, lint_report
 
 # from tt_cmdparse import CmdBits
-from tt_commands import (
-    CmdKeys,
-    get_parsed_command,
-    PARSED_OK,
-    tags_arg
-)
+from tt_commands import CmdKeys, get_parsed_command, PARSED_OK, tags_arg
 from tt_sounds import NoiseMaker
 from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
@@ -135,7 +131,7 @@ def main_loop(today: TrackerDay):
             tag_arg = tags_arg(cmd_bits.command)
             if tag_arg is not None:
                 for tag in cmd_bits.result_args[tag_arg]:
-                    rep.print_tag_notes(today,tag)
+                    rep.print_tag_notes(today, tag)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
         if data_changed and today.fix_2400_events():
@@ -174,8 +170,7 @@ def custom_datafile() -> str:
     return file
 
 
-
-def set_taglists_from_config(day:TrackerDay):
+def set_taglists_from_config(day: TrackerDay):
     """Assign oversize, regular, and retired tag IDs from config."""
 
     day.regular_tagids, errors = TagID.parse_tagids_str(
@@ -209,7 +204,16 @@ def set_taglists_from_config(day:TrackerDay):
     else:
         # Make sure that the retired/oversize/regular sets are in
         # accord with the bike types of any visits so far today.
-        day.harmonize_biketags()
+        fixes = day.harmonize_biketags()
+        if fixes:
+            pr.iprint(
+                "Configuration file updated since start of day but some "
+                "changes have been held back:",
+                style=k.SUBTITLE_STYLE,
+            )
+            for s in fixes:
+                pr.iprint(s, num_indents=2, style=k.SUBTITLE_STYLE)
+            pr.iprint()
 
 
 def error_exit() -> None:
@@ -276,7 +280,7 @@ def set_up_today() -> TrackerDay:
             day = TrackerDay.load_from_file(datafilepath)
         except TrackerDayError as e:
             for s in e.args:
-                pr.iprint(s,style=k.ERROR_STYLE)
+                pr.iprint(s, style=k.ERROR_STYLE)
             error_exit()
     else:
         day = TrackerDay(
@@ -287,7 +291,7 @@ def set_up_today() -> TrackerDay:
         day.date = deduce_parking_date(datafilepath)
 
     # Set some bits, if missing
-    day.fill_default_bits(site_name = cfg.SITE_NAME,site_handle=cfg.SITE_HANDLE)
+    day.fill_default_bits(site_name=cfg.SITE_NAME, site_handle=cfg.SITE_HANDLE)
 
     # Find the tag reference lists (regular, oversize, etc).
     # If there's no tag reference lists, or it's today's date,
@@ -295,7 +299,7 @@ def set_up_today() -> TrackerDay:
     if day.date == ut.date_str("today") or (
         not day.regular_tagids and not day.oversize_tagids
     ):
-        ut.squawk("Setting taglists from config",cfg.DEBUG)
+        ut.squawk("Setting taglists from config", cfg.DEBUG)
         try:
             set_taglists_from_config(day)
         except TrackerDayError as e:

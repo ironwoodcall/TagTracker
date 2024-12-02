@@ -255,9 +255,11 @@ class TrackerDay:
                 self.biketags[t] = BikeTag(t, UNKNOWN)
             self.biketags[t].status = BikeTag.RETIRED
 
-    def harmonize_biketags(self):
+    def harmonize_biketags(self) ->list[str]:
         """
         Make tagid-types lists match any extant tags with visits.
+
+        Returns a list of strings describing the fixes.
 
         Changes anything in tagid type lists that doesn't match
         what is already committed (visited) in tag lists to conform
@@ -269,6 +271,8 @@ class TrackerDay:
         Reminder: a retired tagid will be in both the retired_tagids
         and the regular/oversize_tagids sets.
         """
+
+        fixes = []
         # Look for any biketags marked RETIRED but no longer
         # retired in config
         for biketag in self.biketags.values():
@@ -297,6 +301,7 @@ class TrackerDay:
             elif biketag.status != BikeTag.RETIRED:
                 # Retired in config but already in use!
                 self.retired_tagids.discard(tagid)
+                fixes += [f"Tag {tagid} not set to RETIRED."]
 
         # In sets of regular/oversize, are there any that don't match
         for tagid in list(self.regular_tagids|self.oversize_tagids):
@@ -305,12 +310,14 @@ class TrackerDay:
             if biketag.bike_type != conf_type:
                 # Mismatch between config and biketags list.
                 if biketag.status in {BikeTag.IN_USE,BikeTag.DONE}:
-                    # Config is wrong. Change the sets.
+                    # biketag is used. Change the sets.
                     self._swap_tagid_between_sets(tagid)
+                    fixes += [f"Tag {tagid} remains {biketag.bike_type} "
+                              f"not {conf_type}."]
                 else:
                     # The biketag not used yet, can change its type.
                     biketag.bike_type = conf_type
-
+        return fixes
 
 
     def _swap_tagid_between_sets(self,tagid):
