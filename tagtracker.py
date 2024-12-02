@@ -198,17 +198,19 @@ def set_taglists_from_config(day: TrackerDay):
 
     day.determine_tagids_conformity()
 
-    # FIXME: I noted "s this the right place for this?" but I don't know why.
+    # Set up the day's list of biketags.
     if not day.biketags:
+        # No biketags yet (fresh day), start empty from config.
         day.initialize_biketags()
     else:
+        # Partway through day, biketags already exist.
         # Make sure that the retired/oversize/regular sets are in
         # accord with the bike types of any visits so far today.
         fixes = day.harmonize_biketags()
         if fixes:
             pr.iprint(
-                "Configuration file updated since start of day but some "
-                "changes have been held back:",
+                "Configuration file updated since start of day; incompatible "
+                "changes held back:",
                 style=k.SUBTITLE_STYLE,
             )
             for s in fixes:
