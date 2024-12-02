@@ -202,10 +202,14 @@ def set_taglists_from_config(day:TrackerDay):
         raise TrackerDayError("Configuration file defines to tags.")
 
     day.determine_tagids_conformity()
-    # FIXME: Is this the right place for this? I don't think so.
+
+    # FIXME: I noted "s this the right place for this?" but I don't know why.
     if not day.biketags:
         day.initialize_biketags()
-
+    else:
+        # Make sure that the retired/oversize/regular sets are in
+        # accord with the bike types of any visits so far today.
+        day.harmonize_biketags()
 
 
 def error_exit() -> None:
