@@ -35,7 +35,7 @@ from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
 from common.tt_biketag import BikeTag
-from common.tt_constants import REGULAR, OVERSIZE, UNKNOWN
+from common.tt_constants import REGULAR, OVERSIZE, UNKNOWN, RETIRED
 from common.tt_bikevisit import BikeVisit
 from tt_registrations import Registrations
 from tt_notes import Notes
@@ -230,9 +230,9 @@ class TrackerDay:
         self.time_open = VTime("")
         self.time_closed = VTime("")
         self.registrations = Registrations()
-        self.regular_tagids = frozenset()
-        self.oversize_tagids = frozenset()
-        self.retired_tagids = frozenset()
+        self.regular_tagids = set()
+        self.oversize_tagids = set()
+        self.retired_tagids = set()
         self.colour_letters: dict[str, str] = {}
         self.notes = Notes()
         self.biketags: dict[TagID, BikeTag] = {}
@@ -254,6 +254,106 @@ class TrackerDay:
             if t not in self.biketags:
                 self.biketags[t] = BikeTag(t, UNKNOWN)
             self.biketags[t].status = BikeTag.RETIRED
+
+    def harmonize_biketags(self) -> list[str]:
+        """
+        Make tagid-types lists match any extant tags with visits.
+
+        Returns a list of strings describing the fixes.
+
+        Changes anything in tagid type lists that doesn't match
+        what is already committed (visited) in tag lists to conform
+        with what has already taken place in visits.  This handles
+        the case in which a configuration file changes partway through
+        a day: typically, marking a tag no longer 'retired' when the fob
+        has been returned after being lost on a previous day.
+
+        Reminder: a retired tagid will be in both the retired_tagids
+        and the regular/oversize_tagids sets.
+        """
+
+        fixes = []
+        # Look for any biketags marked RETIRED but no longer
+        # retired in config
+        for biketag in self.biketags.values():
+            if (
+                biketag.status == BikeTag.RETIRED
+                and biketag.tagid not in self.retired_tagids
+            ):
+                # This bike tag can now be available.
+                biketag.status = BikeTag.UNUSED
+
+        # tagids_in_use = sorted({v.tagid for v in self.all_visits()})
+
+        # for tagid in tagids_in_use:
+        #     biketag: BikeTag = self.biketags[tagid]
+
+        #     if biketag.bike_type == OVERSIZE:
+        #         self.oversize_tagids.add(tagid)
+        #         self._remove_tag_from_other_sets(tagid, exclude_set=self.oversize_tagids)
+        #     elif biketag.bike_type == REGULAR:
+        #         self.regular_tagids.add(tagid)
+        #         self._remove_tag_from_other_sets(tagid, exclude_set=self.regular_tagids)
+
+        # Look at the retired tagids (from config).
+        # Change any unused usable tags now marked retired to status retired.
+        for tagid in list(self.retired_tagids):
+            biketag = self.biketags[tagid]  # Cache the biketag for efficiency
+            if biketag.status == BikeTag.UNUSED:
+                biketag.status = BikeTag.RETIRED
+            elif biketag.status != BikeTag.RETIRED:
+                # Retired in config but already in use!
+                self.retired_tagids.discard(tagid)
+                fixes += [f"Tag {tagid} not set to RETIRED."]
+
+        # In sets of regular/oversize, are there any that don't match
+        for tagid in list(self.regular_tagids | self.oversize_tagids):
+            biketag = self.biketags[tagid]
+            conf_type = self._configured_bike_type(tagid)
+            if biketag.bike_type != conf_type:
+                # Mismatch between config and biketags list.
+                if biketag.status in {BikeTag.IN_USE, BikeTag.DONE}:
+                    # biketag is used. Change the sets.
+                    self._swap_tagid_between_sets(tagid)
+                    fixes += [
+                        f"Tag {tagid} remains {biketag.bike_type} " f"not {conf_type}."
+                    ]
+                else:
+                    # The biketag not used yet, can change its type.
+                    biketag.bike_type = conf_type
+        return fixes
+
+    def _swap_tagid_between_sets(self, tagid):
+        """Swap tagid between regular_tagids and oversize_tagids."""
+        if tagid in self.regular_tagids:
+            self.regular_tagids.discard(tagid)  # Remove from regular
+            self.oversize_tagids.add(tagid)  # Add to oversize
+        elif tagid in self.oversize_tagids:
+            self.oversize_tagids.discard(tagid)  # Remove from oversize
+            self.regular_tagids.add(tagid)  # Add to regular
+        elif tagid not in self.retired_tagids:
+            raise ValueError(
+                f"TagID {tagid} not found in retired, regular or oversize sets!"
+            )
+
+    def _configured_bike_type(self, tagid):
+        if tagid in self.retired_tagids:
+            return RETIRED
+        if tagid in self.regular_tagids:
+            return REGULAR
+        if tagid in self.oversize_tagids:
+            return OVERSIZE
+        return UNKNOWN
+
+    def _remove_tag_from_other_sets(self, tagid, exclude_set):
+        """Helper for harmonize_biketags."""
+        # Remove tag from all sets except the specified one
+        if exclude_set is not self.oversize_tagids:
+            self.oversize_tagids.discard(tagid)
+        if exclude_set is not self.regular_tagids:
+            self.regular_tagids.discard(tagid)
+        if exclude_set is not self.retired_tagids:
+            self.retired_tagids.discard(tagid)
 
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
@@ -505,13 +605,13 @@ class TrackerDay:
             day.site_name = data[TOKEN_SITE_NAME]
             day.site_handle = data[TOKEN_SITE_HANDLE]
 
-            day.regular_tagids = frozenset(
+            day.regular_tagids = set(
                 TagID(tagid) for tagid in data[TOKEN_REGULAR_TAGIDS]
             )
-            day.oversize_tagids = frozenset(
+            day.oversize_tagids = set(
                 TagID(tagid) for tagid in data[TOKEN_OVERSIZE_TAGIDS]
             )
-            day.retired_tagids = frozenset(
+            day.retired_tagids = set(
                 TagID(tagid) for tagid in data[TOKEN_RETIRED_TAGIDS]
             )
             reg = int(data.get(TOKEN_REGISTRATIONS, 0))
@@ -745,9 +845,7 @@ class TrackerDay:
     def dump(self, detailed: bool = False) -> list[str]:
         """Get info about this object."""
 
-        info = [
-            f"TrackerDay for '{self.date}','{self.time_open}'-'{self.time_closed}'"
-        ]
+        info = [f"TrackerDay for '{self.date}','{self.time_open}'-'{self.time_closed}'"]
         info.append(f"    BikeVisits: {len(self.all_visits())}")
         info.append(f"    BikeTags: {len(self.biketags)}")
 
@@ -771,10 +869,8 @@ class TrackerDay:
             + ", ".join([f"{count} {typ}" for typ, count in type_counts.items()])
         )
 
-        if not detailed:
-            return info
-
-        info.append("Detailed info now.... FIXME:")
+        if detailed:
+            info.append("Detailed info for TrackerDay object not yet implemented... FIXME:")
 
         return info
 

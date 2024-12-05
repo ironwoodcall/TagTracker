@@ -75,18 +75,19 @@ class NoiseMaker:
         ):
             sounds_missing = False
         if player_missing or sounds_missing:
-            pr.iprint()
             if sounds_missing:
                 pr.iprint(
                     "Some sound file(s) not found, some sounds may not play.",
                     style=k.WARNING_STYLE,
                 )
+                pr.iprint()
             if player_missing:
                 pr.iprint(
                     "Missing sound-player, sounds are disabled.",
                     style=k.WARNING_STYLE,
                 )
                 cls.enabled = False
+                pr.iprint()
                 return False
 
         cls._initialized = True

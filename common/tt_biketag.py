@@ -20,7 +20,8 @@ from common.tt_constants import REGULAR, OVERSIZE, UNKNOWN
 
 class BikeTagError(Exception):
     """Custom exception class for BikeTag errors."""
-    pass #pylint:disable=unnecessary-pass
+
+    pass  # pylint:disable=unnecessary-pass
 
 
 class BikeTag:
@@ -84,6 +85,85 @@ class BikeTag:
         else:
             return VTime(0)
 
+    def _test_time_in(self, bike_time: VTime, new_check_in: bool) -> str:
+        """Tests if bike_time is acceptable as a check-in time.
+
+        Checks:
+        - Status must be a recognized status value
+        - status not RETIRED
+        - 'edit' request must be IN_USE or DONE
+        - 'new' request must be DONE or UNUSED
+        - check-in time >= any previous check-out
+        - check-in time <= any current visit's check-out
+
+        new_check_in is True if a new check in request, False if editing
+
+        Returns "" if ok, else returns an error message string.
+
+        """
+        if self.status == self.RETIRED:
+            return f"Tag {self.tagid} is retired."
+        if self.status not in {self.UNUSED, self.IN_USE, self.DONE}:
+            return f"PROBLEM: tag {self.tagid} has unknown status {self.status}!"
+        if new_check_in:
+            if self.status not in {self.UNUSED, self.DONE}:
+                return f"Tag {self.tagid} is already checked in."
+        else:
+            if self.status not in {self.IN_USE, self.DONE}:
+                return f"Tag {self.tagid} not checked in (no check-in time to edit)."
+
+        # For clarity: on a check-in, the current visit is the one that would
+        # become previous to the new check-in.
+        latest_visit = self.latest_visit()
+        latest_visit_time_out = latest_visit.time_out if latest_visit else None
+
+        if new_check_in:
+            # New check-in. status will be UNUSED or DONE
+            # Time must be >= current (latest) check-out
+            if latest_visit_time_out and bike_time < latest_visit_time_out:
+                return (
+                    f"Check-in time {bike_time} for tag {self.tagid} is earlier than "
+                    f"previous visit's check-out time ({latest_visit_time_out})."
+                )
+
+        else:
+            # Editing.  THis implies that status == DONE or status == IN_USE
+            # New time must be between previous check out and current check out.
+            if bike_time <= self.previous_check_out():
+                return (
+                    f"Requested check-in time {bike_time} for tag {self.tagid} is earlier than "
+                    f"previous visit's check-out time ({self.previous_check_out()})."
+                )
+            if latest_visit_time_out and bike_time > latest_visit_time_out:
+                return (
+                    f"Requested check-in time {bike_time} for tag {self.tagid} is later than "
+                    f"its check-out time ({latest_visit_time_out})."
+                )
+
+        # # Any check in must be later than (previous) check-out
+        # if (
+        #     self.status == self.IN_USE
+        #     and latest_visit_time_out
+        #     and bike_time < latest_visit_time_out
+        # ) or (
+        #     self.status == self.DONE
+        #     and latest_visit_time_out
+        #     and bike_time >= latest_visit_time_out
+        # ):
+        #     return (
+        #         f"Proposed check-in time {bike_time} for tag {self.tagid} is earlier than "
+        #         f"previous visit's check-out time ({latest_visit_time_out})."
+        #     )
+        # # and >= any previous check-out and <= any current visit's check-out
+        # if bike_time < self.previous_check_out():
+        #     return (
+        #         f"Requested check-in time {bike_time} for tag {self.tagid} is earlier than "
+        #         f"previous visit's check-out time ({self.previous_check_out()})."
+        #     )
+
+        # No problems found!
+        return ""
+
     # Higher-level command-fulfillment methods
 
     def check_in(self, bike_time: VTime):
@@ -94,38 +174,27 @@ class BikeTag:
             - is not earlier than prior check-out
 
         """
-        if self.status not in {self.DONE, self.UNUSED}:
-            raise BikeTagError(f"Tag {self.tagid} is already checked in or is retired.")
-        if self.status == self.DONE and bike_time < self.latest_visit().time_out:
-            raise BikeTagError(
-                f"Check-in at {bike_time.short} for tag {self.tagid} "
-                f"cannot be earlier than than prior check-out ({self.latest_visit().time_out})."
-            )
+        error = self._test_time_in(bike_time=bike_time, new_check_in=True)
+        if error:
+            raise BikeTagError(error)
+
+        # Create a new check-in.
         self.start_visit(bike_time)
+
+    def edit_in(self, bike_time: VTime):
+        """Apply bike_time check in to the most recent time for this tag."""
+
+        error = self._test_time_in(bike_time=bike_time, new_check_in=False)
+        if error:
+            raise BikeTagError(error)
+
+        # Change the time in.
+        self.latest_visit().time_in = bike_time
 
     def check_out(self, time: VTime):
         """Higher-level check-out call."""
         if self.status == self.IN_USE:
             self.finish_visit(time)
-
-    def edit_in(self, bike_time: VTime):
-        """Apply bike_time check in to the most recent time for this tag."""
-        # No visit underway -- make a new visit.
-        if self.status in {self.UNUSED, self.RETIRED}:
-            raise BikeTagError(f"Tag {self.tagid} has no check-in to edit.")
-        elif self.status in [self.IN_USE, self.DONE]:
-            latest_visit = self.latest_visit()
-            if bike_time < self.previous_check_out():
-                raise BikeTagError(
-                    f"Proposed check-in of {bike_time.short} for tag {self.tagid} "
-                    "is earlier than prior check-out."
-                )
-            # Ok to edit the time_in
-            latest_visit.time_in = bike_time
-        else:
-            raise BikeTagError(
-                f"Invalid state '{self.status}' for edit_in of '{self.tagid}'."
-            )
 
     def edit_out(self, time: VTime):
         """A higher-level function for editing a time_out."""
@@ -134,7 +203,7 @@ class BikeTag:
             if v.time_in >= time:
                 raise BikeTagError(
                     f"Tag {self.tagid}: Checkout time {time} must be "
-                    f"later than check-in time {v.time_in}."
+                    f"later than check-in time ({v.time_in})."
                 )
             v.time_out = time
         elif self.status == self.IN_USE:
@@ -142,7 +211,7 @@ class BikeTag:
             if v.time_in >= time:
                 raise BikeTagError(
                     f"Check-out time {time} for {self.tagid} must be "
-                    f"later than check-in time {v.time_in}."
+                    f"later than check-in time ({v.time_in})."
                 )
             self.finish_visit(time)
         else:
@@ -192,7 +261,7 @@ class BikeTag:
         # Not in use, so must be DONE
         return self.DONE
 
-    def lint_check(self,allow_quick_checkout:bool=False) -> list[str]:
+    def lint_check(self, allow_quick_checkout: bool = False) -> list[str]:
         """Check the BikeTag for errors. Return any errors as a list.
 
         If allow_quick_checkout, a check-out can be the same time as a check-in.
@@ -243,9 +312,7 @@ class BikeTag:
                         f"{whatvisit} has a check-in time later than its check-out."
                     )
                 elif visit.time_in == visit.time_out and not allow_quick_checkout:
-                    errors.append(
-                        f"{whatvisit} has a check-in time as its check-out."
-                    )
+                    errors.append(f"{whatvisit} has a check-in time as its check-out.")
             elif i != last_visit_num:
                 errors.append(
                     f"{whatvisit} has no checkout time but is not the "
