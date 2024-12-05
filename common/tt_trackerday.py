@@ -255,7 +255,7 @@ class TrackerDay:
                 self.biketags[t] = BikeTag(t, UNKNOWN)
             self.biketags[t].status = BikeTag.RETIRED
 
-    def harmonize_biketags(self) ->list[str]:
+    def harmonize_biketags(self) -> list[str]:
         """
         Make tagid-types lists match any extant tags with visits.
 
@@ -276,7 +276,10 @@ class TrackerDay:
         # Look for any biketags marked RETIRED but no longer
         # retired in config
         for biketag in self.biketags.values():
-            if biketag.status == BikeTag.RETIRED and biketag.tagid not in self.retired_tagids:
+            if (
+                biketag.status == BikeTag.RETIRED
+                and biketag.tagid not in self.retired_tagids
+            ):
                 # This bike tag can now be available.
                 biketag.status = BikeTag.UNUSED
 
@@ -304,35 +307,36 @@ class TrackerDay:
                 fixes += [f"Tag {tagid} not set to RETIRED."]
 
         # In sets of regular/oversize, are there any that don't match
-        for tagid in list(self.regular_tagids|self.oversize_tagids):
+        for tagid in list(self.regular_tagids | self.oversize_tagids):
             biketag = self.biketags[tagid]
             conf_type = self._configured_bike_type(tagid)
             if biketag.bike_type != conf_type:
                 # Mismatch between config and biketags list.
-                if biketag.status in {BikeTag.IN_USE,BikeTag.DONE}:
+                if biketag.status in {BikeTag.IN_USE, BikeTag.DONE}:
                     # biketag is used. Change the sets.
                     self._swap_tagid_between_sets(tagid)
-                    fixes += [f"Tag {tagid} remains {biketag.bike_type} "
-                              f"not {conf_type}."]
+                    fixes += [
+                        f"Tag {tagid} remains {biketag.bike_type} " f"not {conf_type}."
+                    ]
                 else:
                     # The biketag not used yet, can change its type.
                     biketag.bike_type = conf_type
         return fixes
 
-
-    def _swap_tagid_between_sets(self,tagid):
+    def _swap_tagid_between_sets(self, tagid):
         """Swap tagid between regular_tagids and oversize_tagids."""
         if tagid in self.regular_tagids:
             self.regular_tagids.discard(tagid)  # Remove from regular
-            self.oversize_tagids.add(tagid)     # Add to oversize
+            self.oversize_tagids.add(tagid)  # Add to oversize
         elif tagid in self.oversize_tagids:
             self.oversize_tagids.discard(tagid)  # Remove from oversize
-            self.regular_tagids.add(tagid)       # Add to regular
+            self.regular_tagids.add(tagid)  # Add to regular
         elif tagid not in self.retired_tagids:
-            raise ValueError(f"TagID {tagid} not found in retired, regular or oversize sets!")
+            raise ValueError(
+                f"TagID {tagid} not found in retired, regular or oversize sets!"
+            )
 
-
-    def _configured_bike_type(self,tagid):
+    def _configured_bike_type(self, tagid):
         if tagid in self.retired_tagids:
             return RETIRED
         if tagid in self.regular_tagids:
@@ -350,8 +354,6 @@ class TrackerDay:
             self.regular_tagids.discard(tagid)
         if exclude_set is not self.retired_tagids:
             self.retired_tagids.discard(tagid)
-
-
 
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
@@ -843,9 +845,7 @@ class TrackerDay:
     def dump(self, detailed: bool = False) -> list[str]:
         """Get info about this object."""
 
-        info = [
-            f"TrackerDay for '{self.date}','{self.time_open}'-'{self.time_closed}'"
-        ]
+        info = [f"TrackerDay for '{self.date}','{self.time_open}'-'{self.time_closed}'"]
         info.append(f"    BikeVisits: {len(self.all_visits())}")
         info.append(f"    BikeTags: {len(self.biketags)}")
 
@@ -869,10 +869,8 @@ class TrackerDay:
             + ", ".join([f"{count} {typ}" for typ, count in type_counts.items()])
         )
 
-        if not detailed:
-            return info
-
-        info.append("Detailed info now.... FIXME:")
+        if detailed:
+            info.append("Detailed info for TrackerDay object not yet implemented... FIXME:")
 
         return info
 
