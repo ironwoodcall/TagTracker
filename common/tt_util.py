@@ -30,6 +30,7 @@ import collections
 import random
 import string
 from pathlib import Path
+from collections import defaultdict
 
 
 # import client_base_config as cfg
@@ -254,15 +255,27 @@ def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
     """
 
     # Make a dictionary of all tags keyed by their prefixes
-    prefixed_tags = dict(
-        zip([tag.prefix for tag in unsorted], [[] for _ in range(0, 100)])
-    )
+    prefixed_tags = defaultdict(list)
     for tag in unsorted:
         prefixed_tags[tag.prefix].append(tag)
+
     outerlist = []
     for prefix in sorted(prefixed_tags.keys()):
-        outerlist.append(sorted(prefixed_tags[prefix]))
+        outerlist.append(sorted(set(prefixed_tags[prefix])))  # dedupe + sort
+
     return outerlist
+
+
+
+    # prefixed_tags = dict(
+    #     zip([tag.prefix for tag in unsorted], [[] for _ in range(0, 100)])
+    # )
+    # for tag in unsorted:
+    #     prefixed_tags[tag.prefix].append(tag)
+    # outerlist = []
+    # for prefix in sorted(prefixed_tags.keys()):
+    #     outerlist.append(sorted(prefixed_tags[prefix]))
+    # return outerlist
 
 
 def tagnums_by_prefix(tags: list[TagID]) -> dict[str, list[int]]:
