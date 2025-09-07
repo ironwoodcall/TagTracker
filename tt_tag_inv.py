@@ -197,15 +197,19 @@ def tag_inventory_matrix(
 
 def retired_report(day: TrackerDay) -> None:
     """List retired tags."""
+    if not day.retired_tagids:
+        return
     pr.iprint()
     pr.iprint("Retired tags", style=k.SUBTITLE_STYLE)
-    if not day.retired_tagids:
-        pr.iprint("--no retired tags--")
-        return
-    retireds_str = " ".join(
-        [x.cased for sub in ut.taglists_by_prefix(day.retired_tagids) for x in sub]
-    )
-    ut.line_wrapper(retireds_str, print_handler=pr.iprint)
+
+    for group in ut.taglists_by_colour(day.retired_tagids):
+        retireds_str = " ".join(tag.cased for tag in group)
+        ut.line_wrapper(retireds_str, print_handler=pr.iprint)
+
+    # retireds_str = " ".join(
+    #     [x.cased for sub in ut.taglists_by_colour(day.retired_tagids) for x in sub]
+    # )
+    # ut.line_wrapper(retireds_str, print_handler=pr.iprint)
 
 
 def tags_config_report(
