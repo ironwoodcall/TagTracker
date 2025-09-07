@@ -266,6 +266,30 @@ def taglists_by_prefix(unsorted: tuple[TagID]) -> list[list[TagID]]:
     return outerlist
 
 
+def taglists_by_colour(unsorted: tuple[TagID]) -> list[list[TagID]]:
+    """Get tags sorted into lists by their colour.
+
+    Return a list of lists of tags, sorted and de-duped. E.g.
+        taglists_by_colour(['wa5','be1','be1', 'wa12','wd15','be1','be10','be9'])
+        --> [['be1','be9','be10],['wa5','wa12', 'wd15']]
+
+    Preconditions:
+        - tags are either all uppercase or all lowercase
+        - all tags are syntactically valid
+    """
+
+    # Make a dictionary of all tags keyed by their colours
+    coloured_tags = defaultdict(list)
+    for tag in unsorted:
+        coloured_tags[tag.colour].append(tag)
+
+    outerlist = []
+    for prefix in sorted(coloured_tags.keys()):
+        outerlist.append(sorted(set(coloured_tags[prefix])))  # dedupe + sort
+
+    return outerlist
+
+
 
     # prefixed_tags = dict(
     #     zip([tag.prefix for tag in unsorted], [[] for _ in range(0, 100)])
