@@ -115,9 +115,9 @@ def notes_command(notes_obj:Notes, args: list[str]) -> bool:
         show_notes(notes_obj=notes_obj, header=True, styled=False)
         return data_changed
 
-    text = args[0].strip().lower()
+    text = args[0].strip()#.lower()
 
-    if text in {"delete", "del", "d"}:
+    if text.lower() in {"delete", "del", "d"}:
         return handle_delete_command(notes_obj=notes_obj)
 
     notes_obj.add(args[0])
