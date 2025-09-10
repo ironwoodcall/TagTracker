@@ -305,6 +305,11 @@ class TrackerDay:
         # Look at the retired tagids (from config).
         # Change any unused usable tags now marked retired to status retired.
         for tagid in list(self.retired_tagids):
+
+            if tagid not in self.biketags:
+                fixes += [f"Tag {tagid} ignored (RETIRED in config but not available)."]
+                continue
+
             biketag = self.biketags[tagid]  # Cache the biketag for efficiency
             if biketag.status == BikeTag.UNUSED:
                 biketag.status = BikeTag.RETIRED
