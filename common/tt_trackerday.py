@@ -38,7 +38,8 @@ from common.tt_biketag import BikeTag
 from common.tt_constants import REGULAR, OVERSIZE, UNKNOWN, RETIRED
 from common.tt_bikevisit import BikeVisit
 from tt_registrations import Registrations
-from tt_notes import Notes
+
+# from tt_notes_manager import NotesManager
 
 # Define constants for the string literals
 TOKEN_TAGID = "tagid"
@@ -78,7 +79,9 @@ class OldTrackerDay:
         self.oversize = frozenset()
         self.retired = frozenset()
         self.colour_letters = {}
-        self.notes = []
+        from tt_notes import NotesManager
+
+        self.notes: NotesManager = []
         self.site_handle = ""
         self.site_name = ""
 
@@ -222,6 +225,8 @@ class TrackerDay:
     # Minutes to allow checkin/out to exceed operating hours
     OPERATING_HOURS_TOLERANCE = 120
 
+    # from tt_notes_manager import NotesManager
+
     def __init__(
         self, filepath: str, site_name: str = "", site_handle: str = ""
     ) -> None:
@@ -234,8 +239,10 @@ class TrackerDay:
         self.oversize_tagids = set()
         self.retired_tagids = set()
         self.colour_letters: dict[str, str] = {}
-        self.notes = Notes()
+        from tt_notes import NotesManager
+
         self.biketags: dict[TagID, BikeTag] = {}
+        self.notes = NotesManager(biketags=self.biketags)
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
         self.site_handle = site_handle or ""
@@ -591,7 +598,7 @@ class TrackerDay:
             TOKEN_REGULAR_TAGIDS: sorted(list(self.regular_tagids)),
             TOKEN_OVERSIZE_TAGIDS: sorted(list(self.oversize_tagids)),
             TOKEN_RETIRED_TAGIDS: sorted(list(self.retired_tagids)),
-            TOKEN_NOTES: self.notes.notes,
+            TOKEN_NOTES: self.notes.serialize(),
         }
 
     @staticmethod
@@ -601,7 +608,6 @@ class TrackerDay:
             day.date = data[TOKEN_DATE]
             day.time_open = VTime(data[TOKEN_OPENING_TIME])
             day.time_closed = VTime(data[TOKEN_CLOSING_TIME])
-            day.notes.load(data[TOKEN_NOTES])
             day.site_name = data[TOKEN_SITE_NAME]
             day.site_handle = data[TOKEN_SITE_HANDLE]
 
@@ -616,6 +622,8 @@ class TrackerDay:
             )
             reg = int(data.get(TOKEN_REGISTRATIONS, 0))
             day.registrations = Registrations(reg)
+            # Notes loading has to follow loading the tagids
+            day.notes.load(data[TOKEN_NOTES])
 
         except (KeyError, ValueError) as e:
             raise TrackerDayError(
@@ -656,12 +664,22 @@ class TrackerDay:
 
         # Make sure all the visits are sorted by check_in time
 
+        # Notes have to get loaded last because they rely on scanning for
+        # valid tags in today's usable list.
+        try:
+            day.notes.load(data[TOKEN_NOTES])
+        except (KeyError, ValueError) as e:
+            raise TrackerDayError(
+                f"Bad key or value for Notes in file: "
+                f"'{data[TOKEN_REGISTRATIONS]}'. Error {e}"
+            ) from e
+
         return day
 
     def save_to_file(self, custom_filepath: str = "") -> None:
         """Save to the file.
 
-        With defulat filepath, any errors in writing are considered catastrophic.
+        With default filepath, any errors in writing are considered catastrophic.
         For others, report the error and return False.
         """
         what_filepath = custom_filepath or self.filepath
@@ -870,7 +888,9 @@ class TrackerDay:
         )
 
         if detailed:
-            info.append("Detailed info for TrackerDay object not yet implemented... FIXME:")
+            info.append(
+                "Detailed info for TrackerDay object not yet implemented... FIXME:"
+            )
 
         return info
 
@@ -884,33 +904,34 @@ class TrackerDay:
 #     return None
 
 
-def old_to_new(old: OldTrackerDay) -> TrackerDay:
-    """Convert an old Trackerday to a new one."""
+# def old_to_new(old: OldTrackerDay) -> TrackerDay:
+#     """Convert an old Trackerday to a new one."""
 
-    new = TrackerDay("")
-    new.date = old.date
-    new.time_open = old.time_open
-    new.time_closed = old.time_closed
-    new.registrations = Registrations(old.registrations)
-    new.notes = Notes(old.notes)
-    # Tag reference lists
-    new.regular_tagids = old.regular
-    new.oversize_tagids = old.oversize
-    new.retired_tagids = old.retired
-    # Biketags dict
-    for t in new.regular_tagids:
-        new.biketags[t] = BikeTag(t, REGULAR)
-    for t in new.oversize_tagids:
-        new.biketags[t] = BikeTag(t, OVERSIZE)
-    for t in new.retired_tagids:
-        if t not in new.biketags:
-            new.biketags[t] = BikeTag(t, UNKNOWN)
-        new.biketags[t].status = BikeTag.RETIRED
+#     new = TrackerDay("")
+#     new.date = old.date
+#     new.time_open = old.time_open
+#     new.time_closed = old.time_closed
+#     new.registrations = Registrations(old.registrations)
+#     from tt_notes import NotesManager
+#     new.notes = NotesManager(old.notes)
+#     # Tag reference lists
+#     new.regular_tagids = old.regular
+#     new.oversize_tagids = old.oversize
+#     new.retired_tagids = old.retired
+#     # Biketags dict
+#     for t in new.regular_tagids:
+#         new.biketags[t] = BikeTag(t, REGULAR)
+#     for t in new.oversize_tagids:
+#         new.biketags[t] = BikeTag(t, OVERSIZE)
+#     for t in new.retired_tagids:
+#         if t not in new.biketags:
+#             new.biketags[t] = BikeTag(t, UNKNOWN)
+#         new.biketags[t].status = BikeTag.RETIRED
 
-    # Add visits to the tags
-    for tagid, time_in in old.bikes_in.items():
-        new.biketags[tagid].start_visit(time_in)
-    for tagid, time_out in old.bikes_out.items():
-        new.biketags[tagid].finish_visit(time_out)
+#     # Add visits to the tags
+#     for tagid, time_in in old.bikes_in.items():
+#         new.biketags[tagid].start_visit(time_in)
+#     for tagid, time_out in old.bikes_out.items():
+#         new.biketags[tagid].finish_visit(time_out)
 
-    return new
+#     return new

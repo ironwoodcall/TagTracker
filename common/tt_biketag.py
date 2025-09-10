@@ -328,6 +328,25 @@ class BikeTag:
 
         return errors
 
+    def visit_finished_at(self, event_time: VTime):
+        """
+        For this BikeTag and a given VTime, return:
+        - False if no visit exists that contains event_time
+        - time_out if the visit that contains event_time has concluded
+        - False if the visit that contains event_time is ongoing
+        """
+        event_time = VTime(event_time)
+
+        for visit in self.visits:
+            if visit.time_in > event_time:
+                continue
+            if not visit.time_out:
+                continue
+            if visit.time_out < event_time:
+                continue
+            return visit.time_out
+        return False
+
         # # Iterate over visits to determine the status at the given time
         # for i, visit in enumerate(self.visits):
         #     if visit.time_in <= as_of_when:

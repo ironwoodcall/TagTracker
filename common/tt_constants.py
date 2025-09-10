@@ -31,6 +31,14 @@ MaybeTag = str
 MaybeTime = str
 MaybeDate = str
 
+
+# Constants for Notes statuses
+NOTE_ACTIVE = "A"
+NOTE_DELETED = "D"
+NOTE_RECOVERED = "R"
+
+
+
 # Constants to use as dictionary keys.
 
 TAG = chr(0x2192) + "TAGID"

@@ -192,10 +192,13 @@ def later_events_warning(day: TrackerDay, when: VTime = "") -> None:
     pr.iprint(msg, style=k.ERROR_STYLE)
 
 
-def print_tag_notes(day: TrackerDay, tag: str):
+def print_tag_notes(day: TrackerDay, target_tag: str):
     """Print notes for a given tag."""
-    for line in day.notes.find(tag):
-        pr.iprint(line, style=k.WARNING_STYLE)
+    for note in day.notes.notes:
+        for note_tag in note.tags:
+            if TagID(target_tag) == note_tag.tagid:
+                pr.iprint(note.pretty(), style=k.WARNING_STYLE)
+                continue
 
 
 def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
