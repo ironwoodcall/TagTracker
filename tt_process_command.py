@@ -639,12 +639,11 @@ def process_command(
         NoiseMaker.queue_add(k.ALERT)
 
     # Try to autodelete any stale notes
-    if today.notes.autodelete():
+    if today.notes.autodelete() > 0:
         data_changed = True
 
     NoiseMaker.queue_play()
     return data_changed
-
 
 def lint_report(
     today: TrackerDay, strict_datetimes: bool = True, chatty: bool = False

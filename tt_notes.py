@@ -27,12 +27,14 @@ import common.tt_util as ut
 import common.tt_time as tt_time
 import client_base_config as cfg
 import tt_printer as pr
+
 # from common.tt_trackerday import TrackerDay
 from common.tt_tag import TagID
 from common.tt_biketag import BikeTag
 
 
 # from common.tt_bikevisit import BikeVisit
+
 
 class Note:
     """One note."""
@@ -48,7 +50,7 @@ class Note:
     )
     _LEGACY_RE = re.compile(rf"^(?P<time>{_TIME_PATTERN})\s+(?P<text>.*)$")
 
-    def __init__(self, init_str: str, biketags:dict[TagID,BikeTag]):
+    def __init__(self, init_str: str, biketags: dict[TagID, BikeTag]):
         """Initialize a Note.
 
         On entry init_str is either the text to make into the note,
@@ -66,8 +68,7 @@ class Note:
         self.tags: list[BikeTag] = []
 
         self.unpack(init_str)
-        self.tags = scan_for_tags(text=self.text,biketags=biketags)
-
+        self.tags = scan_for_tags(text=self.text, biketags=biketags)
 
     def unpack(self, packed: str) -> None:
         """Unpack a note string into object attributes."""
@@ -138,7 +139,8 @@ class Note:
                 return False
             return True
 
-def scan_for_tags(text: str, biketags:dict[TagID,BikeTag]) -> list[BikeTag]:
+
+def scan_for_tags(text: str, biketags: dict[TagID, BikeTag]) -> list[BikeTag]:
     """Scan 'text' for valid tags and return the corresponding BikeTag objects."""
     tags = []
     for word in re.findall(r"\w+", text):
@@ -151,7 +153,7 @@ def scan_for_tags(text: str, biketags:dict[TagID,BikeTag]) -> list[BikeTag]:
 class NotesManager:
     """Look after the notes that the attendant makes through the day."""
 
-    def __init__(self, biketags:dict[TagID,BikeTag]) -> None:
+    def __init__(self, biketags: dict[TagID, BikeTag]) -> None:
         """The only thing we care about is the list of notes."""
         self.notes = []
         self.biketags = biketags
@@ -164,7 +166,7 @@ class NotesManager:
         note_text = note_text[: cfg.MAX_NOTE_LENGTH]
         if not note_text:
             return
-        note = Note(note_text,self.biketags)
+        note = Note(note_text, self.biketags)
         self.notes.append(note)
 
     def clear(self) -> None:
@@ -177,7 +179,7 @@ class NotesManager:
         for one_note in notes_list:
             self.add(one_note)
 
-    def autodelete(self, give_message:bool=True) -> int:
+    def autodelete(self, give_message: bool = True) -> int:
         """Tries to autodelete notes.
 
         Returns number of notes deleted.
@@ -185,16 +187,17 @@ class NotesManager:
         """
         deleted = 0
         for note in self.notes:
-            note:Note
+            note: Note
             if note.status == k.NOTE_ACTIVE and note.can_auto_delete():
                 note.delete()
                 deleted += 1
             if deleted and give_message:
                 pr.iprint()
-                pr.iprint(f"Deleted {deleted} expired {ut.plural(deleted,'note')}.",
-                          style=k.SUBTITLE_STYLE)
+                pr.iprint(
+                    f"Deleted {deleted} expired {ut.plural(deleted,'note')}.",
+                    style=k.SUBTITLE_STYLE,
+                )
         return deleted
-
 
     def dump(self):
         """Print out the notes."""
@@ -214,7 +217,9 @@ class NotesManager:
 
         # Delete or undelete the corresponding note.
         # Make a sublist of just those notes that are active (or not)
-        status_filter = {k.NOTE_ACTIVE, k.NOTE_RECOVERED} if is_active else {k.NOTE_DELETED}
+        status_filter = (
+            {k.NOTE_ACTIVE, k.NOTE_RECOVERED} if is_active else {k.NOTE_DELETED}
+        )
         filtered_notes = [n for n in self.notes if n.status in status_filter]
         this_note: Note = filtered_notes[note_index - 1]
         if is_active:
@@ -229,7 +234,9 @@ class NotesManager:
 
     def active_notes(self) -> list:
         """Return sorted list of active/recovered notes."""
-        sublist = [n for n in self.notes if n.status in {k.NOTE_ACTIVE,k.NOTE_RECOVERED}]
+        sublist = [
+            n for n in self.notes if n.status in {k.NOTE_ACTIVE, k.NOTE_RECOVERED}
+        ]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
 
@@ -238,6 +245,7 @@ class NotesManager:
         sublist = [n for n in self.notes if n.status == k.NOTE_DELETED]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
+
 
 def show_notes_sublist(
     notes_list,
@@ -270,7 +278,7 @@ def show_notes_sublist(
 
 
 def show_all_notes(
-    notes_list:NotesManager,
+    notes_list: NotesManager,
     show_header: bool = True,
 ) -> None:
     """Print all the notes."""
@@ -316,7 +324,7 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
     if text.lower() in {"undelete", "undel", "u", "recover"}:
         return handle_delete_undelete_command(notes_list=notes_list, deleting=False)
 
-    if text.lower() in {"auto","autodelete","ad"}:
+    if text.lower() in {"auto", "autodelete", "ad"}:
         changed = notes_list.autodelete()
         return changed
 
@@ -345,7 +353,9 @@ def handle_delete_undelete_command(notes_list: NotesManager, deleting: bool) -> 
 
     pr.iprint(f"{verb} a note:", style=k.TITLE_STYLE)
 
-    show_notes_sublist(filtered_notes, num_indents=2, show_enumerated=True)
+    show_notes_sublist(
+        filtered_notes, num_indents=2, show_enumerated=True, show_styled=False
+    )
 
     total_notes = len(filtered_notes)
     pr.iprint(
@@ -374,5 +384,3 @@ def handle_delete_undelete_command(notes_list: NotesManager, deleting: bool) -> 
     data_changed = True
     pr.iprint(f"{verb} successful.", style=k.SUBTITLE_STYLE)
     return data_changed
-
-
