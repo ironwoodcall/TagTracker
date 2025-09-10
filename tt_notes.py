@@ -177,17 +177,23 @@ class NotesManager:
         for one_note in notes_list:
             self.add(one_note)
 
-    def autodelete(self) -> bool:
+    def autodelete(self, give_message:bool=True) -> int:
         """Tries to autodelete notes.
-        Returns True if any were deletd, False if all still the same.
+
+        Returns number of notes deleted.
+        Optionally gives a message if any deleted.
         """
-        data_changed = False
+        deleted = 0
         for note in self.notes:
             note:Note
             if note.status == k.NOTE_ACTIVE and note.can_auto_delete():
                 note.delete()
-                data_changed = True
-        return data_changed
+                deleted += 1
+            if deleted and give_message:
+                pr.iprint()
+                pr.iprint(f"Deleted {deleted} expired {ut.plural(deleted,'note')}.",
+                          style=k.SUBTITLE_STYLE)
+        return deleted
 
 
     def dump(self):
