@@ -41,7 +41,7 @@ class Note:
 
     # Compiled regular expressions to recognize notes from datafile
     # in current or legacy format, or a straightforward new note from user
-    _TIME_PATTERN = r"[012][0-9]:[0-5][0-9]"
+    _TIME_PATTERN = r"(?:[01][0-9]|2[0-3]):[0-5][0-9]"
     _PACKED_RE = re.compile(
         rf"^"
         rf"(?P<status>[{k.NOTE_ACTIVE}{k.NOTE_DELETED}{k.NOTE_RECOVERED}])?\|"
@@ -116,7 +116,7 @@ class Note:
         #     pretty_text = f"{pretty_text}; {t.tagid} {t.status} {len(t.visits)} visits"
         return pretty_text
 
-    def can_auto_delete(self):
+    def can_auto_delete(self) -> bool:
         """Returns True if ok to auto-delete this note.
         Can delete if
             note has >= 1 tag reference
@@ -137,16 +137,18 @@ class Note:
                 return False
             if (now - end.num) < cfg.NOTE_AUTODELETE_DELAY:
                 return False
-            return True
+        return True
 
 
 def scan_for_tags(text: str, biketags: dict[TagID, BikeTag]) -> list[BikeTag]:
     """Scan 'text' for valid tags and return the corresponding BikeTag objects."""
-    tags = []
+    tags: list[BikeTag] = []
+    seen: set[TagID] = set()
     for word in re.findall(r"\w+", text):
         tagid = TagID(word)
-        if tagid and tagid in biketags:
+        if tagid and tagid in biketags and tagid not in seen:
             tags.append(biketags[tagid])
+            seen.add(tagid)
     return tags
 
 
@@ -191,12 +193,12 @@ class NotesManager:
             if note.status == k.NOTE_ACTIVE and note.can_auto_delete():
                 note.delete()
                 deleted += 1
-            if deleted and give_message:
-                pr.iprint()
-                pr.iprint(
-                    f"Deleted {deleted} expired {ut.plural(deleted,'note')}.",
-                    style=k.SUBTITLE_STYLE,
-                )
+        if deleted and give_message:
+            pr.iprint()
+            pr.iprint(
+                f"Deleted {deleted} expired {ut.plural(deleted,'note')}.",
+                style=k.SUBTITLE_STYLE,
+            )
         return deleted
 
     def dump(self):
@@ -211,16 +213,18 @@ class NotesManager:
         """
         if not self.notes:
             return
-        if note_index < 1 or note_index > len(self.notes):
-            ut.squawk(f"Unexpected value for {note_index=}, out of range.")
-            return
-
-        # Delete or undelete the corresponding note.
-        # Make a sublist of just those notes that are active (or not)
+        # Build the filtered list first, then validate index against it
         status_filter = (
             {k.NOTE_ACTIVE, k.NOTE_RECOVERED} if is_active else {k.NOTE_DELETED}
         )
         filtered_notes = [n for n in self.notes if n.status in status_filter]
+        if not filtered_notes:
+            return
+        if note_index < 1 or note_index > len(filtered_notes):
+            ut.squawk(f"Unexpected value for {note_index=}, out of range.")
+            return
+
+        # Delete or undelete the corresponding note.
         this_note: Note = filtered_notes[note_index - 1]
         if is_active:
             this_note.delete()
@@ -284,7 +288,7 @@ def show_all_notes(
     """Print all the notes."""
 
     if show_header:
-        if notes_list:
+        if notes_list.notes:
             pr.iprint("Today's notes:", style=k.TITLE_STYLE)
         else:
             pr.iprint("There are no notes yet today.")
@@ -326,7 +330,7 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
 
     if text.lower() in {"auto", "autodelete", "ad"}:
         changed = notes_list.autodelete()
-        return changed
+        return changed > 0
 
     # notes_list.add(f"{k.NOTE_ACTIVE}|{tt_time.VTime('now')}|{args[0]}")
     notes_list.add(args[0])

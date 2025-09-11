@@ -31,7 +31,7 @@ from common.tt_trackerday import TrackerDay
 import common.tt_util as ut
 from common.tt_daysummary import DaySummary, PeriodDetail, MomentDetail
 from common.tt_statistics import VisitStats
-
+from tt_notes import Note
 # import tt_block
 import tt_printer as pr
 
@@ -195,6 +195,9 @@ def later_events_warning(day: TrackerDay, when: VTime = "") -> None:
 def print_tag_notes(day: TrackerDay, target_tag: str):
     """Print notes for a given tag."""
     for note in day.notes.notes:
+        note:Note
+        if note.status == k.NOTE_DELETED:
+            continue
         for note_tag in note.tags:
             if TagID(target_tag) == note_tag.tagid:
                 pr.iprint(note.pretty(), style=k.WARNING_STYLE)

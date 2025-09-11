@@ -638,9 +638,7 @@ def process_command(
         pr.iprint(f"Command {canonical_invocation} is not available.")
         NoiseMaker.queue_add(k.ALERT)
 
-    # Try to autodelete any stale notes
-    if today.notes.autodelete() > 0:
-        data_changed = True
+    # Note autodelete is handled in main loop after tag-note printing
 
     NoiseMaker.queue_play()
     return data_changed
