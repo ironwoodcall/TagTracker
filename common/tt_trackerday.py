@@ -627,8 +627,6 @@ class TrackerDay:
             )
             reg = int(data.get(TOKEN_REGISTRATIONS, 0))
             day.registrations = Registrations(reg)
-            # Notes loading has to follow loading the tagids
-            day.notes.load(data[TOKEN_NOTES])
 
         except (KeyError, ValueError) as e:
             raise TrackerDayError(
