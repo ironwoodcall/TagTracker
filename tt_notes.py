@@ -215,28 +215,6 @@ class NotesManager:
         for line in self.notes:
             print(line)
 
-    def delete_or_undelete_note(self, note_index, is_active: bool) -> None:
-        """Delete a note from the collection.
-        notes_index is 1-based, within the set of either active/recovered, or deleted.
-        if is_active, deletes.  If not is_active, undeletes.
-        """
-        if not self.notes:
-            return
-        # Build the filtered list first, then validate index against it
-        filtered_notes = self.active_notes() if is_active else self.deleted_notes()
-        if not filtered_notes:
-            return
-        if note_index < 1 or note_index > len(filtered_notes):
-            ut.squawk(f"Unexpected value for {note_index=}, out of range.")
-            return
-
-        # Delete or undelete the corresponding note.
-        this_note: Note = filtered_notes[note_index - 1]
-        if is_active:
-            this_note.delete()
-        else:
-            this_note.recover()
-
     def serialize(self) -> list[str]:
         """Return the notes objects in the form of a list of strings."""
         packed = [n.pack() for n in self.notes]
