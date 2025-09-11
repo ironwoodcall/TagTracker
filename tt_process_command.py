@@ -596,7 +596,7 @@ def process_command(
     elif cmd == CmdKeys.CMD_ESTIMATE:
         estimate(today=today)
     elif cmd == CmdKeys.CMD_EXIT:
-        return
+        return False
     # elif cmd == CmdKeys.CMD_FULL_CHART:
     #     rep.fullness_graph(pack_day_data())
     elif cmd == CmdKeys.CMD_GRAPHS:

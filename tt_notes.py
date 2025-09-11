@@ -32,6 +32,11 @@ import tt_printer as pr
 from common.tt_tag import TagID
 from common.tt_biketag import BikeTag
 
+# Note status codes (moved here from tt_constants to localize concerns)
+NOTE_ACTIVE = "A"
+NOTE_DELETED = "D"
+NOTE_RECOVERED = "R"
+
 
 # from common.tt_bikevisit import BikeVisit
 
@@ -44,7 +49,7 @@ class Note:
     _TIME_PATTERN = r"(?:[01][0-9]|2[0-3]):[0-5][0-9]"
     _PACKED_RE = re.compile(
         rf"^"
-        rf"(?P<status>[{k.NOTE_ACTIVE}{k.NOTE_DELETED}{k.NOTE_RECOVERED}])?\|"
+        rf"(?P<status>[{NOTE_ACTIVE}{NOTE_DELETED}{NOTE_RECOVERED}])?\|"
         rf"(?P<time>{_TIME_PATTERN})?\|"
         rf"(?P<text>.*)$"
     )
@@ -76,7 +81,7 @@ class Note:
         # Packed format
         m = self._PACKED_RE.match(packed)
         if m:
-            self.status = m.group("status") or k.NOTE_ACTIVE
+            self.status = m.group("status") or NOTE_ACTIVE
 
             time_str = m.group("time")
             self.created_at = (
@@ -89,13 +94,13 @@ class Note:
         # Legacy format
         m = self._LEGACY_RE.match(packed)
         if m:
-            self.status = k.NOTE_ACTIVE
+            self.status = NOTE_ACTIVE
             self.created_at = tt_time.VTime(m.group("time"))
             self.text = m.group("text") or ""
             return
 
         # Plain text
-        self.status = k.NOTE_ACTIVE
+        self.status = NOTE_ACTIVE
         self.created_at = tt_time.VTime("now")
         self.text = packed.strip()
 
@@ -105,10 +110,10 @@ class Note:
         return f"{self.status}|{time_str}|{self.text}"
 
     def delete(self) -> None:
-        self.status = k.NOTE_DELETED
+        self.status = NOTE_DELETED
 
     def recover(self) -> None:
-        self.status = k.NOTE_RECOVERED
+        self.status = NOTE_RECOVERED
 
     def pretty(self) -> str:
         pretty_text = f"{self.created_at} {self.text}"
@@ -124,7 +129,7 @@ class Note:
                     finished at least ~10 minutes in the past
             note was not maunally undeleted
         """
-        if self.status == k.NOTE_RECOVERED:
+        if self.status == NOTE_RECOVERED:
             return False
         if len(self.tags) < 1:
             return False
@@ -134,6 +139,10 @@ class Note:
             end: tt_time.VTime
             end = tag.visit_finished_at(self.created_at)
             if not end:  # Visit is ongoing
+                return False
+            # If created eactly at checkout time, it's probably
+            # a note for a tag that was immediately reused.
+            if end.num == self.created_at:
                 return False
             if (now - end.num) < cfg.NOTE_AUTODELETE_DELAY:
                 return False
@@ -188,9 +197,9 @@ class NotesManager:
         Optionally gives a message if any deleted.
         """
         deleted = 0
-        for note in self.notes:
-            note: Note
-            if note.status == k.NOTE_ACTIVE and note.can_auto_delete():
+        # Consider only active/recovered notes for auto-delete checks
+        for note in self.active_notes():
+            if note.status == NOTE_ACTIVE and note.can_auto_delete():
                 note.delete()
                 deleted += 1
         if deleted and give_message:
@@ -214,10 +223,7 @@ class NotesManager:
         if not self.notes:
             return
         # Build the filtered list first, then validate index against it
-        status_filter = (
-            {k.NOTE_ACTIVE, k.NOTE_RECOVERED} if is_active else {k.NOTE_DELETED}
-        )
-        filtered_notes = [n for n in self.notes if n.status in status_filter]
+        filtered_notes = self.active_notes() if is_active else self.deleted_notes()
         if not filtered_notes:
             return
         if note_index < 1 or note_index > len(filtered_notes):
@@ -238,15 +244,13 @@ class NotesManager:
 
     def active_notes(self) -> list:
         """Return sorted list of active/recovered notes."""
-        sublist = [
-            n for n in self.notes if n.status in {k.NOTE_ACTIVE, k.NOTE_RECOVERED}
-        ]
+        sublist = [n for n in self.notes if n.status in {NOTE_ACTIVE, NOTE_RECOVERED}]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
 
     def deleted_notes(self) -> list:
         """Return sorted list of deleted notes."""
-        sublist = [n for n in self.notes if n.status == k.NOTE_DELETED]
+        sublist = [n for n in self.notes if n.status == NOTE_DELETED]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
 
@@ -332,7 +336,7 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
         changed = notes_list.autodelete()
         return changed > 0
 
-    # notes_list.add(f"{k.NOTE_ACTIVE}|{tt_time.VTime('now')}|{args[0]}")
+    # notes_list.add(f"{NOTE_ACTIVE}|{tt_time.VTime('now')}|{args[0]}")
     notes_list.add(args[0])
     data_changed = True
     pr.iprint("Noted.", style=k.SUBTITLE_STYLE)

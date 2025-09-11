@@ -334,6 +334,8 @@ class BikeTag:
         - False if no visit exists that contains event_time
         - time_out if the visit that contains event_time has concluded
         - False if the visit that contains event_time is ongoing
+        If event time is exactly at checkout time, this is considered
+        outside the visit.
         """
         event_time = VTime(event_time)
 
@@ -342,7 +344,7 @@ class BikeTag:
                 continue
             if not visit.time_out:
                 continue
-            if visit.time_out < event_time:
+            if visit.time_out <= event_time:
                 continue
             return visit.time_out
         return False

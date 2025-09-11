@@ -193,15 +193,12 @@ def later_events_warning(day: TrackerDay, when: VTime = "") -> None:
 
 
 def print_tag_notes(day: TrackerDay, target_tag: str):
-    """Print notes for a given tag."""
-    for note in day.notes.notes:
-        note:Note
-        if note.status == k.NOTE_DELETED:
-            continue
+    """Print active/recovered notes for a given tag."""
+    for note in day.notes.active_notes():
         for note_tag in note.tags:
             if TagID(target_tag) == note_tag.tagid:
                 pr.iprint(note.pretty(), style=k.WARNING_STYLE)
-                continue
+                break
 
 
 def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:
