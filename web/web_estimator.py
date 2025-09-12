@@ -884,6 +884,33 @@ class Estimator:
                 peak_time = VTime(tm)
         return peak, peak_time
 
+    @staticmethod
+    def _peak_all_day_occupancy(visits: list[tuple[VTime, Optional[VTime]]]) -> tuple[int, VTime]:
+        """Compute the maximum occupancy and when it occurs over the entire day.
+
+        Uses all visit events (ins as +1, outs as -1) from the day's data
+        without restricting to times after now. Assumes occupancy is zero
+        before the first event of the day.
+        """
+        events: list[tuple[int, int]] = []
+        for tin, tout in visits:
+            if tin:
+                events.append((int(VTime(tin).num), +1))
+            if tout:
+                events.append((int(VTime(tout).num), -1))
+        if not events:
+            return 0, VTime("00:00")
+        events.sort(key=lambda x: (x[0], -x[1]))
+        occ = 0
+        peak = 0
+        peak_time = VTime(events[0][0])
+        for tm, delta in events:
+            occ += delta
+            if occ > peak:
+                peak = occ
+                peak_time = VTime(tm)
+        return peak, peak_time
+
     def _confidence_level(self, n: int, frac_elapsed: float) -> str:
         cfg = getattr(wcfg, "EST_CONF_THRESHOLDS", None)
         high = {"min_n": 12, "min_frac": 0.4}
@@ -972,7 +999,8 @@ class Estimator:
             vlist = self._visits_for_date(d)
             _b, _a, _outs_to_t, ins_nxh, outs_nxh = self._counts_for_time(vlist, self.as_of_when)
             nxh_acts.append(int(ins_nxh + outs_nxh))
-            p, pt = self._peak_future_occupancy(vlist, self.as_of_when, self.time_closed)
+            # Use whole-day peak for similar days (can occur before or after 'now')
+            p, pt = self._peak_all_day_occupancy(vlist)
             peaks.append((int(p), pt))
 
         nxh_activity = int(statistics.median(nxh_acts)) if nxh_acts else 0
