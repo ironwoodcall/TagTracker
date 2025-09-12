@@ -214,18 +214,6 @@ Description
     then only data up to that time is incorporated in the graphs.
 
 """,
-    CmdKeys.CMD_ESTIMATE: """
-Command: ESTIMATE [OLD|FULL]
-
-Can be invoked as
-  {}
-
-Arguments:
-
-
-Description
-
-""",
 }
 
 
