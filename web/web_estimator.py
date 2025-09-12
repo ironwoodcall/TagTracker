@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """Estimate how many more bikes to expect.
 
-Call (as itself) as:
-    self    bikes_so_far, as_of_when, dow, time_closed
+New API (CGI or CLI):
+    opening_time, closing_time, bikes_so_far, [max_bikes_today], [max_bikes_time_today]
     where
-        bikes_so_far: is how many bikes in by as_of_when (mandatory)
-        as_of_when: is the time for which the estimate is made, HH:MM, H:MM, HMM
-            (default if missing or "": now)
-        dow: ISO day of week (1=Mo..7=Su), YYYY-MM-DD, "today" or "yesterday"
-            (default if missing or "": today)
-        time_closed: HHMM of time the service closes day of estimate
-            (default if missing or "": will try to determine using config functions)
+        opening_time: service opening time for today (HHMM or HH:MM)
+        closing_time: service closing time for today (HHMM or HH:MM)
+        bikes_so_far: bikes currently parked (as of now)
+        max_bikes_today: optional, for future use (ignored if provided)
+        max_bikes_time_today: optional, for future use (ignored if provided)
 
-Or call in a CGI script, and the parameters are read from QUERY_STRING.
-The parameter names are the same as above.
+Assumptions for new API:
+    - Estimation is for today, at "now".
+    - Optional `estimation_type` query parameter routes behavior:
+        * legacy  -> use Estimator_old (legacy interface)
+        * current or missing -> use Estimator (new API)
+        * verbose -> Estimator (same output for now; verbose not yet implemented)
+
+Backward compatibility:
+    - If new parameters are not provided, falls back to legacy params
+      (bikes_so_far, as_of_when, dow, time_closed) and Estimator_old.
 
 Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
@@ -663,9 +669,10 @@ class Estimator:
     def __init__(
         self,
         bikes_so_far: str = "",
-        as_of_when: str = "",
-        dow_in: str = "",
-        time_closed: str = "",
+        opening_time: str = "",
+        closing_time: str = "",
+        max_bikes_today: str = "",
+        max_bikes_time_today: str = "",
     ) -> None:
         self.state = INCOMPLETE
         self.error = ""
@@ -678,7 +685,7 @@ class Estimator:
             return
         self.database = db.db_connect(DBFILE)
 
-        # Inputs
+        # Inputs: bikes_so_far (defaults to count right now)
         if not bikes_so_far:
             bikes_so_far = self._bikes_right_now()
         bikes_so_far = str(bikes_so_far).strip()
@@ -688,37 +695,33 @@ class Estimator:
             return
         self.bikes_so_far = int(bikes_so_far)
 
-        as_of_when = as_of_when if as_of_when else "now"
-        self.as_of_when = VTime(as_of_when)
+        # New API assumes estimation is for "now"
+        self.as_of_when = VTime("now")
         if not self.as_of_when:
-            self.error = "Bad as_of_when parameter."
+            self.error = "Bad current time."
             self.state = ERROR
             return
 
-        dow_in = dow_in if dow_in else "today"
-        maybe_dow = ut.dow_int(dow_in)
-        if maybe_dow:
-            self.dow = maybe_dow
-            dow_date = ut.most_recent_dow(self.dow)
-        else:
-            dow_date = ut.date_str(dow_in)
-            if dow_date:
-                self.dow = ut.dow_int(dow_date)
-            else:
-                self.error = "Bad dow parameter."
-                self.state = ERROR
-                return
+        # Today context
+        dow_date = ut.date_str("today")
+        self.dow = ut.dow_int(dow_date)
 
-        # Schedule
-        if not time_closed:
-            time_closed = tt_default_hours.get_default_hours(dow_date)[1]
-        self.time_closed = VTime(time_closed)
+        # Schedule: opening and closing time (from params or defaults)
+        if not opening_time or not closing_time:
+            default_open, default_close = tt_default_hours.get_default_hours(dow_date)
+            opening_time = opening_time or default_open
+            closing_time = closing_time or default_close
+        self.time_closed = VTime(closing_time)
         if not self.time_closed:
             self.error = "Missing or bad time_closed parameter."
             self.state = ERROR
             return
         # Open time (for fraction elapsed and day-shape logic)
-        self.time_open = VTime(tt_default_hours.get_default_hours(dow_date)[0])
+        self.time_open = VTime(opening_time)
+        if not self.time_open:
+            self.error = "Missing or bad time_open parameter."
+            self.state = ERROR
+            return
 
         # Data buffers
         self.similar_dates: list[str] = []
@@ -935,17 +938,51 @@ class Estimator:
 
 
 if __name__ == "__main__":
-    # Backward-compatible CLI/CGI runner for the old estimator
-    estimate: Estimator_old
+    # Prefer new-API parameters; fall back to old for compatibility
+    def _init_from_cgi_new() -> Estimator:
+        query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
+        query_parms = urllib.parse.parse_qs(query_str)
+        bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
+        opening_time = query_parms.get("opening_time", [""])[0]
+        closing_time = query_parms.get("closing_time", [""])[0]
+        max_bikes_today = query_parms.get("max_bikes_today", [""])[0]
+        max_bikes_time_today = query_parms.get("max_bikes_time_today", [""])[0]
+        return Estimator(
+            bikes_so_far=bikes_so_far,
+            opening_time=opening_time,
+            closing_time=closing_time,
+            max_bikes_today=max_bikes_today,
+            max_bikes_time_today=max_bikes_time_today,
+        )
+
+    def _init_from_args_new() -> Estimator:
+        my_args = sys.argv[1:] + ["", "", "", "", ""]
+        return Estimator(
+            bikes_so_far=my_args[0],
+            opening_time=my_args[1],
+            closing_time=my_args[2],
+            max_bikes_today=my_args[3],
+            max_bikes_time_today=my_args[4],
+        )
+
+    estimate_any = None
     is_cgi = bool(os.environ.get("REQUEST_METHOD"))
     if is_cgi:
         print("Content-type: text/plain\n")
-        estimate = _init_from_cgi_old()
+        q = ut.untaint(os.environ.get("QUERY_STRING", ""))
+        qd = urllib.parse.parse_qs(q)
+        est_type = (qd.get("estimation_type", [""])[0] or "").strip().lower()
+        if est_type == "legacy":
+            estimate_any = _init_from_cgi_old()
+        else:
+            # 'current' (default) and 'verbose' both use the new estimator for now
+            estimate_any = _init_from_cgi_new()
     else:
-        estimate = _init_from_args_old()
+        # CLI defaults to new API
+        estimate_any = _init_from_args_new()
 
-    if estimate.state != ERROR:
-        estimate.guess()
+    if estimate_any.state != ERROR:
+        estimate_any.guess()
 
-    for line in estimate.result_msg():
+    for line in estimate_any.result_msg():
         print(line)

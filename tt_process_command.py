@@ -522,9 +522,17 @@ def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
     """
     pr.iprint()
     pr.iprint("Estimating...")
-    # Always call the estimator via URL (DB lives on server); args: OLD|FULL are accepted
+    # Always call the estimator via URL (DB lives on server)
+    # Optional args: OLD|LEGACY uses legacy estimator; FULL|VERBOSE requests verbose.
     choice = (args[0].strip().upper() if args else "") if args else ""
-    message_lines: List[str] = tt_call_estimator.get_estimate_via_url(today)
+    est_type = "current"
+    if choice in {"OLD", "LEGACY"}:
+        est_type = "legacy"
+    elif choice in {"FULL", "VERBOSE"}:
+        est_type = "verbose"
+    message_lines: List[str] = tt_call_estimator.get_estimate_via_url(
+        today, estimation_type=est_type
+    )
     if choice in {"FULL", "VERBOSE"}:
         message_lines.append("")
         message_lines.append("(Verbose mode not yet implemented; showing basic results.)")
