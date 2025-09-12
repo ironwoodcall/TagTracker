@@ -1043,7 +1043,7 @@ class Estimator:
         if remainder is None:
             remainder = 0
 
-        # Next-hour activity and Peak-future via matched-day visits
+        # Next-hour activity and Peak (whole-day) via matched-day visits
         nxh_acts: list[int] = []
         peaks: list[tuple[int, VTime]] = []
         for d in matched:
@@ -1053,6 +1053,18 @@ class Estimator:
             # Use whole-day peak for similar days (can occur before or after 'now')
             p, pt = self._peak_all_day_occupancy(vlist)
             peaks.append((int(p), pt))
+
+        # Build activity/peak arrays for all similar dates (for alternate models)
+        all_acts: list[int] = []
+        all_peaks: list[int] = []
+        all_ptimes: list[VTime] = []
+        for d in self.similar_dates:
+            vlist = self._visits_for_date(d)
+            _b2, _a2, _outs2, ins2, outs2 = self._counts_for_time(vlist, self.as_of_when)
+            all_acts.append(int(ins2 + outs2))
+            p2, pt2 = self._peak_all_day_occupancy(vlist)
+            all_peaks.append(int(p2))
+            all_ptimes.append(pt2)
 
         nxh_activity = int(statistics.median(nxh_acts)) if nxh_acts else 0
         if peaks:
@@ -1116,11 +1128,82 @@ class Estimator:
         act_scale = max(1.0, float(nxh_activity), float(act_hi or 0)) if act_spread is not None else None
         conf_act = self._smooth_conf(n, frac_elapsed, act_spread, act_scale)
 
-        self.table_rows = [
-            ("Further bikes today", f"{int(remainder)}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_rem),
-            ("Most bikes today", f"{int(peak_val)}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pk),
-            ("Time when fullest", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
-            ("Activity in the next hour", f"{int(nxh_activity)}", f"+/- {act_band} events", rng_str(act_lo, act_hi, False), conf_act),
+        # Build three tables: Simple (median), Linear Regression, KNN weighted
+        t_end = VTime(min(self.as_of_when.num + 60, 24 * 60))
+        simple_rows = [
+            (f"Activity, now to {t_end.tidy}", f"{int(nxh_activity)}", f"+/- {act_band}", rng_str(act_lo, act_hi, False), conf_act),
+            ("Further bikes in today", f"{int(remainder)}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_rem),
+            ("Time max bikes onsite", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
+            ("Max bikes onsite", f"{int(peak_val)}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pk),
+        ]
+
+        # Linear regression helpers
+        def _linreg(xs: list[float], ys: list[float]):
+            npts = len(xs)
+            if npts < 2:
+                return None
+            sx = sum(xs); sy = sum(ys)
+            sxx = sum(x*x for x in xs); sxy = sum(x*y for x, y in zip(xs, ys))
+            denom = npts * sxx - sx * sx
+            if denom == 0:
+                return None
+            a = (npts * sxy - sx * sy) / denom
+            b = (sy - a * sx) / npts
+            return a, b
+
+        # Remainder via LR (befores->afters)
+        lr_remainder = int(remainder)
+        try:
+            lr = LRModel()
+            lr.calculate_model(list(zip(self.befores, self.afters)))
+            lr.guess(self.bikes_so_far)
+            if lr.state == OK and isinstance(lr.further_bikes, int):
+                lr_remainder = int(lr.further_bikes)
+        except Exception:
+            pass
+        # Activity via LR (befores->activity)
+        lr_act_val = int(nxh_activity)
+        coeff = _linreg([float(x) for x in self.befores], [float(y) for y in all_acts])
+        if coeff:
+            a, b = coeff
+            lr_act_val = max(0, int(round(a * float(self.bikes_so_far) + b)))
+        # Peak via LR (befores->peak)
+        lr_peak_val = int(peak_val)
+        coeff_p = _linreg([float(x) for x in self.befores], [float(y) for y in all_peaks])
+        if coeff_p:
+            ap, bp = coeff_p
+            lr_peak_val = max(0, int(round(ap * float(self.bikes_so_far) + bp)))
+        lr_rows = [
+            (f"Activity, now to {t_end.tidy}", f"{lr_act_val}", f"+/- {act_band}", rng_str(act_lo, act_hi, False), conf_act),
+            ("Further bikes in today", f"{lr_remainder}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_rem),
+            ("Time max bikes onsite", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
+            ("Max bikes onsite", f"{lr_peak_val}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pk),
+        ]
+
+        # KNN-weighted mean (Gaussian weights on before distance)
+        def _knn_weights(bases: list[int], target: int, scale: float) -> list[float]:
+            import math
+            s = max(1.0, float(scale))
+            return [math.exp(-((abs(int(b) - int(target)) / s) ** 2)) for b in bases]
+        def _wmean(vals: list[float], ws: list[float]) -> int:
+            totw = sum(ws)
+            return int(round(sum(v*w for v, w in zip(vals, ws)) / totw)) if totw > 0 else int(round(statistics.mean(vals)))
+        wts = _knn_weights(self.befores, self.bikes_so_far, max(5.0, float(self.VARIANCE)))
+        knn_act = _wmean([float(v) for v in all_acts], wts)
+        knn_rem = _wmean([float(v) for v in self.afters], wts)
+        knn_peak = _wmean([float(v) for v in all_peaks], wts)
+        knn_rows = [
+            (f"Activity, now to {t_end.tidy}", f"{knn_act}", f"+/- {act_band}", rng_str(act_lo, act_hi, False), conf_act),
+            ("Further bikes in today", f"{knn_rem}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_rem),
+            ("Time max bikes onsite", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
+            ("Max bikes onsite", f"{knn_peak}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pk),
+        ]
+
+        # Store tables for rendering
+        self.tables: list[tuple[str, list[tuple[str, str, str, str, str]]]] = [
+            ("Estimation — Similar-Days Median", simple_rows),
+            ("Estimation — Linear Regression", lr_rows),
+            ("Estimation — KNN Weighted", knn_rows),
         ]
 
         # Back-compat: expose min/max remainder used by callers expecting legacy API
@@ -1133,23 +1216,26 @@ class Estimator:
     def result_msg(self) -> list[str]:
         if self.state == ERROR:
             return [f"Can't estimate because: {self.error}"]
-        if not self.table_rows:
+        if not getattr(self, 'tables', None):
             return ["No estimates available"]
-        # Render a simple aligned table with a title
-        header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence"]
-        widths = [max(len(str(r[i])) for r in ([header] + self.table_rows)) for i in range(5)]
-        def fmt_row(r: list[str]) -> str:
-            return (
-                f"{str(r[0]).ljust(widths[0])}  "
-                f"{str(r[1]).rjust(widths[1])}  "
-                f"{str(r[2]).ljust(widths[2])}  "
-                f"{str(r[3]).ljust(widths[3])}  "
-                f"{str(r[4]).rjust(widths[4])}"
-            )
-        title = f"Estimation Summary (as of {self.as_of_when.short})"
-        lines = [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4]])]
-        for m, v, c, r90, pc in self.table_rows:
-            lines.append(fmt_row([m, v, c, r90, pc]))
+        lines: list[str] = []
+        for title_base, rows in self.tables:
+            header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence"]
+            widths = [max(len(str(r[i])) for r in ([header] + rows)) for i in range(5)]
+            def fmt_row(r: list[str]) -> str:
+                return (
+                    f"{str(r[0]).ljust(widths[0])}  "
+                    f"{str(r[1]).rjust(widths[1])}  "
+                    f"{str(r[2]).ljust(widths[2])}  "
+                    f"{str(r[3]).ljust(widths[3])}  "
+                    f"{str(r[4]).rjust(widths[4])}"
+                )
+            title = f"{title_base} (as of {self.as_of_when.short})"
+            if lines:
+                lines.append("")
+            lines += [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4]])]
+            for m, v, c, r90, pc in rows:
+                lines.append(fmt_row([m, v, c, r90, pc]))
         # Verbose details if requested
         if self.verbose:
             lines.append("")
