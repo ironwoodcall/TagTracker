@@ -673,6 +673,9 @@ class Estimator:
         closing_time: str = "",
         max_bikes_today: str = "",
         max_bikes_time_today: str = "",
+        # Back-compat keyword aliases from legacy callers
+        time_open: str = "",
+        time_closed: str = "",
     ) -> None:
         self.state = INCOMPLETE
         self.error = ""
@@ -707,21 +710,32 @@ class Estimator:
         self.dow = ut.dow_int(dow_date)
 
         # Schedule: opening and closing time (from params or defaults)
+        # Accept legacy keyword aliases if provided
+        if not opening_time and time_open:
+            opening_time = time_open
+        if not closing_time and time_closed:
+            closing_time = time_closed
+
         if not opening_time or not closing_time:
             default_open, default_close = tt_default_hours.get_default_hours(dow_date)
             opening_time = opening_time or default_open
             closing_time = closing_time or default_close
+
+        # Final fallbacks if defaults are also missing
+        if not opening_time:
+            opening_time = "00:00"
+        if not closing_time:
+            # Assume service can run to end-of-day if unknown
+            closing_time = "24:00"
+
         self.time_closed = VTime(closing_time)
-        if not self.time_closed:
-            self.error = "Missing or bad time_closed parameter."
-            self.state = ERROR
-            return
-        # Open time (for fraction elapsed and day-shape logic)
         self.time_open = VTime(opening_time)
+
+        # If still invalid, clamp to safe values for calculations
         if not self.time_open:
-            self.error = "Missing or bad time_open parameter."
-            self.state = ERROR
-            return
+            self.time_open = VTime("00:00")
+        if not self.time_closed:
+            self.time_closed = VTime("24:00")
 
         # Data buffers
         self.similar_dates: list[str] = []
@@ -871,8 +885,15 @@ class Estimator:
         if self.state == ERROR:
             return
         # Fraction elapsed
-        total_span = max(1, self.time_closed.num - self.time_open.num)
-        frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - self.time_open.num) / total_span))
+        open_num = self.time_open.num if self.time_open and self.time_open.num is not None else 0
+        close_num = (
+            self.time_closed.num if self.time_closed and self.time_closed.num is not None else 24 * 60
+        )
+        # Ensure positive span
+        if close_num <= open_num:
+            close_num = max(open_num + 60, 24 * 60)
+        total_span = max(1, close_num - open_num)
+        frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - open_num) / total_span))
 
         # Matched dates by bikes_so_far window
         matched = self._matched_dates()
@@ -919,6 +940,12 @@ class Estimator:
             ("Max full today time", f"{peak_time.short}", f"±{ptime_band} minutes"),
             ("Events in the next hour", f"{int(nxh_activity)}", f"±{act_band}"),
         ]
+
+        # Back-compat: expose min/max remainder used by callers expecting legacy API
+        rem_min = max(0, int(remainder) - rem_band)
+        rem_max = int(remainder) + rem_band
+        self.min = rem_min
+        self.max = rem_max
         self.state = OK
 
     def result_msg(self) -> list[str]:
