@@ -74,7 +74,9 @@ def get_estimate_via_url(
         response = urllib.request.urlopen(url)
         data = response.read()
         decoded_data = data.decode("utf-8")
-    except urllib.error.URLError:
-        return ["URLError return"]
+    except urllib.error.URLError as e:
+        # Return a more helpful message for troubleshooting connectivity/config
+        reason = getattr(e, 'reason', '') or getattr(e, 'code', '') or ''
+        return [f"URLError: {reason} ({e})", f"URL: {url}"]
 
     return decoded_data.splitlines()

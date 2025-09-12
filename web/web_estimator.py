@@ -793,6 +793,26 @@ class Estimator:
     def _fetch_raw_data(self) -> None:
         sql = self._sql_str()
         data_rows = db.db_fetch(self.database, sql, ["date", "before", "after"])
+        # If no rows, relax the closing-time equality to broaden history match
+        if not data_rows:
+            if self.dow in [6, 7]:
+                dow_set = f"({self.dow})"
+            else:
+                dow_set = "(1,2,3,4,5)"
+            today = ut.date_str("today")
+            relaxed_sql = f"""
+                SELECT
+                    D.date,
+                    SUM(CASE WHEN V.time_in <= '{self.as_of_when}' THEN 1 ELSE 0 END) AS befores,
+                    SUM(CASE WHEN V.time_in > '{self.as_of_when}' THEN 1 ELSE 0 END) AS afters
+                FROM DAY D
+                JOIN VISIT V ON D.id = V.day_id
+                WHERE D.orgsite_id = {self.orgsite_id}
+                  AND D.weekday IN {dow_set}
+                  AND D.date != '{today}'
+                GROUP BY D.date;
+            """
+            data_rows = db.db_fetch(self.database, relaxed_sql, ["date", "before", "after"])
         if not data_rows:
             self.error = "no data returned from database."
             self.state = ERROR
