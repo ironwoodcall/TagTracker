@@ -1173,37 +1173,135 @@ class Estimator:
         if coeff_p:
             ap, bp = coeff_p
             lr_peak_val = max(0, int(round(ap * float(self.bikes_so_far) + bp)))
+        # LR residual-based ranges and bands
+        def _resid_ranges(xs: list[int], ys: list[int], a_b):
+            if not a_b:
+                return None, None
+            a, b = a_b
+            resids = [int(y - (a * float(x) + b)) for x, y in zip(xs, ys)]
+            if not resids:
+                return None, None
+            lo, hi = self._percentiles(resids, 0.05, 0.95)
+            return int(lo), int(hi)
+
+        # Remainder residuals
+        rem_lo_res, rem_hi_res = _resid_ranges(self.befores, self.afters, _linreg([float(x) for x in self.befores], [float(y) for y in self.afters]))
+        # Activity residuals
+        act_lo_res, act_hi_res = _resid_ranges(self.befores, all_acts, coeff)
+        # Peak residuals
+        pk_lo_res, pk_hi_res = _resid_ranges(self.befores, all_peaks, coeff_p)
+
+        # Compute LR 90% ranges by adding residual bounds to point predictions
+        def _rng_from_res(point: int, lo_res, hi_res):
+            if lo_res is None or hi_res is None:
+                return ""
+            return rng_str(point + lo_res, point + hi_res, False)
+
+        # Scale bands per-model using range width ratios (clamped)
+        def _scale_band(base: int, model_width: int | None, ref_width: int | None) -> int:
+            if model_width is None or ref_width is None or ref_width <= 0:
+                return base
+            import math
+            sf = math.sqrt(max(1, model_width) / max(1, ref_width))
+            sf = max(0.5, min(2.0, sf))
+            return int(round(base * sf))
+
+        # Reference (simple) widths
+        rem_w_ref = (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
+        act_w_ref = (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
+        pk_w_ref = (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
+
+        # LR widths
+        rem_w_lr = ((rem_hi_res - rem_lo_res) if (rem_lo_res is not None and rem_hi_res is not None) else None)
+        act_w_lr = ((act_hi_res - act_lo_res) if (act_lo_res is not None and act_hi_res is not None) else None)
+        pk_w_lr = ((pk_hi_res - pk_lo_res) if (pk_lo_res is not None and pk_hi_res is not None) else None)
+
+        # Model-specific bands
+        rem_band_lr = _scale_band(rem_band, rem_w_lr, rem_w_ref)
+        act_band_lr = _scale_band(act_band, act_w_lr, act_w_ref)
+        pk_band_lr = _scale_band(peak_band, pk_w_lr, pk_w_ref)
+        pt_band_lr = ptime_band  # keep same for time for now
+
+        # Model-specific confidences
+        conf_rem_lr = self._smooth_conf(len(self.befores), frac_elapsed, rem_w_lr, max(1.0, float(lr_remainder)))
+        conf_act_lr = self._smooth_conf(len(self.befores), frac_elapsed, act_w_lr, max(1.0, float(lr_act_val)))
+        conf_pk_lr = self._smooth_conf(len(self.befores), frac_elapsed, pk_w_lr, max(1.0, float(lr_peak_val)))
+        conf_pt_lr = conf_pt
+
         lr_rows = [
-            (f"Activity, now to {t_end.tidy}", f"{lr_act_val}", f"+/- {act_band}", rng_str(act_lo, act_hi, False), conf_act),
-            ("Further bikes in today", f"{lr_remainder}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_rem),
-            ("Time max bikes onsite", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
-            ("Max bikes onsite", f"{lr_peak_val}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pk),
+            (f"Activity, now to {t_end.tidy}", f"{lr_act_val}", f"+/- {act_band_lr}", _rng_from_res(lr_act_val, act_lo_res, act_hi_res), conf_act_lr),
+            ("Further bikes in today", f"{lr_remainder}", f"+/- {rem_band_lr} bikes", _rng_from_res(lr_remainder, rem_lo_res, rem_hi_res), conf_rem_lr),
+            ("Time max bikes onsite", f"{peak_time.short}", f"+/- {pt_band_lr} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt_lr),
+            ("Max bikes onsite", f"{lr_peak_val}", f"+/- {pk_band_lr} bikes", _rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res), conf_pk_lr),
         ]
 
-        # KNN-weighted mean (Gaussian weights on before distance)
-        def _knn_weights(bases: list[int], target: int, scale: float) -> list[float]:
-            import math
-            s = max(1.0, float(scale))
-            return [math.exp(-((abs(int(b) - int(target)) / s) ** 2)) for b in bases]
-        def _wmean(vals: list[float], ws: list[float]) -> int:
-            totw = sum(ws)
-            return int(round(sum(v*w for v, w in zip(vals, ws)) / totw)) if totw > 0 else int(round(statistics.mean(vals)))
-        wts = _knn_weights(self.befores, self.bikes_so_far, max(5.0, float(self.VARIANCE)))
-        knn_act = _wmean([float(v) for v in all_acts], wts)
-        knn_rem = _wmean([float(v) for v in self.afters], wts)
-        knn_peak = _wmean([float(v) for v in all_peaks], wts)
-        knn_rows = [
-            (f"Activity, now to {t_end.tidy}", f"{knn_act}", f"+/- {act_band}", rng_str(act_lo, act_hi, False), conf_act),
-            ("Further bikes in today", f"{knn_rem}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_rem),
-            ("Time max bikes onsite", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
-            ("Max bikes onsite", f"{knn_peak}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pk),
+        # Schedule-only recent model (ignores bikes_so_far; uses recent N similar days)
+        recent_n = int(getattr(wcfg, "EST_RECENT_DAYS", 30))
+        # Map date -> after (remainder proxy)
+        date_to_after = {d: int(self.afters[i]) for i, d in enumerate(self.similar_dates) if i < len(self.afters)}
+        # Pick most recent similar dates
+        rec_dates = sorted(self.similar_dates, reverse=True)[:recent_n]
+        # Build lists for recent window
+        rec_acts: list[int] = []
+        rec_afters: list[int] = []
+        rec_peaks: list[int] = []
+        rec_ptimes: list[int] = []
+        for d in rec_dates:
+            vlist = self._visits_for_date(d)
+            _b3, _a3, _o3, ins3, outs3 = self._counts_for_time(vlist, self.as_of_when)
+            rec_acts.append(int(ins3 + outs3))
+            # afters from pre-aggregated if available
+            if d in date_to_after:
+                rec_afters.append(int(date_to_after[d]))
+            else:
+                # fallback compute 'after' by counting ins after now
+                _btmp, _atmp, *_ = self._counts_for_time(vlist, self.as_of_when)
+                rec_afters.append(int(_atmp))
+            p3, pt3 = self._peak_all_day_occupancy(vlist)
+            rec_peaks.append(int(p3))
+            rec_ptimes.append(int(pt3.num))
+
+        # Predictions as medians over recent window
+        import statistics as _st
+        rec_act_val = int(_st.median(rec_acts)) if rec_acts else int(nxh_activity)
+        rec_rem_val = int(_st.median(rec_afters)) if rec_afters else int(remainder)
+        rec_peak_val = int(_st.median(rec_peaks)) if rec_peaks else int(peak_val)
+        rec_ptime_val = VTime(int(_st.median(rec_ptimes))) if rec_ptimes else peak_time
+
+        # Ranges over recents
+        r_act_lo, r_act_hi = self._percentiles(rec_acts, 0.05, 0.95) if rec_acts else (None, None)
+        r_rem_lo, r_rem_hi = self._percentiles(rec_afters, 0.05, 0.95) if rec_afters else (None, None)
+        r_pk_lo, r_pk_hi = self._percentiles(rec_peaks, 0.05, 0.95) if rec_peaks else (None, None)
+        _pt_lo, _pt_hi = self._percentiles(rec_ptimes, 0.05, 0.95) if rec_ptimes else (None, None)
+        r_pt_lo, r_pt_hi = (VTime(_pt_lo), VTime(_pt_hi)) if (_pt_lo is not None and _pt_hi is not None) else (None, None)
+
+        # Model-specific bands via width scaling
+        r_act_w = (r_act_hi - r_act_lo) if (r_act_lo is not None and r_act_hi is not None) else None
+        r_rem_w = (r_rem_hi - r_rem_lo) if (r_rem_lo is not None and r_rem_hi is not None) else None
+        r_pk_w = (r_pk_hi - r_pk_lo) if (r_pk_lo is not None and r_pk_hi is not None) else None
+        act_band_rec = _scale_band(act_band, r_act_w, act_w_ref)
+        rem_band_rec = _scale_band(rem_band, r_rem_w, rem_w_ref)
+        pk_band_rec = _scale_band(peak_band, r_pk_w, pk_w_ref)
+        pt_band_rec = ptime_band
+
+        # Confidences for recents (n = #recent dates used)
+        conf_act_rec = self._smooth_conf(len(rec_dates), frac_elapsed, r_act_w, max(1.0, float(rec_act_val)))
+        conf_rem_rec = self._smooth_conf(len(rec_dates), frac_elapsed, r_rem_w, max(1.0, float(rec_rem_val)))
+        conf_pk_rec = self._smooth_conf(len(rec_dates), frac_elapsed, r_pk_w, max(1.0, float(rec_peak_val)))
+        conf_pt_rec = conf_pt
+
+        rec_rows = [
+            (f"Activity, now to {t_end.tidy}", f"{rec_act_val}", f"+/- {act_band_rec}", rng_str(r_act_lo, r_act_hi, False), conf_act_rec),
+            ("Further bikes in today", f"{rec_rem_val}", f"+/- {rem_band_rec} bikes", rng_str(r_rem_lo, r_rem_hi, False), conf_rem_rec),
+            ("Time max bikes onsite", f"{rec_ptime_val.short}", f"+/- {pt_band_rec} minutes", rng_str(r_pt_lo, r_pt_hi, True), conf_pt_rec),
+            ("Max bikes onsite", f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rng_str(r_pk_lo, r_pk_hi, False), conf_pk_rec),
         ]
 
         # Store tables for rendering
         self.tables: list[tuple[str, list[tuple[str, str, str, str, str]]]] = [
             ("Estimation — Similar-Days Median", simple_rows),
             ("Estimation — Linear Regression", lr_rows),
-            ("Estimation — KNN Weighted", knn_rows),
+            ("Estimation — Schedule-Only (Recent)", rec_rows),
         ]
 
         # Back-compat: expose min/max remainder used by callers expecting legacy API
