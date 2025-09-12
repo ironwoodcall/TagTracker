@@ -967,6 +967,25 @@ class Estimator:
         scale = max(min_scale, min(max_scale, pf * sf))
         return max(0, int(round(base * scale)))
 
+    @staticmethod
+    def _percentiles(values: list[int], p_lo: float = 0.05, p_hi: float = 0.95) -> tuple[int, int]:
+        """Compute (low, high) empirical percentiles as integers without numpy."""
+        vals = sorted(int(v) for v in values)
+        n = len(vals)
+        if n == 0:
+            return None, None  # type: ignore[return-value]
+        if n == 1:
+            return vals[0], vals[0]
+        def q_at(p: float) -> int:
+            p = max(0.0, min(1.0, float(p)))
+            pos = p * (n - 1)
+            i = int(pos)
+            frac = pos - i
+            if i >= n - 1:
+                return vals[-1]
+            return int(round(vals[i] * (1 - frac) + vals[i + 1] * frac))
+        return q_at(p_lo), q_at(p_hi)
+
     def guess(self) -> None:
         if self.state == ERROR:
             return
@@ -1020,12 +1039,37 @@ class Estimator:
         peak_band = self._band_scaled(self._band(level, "peak"), n, frac_elapsed, "peak")
         ptime_band = self._band_scaled(self._band(level, "peaktime"), n, frac_elapsed, "peaktime")
 
-        # Build table rows
+        # 90% ranges from matched samples (when available)
+        rem_lo = rem_hi = None
+        if getattr(self, 'simple_model', None) and self.simple_model.state == OK and self.simple_model.trimmed_afters:
+            rem_lo, rem_hi = self._percentiles(self.simple_model.trimmed_afters, 0.05, 0.95)
+        act_lo = act_hi = None
+        if nxh_acts:
+            act_lo, act_hi = self._percentiles(nxh_acts, 0.05, 0.95)
+        pk_lo = pk_hi = None
+        ptime_lo = ptime_hi = None
+        if peaks:
+            pvals = [int(p) for p, _ in peaks]
+            ptmins = [int(pt.num) for _p, pt in peaks]
+            pk_lo, pk_hi = self._percentiles(pvals, 0.05, 0.95)
+            tlo, thi = self._percentiles(ptmins, 0.05, 0.95)
+            ptime_lo, ptime_hi = VTime(tlo), VTime(thi)
+
+        conf_pct = {"High": "80%", "Medium": "60%", "Low": "40%"}.get(level, "40%")
+
+        # Build table rows with added Range and %confidence columns, preserving existing text
+        def rng_str(lo, hi, is_time=False):
+            if lo is None or hi is None:
+                return ""
+            if is_time:
+                return f"{lo.short}-{hi.short}"
+            return f"{int(lo)}-{int(hi)}"
+
         self.table_rows = [
-            ("Further bikes today", f"{int(remainder)}", f"+/- {rem_band} bikes"),
-            ("Most bikes today", f"{int(peak_val)}", f"+/- {peak_band} bikes"),
-            ("Time when fullest", f"{peak_time.short}", f"+/- {ptime_band} minutes"),
-            ("Activity in the next hour", f"{int(nxh_activity)}", f"+/- {act_band} events"),
+            ("Further bikes today", f"{int(remainder)}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_pct),
+            ("Most bikes today", f"{int(peak_val)}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pct),
+            ("Time when fullest", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pct),
+            ("Activity in the next hour", f"{int(nxh_activity)}", f"+/- {act_band} events", rng_str(act_lo, act_hi, False), conf_pct),
         ]
 
         # Back-compat: expose min/max remainder used by callers expecting legacy API
@@ -1041,14 +1085,20 @@ class Estimator:
         if not self.table_rows:
             return ["No estimates available"]
         # Render a simple aligned table with a title
-        header = ["Measure", "Value", "Error margin"]
-        widths = [max(len(r[i]) for r in ([header] + self.table_rows)) for i in range(3)]
+        header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence"]
+        widths = [max(len(str(r[i])) for r in ([header] + self.table_rows)) for i in range(5)]
         def fmt_row(r: list[str]) -> str:
-            return f"{r[0].ljust(widths[0])}  {r[1].rjust(widths[1])}  {r[2].ljust(widths[2])}"
+            return (
+                f"{str(r[0]).ljust(widths[0])}  "
+                f"{str(r[1]).rjust(widths[1])}  "
+                f"{str(r[2]).ljust(widths[2])}  "
+                f"{str(r[3]).ljust(widths[3])}  "
+                f"{str(r[4]).rjust(widths[4])}"
+            )
         title = f"Estimation Summary (as of {self.as_of_when.short})"
-        lines = [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2]])]
-        for m, v, c in self.table_rows:
-            lines.append(fmt_row([m, v, c]))
+        lines = [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4]])]
+        for m, v, c, r90, pc in self.table_rows:
+            lines.append(fmt_row([m, v, c, r90, pc]))
         # Verbose details if requested
         if self.verbose:
             lines.append("")
