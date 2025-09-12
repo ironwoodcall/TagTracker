@@ -986,10 +986,10 @@ class Estimator:
 
         # Build table rows
         self.table_rows = [
-            ("Further bikes today", f"{int(remainder)}", f"±{rem_band} bikes"),
-            ("Max full today", f"{int(peak_val)}", f"±{peak_band} bikes"),
-            ("Max full today time", f"{peak_time.short}", f"±{ptime_band} minutes"),
-            ("Events in the next hour", f"{int(nxh_activity)}", f"±{act_band}"),
+            ("Further bikes today", f"{int(remainder)}", f"+/- {rem_band} bikes"),
+            ("Most bikes today", f"{int(peak_val)}", f"+/- {peak_band} bikes"),
+            ("Time when fullest", f"{peak_time.short}", f"+/- {ptime_band} minutes"),
+            ("Activity in the next hour", f"{int(nxh_activity)}", f"+/- {act_band} events"),
         ]
 
         # Back-compat: expose min/max remainder used by callers expecting legacy API
