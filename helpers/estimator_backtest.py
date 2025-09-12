@@ -11,9 +11,10 @@ It intentionally mirrors the logic used by web/web_estimator.py
 but runs in a rolling backtest: each target day/time is predicted
 using only prior days.
 
-Usage examples:
-  python helpers/estimator_backtest.py --start 2024-04-01 --end 2024-08-31 \
-      --step-min 60 --variance 10 --zcut 2.5
+Usage:
+  See the argument description in describe_args() below,
+  or run the script with no arguments to print a short guide
+  and the argparse help.
 
 Copyright (C) 2025 TagTracker authors
 """
@@ -21,6 +22,7 @@ Copyright (C) 2025 TagTracker authors
 from __future__ import annotations
 
 import argparse
+import csv
 import math
 import os
 import re
@@ -296,6 +298,28 @@ def lr_predict(coeffs: Optional[Tuple[float, float]], x: float) -> Optional[int]
     return int(round(a * x + b))
 
 
+def lr_fit_ridge(train_pairs: List[Tuple[float, float]], l2: float) -> Optional[Tuple[float, float]]:
+    """Fit ridge regression y = a*x + b using centered variables.
+
+    Uses closed-form with L2 on slope only: a = cov(x,y) / (var(x) + l2), b = ybar - a*xbar.
+    """
+    n = len(train_pairs)
+    if n < 2:
+        return None
+    xs = [p[0] for p in train_pairs]
+    ys = [p[1] for p in train_pairs]
+    xbar = sum(xs) / n
+    ybar = sum(ys) / n
+    sxx = sum((x - xbar) * (x - xbar) for x in xs)
+    sxy = sum((x - xbar) * (y - ybar) for x, y in train_pairs)
+    denom = sxx + max(0.0, float(l2))
+    if denom == 0:
+        return None
+    a = sxy / denom
+    b = ybar - a * xbar
+    return a, b
+
+
 def summarize(writer: Callable[[str], None], name: str, errors: List[int]) -> None:
     """Write summary metrics for a list of absolute errors using writer."""
     if not errors:
@@ -321,6 +345,75 @@ def summarize(writer: Callable[[str], None], name: str, errors: List[int]) -> No
     writer(f"{name}: N={len(errors)}  MAE={mae:.2f}  Med={p50:.1f}  P75={p75:.1f}  P90={p90:.1f}")
 
 
+def parse_time_bins(spec: Optional[str]) -> Optional[List[float]]:
+    """Parse comma-separated fractional edges into a sorted list within [0,1]."""
+    if not spec:
+        return None
+    try:
+        edges = [float(s.strip()) for s in spec.split(",") if s.strip() != ""]
+        edges = sorted(set(edges))
+        if edges[0] > 0.0:
+            edges = [0.0] + edges
+        if edges[-1] < 1.0:
+            edges = edges + [1.0]
+        # Clamp within [0,1]
+        edges = [max(0.0, min(1.0, e)) for e in edges]
+        # Ensure strictly increasing
+        out: List[float] = []
+        for e in edges:
+            if not out or e > out[-1]:
+                out.append(e)
+        if len(out) < 2:
+            return None
+        return out
+    except Exception:
+        return None
+
+
+def bin_label(frac: float, edges: List[float]) -> str:
+    """Return a label like '00-20' for bin containing frac in [0,1]."""
+    f = max(0.0, min(1.0, float(frac)))
+    for i in range(1, len(edges)):
+        lo = edges[i - 1]
+        hi = edges[i]
+        # include lo, exclude hi except final bin
+        if (f >= lo and f < hi) or (i == len(edges) - 1 and f == hi):
+            return f"{int(round(lo*100)):02d}-{int(round(hi*100)):02d}"
+    return "00-100"
+
+
+def describe_args() -> str:
+    """Return a human-friendly overview of key arguments and defaults."""
+    lines = [
+        "Core selection:",
+        "  --db PATH             SQLite DB file (or TAGTRACKER_DB env var)",
+        "  --start, --end       Date window YYYY-MM-DD (inclusive)",
+        "  --step-min INT       Step in minutes between evaluations (default 60)",
+        "  --variance INT       Similarity window on bikes_so_far (default 10)",
+        "  --zcut FLOAT         Z-score trim cutoff for SM matching (default 2.5)",
+        "  --schedule-exact     Match both open and close times (default: close only)",
+        "  --lookback-days INT  Use only prior N days (0=all prior)",
+        "  --compare-time-feature  Add 2D LR with time fraction",
+        "",
+        "Sweeps and output:",
+        "  --lookback-grid CSV  Comma-separated lookbacks to run as a grid",
+        "  --recommended        Run the preconfigured suite over the last year",
+        "  --out-file PATH      Save suite output to a file (tee)",
+        "",
+        "Stability and diagnostics (optional; off by default):",
+        "  --lr-min-n INT       Min matched cohort size for LR-before (e.g., 8)",
+        "  --lr2-min-n INT      Min N for LR+time (e.g., 12)",
+        "  --ridge-l2 FLOAT     L2 for LR slope (e.g., 1.0)",
+        "  --ridge2-l2 FLOAT    L2 for LR+time slopes (e.g., 1.0)",
+        "  --bound-preds        Clamp remainder/activity >= 0; peak <= capacity",
+        "  --capacity INT       Capacity cap when bounding (default 180)",
+        "  --time-bins CSV      Fraction edges for time bins, e.g., 0,0.2,0.4,0.6,0.8,1",
+        "  --weekend-split      Print separate weekend vs weekday summaries",
+        "  --per-sample-csv PATH  Write per-sample rows (single-run mode)",
+    ]
+    return "\n".join(lines)
+
+
 def backtest(
     conn: sqlite3.Connection,
     start: str,
@@ -333,6 +426,16 @@ def backtest(
     compare_time_feature: bool = False,
     result_writer: Optional[Callable[[str], None]] = None,
     visits_by_day: Optional[Dict[int, List[Tuple[VTime, Optional[VTime]]]]] = None,
+    # New optional controls (default off to preserve behavior)
+    lr_min_n: int = 0,
+    lr2_min_n: int = 0,
+    ridge_l2: float = 0.0,
+    ridge2_l2: float = 0.0,
+    bound_preds: bool = False,
+    capacity: int = 180,
+    time_bins: Optional[List[float]] = None,
+    weekend_split: bool = False,
+    per_sample_csv: Optional[str] = None,
 ) -> None:
     days = fetch_days(conn, start, end)
     if not days:
@@ -359,6 +462,51 @@ def backtest(
     peak_abs_errs_lr2: List[int] = []
     cohort_sizes: List[int] = []
     samples = 0
+
+    # Weekend/weekday splits
+    fut_sm_we: List[int] = []; fut_sm_wd: List[int] = []
+    fut_lr1_we: List[int] = []; fut_lr1_wd: List[int] = []
+    fut_lr2_we: List[int] = []; fut_lr2_wd: List[int] = []
+    nxh_net_we: List[int] = []; nxh_net_wd: List[int] = []
+    nxh_act_sm_we: List[int] = []; nxh_act_sm_wd: List[int] = []
+    nxh_act_lr1_we: List[int] = []; nxh_act_lr1_wd: List[int] = []
+    nxh_act_lr2_we: List[int] = []; nxh_act_lr2_wd: List[int] = []
+    peak_sm_we: List[int] = []; peak_sm_wd: List[int] = []
+    peak_lr1_we: List[int] = []; peak_lr1_wd: List[int] = []
+    peak_lr2_we: List[int] = []; peak_lr2_wd: List[int] = []
+
+    # Time-bin error buckets
+    def new_bin_dict() -> Dict[str, List[int]]:
+        return {}
+    fut_sm_bins: Dict[str, List[int]] = new_bin_dict()
+    fut_lr1_bins: Dict[str, List[int]] = new_bin_dict()
+    fut_lr2_bins: Dict[str, List[int]] = new_bin_dict()
+    nxh_net_bins: Dict[str, List[int]] = new_bin_dict()
+    nxh_act_sm_bins: Dict[str, List[int]] = new_bin_dict()
+    nxh_act_lr1_bins: Dict[str, List[int]] = new_bin_dict()
+    nxh_act_lr2_bins: Dict[str, List[int]] = new_bin_dict()
+    peak_sm_bins: Dict[str, List[int]] = new_bin_dict()
+    peak_lr1_bins: Dict[str, List[int]] = new_bin_dict()
+    peak_lr2_bins: Dict[str, List[int]] = new_bin_dict()
+
+    # Optional CSV writer
+    csv_writer = None
+    csv_file = None
+    if per_sample_csv:
+        try:
+            csv_file = open(per_sample_csv, 'w', newline='', encoding='utf-8')
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow([
+                'date','time','weekday','is_weekend','frac_elapsed','frac_bin',
+                'before','after_true','nxh_net_true','nxh_act_true','peak_true',
+                'pred_fut_sm','pred_fut_lr','pred_fut_lr2',
+                'pred_act_sm','pred_act_lr','pred_act_lr2',
+                'pred_peak_sm','pred_peak_lr','pred_peak_lr2',
+                'N','lookback_days','variance','step_min','schedule_exact','time_feature'
+            ])
+        except Exception as e:
+            print(f"(Warning) Could not open per-sample CSV '{per_sample_csv}': {e}")
+            csv_writer = None
 
     for i, target in enumerate(days):
         # rolling training set: prior days only
@@ -427,42 +575,114 @@ def backtest(
             sm_mean, sm_med, nmatch, _ = simple_match_prediction(train_pairs, before, variance, zcut)
             cohort_sizes.append(nmatch)
 
-            # Linear regression (before -> after)
-            lr_coeffs = lr_fit([(float(b), float(a)) for b, a in train_pairs])
-            lr_pred = lr_predict(lr_coeffs, float(before))
+            # Linear regression (before -> after) with optional gating/ridge
+            lr_pred = None
+            if nmatch is not None and nmatch >= lr_min_n:
+                coeffs1 = None
+                if ridge_l2 and ridge_l2 > 0:
+                    coeffs1 = lr_fit_ridge([(float(b), float(a)) for b, a in train_pairs], ridge_l2)
+                else:
+                    coeffs1 = lr_fit([(float(b), float(a)) for b, a in train_pairs])
+                lr_pred = lr_predict(coeffs1, float(before))
             # 2D LR with time feature if requested
             lr2_pred = None
-            if compare_time_feature and train_pairs_2d:
-                lr2 = lr2_fit(train_pairs_2d)
-                lr2_pred = lr2_predict(lr2, (float(before), float(frac_elapsed)))
+            if compare_time_feature and train_pairs_2d and (nmatch is not None and nmatch >= lr2_min_n):
+                coeffs2 = None
+                if ridge2_l2 and ridge2_l2 > 0:
+                    coeffs2 = lr2_fit_ridge(train_pairs_2d, ridge2_l2)
+                else:
+                    coeffs2 = lr2_fit(train_pairs_2d)
+                lr2_pred = lr2_predict(coeffs2, (float(before), float(frac_elapsed)))
 
             # Record model-specific errors
-            if sm_med is not None:
-                fut_abs_errs_sm.append(abs(int(sm_med) - int(after_true)))
+            # Optional bounds/clamps
+            def clamp_nonneg(v: Optional[int]) -> Optional[int]:
+                if v is None:
+                    return None
+                return max(0, int(v))
+            def cap_peak(v: Optional[int]) -> Optional[int]:
+                if v is None:
+                    return None
+                return min(int(v), int(capacity))
+
+            # Determine weekend/weekday and time-bin label
+            try:
+                is_weekend = datetime.strptime(target.date, "%Y-%m-%d").weekday() >= 5
+            except Exception:
+                is_weekend = False
+            bin_lbl = bin_label(frac_elapsed, time_bins) if time_bins else None
+
+            # Further-bikes errors
+            pf_sm = clamp_nonneg(sm_med) if bound_preds else (int(sm_med) if sm_med is not None else None)
+            if pf_sm is not None:
+                e = abs(pf_sm - int(after_true))
+                fut_abs_errs_sm.append(e)
+                if weekend_split:
+                    (fut_sm_we if is_weekend else fut_sm_wd).append(e)
+                if bin_lbl is not None:
+                    fut_sm_bins.setdefault(bin_lbl, []).append(e)
             if lr_pred is not None:
-                fut_abs_errs_lr1.append(abs(int(lr_pred) - int(after_true)))
+                pf_lr = clamp_nonneg(lr_pred) if bound_preds else int(lr_pred)
+                e = abs(pf_lr - int(after_true))
+                fut_abs_errs_lr1.append(e)
+                if weekend_split:
+                    (fut_lr1_we if is_weekend else fut_lr1_wd).append(e)
+                if bin_lbl is not None:
+                    fut_lr1_bins.setdefault(bin_lbl, []).append(e)
             if lr2_pred is not None:
-                fut_abs_errs_lr2.append(abs(int(lr2_pred) - int(after_true)))
+                pf_lr2 = clamp_nonneg(lr2_pred) if bound_preds else int(lr2_pred)
+                e = abs(pf_lr2 - int(after_true))
+                fut_abs_errs_lr2.append(e)
+                if weekend_split:
+                    (fut_lr2_we if is_weekend else fut_lr2_wd).append(e)
+                if bin_lbl is not None:
+                    fut_lr2_bins.setdefault(bin_lbl, []).append(e)
 
             # Next-hour predictions (net and activity)
             nxh_matched_net = [net for b, net in nxh_pairs_net if abs(b - before) <= variance]
             nxh_matched_act = [act for b, act in nxh_pairs_act if abs(b - before) <= variance]
             if nxh_matched_net:
                 pred_net = int(statistics.median(nxh_matched_net))
-                nxh_net_abs_errs.append(abs(pred_net - (ins_next_true - outs_next_true)))
+                e = abs(pred_net - (ins_next_true - outs_next_true))
+                nxh_net_abs_errs.append(e)
+                if weekend_split:
+                    (nxh_net_we if is_weekend else nxh_net_wd).append(e)
+                if bin_lbl is not None:
+                    nxh_net_bins.setdefault(bin_lbl, []).append(e)
             if nxh_matched_act:
                 pred_act_sm = int(statistics.median(nxh_matched_act))
-                nxh_act_abs_errs_sm.append(abs(pred_act_sm - (ins_next_true + outs_next_true)))
+                if bound_preds:
+                    pred_act_sm = max(0, pred_act_sm)
+                e = abs(pred_act_sm - (ins_next_true + outs_next_true))
+                nxh_act_abs_errs_sm.append(e)
+                if weekend_split:
+                    (nxh_act_sm_we if is_weekend else nxh_act_sm_wd).append(e)
+                if bin_lbl is not None:
+                    nxh_act_sm_bins.setdefault(bin_lbl, []).append(e)
             # LR for activity
             lr_act = lr_fit([(float(b), float(a)) for b, a in nxh_pairs_act])
             pred_act_lr1 = lr_predict(lr_act, float(before))
             if pred_act_lr1 is not None:
-                nxh_act_abs_errs_lr1.append(abs(int(pred_act_lr1) - (ins_next_true + outs_next_true)))
+                if bound_preds:
+                    pred_act_lr1 = max(0, int(pred_act_lr1))
+                e = abs(int(pred_act_lr1) - (ins_next_true + outs_next_true))
+                nxh_act_abs_errs_lr1.append(e)
+                if weekend_split:
+                    (nxh_act_lr1_we if is_weekend else nxh_act_lr1_wd).append(e)
+                if bin_lbl is not None:
+                    nxh_act_lr1_bins.setdefault(bin_lbl, []).append(e)
             if compare_time_feature and nxh_pairs_act_2d:
                 lr2_act = lr2_fit(nxh_pairs_act_2d)
                 pred_act_lr2 = lr2_predict(lr2_act, (float(before), float(frac_elapsed)))
                 if pred_act_lr2 is not None:
-                    nxh_act_abs_errs_lr2.append(abs(int(pred_act_lr2) - (ins_next_true + outs_next_true)))
+                    if bound_preds:
+                        pred_act_lr2 = max(0, int(pred_act_lr2))
+                    e = abs(int(pred_act_lr2) - (ins_next_true + outs_next_true))
+                    nxh_act_abs_errs_lr2.append(e)
+                    if weekend_split:
+                        (nxh_act_lr2_we if is_weekend else nxh_act_lr2_wd).append(e)
+                    if bin_lbl is not None:
+                        nxh_act_lr2_bins.setdefault(bin_lbl, []).append(e)
 
             # Peak fullness from now to close (median across matched days)
             # Compute target peak
@@ -477,17 +697,61 @@ def backtest(
                     peaks.append(p)
             if peaks:
                 pred_peak_sm = int(statistics.median(peaks))
-                peak_abs_errs_sm.append(abs(pred_peak_sm - peak_true))
+                if bound_preds:
+                    pred_peak_sm = cap_peak(pred_peak_sm)
+                e = abs(pred_peak_sm - peak_true)
+                peak_abs_errs_sm.append(e)
+                if weekend_split:
+                    (peak_sm_we if is_weekend else peak_sm_wd).append(e)
+                if bin_lbl is not None:
+                    peak_sm_bins.setdefault(bin_lbl, []).append(e)
             # LR1 for peak
             lr_peak = lr_fit([(float(b), float(p)) for b, p in peaks_pairs])
             pred_peak_lr1 = lr_predict(lr_peak, float(before))
             if pred_peak_lr1 is not None:
-                peak_abs_errs_lr1.append(abs(int(pred_peak_lr1) - peak_true))
+                pp1 = int(pred_peak_lr1)
+                if bound_preds:
+                    pp1 = cap_peak(pp1)
+                e = abs(pp1 - peak_true)
+                peak_abs_errs_lr1.append(e)
+                if weekend_split:
+                    (peak_lr1_we if is_weekend else peak_lr1_wd).append(e)
+                if bin_lbl is not None:
+                    peak_lr1_bins.setdefault(bin_lbl, []).append(e)
             if compare_time_feature and peaks_pairs_2d:
                 lr2_peak = lr2_fit(peaks_pairs_2d)
                 pred_peak_lr2 = lr2_predict(lr2_peak, (float(before), float(frac_elapsed)))
                 if pred_peak_lr2 is not None:
-                    peak_abs_errs_lr2.append(abs(int(pred_peak_lr2) - peak_true))
+                    pp2 = int(pred_peak_lr2)
+                    if bound_preds:
+                        pp2 = cap_peak(pp2)
+                    e = abs(pp2 - peak_true)
+                    peak_abs_errs_lr2.append(e)
+                    if weekend_split:
+                        (peak_lr2_we if is_weekend else peak_lr2_wd).append(e)
+                    if bin_lbl is not None:
+                        peak_lr2_bins.setdefault(bin_lbl, []).append(e)
+
+            # CSV row
+            if csv_writer is not None:
+                hh = t.num // 60; mm = t.num % 60
+                csv_writer.writerow([
+                    target.date, f"{hh:02d}:{mm:02d}",
+                    datetime.strptime(target.date, "%Y-%m-%d").weekday() + 1,
+                    1 if is_weekend else 0,
+                    round(frac_elapsed, 4), bin_lbl or "",
+                    before, int(after_true), int(ins_next_true - outs_next_true), int(ins_next_true + outs_next_true), int(peak_true),
+                    pf_sm if pf_sm is not None else "",
+                    (clamp_nonneg(lr_pred) if (bound_preds and lr_pred is not None) else (int(lr_pred) if lr_pred is not None else "")),
+                    (clamp_nonneg(lr2_pred) if (bound_preds and lr2_pred is not None) else (int(lr2_pred) if lr2_pred is not None else "")),
+                    (max(0, pred_act_sm) if (nxh_matched_act and bound_preds) else (pred_act_sm if nxh_matched_act else "")),
+                    (max(0, int(pred_act_lr1)) if (pred_act_lr1 is not None and bound_preds) else (int(pred_act_lr1) if pred_act_lr1 is not None else "")),
+                    (max(0, int(pred_act_lr2)) if (compare_time_feature and 'pred_act_lr2' in locals() and pred_act_lr2 is not None and bound_preds) else (int(pred_act_lr2) if (compare_time_feature and 'pred_act_lr2' in locals() and pred_act_lr2 is not None) else "")),
+                    pred_peak_sm if peaks else "",
+                    (pp1 if 'pp1' in locals() and pred_peak_lr1 is not None else (int(pred_peak_lr1) if pred_peak_lr1 is not None else "")),
+                    (pp2 if 'pp2' in locals() and pred_peak_lr2 is not None else (int(pred_peak_lr2) if pred_peak_lr2 is not None else "")),
+                    nmatch, (lookback_days or 0), variance, step_min, int(bool(schedule_exact)), int(bool(compare_time_feature))
+                ])
 
             samples += 1
             t = VTime(min(t.num + step_min, target.time_closed.num))
@@ -530,6 +794,65 @@ def backtest(
     if compare_time_feature:
         summarize(result_writer, "  LR before+time", peak_abs_errs_lr2)
 
+    # Optional weekend/weekday splits
+    if weekend_split:
+        result_writer("")
+        result_writer("Weekend vs Weekday splits:")
+        summarize(result_writer, "  Further SM (WE)", fut_sm_we)
+        summarize(result_writer, "  Further SM (WD)", fut_sm_wd)
+        summarize(result_writer, "  Further LR (WE)", fut_lr1_we)
+        summarize(result_writer, "  Further LR (WD)", fut_lr1_wd)
+        if compare_time_feature:
+            summarize(result_writer, "  Further LR+time (WE)", fut_lr2_we)
+            summarize(result_writer, "  Further LR+time (WD)", fut_lr2_wd)
+        summarize(result_writer, "  Next-hour net (WE)", nxh_net_we)
+        summarize(result_writer, "  Next-hour net (WD)", nxh_net_wd)
+        summarize(result_writer, "  Activity SM (WE)", nxh_act_sm_we)
+        summarize(result_writer, "  Activity SM (WD)", nxh_act_sm_wd)
+        summarize(result_writer, "  Activity LR (WE)", nxh_act_lr1_we)
+        summarize(result_writer, "  Activity LR (WD)", nxh_act_lr1_wd)
+        if compare_time_feature:
+            summarize(result_writer, "  Activity LR+time (WE)", nxh_act_lr2_we)
+            summarize(result_writer, "  Activity LR+time (WD)", nxh_act_lr2_wd)
+        summarize(result_writer, "  Peak SM (WE)", peak_sm_we)
+        summarize(result_writer, "  Peak SM (WD)", peak_sm_wd)
+        summarize(result_writer, "  Peak LR (WE)", peak_lr1_we)
+        summarize(result_writer, "  Peak LR (WD)", peak_lr1_wd)
+        if compare_time_feature:
+            summarize(result_writer, "  Peak LR+time (WE)", peak_lr2_we)
+            summarize(result_writer, "  Peak LR+time (WD)", peak_lr2_wd)
+
+    # Optional time-bin summaries
+    if time_bins:
+        result_writer("")
+        result_writer("Time-of-day bin summaries:")
+        labels = sorted(set(list(fut_sm_bins.keys()) + list(fut_lr1_bins.keys()) + list(fut_lr2_bins.keys()) +
+                             list(nxh_net_bins.keys()) + list(nxh_act_sm_bins.keys()) + list(nxh_act_lr1_bins.keys()) + list(nxh_act_lr2_bins.keys()) +
+                             list(peak_sm_bins.keys()) + list(peak_lr1_bins.keys()) + list(peak_lr2_bins.keys())))
+        for lbl in labels:
+            result_writer("")
+            result_writer(f"  Bin {lbl}:")
+            summarize(result_writer, "    Further SM", fut_sm_bins.get(lbl, []))
+            summarize(result_writer, "    Further LR", fut_lr1_bins.get(lbl, []))
+            if compare_time_feature:
+                summarize(result_writer, "    Further LR+time", fut_lr2_bins.get(lbl, []))
+            summarize(result_writer, "    Next-hour net", nxh_net_bins.get(lbl, []))
+            summarize(result_writer, "    Activity SM", nxh_act_sm_bins.get(lbl, []))
+            summarize(result_writer, "    Activity LR", nxh_act_lr1_bins.get(lbl, []))
+            if compare_time_feature:
+                summarize(result_writer, "    Activity LR+time", nxh_act_lr2_bins.get(lbl, []))
+            summarize(result_writer, "    Peak SM", peak_sm_bins.get(lbl, []))
+            summarize(result_writer, "    Peak LR", peak_lr1_bins.get(lbl, []))
+            if compare_time_feature:
+                summarize(result_writer, "    Peak LR+time", peak_lr2_bins.get(lbl, []))
+
+    # Close CSV if in use
+    try:
+        if csv_file:
+            csv_file.flush(); csv_file.close()
+    except Exception:
+        pass
+
 
 
 
@@ -547,6 +870,24 @@ def main():
     parser.add_argument("--lookback-grid", type=str, default="", help="Comma-separated list of lookback-days values to compare (overrides --lookback-days)")
     parser.add_argument("--recommended", action="store_true", help="Run the recommended test suite for model/parameter assessment")
     parser.add_argument("--out-file", default="", help="Path to save full output (tee to screen and file)")
+    # New optional controls (default off to preserve behavior)
+    parser.add_argument("--lr-min-n", type=int, default=0, help="Minimum matched cohort size to fit/predict LR (default 0=disabled)")
+    parser.add_argument("--lr2-min-n", type=int, default=0, help="Minimum matched cohort size to fit/predict LR+time (default 0=disabled)")
+    parser.add_argument("--ridge-l2", type=float, default=0.0, help="L2 regularization for LR slope (default 0.0)")
+    parser.add_argument("--ridge2-l2", type=float, default=0.0, help="L2 regularization for LR+time slopes (default 0.0)")
+    parser.add_argument("--bound-preds", action="store_true", help="Clamp predictions (remainder/activity >= 0; peak <= capacity)")
+    parser.add_argument("--capacity", type=int, default=180, help="Capacity cap used when --bound-preds is set (default 180)")
+    parser.add_argument("--time-bins", type=str, default="", help="Comma-separated fractional edges in [0,1] for time-of-day bins (e.g., 0,0.2,0.4,0.6,0.8,1)")
+    parser.add_argument("--per-sample-csv", type=str, default="", help="Write per-sample CSV to this path (single-run mode)")
+    parser.add_argument("--weekend-split", action="store_true", help="Also print weekend vs weekday summaries")
+    # If run with no args, print a short guide and argparse help
+    if len(sys.argv) == 1:
+        print("Estimator Backtest — argument overview:\n")
+        print(describe_args())
+        print("\nArgparse help:\n")
+        parser.print_help()
+        return
+
     args = parser.parse_args()
 
     # Recommended test suite: fixed DB + date window and several parameter sweeps
@@ -597,98 +938,42 @@ def main():
         outln(f"Database totals: {total_days} days, {total_visits} visits")
         outln(f"Testing window {start}..{end}: {win_days} days, {win_visits} visits")
 
-        # Parameter sweeps
-        lookbacks = [90, 180, 365, 480, 720]
-        variances = [10, 15, 20]
-        print(f"Comparing lookback windows: {', '.join(str(lb) for lb in lookbacks)} (days)")
+        # Recommended: single suite for faster run
+        # step=60, variance=15, lookback=365, schedule_exact=YES, time_feature=ON
+        print("\n" + "#" * 80)
+        print("Recommended suite | step=60 | variance=15 | schedule_exact=YES | lookback=365 | time_feature=ON")
 
-        # Determine total number of suites for progress display
-        total_suites = len(variances) * len(lookbacks) + len(lookbacks) + len(lookbacks)
-        suite_idx = 0
+        outln("")
+        outln("#" * 80)
+        outln("Recommended suite | step=60 | variance=15 | schedule_exact=YES | lookback=365 | time_feature=ON")
+        outln("=" * 72)
+        outln("Single fixed configuration as above")
 
-        # Preload visits once for this window and reuse across suites
+        # Preload visits once for this window and reuse
         days_window = fetch_days(conn, start, end)
         visits_cache = load_visits_for_days(conn, days_window)
 
-        # Sweep variances with schedule_exact OFF, step=60, compare_time_feature ON
-        for var in variances:
-            print("\n" + "#" * 80)
-            print(f"Variance {var} | step=60 | schedule_exact=NO | time_feature=ON")
-            for lb in lookbacks:
-                suite_idx += 1
-                print("\n" + "=" * 72)
-                print(f"[{suite_idx}/{total_suites}] Lookback {lb} days  |  schedule_exact=no  |  time_feature=on")
-                # Write suite header to file
-                outln("")
-                outln("#" * 80)
-                outln(f"Variance {var} | step=60 | schedule_exact=NO | time_feature=ON")
-                outln("=" * 72)
-                outln(f"Lookback {lb} days  |  schedule_exact=no  |  time_feature=on")
-                backtest(
-                    conn,
-                    start=start,
-                    end=end,
-                    step_min=60,
-                    variance=var,
-                    zcut=args.zcut,
-                    schedule_exact=False,
-                    lookback_days=lb,
-                    compare_time_feature=True,
-                    result_writer=outln,
-                    visits_by_day=visits_cache,
-                )
-
-        # Schedule exact ON at variance=15 (representative), step=60
-        print("\n" + "#" * 80)
-        print("Variance 15 | step=60 | schedule_exact=YES | time_feature=ON")
-        for lb in lookbacks:
-            suite_idx += 1
-            print("\n" + "=" * 72)
-            print(f"[{suite_idx}/{total_suites}] Lookback {lb} days  |  schedule_exact=yes  |  time_feature=on")
-            outln("")
-            outln("#" * 80)
-            outln("Variance 15 | step=60 | schedule_exact=YES | time_feature=ON")
-            outln("=" * 72)
-            outln(f"Lookback {lb} days  |  schedule_exact=yes  |  time_feature=on")
-            backtest(
-                conn,
-                start=start,
-                end=end,
-                step_min=60,
-                variance=15,
-                zcut=args.zcut,
-                schedule_exact=True,
-                lookback_days=lb,
-                compare_time_feature=True,
-                result_writer=outln,
-                visits_by_day=visits_cache,
-            )
-
-        # Stability check: step=120 at variance=15, schedule_exact OFF
-        print("\n" + "#" * 80)
-        print("Variance 15 | step=120 | schedule_exact=NO | time_feature=ON")
-        for lb in lookbacks:
-            suite_idx += 1
-            print("\n" + "=" * 72)
-            print(f"[{suite_idx}/{total_suites}] Lookback {lb} days  |  schedule_exact=no  |  time_feature=on")
-            outln("")
-            outln("#" * 80)
-            outln("Variance 15 | step=120 | schedule_exact=NO | time_feature=ON")
-            outln("=" * 72)
-            outln(f"Lookback {lb} days  |  schedule_exact=no  |  time_feature=on")
-            backtest(
-                conn,
-                start=start,
-                end=end,
-                step_min=120,
-                variance=15,
-                zcut=args.zcut,
-                schedule_exact=False,
-                lookback_days=lb,
-                compare_time_feature=True,
-                result_writer=outln,
-                visits_by_day=visits_cache,
-            )
+        backtest(
+            conn,
+            start=start,
+            end=end,
+            step_min=60,
+            variance=15,
+            zcut=args.zcut,
+            schedule_exact=True,
+            lookback_days=365,
+            compare_time_feature=True,
+            result_writer=outln,
+            visits_by_day=visits_cache,
+            lr_min_n=args.lr_min_n,
+            lr2_min_n=args.lr2_min_n,
+            ridge_l2=args.ridge_l2,
+            ridge2_l2=args.ridge2_l2,
+            bound_preds=args.bound_preds,
+            capacity=args.capacity,
+            time_bins=parse_time_bins(args.time_bins),
+            weekend_split=args.weekend_split,
+        )
         # Restore stdout if we teed it
         try:
             if f_out:
@@ -749,6 +1034,15 @@ def main():
                 schedule_exact=args.schedule_exact,
                 lookback_days=lb,
                 compare_time_feature=args.compare_time_feature,
+                lr_min_n=args.lr_min_n,
+                lr2_min_n=args.lr2_min_n,
+                ridge_l2=args.ridge_l2,
+                ridge2_l2=args.ridge2_l2,
+                bound_preds=args.bound_preds,
+                capacity=args.capacity,
+                time_bins=parse_time_bins(args.time_bins),
+                weekend_split=args.weekend_split,
+                per_sample_csv=(args.per_sample_csv or None),
             )
     else:
         backtest(
@@ -761,6 +1055,15 @@ def main():
             schedule_exact=args.schedule_exact,
             lookback_days=args.lookback_days,
             compare_time_feature=args.compare_time_feature,
+            lr_min_n=args.lr_min_n,
+            lr2_min_n=args.lr2_min_n,
+            ridge_l2=args.ridge_l2,
+            ridge2_l2=args.ridge2_l2,
+            bound_preds=args.bound_preds,
+            capacity=args.capacity,
+            time_bins=parse_time_bins(args.time_bins),
+            weekend_split=args.weekend_split,
+            per_sample_csv=(args.per_sample_csv or None),
         )
 
 
@@ -820,6 +1123,52 @@ def lr2_predict(coeffs: Optional[Tuple[float, float, float]], xz: Tuple[float, f
     a, b, c = coeffs
     x, z = xz
     return int(round(a * x + b * z + c))
+
+
+def lr2_fit_ridge(
+    pairs: List[Tuple[Tuple[float, float], float]], l2: float
+) -> Optional[Tuple[float, float, float]]:
+    """Fit y = a*x + b*z + c with L2 on a and b via modified normal equations.
+
+    Adds l2 to diagonal terms for a and b (not intercept c).
+    """
+    n = len(pairs)
+    if n < 3:
+        return None
+    sx = sum(x for (x, _), _y in pairs)
+    sz = sum(z for (_, z), _y in pairs)
+    sy = sum(y for _xz, y in pairs)
+    sxx = sum(x * x for (x, _), _y in pairs) + max(0.0, float(l2))
+    szz = sum(z * z for (_, z), _y in pairs) + max(0.0, float(l2))
+    sxz = sum(x * z for (x, z), _y in pairs)
+    sxy = sum(x * y for (x, _), y in pairs)
+    szy = sum(z * y for (_, z), y in pairs)
+    det = (
+        sxx * (szz * n - sz * sz)
+        - sxz * (sxz * n - sx * sz)
+        + sx * (sxz * sz - szz * sx)
+    )
+    if det == 0:
+        return None
+    det_a = (
+        sxy * (szz * n - sz * sz)
+        - sxz * (szy * n - sy * sz)
+        + sx * (szy * sz - szz * sy)
+    )
+    det_b = (
+        sxx * (szy * n - sy * sz)
+        - sxy * (sxz * n - sx * sz)
+        + sx * (sxz * sy - sxy * sz)
+    )
+    det_c = (
+        sxx * (szz * sy - szy * sz)
+        - sxz * (sxz * sy - sxy * sz)
+        + sxy * (sxz * sz - szz * sx)
+    )
+    a = det_a / det
+    b = det_b / det
+    c = det_c / det
+    return a, b, c
 
 
 def normalize_date(s: Optional[str]) -> Optional[str]:

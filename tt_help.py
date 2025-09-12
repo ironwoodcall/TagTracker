@@ -55,7 +55,7 @@ Information and reports
   Graph of busy- and fullness  :  GRAPH
   Show tag configurations      :  TAGS
   Show chart of all activity   :  CHART
-  Estimate further bikes today :  ESTIMATE
+  Estimate further bikes today :  ESTIMATE [OLD|FULL]
   Detailed dump of today data  :  DUMP ['full']
 
 Other

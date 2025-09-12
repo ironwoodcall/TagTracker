@@ -42,6 +42,7 @@ import os
 import sys
 import math
 import statistics
+from typing import Optional
 
 sys.path.append("../")
 sys.path.append("./")
@@ -345,7 +346,7 @@ class LRModel:
         return lines
 
 
-class Estimator:
+class Estimator_old:
     """Data and methods to estimate how many more bikes to expect."""
 
     DBFILE = wcfg.DB_FILENAME
@@ -597,7 +598,7 @@ class Estimator:
             if self.rf_model.state == rf.OK:
                 predictions += [self.rf_model.further_bikes]
         # Find day-total expectation
-
+        prediction_str = "?"
         if predictions:
             min_day_total = min(predictions) + self.bikes_so_far
             max_day_total = max(predictions) + self.bikes_so_far
@@ -624,7 +625,7 @@ class Estimator:
         return lines
 
 
-def _init_from_cgi() -> Estimator:
+def _init_from_cgi_old() -> Estimator_old:
     """Read initialization parameters from CGI env var.
 
     CGI parameters: as at top of file.
@@ -638,22 +639,310 @@ def _init_from_cgi() -> Estimator:
     as_of_when = query_parms.get("as_of_when", [""])[0]
     time_closed = query_parms.get("time_closed", [""])[0]
 
-    return Estimator(bikes_so_far, as_of_when, dow, time_closed)
+    return Estimator_old(bikes_so_far, as_of_when, dow, time_closed)
 
 
-def _init_from_args() -> Estimator:
+def _init_from_args_old() -> Estimator_old:
     my_args = sys.argv[1:] + ["", "", "", "", "", "", "", ""]
-    return Estimator(my_args[0], my_args[1], my_args[2], my_args[3])
+    return Estimator_old(my_args[0], my_args[1], my_args[2], my_args[3])
+
+
+# New estimator that provides a concise estimation table
+class Estimator:
+    """New estimator producing a compact table of key metrics and confidence.
+
+    Outputs four items:
+      - Further bikes today (remainder)
+      - Max full today (count)
+      - Max full today time (HH:MM)
+      - Events in the next hour (ins+outs)
+    """
+
+    orgsite_id = 1  # FIXME: hardwired orgsite (kept consistent with old)
+
+    def __init__(
+        self,
+        bikes_so_far: str = "",
+        as_of_when: str = "",
+        dow_in: str = "",
+        time_closed: str = "",
+    ) -> None:
+        self.state = INCOMPLETE
+        self.error = ""
+        self.database = None
+
+        DBFILE = wcfg.DB_FILENAME
+        if not os.path.exists(DBFILE):
+            self.error = "Database not found"
+            self.state = ERROR
+            return
+        self.database = db.db_connect(DBFILE)
+
+        # Inputs
+        if not bikes_so_far:
+            bikes_so_far = self._bikes_right_now()
+        bikes_so_far = str(bikes_so_far).strip()
+        if not bikes_so_far.isdigit():
+            self.error = "Missing or bad bikes_so_far parameter."
+            self.state = ERROR
+            return
+        self.bikes_so_far = int(bikes_so_far)
+
+        as_of_when = as_of_when if as_of_when else "now"
+        self.as_of_when = VTime(as_of_when)
+        if not self.as_of_when:
+            self.error = "Bad as_of_when parameter."
+            self.state = ERROR
+            return
+
+        dow_in = dow_in if dow_in else "today"
+        maybe_dow = ut.dow_int(dow_in)
+        if maybe_dow:
+            self.dow = maybe_dow
+            dow_date = ut.most_recent_dow(self.dow)
+        else:
+            dow_date = ut.date_str(dow_in)
+            if dow_date:
+                self.dow = ut.dow_int(dow_date)
+            else:
+                self.error = "Bad dow parameter."
+                self.state = ERROR
+                return
+
+        # Schedule
+        if not time_closed:
+            time_closed = tt_default_hours.get_default_hours(dow_date)[1]
+        self.time_closed = VTime(time_closed)
+        if not self.time_closed:
+            self.error = "Missing or bad time_closed parameter."
+            self.state = ERROR
+            return
+        # Open time (for fraction elapsed and day-shape logic)
+        self.time_open = VTime(tt_default_hours.get_default_hours(dow_date)[0])
+
+        # Data buffers
+        self.similar_dates: list[str] = []
+        self.befores: list[int] = []
+        self.afters: list[int] = []
+        # Configurable matching and trimming
+        self.VARIANCE = getattr(wcfg, "EST_VARIANCE", 15)
+        self.Z_CUTOFF = getattr(wcfg, "EST_Z_CUTOFF", 2.5)
+        self._fetch_raw_data()
+        if self.state == ERROR:
+            return
+
+        # Build SimpleModel for remainder
+        self.simple_model = SimpleModel()
+        self.simple_model.create_model(
+            self.similar_dates, self.befores, self.afters, self.VARIANCE, self.Z_CUTOFF
+        )
+        self.simple_model.guess(self.bikes_so_far)
+
+        self.table_rows: list[tuple[str, str, str]] = []
+
+    def _bikes_right_now(self) -> int:
+        today = ut.date_str("today")
+        cursor = self.database.cursor()
+        day_id = db.fetch_day_id(cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id)
+        if not day_id:
+            return 0
+        rows = db.db_fetch(
+            self.database,
+            f"select count(time_in) as cnt from visit where day_id = {day_id} and time_in > ''",
+            ["cnt"],
+        )
+        return int(rows[0].cnt) if rows else 0
+
+    def _sql_str(self) -> str:
+        if self.dow in [6, 7]:
+            dow_set = f"({self.dow})"
+        else:
+            dow_set = "(1,2,3,4,5)"
+        today = ut.date_str("today")
+        return f"""
+            SELECT
+                D.date,
+                SUM(CASE WHEN V.time_in <= '{self.as_of_when}' THEN 1 ELSE 0 END) AS befores,
+                SUM(CASE WHEN V.time_in > '{self.as_of_when}' THEN 1 ELSE 0 END) AS afters
+            FROM DAY D
+            JOIN VISIT V ON D.id = V.day_id
+            WHERE D.orgsite_id = {self.orgsite_id}
+              AND D.weekday IN {dow_set}
+              AND D.date != '{today}'
+              AND D.time_closed = '{self.time_closed}'
+            GROUP BY D.date;
+        """
+
+    def _fetch_raw_data(self) -> None:
+        sql = self._sql_str()
+        data_rows = db.db_fetch(self.database, sql, ["date", "before", "after"])
+        if not data_rows:
+            self.error = "no data returned from database."
+            self.state = ERROR
+            return
+        self.befores = [int(r.before) for r in data_rows]
+        self.afters = [int(r.after) for r in data_rows]
+        self.similar_dates = [r.date for r in data_rows]
+
+    def _matched_dates(self) -> list[str]:
+        out: list[str] = []
+        for i, b in enumerate(self.befores):
+            if abs(int(b) - int(self.bikes_so_far)) <= self.VARIANCE:
+                out.append(self.similar_dates[i])
+        return out
+
+    def _visits_for_date(self, date_str: str) -> list[tuple[VTime, Optional[VTime]]]:
+        day_id = db.fetch_day_id(cursor=self.database.cursor(), date=date_str, maybe_orgsite_id=self.orgsite_id)
+        if not day_id:
+            return []
+        rows = db.db_fetch(
+            self.database,
+            f"SELECT time_in, time_out FROM VISIT WHERE day_id = {day_id} ORDER BY time_in",
+            ["time_in", "time_out"],
+        )
+        out = []
+        for r in rows:
+            tin = VTime(r.time_in)
+            tout = VTime(r.time_out) if r.time_out else None
+            out.append((tin, tout))
+        return out
+
+    @staticmethod
+    def _counts_for_time(visits: list[tuple[VTime, Optional[VTime]]], t: VTime) -> tuple[int, int, int, int, int]:
+        t_end = VTime(min(t.num + 60, 24 * 60))
+        before_ins = sum(1 for tin, _ in visits if tin and tin <= t)
+        after_ins = sum(1 for tin, _ in visits if tin and tin > t)
+        outs_up_to_t = sum(1 for _, tout in visits if tout and tout <= t)
+        ins_next = sum(1 for tin, _ in visits if tin and t < tin <= t_end)
+        outs_next = sum(1 for _, tout in visits if tout and t < tout <= t_end)
+        return before_ins, after_ins, outs_up_to_t, ins_next, outs_next
+
+    @staticmethod
+    def _peak_future_occupancy(visits: list[tuple[VTime, Optional[VTime]]], t: VTime, close: VTime) -> tuple[int, VTime]:
+        occ_now = sum(1 for tin, _ in visits if tin and tin <= t) - sum(1 for _, tout in visits if tout and tout <= t)
+        events: list[tuple[int, int]] = []
+        for tin, tout in visits:
+            if tin and t < tin <= close:
+                events.append((int(VTime(tin).num), +1))
+            if tout and t < tout <= close:
+                events.append((int(VTime(tout).num), -1))
+        events.sort(key=lambda x: (x[0], -x[1]))
+        peak = occ_now
+        peak_time = t
+        occ = occ_now
+        for tm, delta in events:
+            occ += delta
+            if occ > peak:
+                peak = occ
+                peak_time = VTime(tm)
+        return peak, peak_time
+
+    def _confidence_level(self, n: int, frac_elapsed: float) -> str:
+        cfg = getattr(wcfg, "EST_CONF_THRESHOLDS", None)
+        high = {"min_n": 12, "min_frac": 0.4}
+        med = {"min_n": 8, "min_frac": 0.2}
+        if isinstance(cfg, dict):
+            high = cfg.get("High", high)
+            med = cfg.get("Medium", med)
+        if n >= int(high.get("min_n", 12)) and frac_elapsed >= float(high.get("min_frac", 0.4)):
+            return "High"
+        if n >= int(med.get("min_n", 8)) and frac_elapsed >= float(med.get("min_frac", 0.2)):
+            return "Medium"
+        return "Low"
+
+    def _band(self, level: str, kind: str) -> int:
+        # kind in {remainder, activity, peak, peaktime}
+        bands = getattr(wcfg, "EST_BANDS", None)
+        default = {
+            "remainder": {"High": 10, "Medium": 18, "Low": 30},
+            "activity": {"High": 8, "Medium": 12, "Low": 16},
+            "peak": {"High": 10, "Medium": 15, "Low": 25},
+            "peaktime": {"High": 20, "Medium": 30, "Low": 60},
+        }
+        table = default.get(kind, {})
+        if isinstance(bands, dict):
+            table = bands.get(kind, table)
+        return int(table.get(level, 0) or 0)
+
+    def guess(self) -> None:
+        if self.state == ERROR:
+            return
+        # Fraction elapsed
+        total_span = max(1, self.time_closed.num - self.time_open.num)
+        frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - self.time_open.num) / total_span))
+
+        # Matched dates by bikes_so_far window
+        matched = self._matched_dates()
+        n = len(matched)
+
+        # Further-bikes (remainder): SM median if available
+        remainder = None
+        if self.simple_model.state == OK:
+            remainder = self.simple_model.median
+        if remainder is None:
+            remainder = 0
+
+        # Next-hour activity and Peak-future via matched-day visits
+        nxh_acts: list[int] = []
+        peaks: list[tuple[int, VTime]] = []
+        for d in matched:
+            vlist = self._visits_for_date(d)
+            _b, _a, _outs_to_t, ins_nxh, outs_nxh = self._counts_for_time(vlist, self.as_of_when)
+            nxh_acts.append(int(ins_nxh + outs_nxh))
+            p, pt = self._peak_future_occupancy(vlist, self.as_of_when, self.time_closed)
+            peaks.append((int(p), pt))
+
+        nxh_activity = int(statistics.median(nxh_acts)) if nxh_acts else 0
+        if peaks:
+            peak_val = int(statistics.median([p for p, _ in peaks]))
+            # Estimate time of peak as median time among those with max (rough proxy)
+            times = [pt.num for _p, pt in peaks]
+            peak_time = VTime(int(statistics.median(times)))
+        else:
+            peak_val = self.bikes_so_far
+            peak_time = self.as_of_when
+
+        # Confidence levels and bands
+        level = self._confidence_level(n, frac_elapsed)
+        rem_band = self._band(level, "remainder")
+        act_band = self._band(level, "activity")
+        peak_band = self._band(level, "peak")
+        ptime_band = self._band(level, "peaktime")
+
+        # Build table rows
+        self.table_rows = [
+            ("Further bikes today", f"{int(remainder)}", f"±{rem_band} bikes"),
+            ("Max full today", f"{int(peak_val)}", f"±{peak_band} bikes"),
+            ("Max full today time", f"{peak_time.short}", f"±{ptime_band} minutes"),
+            ("Events in the next hour", f"{int(nxh_activity)}", f"±{act_band}"),
+        ]
+        self.state = OK
+
+    def result_msg(self) -> list[str]:
+        if self.state == ERROR:
+            return [f"Can't estimate because: {self.error}"]
+        if not self.table_rows:
+            return ["No estimates available"]
+        # Render a simple aligned table
+        header = ["Measure", "Value", "Confidence"]
+        widths = [max(len(r[i]) for r in ([header] + self.table_rows)) for i in range(3)]
+        def fmt_row(r: list[str]) -> str:
+            return f"{r[0].ljust(widths[0])}  {r[1].rjust(widths[1])}  {r[2].ljust(widths[2])}"
+        lines = [fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2]])]
+        for m, v, c in self.table_rows:
+            lines.append(fmt_row([m, v, c]))
+        return lines
 
 
 if __name__ == "__main__":
-    estimate: Estimator
+    # Backward-compatible CLI/CGI runner for the old estimator
+    estimate: Estimator_old
     is_cgi = bool(os.environ.get("REQUEST_METHOD"))
     if is_cgi:
         print("Content-type: text/plain\n")
-        estimate = _init_from_cgi()
+        estimate = _init_from_cgi_old()
     else:
-        estimate = _init_from_args()
+        estimate = _init_from_args_old()
 
     if estimate.state != ERROR:
         estimate.guess()

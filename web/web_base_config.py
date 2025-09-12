@@ -40,6 +40,28 @@ DATA_OWNER = ""
 # Database filename
 DB_FILENAME = ""  # Filepath to sqlite3 database
 
+# Estimator configuration (override in web_local_config.py if desired)
+# Confidence level thresholds: minimum matched cohort size (min_n) and
+# minimum fraction of day elapsed (min_frac) for Medium/High.
+EST_CONF_THRESHOLDS = {
+    "High": {"min_n": 12, "min_frac": 0.4},
+    "Medium": {"min_n": 8, "min_frac": 0.2},
+}
+
+# Confidence bands (display ranges) per measure.
+# Measures: remainder (further bikes), activity (next-hour ins+outs),
+# peak (max bikes today), peaktime (time of max, minutes).
+EST_BANDS = {
+    "remainder": {"High": 10, "Medium": 18, "Low": 30},
+    "activity": {"High": 8, "Medium": 12, "Low": 16},
+    "peak": {"High": 10, "Medium": 15, "Low": 25},
+    "peaktime": {"High": 20, "Medium": 30, "Low": 60},
+}
+
+# Similarity matching and trimming for the same-day estimator
+EST_VARIANCE = 15
+EST_Z_CUTOFF = 2.5
+
 # Import any local web config to override this module's values.
 try:
     from web_local_config import * # pylint:disable=wildcard-import
