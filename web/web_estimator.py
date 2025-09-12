@@ -746,6 +746,9 @@ class Estimator:
         # Configurable matching and trimming
         self.VARIANCE = getattr(wcfg, "EST_VARIANCE", 15)
         self.Z_CUTOFF = getattr(wcfg, "EST_Z_CUTOFF", 2.5)
+        self.MATCH_OPEN_TOL = int(getattr(wcfg, "EST_MATCH_OPEN_TOL", 15))
+        self.MATCH_CLOSE_TOL = int(getattr(wcfg, "EST_MATCH_CLOSE_TOL", 15))
+        self._match_note = ""
         self._fetch_raw_data()
         if self.state == ERROR:
             return
@@ -772,12 +775,25 @@ class Estimator:
         )
         return int(rows[0].cnt) if rows else 0
 
-    def _sql_str(self) -> str:
-        if self.dow in [6, 7]:
-            dow_set = f"({self.dow})"
-        else:
-            dow_set = "(1,2,3,4,5)"
+    def _time_bounds(self, base: VTime, tol_min: int) -> tuple[str, str]:
+        base_num = base.num if base and base.num is not None else 0
+        lo = max(0, base_num - max(0, int(tol_min)))
+        hi = min(24 * 60, base_num + max(0, int(tol_min)))
+        return VTime(lo), VTime(hi)
+
+    def _sql_str(self, use_open: bool, use_close: bool) -> str:
         today = ut.date_str("today")
+        where_parts = [
+            f"D.orgsite_id = {self.orgsite_id}",
+            f"D.date != '{today}'",
+        ]
+        if use_open:
+            lo, hi = self._time_bounds(self.time_open, self.MATCH_OPEN_TOL)
+            where_parts.append(f"D.time_open BETWEEN '{lo}' AND '{hi}'")
+        if use_close:
+            lo, hi = self._time_bounds(self.time_closed, self.MATCH_CLOSE_TOL)
+            where_parts.append(f"D.time_closed BETWEEN '{lo}' AND '{hi}'")
+        where_sql = " AND\n              ".join(where_parts)
         return f"""
             SELECT
                 D.date,
@@ -785,36 +801,28 @@ class Estimator:
                 SUM(CASE WHEN V.time_in > '{self.as_of_when}' THEN 1 ELSE 0 END) AS afters
             FROM DAY D
             JOIN VISIT V ON D.id = V.day_id
-            WHERE D.orgsite_id = {self.orgsite_id}
-              AND D.weekday IN {dow_set}
-              AND D.date != '{today}'
-              AND D.time_closed = '{self.time_closed}'
+            WHERE {where_sql}
             GROUP BY D.date;
         """
 
     def _fetch_raw_data(self) -> None:
-        sql = self._sql_str()
+        # Try: match both opening and closing times within tolerance
+        sql = self._sql_str(use_open=True, use_close=True)
         data_rows = db.db_fetch(self.database, sql, ["date", "before", "after"])
-        # If no rows, relax the closing-time equality to broaden history match
+        if data_rows:
+            self._match_note = "matched on open+close"
+        # Backoff 1: match closing time only
         if not data_rows:
-            if self.dow in [6, 7]:
-                dow_set = f"({self.dow})"
-            else:
-                dow_set = "(1,2,3,4,5)"
-            today = ut.date_str("today")
-            relaxed_sql = f"""
-                SELECT
-                    D.date,
-                    SUM(CASE WHEN V.time_in <= '{self.as_of_when}' THEN 1 ELSE 0 END) AS befores,
-                    SUM(CASE WHEN V.time_in > '{self.as_of_when}' THEN 1 ELSE 0 END) AS afters
-                FROM DAY D
-                JOIN VISIT V ON D.id = V.day_id
-                WHERE D.orgsite_id = {self.orgsite_id}
-                  AND D.weekday IN {dow_set}
-                  AND D.date != '{today}'
-                GROUP BY D.date;
-            """
-            data_rows = db.db_fetch(self.database, relaxed_sql, ["date", "before", "after"])
+            sql = self._sql_str(use_open=False, use_close=True)
+            data_rows = db.db_fetch(self.database, sql, ["date", "before", "after"])
+            if data_rows:
+                self._match_note = "matched on close only"
+        # Backoff 2: no time constraints (orgsite only)
+        if not data_rows:
+            sql = self._sql_str(use_open=False, use_close=False)
+            data_rows = db.db_fetch(self.database, sql, ["date", "before", "after"])
+            if data_rows:
+                self._match_note = "matched without time filters"
         if not data_rows:
             self.error = "no data returned from database."
             self.state = ERROR
@@ -1025,7 +1033,7 @@ class Estimator:
             span = max(1, close_num - open_num)
             frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - open_num) / span))
             lines.append(f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)")
-            lines.append(f"Similar-day rows: {len(self.similar_dates)}")
+            lines.append(f"Similar-day rows: {len(self.similar_dates)} ({self._match_note})")
             lines.append(f"Match tolerance (VARIANCE): {self.VARIANCE}")
             lines.append(f"Outlier Z cutoff: {self.Z_CUTOFF}")
             if getattr(self, 'simple_model', None) and self.simple_model.state == OK:
