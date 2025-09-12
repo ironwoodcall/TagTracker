@@ -986,6 +986,38 @@ class Estimator:
             return int(round(vals[i] * (1 - frac) + vals[i + 1] * frac))
         return q_at(p_lo), q_at(p_hi)
 
+    @staticmethod
+    def _clamp01(x: float) -> float:
+        return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
+
+    def _smooth_conf(self, n: int, frac_elapsed: float, spread: float | None, denom: float | None, n_ref: int = 12) -> str:
+        """Compute a smooth % confidence reflecting time, sample size, and variation.
+
+        - Time-of-day factor pf grows linearly from 0.3 at open to 1.0 at close.
+        - Sample-size factor nf grows with sqrt(n/n_ref), clipped to [0,1].
+        - Variation factor vf = 1 - clamp(spread/denom), where denom is a
+          scale for the measure (e.g., median or day span). If spread/denom
+          is small, vf is near 1 (high confidence); if large, vf is near 0.
+        Returns a percentage string like '82%'.
+        """
+        # Time-of-day
+        pf = 0.30 + 0.70 * self._clamp01(frac_elapsed)
+        # Sample size
+        try:
+            nf = (max(0, int(n)) / max(1, int(n_ref))) ** 0.5
+        except Exception:
+            nf = 0.0
+        nf = self._clamp01(nf)
+        # Variation
+        if spread is None or denom is None or denom <= 0:
+            vf = 0.5  # neutral if unknown
+        else:
+            vf = 1.0 - self._clamp01(float(spread) / float(denom))
+        # Blend
+        score = 100.0 * (0.40 * pf + 0.30 * nf + 0.30 * vf)
+        score = max(0.0, min(100.0, score))
+        return f"{int(round(score))}%"
+
     def guess(self) -> None:
         if self.state == ERROR:
             return
@@ -1055,8 +1087,6 @@ class Estimator:
             tlo, thi = self._percentiles(ptmins, 0.05, 0.95)
             ptime_lo, ptime_hi = VTime(tlo), VTime(thi)
 
-        conf_pct = {"High": "80%", "Medium": "60%", "Low": "40%"}.get(level, "40%")
-
         # Build table rows with added Range and %confidence columns, preserving existing text
         def rng_str(lo, hi, is_time=False):
             if lo is None or hi is None:
@@ -1065,11 +1095,32 @@ class Estimator:
                 return f"{lo.short}-{hi.short}"
             return f"{int(lo)}-{int(hi)}"
 
+        # Prepare per-measure smooth confidences reflecting variation
+        # Remainder confidence: spread relative to center (use hi as scale if center small)
+        rem_spread = (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
+        rem_scale = max(1.0, float(remainder), float(rem_hi or 0)) if rem_spread is not None else None
+        conf_rem = self._smooth_conf(n, frac_elapsed, rem_spread, rem_scale)
+
+        # Peak value confidence
+        pk_spread = (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
+        pk_scale = max(1.0, float(peak_val), float(pk_hi or 0)) if pk_spread is not None else None
+        conf_pk = self._smooth_conf(n, frac_elapsed, pk_spread, pk_scale)
+
+        # Peak time confidence: minutes window relative to total span
+        pt_spread = ((ptime_hi.num - ptime_lo.num) if (ptime_lo is not None and ptime_hi is not None) else None)
+        pt_scale = float(total_span) if pt_spread is not None else None
+        conf_pt = self._smooth_conf(n, frac_elapsed, pt_spread, pt_scale)
+
+        # Next-hour activity confidence
+        act_spread = (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
+        act_scale = max(1.0, float(nxh_activity), float(act_hi or 0)) if act_spread is not None else None
+        conf_act = self._smooth_conf(n, frac_elapsed, act_spread, act_scale)
+
         self.table_rows = [
-            ("Further bikes today", f"{int(remainder)}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_pct),
-            ("Most bikes today", f"{int(peak_val)}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pct),
-            ("Time when fullest", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pct),
-            ("Activity in the next hour", f"{int(nxh_activity)}", f"+/- {act_band} events", rng_str(act_lo, act_hi, False), conf_pct),
+            ("Further bikes today", f"{int(remainder)}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_rem),
+            ("Most bikes today", f"{int(peak_val)}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pk),
+            ("Time when fullest", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
+            ("Activity in the next hour", f"{int(nxh_activity)}", f"+/- {act_band} events", rng_str(act_lo, act_hi, False), conf_act),
         ]
 
         # Back-compat: expose min/max remainder used by callers expecting legacy API
