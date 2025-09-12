@@ -903,6 +903,35 @@ class Estimator:
             table = bands.get(kind, table)
         return int(table.get(level, 0) or 0)
 
+    def _band_scaled(self, base: int, n: int, frac_elapsed: float, kind: str) -> int:
+        """Scale a base band width by day progress and sample size.
+
+        - Earlier in the day -> wider margins; later -> tighter margins.
+        - More matched days -> tighter margins (sqrt-law capped).
+        Configurable via optional wcfg values:
+            EST_BAND_N_REF, EST_BAND_MIN_SCALE, EST_BAND_MAX_SCALE
+        """
+        try:
+            n_ref = int(getattr(wcfg, "EST_BAND_N_REF", 10))
+        except Exception:
+            n_ref = 10
+        try:
+            min_scale = float(getattr(wcfg, "EST_BAND_MIN_SCALE", 0.5))
+            max_scale = float(getattr(wcfg, "EST_BAND_MAX_SCALE", 1.25))
+        except Exception:
+            min_scale, max_scale = 0.5, 1.25
+
+        # Progress factor: 1.3 at open, 0.8 at close (linear)
+        pf = 1.30 - 0.50 * max(0.0, min(1.0, frac_elapsed))
+        # Sample-size factor: sqrt scaling around n_ref; capped to reasonable bounds
+        nn = max(1, int(n))
+        import math
+        sf = math.sqrt(n_ref / nn)
+        sf = max(0.70, min(1.15, sf))
+
+        scale = max(min_scale, min(max_scale, pf * sf))
+        return max(0, int(round(base * scale)))
+
     def guess(self) -> None:
         if self.state == ERROR:
             return
@@ -948,12 +977,12 @@ class Estimator:
             peak_val = self.bikes_so_far
             peak_time = self.as_of_when
 
-        # Confidence levels and bands
+        # Confidence levels and dynamic bands
         level = self._confidence_level(n, frac_elapsed)
-        rem_band = self._band(level, "remainder")
-        act_band = self._band(level, "activity")
-        peak_band = self._band(level, "peak")
-        ptime_band = self._band(level, "peaktime")
+        rem_band = self._band_scaled(self._band(level, "remainder"), n, frac_elapsed, "remainder")
+        act_band = self._band_scaled(self._band(level, "activity"), n, frac_elapsed, "activity")
+        peak_band = self._band_scaled(self._band(level, "peak"), n, frac_elapsed, "peak")
+        ptime_band = self._band_scaled(self._band(level, "peaktime"), n, frac_elapsed, "peaktime")
 
         # Build table rows
         self.table_rows = [
@@ -1011,12 +1040,16 @@ class Estimator:
             level = self._confidence_level(len(matched), frac_elapsed)
             lines.append("")
             lines.append(f"Confidence level: {level}")
+            rb = self._band(level,'remainder'); ab = self._band(level,'activity'); pb = self._band(level,'peak'); tb = self._band(level,'peaktime')
+            rbs = self._band_scaled(rb, len(matched), frac_elapsed, 'remainder')
+            abs_ = self._band_scaled(ab, len(matched), frac_elapsed, 'activity')
+            pbs = self._band_scaled(pb, len(matched), frac_elapsed, 'peak')
+            tbs = self._band_scaled(tb, len(matched), frac_elapsed, 'peaktime')
             lines.append(
-                f"Bands (remainder/activity/peak/peaktime): "
-                f"{self._band(level,'remainder')}/"
-                f"{self._band(level,'activity')}/"
-                f"{self._band(level,'peak')}/"
-                f"{self._band(level,'peaktime')}"
+                f"Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}"
+            )
+            lines.append(
+                f"Base bands (before scaling): {rb}/{ab}/{pb}/{tb}"
             )
         return lines
 
