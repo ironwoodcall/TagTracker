@@ -676,10 +676,12 @@ class Estimator:
         # Back-compat keyword aliases from legacy callers
         time_open: str = "",
         time_closed: str = "",
+        verbose: bool = False,
     ) -> None:
         self.state = INCOMPLETE
         self.error = ""
         self.database = None
+        self.verbose = bool(verbose)
 
         DBFILE = wcfg.DB_FILENAME
         if not os.path.exists(DBFILE):
@@ -955,10 +957,10 @@ class Estimator:
 
         # Build table rows
         self.table_rows = [
-            ("Further bikes today", f"{int(remainder)}", f"+/-{rem_band} bikes"),
-            ("Max full today", f"{int(peak_val)}", f"+/-{peak_band} bikes"),
-            ("Max full today time", f"{peak_time.short}", f"+/-{ptime_band} minutes"),
-            ("Events in the next hour", f"{int(nxh_activity)}", f"+/-{act_band}"),
+            ("Further bikes today", f"{int(remainder)}", f"±{rem_band} bikes"),
+            ("Max full today", f"{int(peak_val)}", f"±{peak_band} bikes"),
+            ("Max full today time", f"{peak_time.short}", f"±{ptime_band} minutes"),
+            ("Events in the next hour", f"{int(nxh_activity)}", f"±{act_band}"),
         ]
 
         # Back-compat: expose min/max remainder used by callers expecting legacy API
@@ -973,14 +975,49 @@ class Estimator:
             return [f"Can't estimate because: {self.error}"]
         if not self.table_rows:
             return ["No estimates available"]
-        # Render a simple aligned table
+        # Render a simple aligned table with a title
         header = ["Measure", "Value", "Error margin"]
         widths = [max(len(r[i]) for r in ([header] + self.table_rows)) for i in range(3)]
         def fmt_row(r: list[str]) -> str:
             return f"{r[0].ljust(widths[0])}  {r[1].rjust(widths[1])}  {r[2].ljust(widths[2])}"
-        lines = [fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2]])]
+        title = f"Estimation Summary (as of {self.as_of_when.short})"
+        lines = [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2]])]
         for m, v, c in self.table_rows:
             lines.append(fmt_row([m, v, c]))
+        # Verbose details if requested
+        if self.verbose:
+            lines.append("")
+            lines.append("Details")
+            lines.append("-------")
+            lines.append(f"Bikes so far: {self.bikes_so_far}")
+            lines.append(f"Open/Close: {self.time_open} - {self.time_closed}")
+            open_num = self.time_open.num if self.time_open and self.time_open.num is not None else 0
+            close_num = self.time_closed.num if self.time_closed and self.time_closed.num is not None else 24*60
+            span = max(1, close_num - open_num)
+            frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - open_num) / span))
+            lines.append(f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)")
+            lines.append(f"Similar-day rows: {len(self.similar_dates)}")
+            lines.append(f"Match tolerance (VARIANCE): {self.VARIANCE}")
+            lines.append(f"Outlier Z cutoff: {self.Z_CUTOFF}")
+            if getattr(self, 'simple_model', None) and self.simple_model.state == OK:
+                sm = self.simple_model
+                lines.append("")
+                lines.append("Simple model (similar days)")
+                lines.append(f"  Points matched: {sm.num_points}")
+                lines.append(f"  Discarded as outliers: {sm.num_discarded}")
+                lines.append(f"  Min/Median/Mean/Max: {sm.min}/{sm.median}/{sm.mean}/{sm.max}")
+            # Confidence
+            matched = self._matched_dates()
+            level = self._confidence_level(len(matched), frac_elapsed)
+            lines.append("")
+            lines.append(f"Confidence level: {level}")
+            lines.append(
+                f"Bands (remainder/activity/peak/peaktime): "
+                f"{self._band(level,'remainder')}/"
+                f"{self._band(level,'activity')}/"
+                f"{self._band(level,'peak')}/"
+                f"{self._band(level,'peaktime')}"
+            )
         return lines
 
 
@@ -994,12 +1031,14 @@ if __name__ == "__main__":
         closing_time = query_parms.get("closing_time", [""])[0]
         max_bikes_today = query_parms.get("max_bikes_today", [""])[0]
         max_bikes_time_today = query_parms.get("max_bikes_time_today", [""])[0]
+        est_type = (query_parms.get("estimation_type", [""])[0] or "").strip().lower()
         return Estimator(
             bikes_so_far=bikes_so_far,
             opening_time=opening_time,
             closing_time=closing_time,
             max_bikes_today=max_bikes_today,
             max_bikes_time_today=max_bikes_time_today,
+            verbose=(est_type == "verbose"),
         )
 
     def _init_from_args_new() -> Estimator:

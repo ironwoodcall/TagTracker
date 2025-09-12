@@ -67,6 +67,11 @@ def get_estimate_via_url(
         parts.append(f"max_bikes_time_today={max_bikes_time_today}")
     if estimation_type:
         parts.append(f"estimation_type={estimation_type}")
+        # Legacy CGI expects 'time_closed' (not 'closing_time'), plus dow/as_of_when
+        if estimation_type.strip().lower() == "legacy":
+            parts.append(f"time_closed={closing_time}")
+            parts.append("dow=today")
+            parts.append("as_of_when=now")
 
     url = f"{cfg.ESTIMATOR_URL_BASE}?" + "&".join(parts)
     ##ut.squawk(f"{url=}")

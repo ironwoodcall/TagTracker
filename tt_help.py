@@ -172,6 +172,33 @@ Description
     >>> INOUT wa3 bf6 bf7
 """,
 
+    CmdKeys.CMD_ESTIMATE: """
+Command: ESTIMATE [OLD|FULL]
+
+Can be invoked as
+  {}
+
+Arguments:
+    [OLD|LEGACY]   : use the legacy estimator interface
+    [FULL|VERBOSE] : show verbose details for the current estimator
+
+Description
+  Estimates the rest of the day using historical data for similar days.
+  The summary shows:
+    - Further bikes today (remainder)
+    - Max full today (count)
+    - Max full time (HH:MM)
+    - Events in the next hour (ins+outs)
+
+  FULL adds detailed information about inputs, matched-day counts,
+  simple-model statistics (min/median/mean/max), and confidence bands.
+
+Examples
+  EST          # current estimator summary
+  EST OLD      # use legacy estimator
+  EST FULL     # current estimator with details
+""",
+
     CmdKeys.CMD_GRAPHS: """
 Command: GRAPH [end_time]
 
@@ -185,6 +212,18 @@ Description
     Shows histograms representing how busy (bikes in + out) and how
     full the site is through the day.  If optional [end_time] is supplied
     then only data up to that time is incorporated in the graphs.
+
+""",
+    CmdKeys.CMD_ESTIMATE: """
+Command: ESTIMATE [OLD|FULL]
+
+Can be invoked as
+  {}
+
+Arguments:
+
+
+Description
 
 """,
 }

@@ -533,9 +533,6 @@ def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
     message_lines: List[str] = tt_call_estimator.get_estimate_via_url(
         today, estimation_type=est_type
     )
-    if choice in {"FULL", "VERBOSE"}:
-        message_lines.append("")
-        message_lines.append("(Verbose mode not yet implemented; showing basic results.)")
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
     pr.iprint()
