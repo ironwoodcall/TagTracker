@@ -955,10 +955,10 @@ class Estimator:
 
         # Build table rows
         self.table_rows = [
-            ("Further bikes today", f"{int(remainder)}", f"±{rem_band} bikes"),
-            ("Max full today", f"{int(peak_val)}", f"±{peak_band} bikes"),
-            ("Max full today time", f"{peak_time.short}", f"±{ptime_band} minutes"),
-            ("Events in the next hour", f"{int(nxh_activity)}", f"±{act_band}"),
+            ("Further bikes today", f"{int(remainder)}", f"+/-{rem_band} bikes"),
+            ("Max full today", f"{int(peak_val)}", f"+/-{peak_band} bikes"),
+            ("Max full today time", f"{peak_time.short}", f"+/-{ptime_band} minutes"),
+            ("Events in the next hour", f"{int(nxh_activity)}", f"+/-{act_band}"),
         ]
 
         # Back-compat: expose min/max remainder used by callers expecting legacy API
@@ -974,7 +974,7 @@ class Estimator:
         if not self.table_rows:
             return ["No estimates available"]
         # Render a simple aligned table
-        header = ["Measure", "Value", "Confidence"]
+        header = ["Measure", "Value", "Error margin"]
         widths = [max(len(r[i]) for r in ([header] + self.table_rows)) for i in range(3)]
         def fmt_row(r: list[str]) -> str:
             return f"{r[0].ljust(widths[0])}  {r[1].rjust(widths[1])}  {r[2].ljust(widths[2])}"

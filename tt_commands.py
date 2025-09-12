@@ -216,7 +216,13 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=False, prompt="New time (HHMM or 'now'): "),
         ],
     ),
-    CmdKeys.CMD_ESTIMATE: CmdConfig(invoke=["estimate", "est"]),
+    CmdKeys.CMD_ESTIMATE: CmdConfig(
+        invoke=["estimate", "est"],
+        arg_configs=[
+            # Optional mode selector: OLD/LEGACY uses legacy estimator; FULL/VERBOSE for verbose
+            ArgConfig(ARG_TOKEN, optional=True),
+        ],
+    ),
     CmdKeys.CMD_EXIT: CmdConfig(invoke=["exit", "ex", "x"]),
     CmdKeys.CMD_FULL_CHART: CmdConfig(
         invoke=["fullness-chart", "full-chart", "fullness_chart", "full_chart"],
