@@ -279,7 +279,7 @@ COMMANDS = {
 def find_command(command_invocation):
     """Find the command constant (e.g. CmdKeys.CMD_EDIT) from a user input."""
     for command, conf in COMMANDS.items():
-        if conf.matches(command_invocation):
+        if conf.matches(command_invocation.lower()):
             return command
     return ""
 
@@ -299,7 +299,7 @@ def prompt_user() -> str:
     if cfg.INCLUDE_TIME_IN_PROMPT:
         pr.iprint(f"{VTime('now').short}", end="")
     pr.iprint(f"Bike tag or command {cfg.CURSOR}", style=k.PROMPT_STYLE, end="")
-    user_str = pr.tt_inp().lower().strip("\\][ \t")
+    user_str = pr.tt_inp().strip("\\][ \t") # .lower() removed.
     return user_str
 
 
@@ -315,7 +315,7 @@ def subprompt_user(prompt: str) -> str:
 
 def _tokenize(user_str: str) -> list[str]:
     """Break user_str into whitespace-separated tokens."""
-    return user_str.strip().lower().split()
+    return user_str.strip().split() # .lower() removed
 
 
 def _subprompt_text(current: ParsedCommand) -> str:

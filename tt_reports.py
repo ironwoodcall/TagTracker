@@ -31,7 +31,7 @@ from common.tt_trackerday import TrackerDay
 import common.tt_util as ut
 from common.tt_daysummary import DaySummary, PeriodDetail, MomentDetail
 from common.tt_statistics import VisitStats
-
+from tt_notes import Note
 # import tt_block
 import tt_printer as pr
 
@@ -192,10 +192,13 @@ def later_events_warning(day: TrackerDay, when: VTime = "") -> None:
     pr.iprint(msg, style=k.ERROR_STYLE)
 
 
-def print_tag_notes(day: TrackerDay, tag: str):
-    """Print notes for a given tag."""
-    for line in day.notes.find(tag):
-        pr.iprint(line, style=k.WARNING_STYLE)
+def print_tag_notes(day: TrackerDay, target_tag: str):
+    """Print active/recovered notes for a given tag."""
+    for note in day.notes.active_notes():
+        for note_tag in note.tags:
+            if TagID(target_tag) == note_tag.tagid:
+                pr.iprint(note.pretty(), style=k.WARNING_STYLE)
+                break
 
 
 def bike_check_ins_report(day: TrackerDay, as_of_when: VTime) -> None:

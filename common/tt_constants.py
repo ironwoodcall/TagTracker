@@ -31,6 +31,7 @@ MaybeTag = str
 MaybeTime = str
 MaybeDate = str
 
+
 # Constants to use as dictionary keys.
 
 TAG = chr(0x2192) + "TAGID"

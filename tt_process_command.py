@@ -596,7 +596,7 @@ def process_command(
     elif cmd == CmdKeys.CMD_ESTIMATE:
         estimate(today=today)
     elif cmd == CmdKeys.CMD_EXIT:
-        return
+        return False
     # elif cmd == CmdKeys.CMD_FULL_CHART:
     #     rep.fullness_graph(pack_day_data())
     elif cmd == CmdKeys.CMD_GRAPHS:
@@ -612,7 +612,7 @@ def process_command(
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
     elif cmd == CmdKeys.CMD_NOTES:
-        data_changed = tt_notes.notes_command(notes_obj=today.notes, args=args)
+        data_changed = tt_notes.notes_command(notes_list=today.notes, args=args)
     elif cmd == CmdKeys.CMD_PUBLISH:
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
@@ -638,9 +638,10 @@ def process_command(
         pr.iprint(f"Command {canonical_invocation} is not available.")
         NoiseMaker.queue_add(k.ALERT)
 
+    # Note autodelete is handled in main loop after tag-note printing
+
     NoiseMaker.queue_play()
     return data_changed
-
 
 def lint_report(
     today: TrackerDay, strict_datetimes: bool = True, chatty: bool = False

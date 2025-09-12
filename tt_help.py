@@ -43,7 +43,7 @@ To enter and change tracking data
   Edit check in/out times      :  EDIT <tag(s)> <in|out> <time>
   Delete a check in/out        :  DELETE <tag(s)> <in|out> <yes>
   Change operating hours       :  HOURS
-  View/add operator notes      :  NOTE [DELETE|note text]
+  View/manage attendant notes  :  NOTE [DELETE|UNDELETE|note text]
   View/set bike registrations  :  REGISTER [+n|-n|=n]
 
 Information and reports
@@ -105,7 +105,7 @@ Description
 """,
 
     CmdKeys.CMD_NOTES: """
-Command: NOTE [DELETE|note text]
+Command: NOTE [note message|DELETE|UNDELETE]
 
 Can be invoked as
   {}
@@ -114,12 +114,19 @@ Description:
     Create or delete a note.  Notes are minor information items for
     the convenience of the bike attendants.
 
-    E.g. "NOTE Bike BH4 has a flat tire."
+    E.g. "NOTE Bike GA4 has a flat tire."
+         "N bike bh3 is leaning against west fence at end of F row"
 
-    If called without arguments, will list existing notes.
-    If called with 'DELETE" (or 'DEL' or 'D'), will list exising notes
-    and prompt for one to be deleted.
-    Otherwise, creates a new note with the note text.
+    Call without arguments to list current notes.
+
+    The system will automatically delete notes that seem no longer relevent.
+    (E.g. in the examples above, after those those bikes are checked back out, then
+    after a 15 minute delay, their corresponding notes will be automatically deleted.)
+    If a note was wrongly deleted, use the 'UNDELETE' command (below), and the
+    system will not auto-delete that note again.
+
+    Call with argument 'DELETE" (or 'DEL' or 'D'), to manually delete notes.
+    Call with argument 'UNDELETE' (or 'UNDEL' or 'U') to recover deleted notes.
 
 """,
 
