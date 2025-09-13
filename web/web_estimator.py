@@ -1491,10 +1491,10 @@ class Estimator:
 
         # Store tables for rendering (Mixed first)
         self.tables: list[tuple[str, list[tuple[str, str, str, str, str]]]] = [
-            ("Estimation — Mixed (per best model)", mixed_rows),
-            ("Estimation — Similar-Days Median", simple_rows),
-            ("Estimation — Linear Regression", lr_rows),
-            ("Estimation — Schedule-Only (Recent)", rec_rows),
+            ("Best Guess Estimates", mixed_rows),
+            ("Estimation — Similar-Days Median Model", simple_rows),
+            ("Estimation — Linear Regression Model", lr_rows),
+            ("Estimation — Schedule-Only (Recent Days) Model", rec_rows),
         ]
         self._mixed_models = mixed_models
         self._selected_by_model = selected_by_model
@@ -1516,7 +1516,7 @@ class Estimator:
         if not self.verbose:
             # Default: show only Mixed with Model column; hide Error margin
             title_base, rows = self.tables[0]
-            header = ["Measure", "Value", "Range (90%)", "% confidence", "Model"]
+            header = ["Measure", "Value", "Range (90%)", "Confidence", "Model"]
             # Prepare rows with model info
             mixed_rows_disp = []
             for i, r in enumerate(rows):
@@ -1543,15 +1543,15 @@ class Estimator:
                 # Skip Mixed table in FULL
                 if title_base.startswith("Estimation — Mixed"):
                     continue
-                header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence", ""]
+                header = ["Measure", "Value", "Error", "Range (90%)", "Confidence"]
                 # Possibly mark measure with '*' if selected in Mixed
                 title_code = None
-                if title_base.endswith("Similar-Days Median"):
-                    title_code = 'SM'
+                if title_base.endswith("Similar-Days Median Model"):
+                    title_code = 'SimDays'
                 elif title_base.endswith("Linear Regression"):
-                    title_code = 'LR'
+                    title_code = 'LinRegr'
                 elif title_base.endswith("Schedule-Only (Recent)"):
-                    title_code = 'REC'
+                    title_code = 'RecDays'
                 # Build a preview of rows including mark column to size widths
                 preview_rows = []
                 for idx, (m, v, c, r90, pc) in enumerate(rows):
