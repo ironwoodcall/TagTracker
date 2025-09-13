@@ -1522,14 +1522,12 @@ class Estimator:
             for r in mixed_rows_disp:
                 lines.append(fmt_row5(r))
         else:
-            # FULL: show all tables, keep Error margin, add '*' as far-right column for rows selected in Mixed; say whether calibration JSON used
-            calib_msg = "Calibration JSON: used" if self._calib else "Calibration JSON: not used"
-            lines.append(calib_msg)
-            # Breadcrumbs to help debug calibration resolution
-            if self._calib_debug:
-                for msg in self._calib_debug:
-                    lines.append(f"  {msg}")
+            # FULL: show model tables only (do not repeat Mixed), keep Error margin,
+            # add '*' as far-right column for rows selected in Mixed.
             for title_base, rows in self.tables:
+                # Skip Mixed table in FULL
+                if title_base.startswith("Estimation — Mixed"):
+                    continue
                 header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence", ""]
                 # Possibly mark measure with '*' if selected in Mixed
                 title_code = None
@@ -1576,6 +1574,12 @@ class Estimator:
             lines.append("")
             lines.append("Details")
             lines.append("-------")
+            # Report calibration usage and breadcrumbs here (bottom)
+            calib_msg = "Calibration JSON: used" if self._calib else "Calibration JSON: not used"
+            lines.append(calib_msg)
+            if self._calib_debug:
+                for msg in self._calib_debug:
+                    lines.append(f"  {msg}")
             lines.append(f"Bikes so far: {self.bikes_so_far}")
             lines.append(f"Open/Close: {self.time_open} - {self.time_closed}")
             open_num = self.time_open.num if self.time_open and self.time_open.num is not None else 0
