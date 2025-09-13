@@ -62,6 +62,14 @@ EST_BANDS = {
 EST_VARIANCE = 15
 EST_Z_CUTOFF = 2.5
 
+# Recent-window size for schedule-only model
+EST_RECENT_DAYS = 30
+
+# Optional path to calibration JSON (produced by helpers/estimator_calibrate_models.py --recommended)
+# If set, estimator will use per-model, per-measure, per-time-bin residual bands and
+# best-model guidance for mixed outputs.
+EST_CALIBRATION_FILE = ""
+
 # Import any local web config to override this module's values.
 try:
     from web_local_config import * # pylint:disable=wildcard-import

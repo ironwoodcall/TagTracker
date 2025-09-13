@@ -44,6 +44,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 
 import urllib.request
+import json
 import os
 import sys
 import math
@@ -666,6 +667,9 @@ class Estimator:
 
     orgsite_id = 1  # FIXME: hardwired orgsite (kept consistent with old)
 
+    # Static cache for calibration JSON
+    _CALIB_CACHE = None
+
     def __init__(
         self,
         bikes_so_far: str = "",
@@ -749,6 +753,11 @@ class Estimator:
         self.MATCH_OPEN_TOL = int(getattr(wcfg, "EST_MATCH_OPEN_TOL", 15))
         self.MATCH_CLOSE_TOL = int(getattr(wcfg, "EST_MATCH_CLOSE_TOL", 15))
         self._match_note = ""
+        # Load calibration once if configured
+        self._calib = None
+        self._calib_bins = None
+        self._calib_best = None
+        self._maybe_load_calibration()
         self._fetch_raw_data()
         if self.state == ERROR:
             return
@@ -804,6 +813,54 @@ class Estimator:
             WHERE {where_sql}
             GROUP BY D.date;
         """
+
+    def _maybe_load_calibration(self) -> None:
+        if Estimator._CALIB_CACHE is not None:
+            self._calib = Estimator._CALIB_CACHE
+        else:
+            path = getattr(wcfg, "EST_CALIBRATION_FILE", "")
+            if path and os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as fh:
+                        Estimator._CALIB_CACHE = json.load(fh)
+                        self._calib = Estimator._CALIB_CACHE
+                except Exception:
+                    self._calib = None
+        # Parse bins for quick lookup
+        if self._calib and isinstance(self._calib.get("time_bins", None), list):
+            bins = []
+            for s in self._calib["time_bins"]:
+                try:
+                    a, b = s.split("-", 1)
+                    lo = float(a); hi = float(b)
+                    bins.append((lo, hi, s))
+                except Exception:
+                    continue
+            self._calib_bins = bins or None
+            self._calib_best = self._calib.get("best_model", None)
+
+    def _bin_label(self, frac_elapsed: float) -> str | None:
+        if not self._calib_bins:
+            return None
+        f = max(0.0, min(1.0, float(frac_elapsed)))
+        for lo, hi, lbl in self._calib_bins:
+            if lo <= f < hi:
+                return lbl
+        return self._calib_bins[-1][2]
+
+    def _calib_residual_band(self, model: str, measure: str, frac_elapsed: float) -> tuple[float, float] | None:
+        if not self._calib:
+            return None
+        lbl = self._bin_label(frac_elapsed)
+        try:
+            ent = self._calib["residual_bands"][model][measure][lbl]
+            q05 = ent.get("q05", None)
+            q95 = ent.get("q95", None)
+            if q05 is None or q95 is None:
+                return None
+            return float(q05), float(q95)
+        except Exception:
+            return None
 
     def _fetch_raw_data(self) -> None:
         # Try: match both opening and closing times within tolerance
@@ -1128,13 +1185,30 @@ class Estimator:
         act_scale = max(1.0, float(nxh_activity), float(act_hi or 0)) if act_spread is not None else None
         conf_act = self._smooth_conf(n, frac_elapsed, act_spread, act_scale)
 
-        # Build three tables: Simple (median), Linear Regression, KNN weighted
+        # Build three tables: Simple (median), Linear Regression, Schedule-Only Recent
         t_end = VTime(min(self.as_of_when.num + 60, 24 * 60))
+        # Apply calibration residual bands if available to build model-specific ranges and margins
+        def _apply_calib(model_code: str, measure_code: str, point_val: int, base_band: int) -> tuple[str, int]:
+            band = base_band
+            rstr = ""
+            calib = self._calib_residual_band(model_code, measure_code, frac_elapsed)
+            if calib:
+                q05, q95 = calib
+                # Use symmetric margin as half-width (rounded)
+                half = int(round(max(0.0, (q95 - q05) / 2.0)))
+                band = max(base_band, half)
+                rstr = rng_str(int(point_val + q05), int(point_val + q95), False)
+            return rstr, band
+
+        # Simple (SM)
+        sm_act_rng, sm_act_band = _apply_calib("SM", "act", int(nxh_activity), act_band)
+        sm_fut_rng, sm_fut_band = _apply_calib("SM", "fut", int(remainder), rem_band)
+        sm_pk_rng, sm_pk_band = _apply_calib("SM", "peak", int(peak_val), peak_band)
         simple_rows = [
-            (f"Activity, now to {t_end.tidy}", f"{int(nxh_activity)}", f"+/- {act_band}", rng_str(act_lo, act_hi, False), conf_act),
-            ("Further bikes in today", f"{int(remainder)}", f"+/- {rem_band} bikes", rng_str(rem_lo, rem_hi, False), conf_rem),
+            (f"Activity, now to {t_end.tidy}", f"{int(nxh_activity)}", f"+/- {sm_act_band}", sm_act_rng or rng_str(act_lo, act_hi, False), conf_act),
+            ("Further bikes in today", f"{int(remainder)}", f"+/- {sm_fut_band} bikes", sm_fut_rng or rng_str(rem_lo, rem_hi, False), conf_rem),
             ("Time max bikes onsite", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
-            ("Max bikes onsite", f"{int(peak_val)}", f"+/- {peak_band} bikes", rng_str(pk_lo, pk_hi, False), conf_pk),
+            ("Max bikes onsite", f"{int(peak_val)}", f"+/- {sm_pk_band} bikes", sm_pk_rng or rng_str(pk_lo, pk_hi, False), conf_pk),
         ]
 
         # Linear regression helpers
@@ -1216,10 +1290,10 @@ class Estimator:
         act_w_lr = ((act_hi_res - act_lo_res) if (act_lo_res is not None and act_hi_res is not None) else None)
         pk_w_lr = ((pk_hi_res - pk_lo_res) if (pk_lo_res is not None and pk_hi_res is not None) else None)
 
-        # Model-specific bands
-        rem_band_lr = _scale_band(rem_band, rem_w_lr, rem_w_ref)
-        act_band_lr = _scale_band(act_band, act_w_lr, act_w_ref)
-        pk_band_lr = _scale_band(peak_band, pk_w_lr, pk_w_ref)
+        # Model-specific bands and calibrated ranges for LR
+        lr_act_rng, act_band_lr = _apply_calib("LR", "act", lr_act_val, _scale_band(act_band, act_w_lr, act_w_ref))
+        lr_rem_rng, rem_band_lr = _apply_calib("LR", "fut", lr_remainder, _scale_band(rem_band, rem_w_lr, rem_w_ref))
+        lr_pk_rng, pk_band_lr = _apply_calib("LR", "peak", lr_peak_val, _scale_band(peak_band, pk_w_lr, pk_w_ref))
         pt_band_lr = ptime_band  # keep same for time for now
 
         # Model-specific confidences
@@ -1229,10 +1303,10 @@ class Estimator:
         conf_pt_lr = conf_pt
 
         lr_rows = [
-            (f"Activity, now to {t_end.tidy}", f"{lr_act_val}", f"+/- {act_band_lr}", _rng_from_res(lr_act_val, act_lo_res, act_hi_res), conf_act_lr),
-            ("Further bikes in today", f"{lr_remainder}", f"+/- {rem_band_lr} bikes", _rng_from_res(lr_remainder, rem_lo_res, rem_hi_res), conf_rem_lr),
+            (f"Activity, now to {t_end.tidy}", f"{lr_act_val}", f"+/- {act_band_lr}", lr_act_rng or _rng_from_res(lr_act_val, act_lo_res, act_hi_res), conf_act_lr),
+            ("Further bikes in today", f"{lr_remainder}", f"+/- {rem_band_lr} bikes", lr_rem_rng or _rng_from_res(lr_remainder, rem_lo_res, rem_hi_res), conf_rem_lr),
             ("Time max bikes onsite", f"{peak_time.short}", f"+/- {pt_band_lr} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt_lr),
-            ("Max bikes onsite", f"{lr_peak_val}", f"+/- {pk_band_lr} bikes", _rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res), conf_pk_lr),
+            ("Max bikes onsite", f"{lr_peak_val}", f"+/- {pk_band_lr} bikes", lr_pk_rng or _rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res), conf_pk_lr),
         ]
 
         # Schedule-only recent model (ignores bikes_so_far; uses recent N similar days)
@@ -1279,9 +1353,10 @@ class Estimator:
         r_act_w = (r_act_hi - r_act_lo) if (r_act_lo is not None and r_act_hi is not None) else None
         r_rem_w = (r_rem_hi - r_rem_lo) if (r_rem_lo is not None and r_rem_hi is not None) else None
         r_pk_w = (r_pk_hi - r_pk_lo) if (r_pk_lo is not None and r_pk_hi is not None) else None
-        act_band_rec = _scale_band(act_band, r_act_w, act_w_ref)
-        rem_band_rec = _scale_band(rem_band, r_rem_w, rem_w_ref)
-        pk_band_rec = _scale_band(peak_band, r_pk_w, pk_w_ref)
+        # Apply calibration to REC as well
+        rec_act_rng, act_band_rec = _apply_calib("REC", "act", rec_act_val, _scale_band(act_band, r_act_w, act_w_ref))
+        rec_rem_rng, rem_band_rec = _apply_calib("REC", "fut", rec_rem_val, _scale_band(rem_band, r_rem_w, rem_w_ref))
+        rec_pk_rng, pk_band_rec = _apply_calib("REC", "peak", rec_peak_val, _scale_band(peak_band, r_pk_w, pk_w_ref))
         pt_band_rec = ptime_band
 
         # Confidences for recents (n = #recent dates used)
@@ -1291,10 +1366,10 @@ class Estimator:
         conf_pt_rec = conf_pt
 
         rec_rows = [
-            (f"Activity, now to {t_end.tidy}", f"{rec_act_val}", f"+/- {act_band_rec}", rng_str(r_act_lo, r_act_hi, False), conf_act_rec),
-            ("Further bikes in today", f"{rec_rem_val}", f"+/- {rem_band_rec} bikes", rng_str(r_rem_lo, r_rem_hi, False), conf_rem_rec),
+            (f"Activity, now to {t_end.tidy}", f"{rec_act_val}", f"+/- {act_band_rec}", rec_act_rng or rng_str(r_act_lo, r_act_hi, False), conf_act_rec),
+            ("Further bikes in today", f"{rec_rem_val}", f"+/- {rem_band_rec} bikes", rec_rem_rng or rng_str(r_rem_lo, r_rem_hi, False), conf_rem_rec),
             ("Time max bikes onsite", f"{rec_ptime_val.short}", f"+/- {pt_band_rec} minutes", rng_str(r_pt_lo, r_pt_hi, True), conf_pt_rec),
-            ("Max bikes onsite", f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rng_str(r_pk_lo, r_pk_hi, False), conf_pk_rec),
+            ("Max bikes onsite", f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rec_pk_rng or rng_str(r_pk_lo, r_pk_hi, False), conf_pk_rec),
         ]
 
         # Store tables for rendering
