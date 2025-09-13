@@ -757,6 +757,7 @@ class Estimator:
         self._calib = None
         self._calib_bins = None
         self._calib_best = None
+        self._calib_debug: list[str] = []
         self._maybe_load_calibration()
         self._fetch_raw_data()
         if self.state == ERROR:
@@ -817,15 +818,37 @@ class Estimator:
     def _maybe_load_calibration(self) -> None:
         if Estimator._CALIB_CACHE is not None:
             self._calib = Estimator._CALIB_CACHE
+            self._calib_debug.append("calibration: using cached JSON")
         else:
-            path = getattr(wcfg, "EST_CALIBRATION_FILE", "")
-            if path and os.path.exists(path):
+            path_cfg = getattr(wcfg, "EST_CALIBRATION_FILE", "")
+            tried: list[tuple[str, bool, str]] = []  # (path, exists, note)
+            candidates: list[str] = []
+            if path_cfg:
+                candidates.append(path_cfg)
+                # If relative, also try relative to module directory
+                if not os.path.isabs(path_cfg):
+                    mod_dir = os.path.dirname(os.path.abspath(__file__))
+                    candidates.append(os.path.abspath(path_cfg))
+                    candidates.append(os.path.join(mod_dir, path_cfg))
+            for p in candidates:
+                exists = os.path.exists(p)
+                tried.append((p, exists, "exists" if exists else "missing"))
+                if not exists:
+                    continue
                 try:
-                    with open(path, "r", encoding="utf-8") as fh:
+                    with open(p, "r", encoding="utf-8") as fh:
                         Estimator._CALIB_CACHE = json.load(fh)
                         self._calib = Estimator._CALIB_CACHE
-                except Exception:
-                    self._calib = None
+                        self._calib_debug.append(f"calibration: loaded '{p}'")
+                        break
+                except Exception as e:
+                    self._calib_debug.append(f"calibration: failed to load '{p}': {e}")
+            if not self._calib:
+                if not path_cfg:
+                    self._calib_debug.append("calibration: EST_CALIBRATION_FILE not set")
+                else:
+                    for pth, exi, note in tried:
+                        self._calib_debug.append(f"calibration: tried '{pth}' -> {note}")
         # Parse bins for quick lookup
         if self._calib and isinstance(self._calib.get("time_bins", None), list):
             bins = []
@@ -1502,6 +1525,10 @@ class Estimator:
             # FULL: show all tables, keep Error margin, add '*' as far-right column for rows selected in Mixed; say whether calibration JSON used
             calib_msg = "Calibration JSON: used" if self._calib else "Calibration JSON: not used"
             lines.append(calib_msg)
+            # Breadcrumbs to help debug calibration resolution
+            if self._calib_debug:
+                for msg in self._calib_debug:
+                    lines.append(f"  {msg}")
             for title_base, rows in self.tables:
                 header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence", ""]
                 # Possibly mark measure with '*' if selected in Mixed
