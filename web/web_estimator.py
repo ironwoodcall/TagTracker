@@ -1372,12 +1372,94 @@ class Estimator:
             ("Max bikes onsite", f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rec_pk_rng or rng_str(r_pk_lo, r_pk_hi, False), conf_pk_rec),
         ]
 
-        # Store tables for rendering
+        # Build a Mixed table choosing best per measure across models
+        def _parse_conf(pct: str) -> int:
+            try:
+                return int(str(pct).strip().strip('%'))
+            except Exception:
+                return 0
+        def _range_width(rng: str, is_time: bool) -> int:
+            if not rng:
+                return 10**9
+            try:
+                a, b = rng.split('-', 1)
+                if is_time:
+                    va = VTime(a.strip())
+                    vb = VTime(b.strip())
+                    if not va or not vb:
+                        return 10**9
+                    return max(0, int(vb.num) - int(va.num))
+                return abs(int(str(b).strip()) - int(str(a).strip()))
+            except Exception:
+                return 10**9
+
+        # Map measure title to index in consistent row lists
+        # All lists are in identical order matching our desired display
+        measures = [
+            f"Activity, now to {t_end.tidy}",
+            "Further bikes in today",
+            "Time max bikes onsite",
+            "Max bikes onsite",
+        ]
+        tables_by_model = {
+            'SM': simple_rows,
+            'LR': lr_rows,
+            'REC': rec_rows,
+        }
+        mixed_rows: list[tuple[str, str, str, str, str]] = []
+        mixed_models: list[str] = []
+        selected_by_model: dict[str, set[int]] = {'SM': set(), 'LR': set(), 'REC': set()}
+        for idx, title_txt in enumerate(measures):
+            # Collect candidates (model, row)
+            candidates = []
+            for mdl_code, rows in tables_by_model.items():
+                if idx >= len(rows):
+                    continue
+                r = rows[idx]
+                # r = (measure, value, margin, range, conf)
+                rng = r[3]
+                is_time = (idx == 2)
+                width = _range_width(rng, is_time)
+                confv = _parse_conf(r[4])
+                candidates.append((width, -confv, mdl_code, r))
+            if not candidates:
+                continue
+            # Primary: minimal width; Secondary: highest confidence; Tertiary: use calibration best_model if exact tie
+            candidates.sort()
+            # If multiple with same width and conf, prefer calibration suggestion if available
+            best = candidates[0]
+            if self._calib_best and len(candidates) > 1:
+                # figure measure key for calibration map
+                meas_key = 'act' if idx == 0 else ('fut' if idx == 1 else ('peak' if idx == 3 else None))
+                if meas_key:
+                    lbl = self._bin_label(frac_elapsed)
+                    pref = None
+                    try:
+                        pref = self._calib_best[meas_key][lbl]
+                    except Exception:
+                        pref = None
+                    if pref:
+                        # find first candidate matching pref among those tied on width/conf
+                        w0, c0 = candidates[0][0], candidates[0][1]
+                        for cand in candidates:
+                            if cand[0] == w0 and cand[1] == c0 and cand[2] == pref:
+                                best = cand; break
+            mixed_rows.append(best[3])
+            mixed_models.append(best[2])
+            try:
+                selected_by_model[best[2]].add(idx)
+            except Exception:
+                pass
+
+        # Store tables for rendering (Mixed first)
         self.tables: list[tuple[str, list[tuple[str, str, str, str, str]]]] = [
+            ("Estimation — Mixed (per best model)", mixed_rows),
             ("Estimation — Similar-Days Median", simple_rows),
             ("Estimation — Linear Regression", lr_rows),
             ("Estimation — Schedule-Only (Recent)", rec_rows),
         ]
+        self._mixed_models = mixed_models
+        self._selected_by_model = selected_by_model
 
         # Back-compat: expose min/max remainder used by callers expecting legacy API
         rem_min = max(0, int(remainder) - rem_band)
@@ -1392,23 +1474,69 @@ class Estimator:
         if not getattr(self, 'tables', None):
             return ["No estimates available"]
         lines: list[str] = []
-        for title_base, rows in self.tables:
-            header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence"]
-            widths = [max(len(str(r[i])) for r in ([header] + rows)) for i in range(5)]
-            def fmt_row(r: list[str]) -> str:
+
+        if not self.verbose:
+            # Default: show only Mixed with Model column; hide Error margin
+            title_base, rows = self.tables[0]
+            header = ["Measure", "Value", "Range (90%)", "% confidence", "Model"]
+            # Prepare rows with model info
+            mixed_rows_disp = []
+            for i, r in enumerate(rows):
+                model = (self._mixed_models[i] if hasattr(self, '_mixed_models') and i < len(self._mixed_models) else "")
+                # r: (measure, value, margin, range, conf)
+                mixed_rows_disp.append([r[0], r[1], r[3], r[4], model])
+            widths = [max(len(str(r[i])) for r in ([header] + mixed_rows_disp)) for i in range(5)]
+            def fmt_row5(r: list[str]) -> str:
                 return (
                     f"{str(r[0]).ljust(widths[0])}  "
                     f"{str(r[1]).rjust(widths[1])}  "
                     f"{str(r[2]).ljust(widths[2])}  "
                     f"{str(r[3]).ljust(widths[3])}  "
-                    f"{str(r[4]).rjust(widths[4])}"
+                    f"{str(r[4]).ljust(widths[4])}"
                 )
             title = f"{title_base} (as of {self.as_of_when.short})"
-            if lines:
-                lines.append("")
-            lines += [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4]])]
-            for m, v, c, r90, pc in rows:
-                lines.append(fmt_row([m, v, c, r90, pc]))
+            lines += [title, fmt_row5(header), fmt_row5(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4]])]
+            for r in mixed_rows_disp:
+                lines.append(fmt_row5(r))
+        else:
+            # FULL: show all tables, keep Error margin, add '*' to rows selected in Mixed; say whether calibration used
+            calib_msg = "Calibration: used" if self._calib else "Calibration: not used"
+            lines.append(calib_msg)
+            for title_base, rows in self.tables:
+                header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence"]
+                # Possibly mark measure with '*' if selected in Mixed
+                title_code = None
+                if title_base.endswith("Similar-Days Median"):
+                    title_code = 'SM'
+                elif title_base.endswith("Linear Regression"):
+                    title_code = 'LR'
+                elif title_base.endswith("Schedule-Only (Recent)"):
+                    title_code = 'REC'
+                widths = [max(len(str(r[i])) for r in ([header] + rows)) for i in range(5)]
+                def fmt_row(r: list[str]) -> str:
+                    return (
+                        f"{str(r[0]).ljust(widths[0])}  "
+                        f"{str(r[1]).rjust(widths[1])}  "
+                        f"{str(r[2]).ljust(widths[2])}  "
+                        f"{str(r[3]).ljust(widths[3])}  "
+                        f"{str(r[4]).rjust(widths[4])}"
+                    )
+                title = f"{title_base} (as of {self.as_of_when.short})"
+                if lines and lines[-1] != "":
+                    lines.append("")
+                lines += [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4]])]
+                for idx, (m, v, c, r90, pc) in enumerate(rows):
+                    mark = ""
+                    if title_code and hasattr(self, '_selected_by_model'):
+                        try:
+                            if idx in self._selected_by_model.get(title_code, set()):
+                                mark = "*"
+                        except Exception:
+                            pass
+                    # Mixed table rows are all selected
+                    if title_base.endswith("per best model)"):
+                        mark = "*"
+                    lines.append(fmt_row([m + mark, v, c, r90, pc]))
         # Verbose details if requested
         if self.verbose:
             lines.append("")
