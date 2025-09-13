@@ -667,6 +667,15 @@ class Estimator:
 
     orgsite_id = 1  # FIXME: hardwired orgsite (kept consistent with old)
 
+    # Measure label strings (edit here to change table text)
+    MEAS_ACTIVITY_TEMPLATE = "Activity, now to {end_time}"
+    MEAS_FURTHER = "Further bikes in today"
+    MEAS_TIME_MAX = "Time max bikes onsite"
+    MEAS_MAX = "Max bikes onsite"
+
+    def _activity_label(self, t_end: VTime) -> str:
+        return self.MEAS_ACTIVITY_TEMPLATE.format(end_time=t_end.tidy)
+
     # Static cache for calibration JSON
     _CALIB_CACHE = None
 
@@ -1234,10 +1243,10 @@ class Estimator:
         sm_fut_rng, sm_fut_band = _apply_calib("SM", "fut", int(remainder), rem_band)
         sm_pk_rng, sm_pk_band = _apply_calib("SM", "peak", int(peak_val), peak_band)
         simple_rows = [
-            (f"Activity, now to {t_end.tidy}", f"{int(nxh_activity)}", f"+/- {sm_act_band}", sm_act_rng or rng_str(act_lo, act_hi, False), conf_act),
-            ("Further bikes in today", f"{int(remainder)}", f"+/- {sm_fut_band} bikes", sm_fut_rng or rng_str(rem_lo, rem_hi, False), conf_rem),
-            ("Time max bikes onsite", f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
-            ("Max bikes onsite", f"{int(peak_val)}", f"+/- {sm_pk_band} bikes", sm_pk_rng or rng_str(pk_lo, pk_hi, False), conf_pk),
+            (self._activity_label(t_end), f"{int(nxh_activity)}", f"+/- {sm_act_band}", sm_act_rng or rng_str(act_lo, act_hi, False), conf_act),
+            (self.MEAS_FURTHER, f"{int(remainder)}", f"+/- {sm_fut_band} bikes", sm_fut_rng or rng_str(rem_lo, rem_hi, False), conf_rem),
+            (self.MEAS_TIME_MAX, f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
+            (self.MEAS_MAX, f"{int(peak_val)}", f"+/- {sm_pk_band} bikes", sm_pk_rng or rng_str(pk_lo, pk_hi, False), conf_pk),
         ]
 
         # Linear regression helpers
@@ -1332,10 +1341,10 @@ class Estimator:
         conf_pt_lr = conf_pt
 
         lr_rows = [
-            (f"Activity, now to {t_end.tidy}", f"{lr_act_val}", f"+/- {act_band_lr}", lr_act_rng or _rng_from_res(lr_act_val, act_lo_res, act_hi_res), conf_act_lr),
-            ("Further bikes in today", f"{lr_remainder}", f"+/- {rem_band_lr} bikes", lr_rem_rng or _rng_from_res(lr_remainder, rem_lo_res, rem_hi_res), conf_rem_lr),
-            ("Time max bikes onsite", f"{peak_time.short}", f"+/- {pt_band_lr} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt_lr),
-            ("Max bikes onsite", f"{lr_peak_val}", f"+/- {pk_band_lr} bikes", lr_pk_rng or _rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res), conf_pk_lr),
+            (self._activity_label(t_end), f"{lr_act_val}", f"+/- {act_band_lr}", lr_act_rng or _rng_from_res(lr_act_val, act_lo_res, act_hi_res), conf_act_lr),
+            (self.MEAS_FURTHER, f"{lr_remainder}", f"+/- {rem_band_lr} bikes", lr_rem_rng or _rng_from_res(lr_remainder, rem_lo_res, rem_hi_res), conf_rem_lr),
+            (self.MEAS_TIME_MAX, f"{peak_time.short}", f"+/- {pt_band_lr} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt_lr),
+            (self.MEAS_MAX, f"{lr_peak_val}", f"+/- {pk_band_lr} bikes", lr_pk_rng or _rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res), conf_pk_lr),
         ]
 
         # Schedule-only recent model (ignores bikes_so_far; uses recent N similar days)
@@ -1395,10 +1404,10 @@ class Estimator:
         conf_pt_rec = conf_pt
 
         rec_rows = [
-            (f"Activity, now to {t_end.tidy}", f"{rec_act_val}", f"+/- {act_band_rec}", rec_act_rng or rng_str(r_act_lo, r_act_hi, False), conf_act_rec),
-            ("Further bikes in today", f"{rec_rem_val}", f"+/- {rem_band_rec} bikes", rec_rem_rng or rng_str(r_rem_lo, r_rem_hi, False), conf_rem_rec),
-            ("Time max bikes onsite", f"{rec_ptime_val.short}", f"+/- {pt_band_rec} minutes", rng_str(r_pt_lo, r_pt_hi, True), conf_pt_rec),
-            ("Max bikes onsite", f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rec_pk_rng or rng_str(r_pk_lo, r_pk_hi, False), conf_pk_rec),
+            (self._activity_label(t_end), f"{rec_act_val}", f"+/- {act_band_rec}", rec_act_rng or rng_str(r_act_lo, r_act_hi, False), conf_act_rec),
+            (self.MEAS_FURTHER, f"{rec_rem_val}", f"+/- {rem_band_rec} bikes", rec_rem_rng or rng_str(r_rem_lo, r_rem_hi, False), conf_rem_rec),
+            (self.MEAS_TIME_MAX, f"{rec_ptime_val.short}", f"+/- {pt_band_rec} minutes", rng_str(r_pt_lo, r_pt_hi, True), conf_pt_rec),
+            (self.MEAS_MAX, f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rec_pk_rng or rng_str(r_pk_lo, r_pk_hi, False), conf_pk_rec),
         ]
 
         # Build a Mixed table choosing best per measure across models
@@ -1425,10 +1434,10 @@ class Estimator:
         # Map measure title to index in consistent row lists
         # All lists are in identical order matching our desired display
         measures = [
-            f"Activity, now to {t_end.tidy}",
-            "Further bikes in today",
-            "Time max bikes onsite",
-            "Max bikes onsite",
+            self._activity_label(t_end),
+            self.MEAS_FURTHER,
+            self.MEAS_TIME_MAX,
+            self.MEAS_MAX,
         ]
         tables_by_model = {
             'SM': simple_rows,
