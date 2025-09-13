@@ -667,6 +667,23 @@ class Estimator:
 
     orgsite_id = 1  # FIXME: hardwired orgsite (kept consistent with old)
 
+    # --- Model names (centralized) ---
+    MODEL_SM = "SM"
+    MODEL_LR = "LR"
+    MODEL_REC = "REC"
+
+    MODEL_LONG_NAMES = {
+        MODEL_SM: "Similar-Day Median",
+        MODEL_LR: "Linear Regression",
+        MODEL_REC: "Schedule-Only (Recent Days)",
+    }
+    # Optional short display names (<= 8 chars)
+    MODEL_SHORT_NAMES = {
+        MODEL_SM: "Similar",
+        MODEL_LR: "LinRegr",
+        MODEL_REC: "SchedRec",
+    }
+
     # Measure label strings (edit here to change table text)
     MEAS_ACTIVITY_TEMPLATE = "Activity, now to {end_time}"
     MEAS_FURTHER = "Further bikes in today"
@@ -872,13 +889,14 @@ class Estimator:
             self._calib_best = self._calib.get("best_model", None)
 
     def _bin_label(self, frac_elapsed: float) -> str | None:
-        if not self._calib_bins:
+        bins = self._calib_bins or []
+        if not bins:
             return None
         f = max(0.0, min(1.0, float(frac_elapsed)))
-        for lo, hi, lbl in self._calib_bins:
+        for lo, hi, lbl in bins:
             if lo <= f < hi:
                 return lbl
-        return self._calib_bins[-1][2]
+        return bins[-1][2]
 
     def _calib_residual_band(self, model: str, measure: str, frac_elapsed: float) -> tuple[float, float] | None:
         if not self._calib:
@@ -1239,9 +1257,9 @@ class Estimator:
             return rstr, band
 
         # Simple (SM)
-        sm_act_rng, sm_act_band = _apply_calib("SM", "act", int(nxh_activity), act_band)
-        sm_fut_rng, sm_fut_band = _apply_calib("SM", "fut", int(remainder), rem_band)
-        sm_pk_rng, sm_pk_band = _apply_calib("SM", "peak", int(peak_val), peak_band)
+        sm_act_rng, sm_act_band = _apply_calib(self.MODEL_SM, "act", int(nxh_activity), act_band)
+        sm_fut_rng, sm_fut_band = _apply_calib(self.MODEL_SM, "fut", int(remainder), rem_band)
+        sm_pk_rng, sm_pk_band = _apply_calib(self.MODEL_SM, "peak", int(peak_val), peak_band)
         simple_rows = [
             (self._activity_label(t_end), f"{int(nxh_activity)}", f"+/- {sm_act_band}", sm_act_rng or rng_str(act_lo, act_hi, False), conf_act),
             (self.MEAS_FURTHER, f"{int(remainder)}", f"+/- {sm_fut_band} bikes", sm_fut_rng or rng_str(rem_lo, rem_hi, False), conf_rem),
@@ -1329,9 +1347,9 @@ class Estimator:
         pk_w_lr = ((pk_hi_res - pk_lo_res) if (pk_lo_res is not None and pk_hi_res is not None) else None)
 
         # Model-specific bands and calibrated ranges for LR
-        lr_act_rng, act_band_lr = _apply_calib("LR", "act", lr_act_val, _scale_band(act_band, act_w_lr, act_w_ref))
-        lr_rem_rng, rem_band_lr = _apply_calib("LR", "fut", lr_remainder, _scale_band(rem_band, rem_w_lr, rem_w_ref))
-        lr_pk_rng, pk_band_lr = _apply_calib("LR", "peak", lr_peak_val, _scale_band(peak_band, pk_w_lr, pk_w_ref))
+        lr_act_rng, act_band_lr = _apply_calib(self.MODEL_LR, "act", lr_act_val, _scale_band(act_band, act_w_lr, act_w_ref))
+        lr_rem_rng, rem_band_lr = _apply_calib(self.MODEL_LR, "fut", lr_remainder, _scale_band(rem_band, rem_w_lr, rem_w_ref))
+        lr_pk_rng, pk_band_lr = _apply_calib(self.MODEL_LR, "peak", lr_peak_val, _scale_band(peak_band, pk_w_lr, pk_w_ref))
         pt_band_lr = ptime_band  # keep same for time for now
 
         # Model-specific confidences
@@ -1392,9 +1410,9 @@ class Estimator:
         r_rem_w = (r_rem_hi - r_rem_lo) if (r_rem_lo is not None and r_rem_hi is not None) else None
         r_pk_w = (r_pk_hi - r_pk_lo) if (r_pk_lo is not None and r_pk_hi is not None) else None
         # Apply calibration to REC as well
-        rec_act_rng, act_band_rec = _apply_calib("REC", "act", rec_act_val, _scale_band(act_band, r_act_w, act_w_ref))
-        rec_rem_rng, rem_band_rec = _apply_calib("REC", "fut", rec_rem_val, _scale_band(rem_band, r_rem_w, rem_w_ref))
-        rec_pk_rng, pk_band_rec = _apply_calib("REC", "peak", rec_peak_val, _scale_band(peak_band, r_pk_w, pk_w_ref))
+        rec_act_rng, act_band_rec = _apply_calib(self.MODEL_REC, "act", rec_act_val, _scale_band(act_band, r_act_w, act_w_ref))
+        rec_rem_rng, rem_band_rec = _apply_calib(self.MODEL_REC, "fut", rec_rem_val, _scale_band(rem_band, r_rem_w, rem_w_ref))
+        rec_pk_rng, pk_band_rec = _apply_calib(self.MODEL_REC, "peak", rec_peak_val, _scale_band(peak_band, r_pk_w, pk_w_ref))
         pt_band_rec = ptime_band
 
         # Confidences for recents (n = #recent dates used)
@@ -1440,13 +1458,15 @@ class Estimator:
             self.MEAS_MAX,
         ]
         tables_by_model = {
-            'SM': simple_rows,
-            'LR': lr_rows,
-            'REC': rec_rows,
+            self.MODEL_SM: simple_rows,
+            self.MODEL_LR: lr_rows,
+            self.MODEL_REC: rec_rows,
         }
         mixed_rows: list[tuple[str, str, str, str, str]] = []
         mixed_models: list[str] = []
-        selected_by_model: dict[str, set[int]] = {'SM': set(), 'LR': set(), 'REC': set()}
+        # Keys aligned to FULL table marking logic
+        title_key_map = {self.MODEL_SM: 'SimDays', self.MODEL_LR: 'LinRegr', self.MODEL_REC: 'RecDays'}
+        selected_by_model: dict[str, set[int]] = {'SimDays': set(), 'LinRegr': set(), 'RecDays': set()}
         for idx, title_txt in enumerate(measures):
             # Collect candidates (model, row)
             candidates = []
@@ -1485,7 +1505,7 @@ class Estimator:
             mixed_rows.append(best[3])
             mixed_models.append(best[2])
             try:
-                selected_by_model[best[2]].add(idx)
+                selected_by_model[title_key_map.get(best[2], '')].add(idx)
             except Exception:
                 pass
 
@@ -1539,9 +1559,9 @@ class Estimator:
         else:
             # FULL: show model tables only (do not repeat Mixed), keep Error margin,
             # add '*' as far-right column for rows selected in Mixed.
-            for title_base, rows in self.tables:
-                # Skip Mixed table in FULL
-                if title_base.startswith("Estimation — Mixed"):
+            for t_index, (title_base, rows) in enumerate(self.tables):
+                # Skip Mixed table in FULL (first table)
+                if t_index == 0:
                     continue
                 header = ["Measure", "Value", "Error", "Range (90%)", "Confidence"]
                 # Possibly mark measure with '*' if selected in Mixed
