@@ -1185,7 +1185,13 @@ class Estimator:
                 return ""
             if is_time:
                 return f"{lo.short}-{hi.short}"
-            return f"{int(lo)}-{int(hi)}"
+            # Clamp lower bound of numeric ranges to 0 to avoid negatives
+            try:
+                lo_i = max(0, int(lo))
+                hi_i = int(hi)
+            except Exception:
+                return ""
+            return f"{lo_i}-{hi_i}"
 
         # Prepare per-measure smooth confidences reflecting variation
         # Remainder confidence: spread relative to center (use hi as scale if center small)
