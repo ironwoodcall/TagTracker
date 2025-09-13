@@ -1499,11 +1499,11 @@ class Estimator:
             for r in mixed_rows_disp:
                 lines.append(fmt_row5(r))
         else:
-            # FULL: show all tables, keep Error margin, add '*' to rows selected in Mixed; say whether calibration used
-            calib_msg = "Calibration: used" if self._calib else "Calibration: not used"
+            # FULL: show all tables, keep Error margin, add '*' as far-right column for rows selected in Mixed; say whether calibration JSON used
+            calib_msg = "Calibration JSON: used" if self._calib else "Calibration JSON: not used"
             lines.append(calib_msg)
             for title_base, rows in self.tables:
-                header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence"]
+                header = ["Measure", "Value", "Error margin", "Range (90%)", "% confidence", ""]
                 # Possibly mark measure with '*' if selected in Mixed
                 title_code = None
                 if title_base.endswith("Similar-Days Median"):
@@ -1512,19 +1512,8 @@ class Estimator:
                     title_code = 'LR'
                 elif title_base.endswith("Schedule-Only (Recent)"):
                     title_code = 'REC'
-                widths = [max(len(str(r[i])) for r in ([header] + rows)) for i in range(5)]
-                def fmt_row(r: list[str]) -> str:
-                    return (
-                        f"{str(r[0]).ljust(widths[0])}  "
-                        f"{str(r[1]).rjust(widths[1])}  "
-                        f"{str(r[2]).ljust(widths[2])}  "
-                        f"{str(r[3]).ljust(widths[3])}  "
-                        f"{str(r[4]).rjust(widths[4])}"
-                    )
-                title = f"{title_base} (as of {self.as_of_when.short})"
-                if lines and lines[-1] != "":
-                    lines.append("")
-                lines += [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4]])]
+                # Build a preview of rows including mark column to size widths
+                preview_rows = []
                 for idx, (m, v, c, r90, pc) in enumerate(rows):
                     mark = ""
                     if title_code and hasattr(self, '_selected_by_model'):
@@ -1536,7 +1525,25 @@ class Estimator:
                     # Mixed table rows are all selected
                     if title_base.endswith("per best model)"):
                         mark = "*"
-                    lines.append(fmt_row([m + mark, v, c, r90, pc]))
+                    preview_rows.append([m, v, c, r90, pc, mark])
+
+                widths = [max(len(str(r[i])) for r in ([header] + preview_rows)) for i in range(6)]
+                def fmt_row(r: list[str]) -> str:
+                    return (
+                        f"{str(r[0]).ljust(widths[0])}  "
+                        f"{str(r[1]).rjust(widths[1])}  "
+                        f"{str(r[2]).ljust(widths[2])}  "
+                        f"{str(r[3]).ljust(widths[3])}  "
+                        f"{str(r[4]).rjust(widths[4])}  "
+                        f"{str(r[5]).rjust(widths[5])}"
+                    )
+                title = f"{title_base} (as of {self.as_of_when.short})"
+                if lines and lines[-1] != "":
+                    lines.append("")
+                # Dashes row for 6 columns
+                lines += [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4], "-"*widths[5]])]
+                for row6 in preview_rows:
+                    lines.append(fmt_row(row6))
         # Verbose details if requested
         if self.verbose:
             lines.append("")
