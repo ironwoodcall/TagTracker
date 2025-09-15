@@ -55,7 +55,7 @@ Information and reports
   Graph of busy- and fullness  :  GRAPH
   Show tag configurations      :  TAGS
   Show chart of all activity   :  CHART
-  Estimate further bikes today :  ESTIMATE [OLD|FULL]
+  Estimate further bikes today :  ESTIMATE [STANDARD|VERBOSE|LEGACY]
   Detailed dump of today data  :  DUMP ['full']
 
 Other
@@ -173,14 +173,16 @@ Description
 """,
 
     CmdKeys.CMD_ESTIMATE: """
-Command: ESTIMATE [OLD|FULL]
+Command: ESTIMATE [STANDARD|VERBOSE|LEGACY] --> default is STANDARD
+    (with FULL and OLD as ailases for VERBOSE and OLD)
 
 Can be invoked as
   {}
 
 Arguments:
-    [OLD|LEGACY]   : use the legacy estimator interface
-    [FULL|VERBOSE] : show verbose details for the current estimator
+    [STANDARD] (default): give the best guess estiamte based on multiple models
+    [LEGACY|OLD]        : use the legacy estimator interface
+    [VERBOSE|FULL]      : show verbose details for the current estimator
 
 Description
   Estimates the rest of the day using historical data for similar days.
@@ -190,13 +192,13 @@ Description
     - Max full time (HH:MM)
     - Events in the next hour (ins+outs)
 
-  FULL adds detailed information about inputs, matched-day counts,
-  simple-model statistics (min/median/mean/max), and confidence bands.
+  VERBOSE adds detailed information about inputs, matched-day counts,
+  the models used and their statistics and parameters.
 
 Examples
-  EST          # current estimator summary
-  EST OLD      # use legacy estimator
-  EST FULL     # current estimator with details
+  EST              # current estimator summary
+  EST VERBOSE      # detailed estimation information
+  EST LEGACY       # estimate usiong the legacy estimator
 """,
 
     CmdKeys.CMD_GRAPHS: """
