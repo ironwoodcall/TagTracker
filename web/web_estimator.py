@@ -45,6 +45,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import urllib.request
 import json
+import traceback as _tb
 from web_estimator_calibration import load_calibration as _calib_load, bin_label as _calib_bin_label, residual_band as _calib_residual_band
 from web_estimator_selection import dispatch_select as _select_dispatch
 import os
@@ -1636,53 +1637,67 @@ class Estimator:
 
 
 if __name__ == "__main__":
-    # Prefer new-API parameters; fall back to old for compatibility
-    def _init_from_cgi_new() -> Estimator:
-        query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
-        query_parms = urllib.parse.parse_qs(query_str)
-        bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
-        opening_time = query_parms.get("opening_time", [""])[0]
-        closing_time = query_parms.get("closing_time", [""])[0]
-        max_bikes_today = query_parms.get("max_bikes_today", [""])[0]
-        max_bikes_time_today = query_parms.get("max_bikes_time_today", [""])[0]
-        est_type = (query_parms.get("estimation_type", [""])[0] or "").strip().lower()
-        return Estimator(
-            bikes_so_far=bikes_so_far,
-            opening_time=opening_time,
-            closing_time=closing_time,
-            max_bikes_today=max_bikes_today,
-            max_bikes_time_today=max_bikes_time_today,
-            verbose=(est_type == "verbose"),
-        )
+    try:
+        # Prefer new-API parameters; fall back to old for compatibility
+        def _init_from_cgi_new() -> Estimator:
+            query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
+            query_parms = urllib.parse.parse_qs(query_str)
+            bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
+            opening_time = query_parms.get("opening_time", [""])[0]
+            closing_time = query_parms.get("closing_time", [""])[0]
+            max_bikes_today = query_parms.get("max_bikes_today", [""])[0]
+            max_bikes_time_today = query_parms.get("max_bikes_time_today", [""])[0]
+            est_type = (query_parms.get("estimation_type", [""])[0] or "").strip().lower()
+            return Estimator(
+                bikes_so_far=bikes_so_far,
+                opening_time=opening_time,
+                closing_time=closing_time,
+                max_bikes_today=max_bikes_today,
+                max_bikes_time_today=max_bikes_time_today,
+                verbose=(est_type == "verbose"),
+            )
 
-    def _init_from_args_new() -> Estimator:
-        my_args = sys.argv[1:] + ["", "", "", "", ""]
-        return Estimator(
-            bikes_so_far=my_args[0],
-            opening_time=my_args[1],
-            closing_time=my_args[2],
-            max_bikes_today=my_args[3],
-            max_bikes_time_today=my_args[4],
-        )
+        def _init_from_args_new() -> Estimator:
+            my_args = sys.argv[1:] + ["", "", "", "", ""]
+            return Estimator(
+                bikes_so_far=my_args[0],
+                opening_time=my_args[1],
+                closing_time=my_args[2],
+                max_bikes_today=my_args[3],
+                max_bikes_time_today=my_args[4],
+            )
 
-    estimate_any = None
-    is_cgi = bool(os.environ.get("REQUEST_METHOD"))
-    if is_cgi:
-        print("Content-type: text/plain\n")
-        q = ut.untaint(os.environ.get("QUERY_STRING", ""))
-        qd = urllib.parse.parse_qs(q)
-        est_type = (qd.get("estimation_type", [""])[0] or "").strip().lower()
-        if est_type == "legacy":
-            estimate_any = _init_from_cgi_old()
+        estimate_any = None
+        is_cgi = bool(os.environ.get("REQUEST_METHOD"))
+        if is_cgi:
+            print("Content-type: text/plain\n")
+            q = ut.untaint(os.environ.get("QUERY_STRING", ""))
+            qd = urllib.parse.parse_qs(q)
+            est_type = (qd.get("estimation_type", [""])[0] or "").strip().lower()
+            if est_type == "legacy":
+                estimate_any = _init_from_cgi_old()
+            else:
+                # 'current' (default) and 'verbose' both use the new estimator for now
+                estimate_any = _init_from_cgi_new()
         else:
-            # 'current' (default) and 'verbose' both use the new estimator for now
-            estimate_any = _init_from_cgi_new()
-    else:
-        # CLI defaults to new API
-        estimate_any = _init_from_args_new()
+            # CLI defaults to new API
+            estimate_any = _init_from_args_new()
 
-    if estimate_any.state != ERROR:
-        estimate_any.guess()
+        if estimate_any.state != ERROR:
+            estimate_any.guess()
 
-    for line in estimate_any.result_msg():
-        print(line)
+        for line in estimate_any.result_msg():
+            print(line)
+    except Exception as e:  # pylint:disable=broad-except
+        # Always emit something helpful rather than a blank page
+        is_cgi = bool(os.environ.get("REQUEST_METHOD"))
+        if is_cgi:
+            try:
+                print("Content-type: text/plain\n")
+            except Exception:  # pylint:disable=broad-except
+                pass
+        print(f"Estimator error: {e}")
+        try:
+            print("\n".join(_tb.format_exception(type(e), e, e.__traceback__)))
+        except Exception:  # pylint:disable=broad-except
+            pass
