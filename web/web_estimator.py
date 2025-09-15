@@ -695,8 +695,7 @@ class Estimator:
 
     # Table headers (centralized)
     HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Confidence", "Model"]
-    # HEADER_FULL = ["Measure", "Value", "Error", "Range (90%)", "Confidence", ""]
-    HEADER_FULL = ["Measure", "Value", "Error", "Range (90%)", "Confidence"]
+    HEADER_FULL = ["Measure", "Value", "Error", "Range (90%)", "Confidence", ""]
 
     def _activity_label(self, t_end: VTime) -> str:
         return self.MEAS_ACTIVITY_TEMPLATE.format(end_time=t_end.tidy)
