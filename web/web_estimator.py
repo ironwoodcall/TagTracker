@@ -1435,6 +1435,64 @@ class Estimator:
             (self.MEAS_MAX, f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rec_pk_rng or rng_str(r_pk_lo, r_pk_hi, False), conf_pk_rec),
         ]
 
+        # Random Forest model (if available)
+        rf_rows: list[tuple[str, str, str, str, str]] = []
+        try:
+            if getattr(rf, 'POSSIBLE', False):
+                import numpy as _np  # available if rf.POSSIBLE
+                # Remainder
+                rf_fut = rf.RandomForestRegressorModel()
+                rf_fut.create_model(self.similar_dates, self.befores, self.afters)
+                rf_fut.guess(self.bikes_so_far)
+                rf_remainder = int(rf_fut.further_bikes) if rf_fut.state == OK and rf_fut.further_bikes is not None else int(remainder)
+                # Activity
+                rf_act = rf.RandomForestRegressorModel()
+                rf_act.create_model(self.similar_dates, self.befores, all_acts)
+                rf_act.guess(self.bikes_so_far)
+                rf_act_val = int(rf_act.further_bikes) if rf_act.state == OK and rf_act.further_bikes is not None else int(nxh_activity)
+                # Peak
+                rf_pk = rf.RandomForestRegressorModel()
+                rf_pk.create_model(self.similar_dates, self.befores, all_peaks)
+                rf_pk.guess(self.bikes_so_far)
+                rf_peak_val = int(rf_pk.further_bikes) if rf_pk.state == OK and rf_pk.further_bikes is not None else int(peak_val)
+
+                # Residual ranges from training predictions
+                def _rf_residuals(model, y_true: list[int]) -> tuple[int|None, int|None, int|None]:
+                    try:
+                        preds = model.rf_model.predict(_np.array(self.befores).reshape(-1,1))
+                        res = [int(y - int(round(p))) for y, p in zip(y_true, preds)]
+                        if not res:
+                            return None, None, None
+                        lo, hi = self._percentiles(res, 0.05, 0.95)
+                        return int(lo), int(hi), int(hi - lo)
+                    except Exception:
+                        return None, None, None
+
+                fut_lo_res, fut_hi_res, fut_w = _rf_residuals(rf_fut, self.afters)
+                act_lo_res, act_hi_res, act_w = _rf_residuals(rf_act, all_acts)
+                pk_lo_res, pk_hi_res, pk_w = _rf_residuals(rf_pk, all_peaks)
+
+                # Build RF rows using residual-derived ranges and scaled bands
+                rf_rem_rng = _rng_from_res(rf_remainder, fut_lo_res, fut_hi_res)
+                rf_act_rng = _rng_from_res(rf_act_val, act_lo_res, act_hi_res)
+                rf_pk_rng = _rng_from_res(rf_peak_val, pk_lo_res, pk_hi_res)
+                rem_band_rf = _scale_band(rem_band, fut_w, rem_w_ref)
+                act_band_rf = _scale_band(act_band, act_w, act_w_ref)
+                pk_band_rf = _scale_band(peak_band, pk_w, pk_w_ref)
+
+                conf_rem_rf = self._smooth_conf(len(self.befores), frac_elapsed, fut_w, max(1.0, float(rf_remainder)))
+                conf_act_rf = self._smooth_conf(len(self.befores), frac_elapsed, act_w, max(1.0, float(rf_act_val)))
+                conf_pk_rf = self._smooth_conf(len(self.befores), frac_elapsed, pk_w, max(1.0, float(rf_peak_val)))
+
+                rf_rows = [
+                    (self._activity_label(t_end), f"{rf_act_val}", f"+/- {act_band_rf}", rf_act_rng or rng_str(act_lo, act_hi, False), conf_act_rf),
+                    (self.MEAS_FURTHER, f"{rf_remainder}", f"+/- {rem_band_rf} bikes", rf_rem_rng or rng_str(rem_lo, rem_hi, False), conf_rem_rf),
+                    (self.MEAS_TIME_MAX, f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
+                    (self.MEAS_MAX, f"{rf_peak_val}", f"+/- {pk_band_rf} bikes", rf_pk_rng or rng_str(pk_lo, pk_hi, False), conf_pk_rf),
+                ]
+        except Exception:
+            rf_rows = []
+
         # Build a Mixed table choosing best per measure across models
         def _parse_conf(pct: str) -> int:
             try:
@@ -1470,7 +1528,7 @@ class Estimator:
             self.MODEL_REC: rec_rows,
         }
         # Include Random Forest in mixed selection if available
-        if 'rf_rows' in locals() and rf_rows:
+        if rf_rows:
             tables_by_model[self.MODEL_RF] = rf_rows
         mixed_rows: list[tuple[str, str, str, str, str]] = []
         mixed_models: list[str] = []
@@ -1529,8 +1587,11 @@ class Estimator:
             (f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model", lr_rows, self.MODEL_LR),
             (f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model", rec_rows, self.MODEL_REC),
         ]
-        if 'rf_rows' in locals() and rf_rows:
+        # Always append an RF table (results or placeholder) for FULL view
+        if rf_rows:
             self.tables.append((f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model", rf_rows, self.MODEL_RF))
+        else:
+            self.tables.append((f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model", [("Random Forest unavailable", "", "", "", "")], None))
         self._mixed_models = mixed_models
         self._selected_by_model = selected_by_model
 
