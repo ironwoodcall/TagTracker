@@ -670,7 +670,7 @@ class Estimator:
     # --- Model names (centralized) ---
     MODEL_SM = "SM"
     MODEL_LR = "LR"
-    MODEL_REC = "REC"
+    MODEL_REC = "Rec"
     MODEL_RF = "RF"
 
     MODEL_LONG_NAMES = {
