@@ -45,6 +45,8 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 import urllib.request
 import json
+from web_estimator_calibration import load_calibration as _calib_load, bin_label as _calib_bin_label, residual_band as _calib_residual_band
+from web_estimator_selection import dispatch_select as _select_dispatch
 import os
 import sys
 import math
@@ -63,6 +65,7 @@ import tt_default_hours
 
 # import client_base_config as cfg
 import web.web_estimator_rf as rf
+from web_estimator_models import SimpleModel as SimpleModelNew, LRModel as LRModelNew
 
 # pylint: enable=wrong-import-position
 
@@ -797,7 +800,7 @@ class Estimator:
             return
 
         # Build SimpleModel for remainder
-        self.simple_model = SimpleModel()
+        self.simple_model = SimpleModelNew()
         self.simple_model.create_model(
             self.similar_dates, self.befores, self.afters, self.VARIANCE, self.Z_CUTOFF
         )
@@ -853,35 +856,13 @@ class Estimator:
             self._calib = Estimator._CALIB_CACHE
             self._calib_debug.append("calibration: using cached JSON")
         else:
-            path_cfg = getattr(wcfg, "EST_CALIBRATION_FILE", "")
-            tried: list[tuple[str, bool, str]] = []  # (path, exists, note)
-            candidates: list[str] = []
-            if path_cfg:
-                candidates.append(path_cfg)
-                # If relative, also try relative to module directory
-                if not os.path.isabs(path_cfg):
-                    mod_dir = os.path.dirname(os.path.abspath(__file__))
-                    candidates.append(os.path.abspath(path_cfg))
-                    candidates.append(os.path.join(mod_dir, path_cfg))
-            for p in candidates:
-                exists = os.path.exists(p)
-                tried.append((p, exists, "exists" if exists else "missing"))
-                if not exists:
-                    continue
-                try:
-                    with open(p, "r", encoding="utf-8") as fh:
-                        Estimator._CALIB_CACHE = json.load(fh)
-                        self._calib = Estimator._CALIB_CACHE
-                        self._calib_debug.append(f"calibration: loaded '{p}'")
-                        break
-                except Exception as e:
-                    self._calib_debug.append(f"calibration: failed to load '{p}': {e}")
-            if not self._calib:
-                if not path_cfg:
-                    self._calib_debug.append("calibration: EST_CALIBRATION_FILE not set")
-                else:
-                    for pth, exi, note in tried:
-                        self._calib_debug.append(f"calibration: tried '{pth}' -> {note}")
+            calib, bins, best, dbg = _calib_load(wcfg, __file__)
+            self._calib_debug.extend(dbg)
+            if calib:
+                Estimator._CALIB_CACHE = calib
+                self._calib = calib
+                self._calib_bins = bins
+                self._calib_best = best
         # Parse bins for quick lookup
         if self._calib and isinstance(self._calib.get("time_bins", None), list):
             bins = []
@@ -896,28 +877,10 @@ class Estimator:
             self._calib_best = self._calib.get("best_model", None)
 
     def _bin_label(self, frac_elapsed: float) -> str | None:
-        bins = self._calib_bins or []
-        if not bins:
-            return None
-        f = max(0.0, min(1.0, float(frac_elapsed)))
-        for lo, hi, lbl in bins:
-            if lo <= f < hi:
-                return lbl
-        return bins[-1][2]
+        return _calib_bin_label(self._calib_bins, frac_elapsed)
 
     def _calib_residual_band(self, model: str, measure: str, frac_elapsed: float) -> tuple[float, float] | None:
-        if not self._calib:
-            return None
-        lbl = self._bin_label(frac_elapsed)
-        try:
-            ent = self._calib["residual_bands"][model][measure][lbl]
-            q05 = ent.get("q05", None)
-            q95 = ent.get("q95", None)
-            if q05 is None or q95 is None:
-                return None
-            return float(q05), float(q95)
-        except Exception:
-            return None
+        return _calib_residual_band(self._calib, self._calib_bins, model, measure, frac_elapsed)
 
     def _fetch_raw_data(self) -> None:
         # Try: match both opening and closing times within tolerance
@@ -1291,7 +1254,7 @@ class Estimator:
         # Remainder via LR (befores->afters)
         lr_remainder = int(remainder)
         try:
-            lr = LRModel()
+            lr = LRModelNew()
             lr.calculate_model(list(zip(self.befores, self.afters)))
             lr.guess(self.bikes_so_far)
             if lr.state == OK and isinstance(lr.further_bikes, int):
@@ -1616,7 +1579,10 @@ class Estimator:
             if not candidates:
                 continue
             # Select best candidate per encapsulated strategy
-            best, why = _select_candidate(idx, candidates, frac_elapsed, n)
+            # Selection mode and bin label are passed for richer rationale
+            sel_mode = str(getattr(wcfg, "EST_SELECTION_MODE", "accuracy_first"))
+            bin_lbl = self._bin_label(frac_elapsed)
+            best, why = _select_dispatch(sel_mode, self._calib_best, idx, candidates, frac_elapsed, n, int(getattr(wcfg, "EST_MIN_COHORT_FOR_SELECTION", 4)), None, bin_lbl)
             mixed_rows.append(best[3])
             mixed_models.append(best[2])
             try:
@@ -1655,142 +1621,18 @@ class Estimator:
     def result_msg(self) -> list[str]:
         if self.state == ERROR:
             return [f"Can't estimate because: {self.error}"]
-        if not getattr(self, 'tables', None):
-            return ["No estimates available"]
-        lines: list[str] = []
-
-        if not self.verbose:
-            # Default: show only Mixed with Model column; hide Error margin
-            title_base, rows, _model_code = self.tables[0]
-            header = list(self.HEADER_MIXED)
-            # Prepare rows with model info
-            mixed_rows_disp = []
-            for i, r in enumerate(rows):
-                model = (self._mixed_models[i] if hasattr(self, '_mixed_models') and i < len(self._mixed_models) else "")
-                # r: (measure, value, margin, range, conf)
-                mixed_rows_disp.append([r[0], r[1], r[3], r[4], model])
-            widths = [max(len(str(r[i])) for r in ([header] + mixed_rows_disp)) for i in range(5)]
-            def fmt_row5(r: list[str]) -> str:
-                return (
-                    f"{str(r[0]).ljust(widths[0])}  "
-                    f"{str(r[1]).rjust(widths[1])}  "
-                    f"{str(r[2]).ljust(widths[2])}  "
-                    f"{str(r[3]).ljust(widths[3])}  "
-                    f"{str(r[4]).ljust(widths[4])}"
-                )
-            title = f"{title_base} (as of {self.as_of_when.short})"
-            lines += [title, fmt_row5(header), fmt_row5(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4]])]
-            for r in mixed_rows_disp:
-                lines.append(fmt_row5(r))
-        else:
-            # FULL: show model tables only (do not repeat Mixed), keep Error margin,
-            # add '*' as far-right column for rows selected in Mixed.
-            # Page-level title
-            lines.append("Detailed Estimation Information")
-            lines.append("")
-            for t_index, (title_base, rows, model_code) in enumerate(self.tables):
-                # Skip Mixed table in FULL (first table)
-                if t_index == 0:
-                    continue
-                header = list(self.HEADER_FULL)
-                # Build a preview of rows including mark column to size widths
-                preview_rows = []
-                for idx, (m, v, c, r90, pc) in enumerate(rows):
-                    mark = ""
-                    if model_code and hasattr(self, '_selected_by_model'):
-                        try:
-                            if idx in self._selected_by_model.get(model_code, set()):
-                                mark = "<--BEST"
-                        except Exception:
-                            pass
-                    # Mixed table rows are all selected
-                    if model_code is None:
-                        mark = "*"
-                    preview_rows.append([m, v, c, r90, pc, mark])
-
-                widths = [max(len(str(r[i])) for r in ([header] + preview_rows)) for i in range(6)]
-                def fmt_row(r: list[str]) -> str:
-                    return (
-                        f"{str(r[0]).ljust(widths[0])}  "
-                        f"{str(r[1]).rjust(widths[1])}  "
-                        f"{str(r[2]).ljust(widths[2])}  "
-                        f"{str(r[3]).ljust(widths[3])}  "
-                        f"{str(r[4]).rjust(widths[4])}  "
-                        f"{str(r[5]).rjust(widths[5])}"
-                    )
-                title = f"{title_base} (as of {self.as_of_when.short})"
-                if lines and lines[-1] != "":
-                    lines.append("")
-                # Dashes row for 6 columns
-                # Underline row: omit dashes for columns with empty header text
-                dash_row = [
-                    ("-" * widths[i]) if header[i] else ""
-                    for i in range(len(header))
-                ]
-                lines += [title, fmt_row(header), fmt_row(dash_row)]
-                for row6 in preview_rows:
-                    lines.append(fmt_row(row6))
-        # Verbose details if requested
-        if self.verbose:
-            lines.append("")
-            lines.append("Details")
-            lines.append("-------")
-            # Selection rationale per row
-            if getattr(self, '_selection_info', None):
-                lines.append("Selection rationale:")
-                for info in self._selection_info:
-                    lines.append(f"  {info}")
-            # Report calibration usage and breadcrumbs here (bottom)
-            calib_msg = "Calibration JSON: used" if self._calib else "Calibration JSON: not used"
-            lines.append(calib_msg)
-            # If present, reproduce metadata
-            if self._calib:
-                try:
-                    cdate = self._calib.get("creation_date")
-                    ccomment = self._calib.get("comment")
-                    if cdate:
-                        lines.append(f"  calibration creation_date: {cdate}")
-                    if ccomment:
-                        lines.append(f"  calibration comment: {ccomment}")
-                except Exception:
-                    pass
-            if self._calib_debug:
-                for msg in self._calib_debug:
-                    lines.append(f"  {msg}")
-            lines.append(f"Bikes so far: {self.bikes_so_far}")
-            lines.append(f"Open/Close: {self.time_open} - {self.time_closed}")
-            open_num = self.time_open.num if self.time_open and self.time_open.num is not None else 0
-            close_num = self.time_closed.num if self.time_closed and self.time_closed.num is not None else 24*60
-            span = max(1, close_num - open_num)
-            frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - open_num) / span))
-            lines.append(f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)")
-            lines.append(f"Similar-day rows: {len(self.similar_dates)} ({self._match_note})")
-            lines.append(f"Match tolerance (VARIANCE): {self.VARIANCE}")
-            lines.append(f"Outlier Z cutoff: {self.Z_CUTOFF}")
-            if getattr(self, 'simple_model', None) and self.simple_model.state == OK:
-                sm = self.simple_model
-                lines.append("")
-                lines.append("Simple model (similar days)")
-                lines.append(f"  Points matched: {sm.num_points}")
-                lines.append(f"  Discarded as outliers: {sm.num_discarded}")
-                lines.append(f"  Min/Median/Mean/Max: {sm.min}/{sm.median}/{sm.mean}/{sm.max}")
-            # Confidence
-            matched = self._matched_dates()
-            level = self._confidence_level(len(matched), frac_elapsed)
-            lines.append("")
-            lines.append(f"Confidence level: {level}")
-            rb = self._band(level,'remainder'); ab = self._band(level,'activity'); pb = self._band(level,'peak'); tb = self._band(level,'peaktime')
-            rbs = self._band_scaled(rb, len(matched), frac_elapsed, 'remainder')
-            abs_ = self._band_scaled(ab, len(matched), frac_elapsed, 'activity')
-            pbs = self._band_scaled(pb, len(matched), frac_elapsed, 'peak')
-            tbs = self._band_scaled(tb, len(matched), frac_elapsed, 'peaktime')
-            lines.append(
-                f"Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}"
-            )
-            lines.append(
-                f"Base bands (before scaling): {rb}/{ab}/{pb}/{tb}"
-            )
-        return lines
+        return _render_tables(
+            as_of_when=self.as_of_when,
+            verbose=self.verbose,
+            tables=getattr(self, 'tables', []) or [],
+            header_mixed=self.HEADER_MIXED,
+            header_full=self.HEADER_FULL,
+            mixed_models=getattr(self, '_mixed_models', None),
+            selected_by_model=getattr(self, '_selected_by_model', None),
+            selection_info=getattr(self, '_selection_info', None),
+            calib=getattr(self, '_calib', None),
+            calib_debug=getattr(self, '_calib_debug', None),
+        )
 
 
 if __name__ == "__main__":
