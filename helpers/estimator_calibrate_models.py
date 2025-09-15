@@ -46,6 +46,20 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
+# Optional acceleration / numeric helpers
+try:  # pragma: no cover
+    import numpy as np  # type: ignore
+    HAVE_NP = True
+except Exception:  # pragma: no cover
+    HAVE_NP = False
+
+# Optional RandomForest
+try:  # pragma: no cover
+    from sklearn.ensemble import RandomForestRegressor  # type: ignore
+    HAVE_RF = True
+except Exception:  # pragma: no cover
+    HAVE_RF = False
+
 # Lightweight time helper compatible with HH:MM strings
 class VTime:
     def __init__(self, val: Optional[object] = None):
@@ -376,6 +390,26 @@ def main():
             pred_peak_rec = med_recent(peaks)
             pred_ptime_rec = med_recent(ptimes)
 
+            # Model 4: Random Forest (if available and sufficient data)
+            def rf_pred(xs: List[int], ys: List[int], x0: int) -> Optional[int]:
+                if not HAVE_RF or len(xs) < 2:
+                    return None
+                try:
+                    X = (np.array(xs, dtype=float).reshape(-1, 1) if HAVE_NP
+                         else [[float(x)] for x in xs])
+                    y = (np.array(ys, dtype=float) if HAVE_NP else [float(v) for v in ys])
+                    model = RandomForestRegressor(n_estimators=100, random_state=0)
+                    model.fit(X, y)
+                    x0_arr = (np.array([[float(x0)]], dtype=float) if HAVE_NP else [[float(x0)]])
+                    pred = model.predict(x0_arr)[0]
+                    return int(round(float(pred)))
+                except Exception:
+                    return None
+
+            pred_fut_rf = rf_pred(befores, afters, before)
+            pred_act_rf = rf_pred(befores, acts, before)
+            pred_peak_rf = rf_pred(befores, peaks, before)
+
             # Collect residuals per model/measure
             def push(model: str, measure: str, pred: Optional[int], truth: int):
                 if pred is None: return
@@ -397,6 +431,9 @@ def main():
             push("REC", "fut", pred_fut_rec, int(after_true))
             push("REC", "act", pred_act_rec, int(act_true))
             push("REC", "peak", pred_peak_rec, int(peak_true))
+            push("RF", "fut", pred_fut_rf, int(after_true))
+            push("RF", "act", pred_act_rf, int(act_true))
+            push("RF", "peak", pred_peak_rf, int(peak_true))
 
             t = VTime(t.num + args.step_min)
 
@@ -411,7 +448,7 @@ def main():
 
     # Summaries per bin/model/measure
     measures = ["fut", "act", "peak"]
-    models = ["SM", "LR", "REC"]
+    models = ["SM", "LR", "REC", "RF"]
 
     # Optional summary CSV
     summ_writer = None
@@ -474,7 +511,7 @@ def main():
     if args.recommended:
         def fill_bin(values_map: Dict[Tuple[str,str,str], List[float]], bins_list):
             # For each (model,measure), ensure every bin has some proxy by borrowing nearest neighbor
-            models = ["SM","LR","REC"]
+            models = ["SM","LR","REC","RF"]
             measures = ["fut","act","peak"]
             for mdl in models:
                 for meas in measures:
@@ -515,12 +552,14 @@ def main():
         # Build recommended config structure
         reco = {
             "time_bins": [lbl for _lo,_hi,lbl in bins],
-            "models": ["SM","LR","REC"],
+            "models": ["SM","LR","REC","RF"],
             "residual_bands": {},
             "best_model": {"fut": {}, "act": {}, "peak": {}},
+            "creation_date": _dt.now().isoformat(timespec='seconds'),
+            "comment": "helpers/estimator_calibrate_models.py",
         }
         # Residual bands per model/measure/bin
-        for mdl in ["SM","LR","REC"]:
+        for mdl in ["SM","LR","REC","RF"]:
             reco["residual_bands"][mdl] = {}
             for meas in ["fut","act","peak"]:
                 reco["residual_bands"][mdl][meas] = {}
@@ -538,7 +577,7 @@ def main():
         for meas in ["fut","act","peak"]:
             for _lo,_hi,lbl in bins:
                 best = None; best_mae = 1e18
-                for mdl in ["SM","LR","REC"]:
+                for mdl in ["SM","LR","REC","RF"]:
                     errs = abs_work.get((mdl,meas,lbl), [])
                     if not errs:
                         continue

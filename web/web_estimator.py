@@ -1683,6 +1683,17 @@ class Estimator:
             # Report calibration usage and breadcrumbs here (bottom)
             calib_msg = "Calibration JSON: used" if self._calib else "Calibration JSON: not used"
             lines.append(calib_msg)
+            # If present, reproduce metadata
+            if self._calib:
+                try:
+                    cdate = self._calib.get("creation_date")
+                    ccomment = self._calib.get("comment")
+                    if cdate:
+                        lines.append(f"  calibration creation_date: {cdate}")
+                    if ccomment:
+                        lines.append(f"  calibration comment: {ccomment}")
+                except Exception:
+                    pass
             if self._calib_debug:
                 for msg in self._calib_debug:
                     lines.append(f"  {msg}")
