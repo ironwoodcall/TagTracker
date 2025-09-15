@@ -1479,6 +1479,16 @@ class Estimator:
                 rem_band_rf = _scale_band(rem_band, fut_w, rem_w_ref)
                 act_band_rf = _scale_band(act_band, act_w, act_w_ref)
                 pk_band_rf = _scale_band(peak_band, pk_w, pk_w_ref)
+                # Prefer calibrated residual bands if present (align coverage)
+                cal_act_rng, act_band_rf = _apply_calib(self.MODEL_RF, "act", rf_act_val, act_band_rf)
+                cal_fut_rng, rem_band_rf = _apply_calib(self.MODEL_RF, "fut", rf_remainder, rem_band_rf)
+                cal_pk_rng, pk_band_rf = _apply_calib(self.MODEL_RF, "peak", rf_peak_val, pk_band_rf)
+                if cal_act_rng:
+                    rf_act_rng = cal_act_rng
+                if cal_fut_rng:
+                    rf_rem_rng = cal_fut_rng
+                if cal_pk_rng:
+                    rf_pk_rng = cal_pk_rng
 
                 conf_rem_rf = self._smooth_conf(len(self.befores), frac_elapsed, fut_w, max(1.0, float(rf_remainder)))
                 conf_act_rf = self._smooth_conf(len(self.befores), frac_elapsed, act_w, max(1.0, float(rf_act_val)))
@@ -1514,6 +1524,49 @@ class Estimator:
             except Exception:
                 return 10**9
 
+        # Selection helpers (encapsulated)
+        def _measure_key_by_index(i: int) -> str | None:
+            # 0=activity, 1=further, 2=peaktime (no calibration key), 3=peak
+            return 'act' if i == 0 else ('fut' if i == 1 else ('peak' if i == 3 else None))
+
+        def _select_by_narrowest_then_conf(cands: list[tuple[int, int, str, tuple]]):
+            # Old strategy: narrowest 90% range first, then higher confidence
+            cands.sort()  # width asc, then -conf asc
+            return cands[0]
+
+        def _select_best_candidate(i: int, cands: list[tuple[int, int, str, tuple]], frac: float, cohort_n: int):
+            # New strategy (accuracy-first):
+            # 1) calibration best_model (by MAE) for this measure/bin if present
+            # 2) narrowest 90% range
+            # 3) higher confidence
+            meas_key = _measure_key_by_index(i)
+            # Try calibration-guided best
+            if self._calib_best and meas_key:
+                lbl = self._bin_label(frac)
+                try:
+                    pref = self._calib_best.get(meas_key, {}).get(lbl)
+                except Exception:
+                    pref = None
+                if pref:
+                    # Find candidate with preferred model code
+                    for cand in cands:
+                        if cand[2] == pref:
+                            return cand, f"calibrated best_model {pref} for bin {lbl}"
+            # Guardrail: tiny cohort or no calibration -> prefer robust SM then REC
+            try:
+                guard_min = int(getattr(wcfg, "EST_MIN_COHORT_FOR_SELECTION", 4))
+            except Exception:
+                guard_min = 4
+            if cohort_n < guard_min or not self._calib_best:
+                for target in [self.MODEL_SM, self.MODEL_REC]:
+                    for cand in cands:
+                        if cand[2] == target:
+                            return cand, f"guardrail: n={cohort_n}; prefer {target}"
+            # Fallback to narrowest + confidence
+            best = _select_by_narrowest_then_conf(cands)
+            width, neg_conf, mdl, _row = best
+            return best, f"narrowest range width {width}; conf {abs(neg_conf)}%"
+
         # Map measure title to index in consistent row lists
         # All lists are in identical order matching our desired display
         measures = [
@@ -1536,6 +1589,8 @@ class Estimator:
         selected_by_model: dict[str, set[int]] = {
             self.MODEL_SM: set(), self.MODEL_LR: set(), self.MODEL_REC: set(), self.MODEL_RF: set()
         }
+        # Track selection rationale for FULL diagnostics
+        self._selection_info: list[str] = []
         for idx, title_txt in enumerate(measures):
             # Collect candidates (model, row)
             candidates = []
@@ -1551,26 +1606,8 @@ class Estimator:
                 candidates.append((width, -confv, mdl_code, r))
             if not candidates:
                 continue
-            # Primary: minimal width; Secondary: highest confidence; Tertiary: use calibration best_model if exact tie
-            candidates.sort()
-            # If multiple with same width and conf, prefer calibration suggestion if available
-            best = candidates[0]
-            if self._calib_best and len(candidates) > 1:
-                # figure measure key for calibration map
-                meas_key = 'act' if idx == 0 else ('fut' if idx == 1 else ('peak' if idx == 3 else None))
-                if meas_key:
-                    lbl = self._bin_label(frac_elapsed)
-                    pref = None
-                    try:
-                        pref = self._calib_best[meas_key][lbl]
-                    except Exception:
-                        pref = None
-                    if pref:
-                        # find first candidate matching pref among those tied on width/conf
-                        w0, c0 = candidates[0][0], candidates[0][1]
-                        for cand in candidates:
-                            if cand[0] == w0 and cand[1] == c0 and cand[2] == pref:
-                                best = cand; break
+            # Select best candidate per encapsulated strategy
+            best, why = _select_best_candidate(idx, candidates, frac_elapsed, n)
             mixed_rows.append(best[3])
             mixed_models.append(best[2])
             try:
@@ -1578,6 +1615,10 @@ class Estimator:
                     selected_by_model[best[2]].add(idx)
             except Exception:
                 pass
+            # Save rationale text
+            self._selection_info.append(
+                f"Chosen: {best[2]} for '{title_txt}' ({why})"
+            )
 
         # Store tables for rendering (Mixed first). Include model code alongside title and rows
         # Each entry: (title, rows, model_code or None for Mixed)
@@ -1680,6 +1721,11 @@ class Estimator:
             lines.append("")
             lines.append("Details")
             lines.append("-------")
+            # Selection rationale per row
+            if getattr(self, '_selection_info', None):
+                lines.append("Selection rationale:")
+                for info in self._selection_info:
+                    lines.append(f"  {info}")
             # Report calibration usage and breadcrumbs here (bottom)
             calib_msg = "Calibration JSON: used" if self._calib else "Calibration JSON: not used"
             lines.append(calib_msg)
