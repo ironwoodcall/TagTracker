@@ -668,10 +668,10 @@ class Estimator:
     orgsite_id = 1  # FIXME: hardwired orgsite (kept consistent with old)
 
     # --- Model names (centralized) ---
-    MODEL_SM = "SM"
-    MODEL_LR = "LR"
-    MODEL_REC = "Rec"
-    MODEL_RF = "RF"
+    MODEL_SM = "Similar Days"
+    MODEL_LR = "Lin Regress"
+    MODEL_REC = "Recent Days"
+    MODEL_RF = "Rand Forest"
 
     MODEL_LONG_NAMES = {
         MODEL_SM: "Similar-Day Median",
@@ -695,7 +695,8 @@ class Estimator:
 
     # Table headers (centralized)
     HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Confidence", "Model"]
-    HEADER_FULL = ["Measure", "Value", "Error", "Range (90%)", "Confidence", ""]
+    # HEADER_FULL = ["Measure", "Value", "Error", "Range (90%)", "Confidence", ""]
+    HEADER_FULL = ["Measure", "Value", "Error", "Range (90%)", "Confidence"]
 
     def _activity_label(self, t_end: VTime) -> str:
         return self.MEAS_ACTIVITY_TEMPLATE.format(end_time=t_end.tidy)
@@ -1635,6 +1636,9 @@ class Estimator:
         else:
             # FULL: show model tables only (do not repeat Mixed), keep Error margin,
             # add '*' as far-right column for rows selected in Mixed.
+            # Page-level title
+            lines.append("Detailed Estimation Information")
+            lines.append("")
             for t_index, (title_base, rows, model_code) in enumerate(self.tables):
                 # Skip Mixed table in FULL (first table)
                 if t_index == 0:
