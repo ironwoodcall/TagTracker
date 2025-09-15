@@ -671,17 +671,20 @@ class Estimator:
     MODEL_SM = "SM"
     MODEL_LR = "LR"
     MODEL_REC = "REC"
+    MODEL_RF = "RF"
 
     MODEL_LONG_NAMES = {
         MODEL_SM: "Similar-Day Median",
         MODEL_LR: "Linear Regression",
         MODEL_REC: "Schedule-Only (Recent Days)",
+        MODEL_RF: "Random Forest",
     }
     # Optional short display names (<= 8 chars)
     MODEL_SHORT_NAMES = {
-        MODEL_SM: "Similar",
-        MODEL_LR: "LinRegr",
+        MODEL_SM: "SimMed",
+        MODEL_LR: "LinReg",
         MODEL_REC: "SchedRec",
+        MODEL_RF: "RandFor",
     }
 
     # Measure label strings (edit here to change table text)
@@ -689,6 +692,10 @@ class Estimator:
     MEAS_FURTHER = "Further bikes in today"
     MEAS_TIME_MAX = "Time max bikes onsite"
     MEAS_MAX = "Max bikes onsite"
+
+    # Table headers (centralized)
+    HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Confidence", "Model"]
+    HEADER_FULL = ["Measure", "Value", "Error", "Range (90%)", "Confidence", ""]
 
     def _activity_label(self, t_end: VTime) -> str:
         return self.MEAS_ACTIVITY_TEMPLATE.format(end_time=t_end.tidy)
@@ -1462,11 +1469,15 @@ class Estimator:
             self.MODEL_LR: lr_rows,
             self.MODEL_REC: rec_rows,
         }
+        # Include Random Forest in mixed selection if available
+        if 'rf_rows' in locals() and rf_rows:
+            tables_by_model[self.MODEL_RF] = rf_rows
         mixed_rows: list[tuple[str, str, str, str, str]] = []
         mixed_models: list[str] = []
-        # Keys aligned to FULL table marking logic
-        title_key_map = {self.MODEL_SM: 'SimDays', self.MODEL_LR: 'LinRegr', self.MODEL_REC: 'RecDays'}
-        selected_by_model: dict[str, set[int]] = {'SimDays': set(), 'LinRegr': set(), 'RecDays': set()}
+        # Selected rows per model code (SM/LR/REC/RF)
+        selected_by_model: dict[str, set[int]] = {
+            self.MODEL_SM: set(), self.MODEL_LR: set(), self.MODEL_REC: set(), self.MODEL_RF: set()
+        }
         for idx, title_txt in enumerate(measures):
             # Collect candidates (model, row)
             candidates = []
@@ -1505,17 +1516,21 @@ class Estimator:
             mixed_rows.append(best[3])
             mixed_models.append(best[2])
             try:
-                selected_by_model[title_key_map.get(best[2], '')].add(idx)
+                if best[2] in selected_by_model:
+                    selected_by_model[best[2]].add(idx)
             except Exception:
                 pass
 
-        # Store tables for rendering (Mixed first)
-        self.tables: list[tuple[str, list[tuple[str, str, str, str, str]]]] = [
-            ("Best Guess Estimates", mixed_rows),
-            ("Estimation — Similar-Days Median Model", simple_rows),
-            ("Estimation — Linear Regression Model", lr_rows),
-            ("Estimation — Schedule-Only (Recent Days) Model", rec_rows),
+        # Store tables for rendering (Mixed first). Include model code alongside title and rows
+        # Each entry: (title, rows, model_code or None for Mixed)
+        self.tables: list[tuple[str, list[tuple[str, str, str, str, str]], str | None]] = [
+            ("Best Guess Estimates", mixed_rows, None),
+            (f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model", simple_rows, self.MODEL_SM),
+            (f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model", lr_rows, self.MODEL_LR),
+            (f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model", rec_rows, self.MODEL_REC),
         ]
+        if 'rf_rows' in locals() and rf_rows:
+            self.tables.append((f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model", rf_rows, self.MODEL_RF))
         self._mixed_models = mixed_models
         self._selected_by_model = selected_by_model
 
@@ -1535,8 +1550,8 @@ class Estimator:
 
         if not self.verbose:
             # Default: show only Mixed with Model column; hide Error margin
-            title_base, rows = self.tables[0]
-            header = ["Measure", "Value", "Range (90%)", "Confidence", "Model"]
+            title_base, rows, _model_code = self.tables[0]
+            header = list(self.HEADER_MIXED)
             # Prepare rows with model info
             mixed_rows_disp = []
             for i, r in enumerate(rows):
@@ -1559,31 +1574,23 @@ class Estimator:
         else:
             # FULL: show model tables only (do not repeat Mixed), keep Error margin,
             # add '*' as far-right column for rows selected in Mixed.
-            for t_index, (title_base, rows) in enumerate(self.tables):
+            for t_index, (title_base, rows, model_code) in enumerate(self.tables):
                 # Skip Mixed table in FULL (first table)
                 if t_index == 0:
                     continue
-                header = ["Measure", "Value", "Error", "Range (90%)", "Confidence"]
-                # Possibly mark measure with '*' if selected in Mixed
-                title_code = None
-                if title_base.endswith("Similar-Days Median Model"):
-                    title_code = 'SimDays'
-                elif title_base.endswith("Linear Regression"):
-                    title_code = 'LinRegr'
-                elif title_base.endswith("Schedule-Only (Recent)"):
-                    title_code = 'RecDays'
+                header = list(self.HEADER_FULL)
                 # Build a preview of rows including mark column to size widths
                 preview_rows = []
                 for idx, (m, v, c, r90, pc) in enumerate(rows):
                     mark = ""
-                    if title_code and hasattr(self, '_selected_by_model'):
+                    if model_code and hasattr(self, '_selected_by_model'):
                         try:
-                            if idx in self._selected_by_model.get(title_code, set()):
+                            if idx in self._selected_by_model.get(model_code, set()):
                                 mark = "*"
                         except Exception:
                             pass
                     # Mixed table rows are all selected
-                    if title_base.endswith("per best model)"):
+                    if model_code is None:
                         mark = "*"
                     preview_rows.append([m, v, c, r90, pc, mark])
 
