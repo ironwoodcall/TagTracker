@@ -79,7 +79,7 @@ def render_tables(
             if model_code and selected_by_model:
                 try:
                     if idx in selected_by_model.get(model_code, set()):
-                        mark = "*"
+                        mark = "<--BEST"
                 except Exception:
                     mark = ""
             preview_rows.append([m, v, c, r90, pc, mark])
