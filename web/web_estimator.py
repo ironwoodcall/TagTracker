@@ -1650,7 +1650,7 @@ class Estimator:
                     if model_code and hasattr(self, '_selected_by_model'):
                         try:
                             if idx in self._selected_by_model.get(model_code, set()):
-                                mark = "*"
+                                mark = "<--BEST"
                         except Exception:
                             pass
                     # Mixed table rows are all selected
