@@ -1567,6 +1567,15 @@ class Estimator:
             width, neg_conf, mdl, _row = best
             return best, f"narrowest range width {width}; conf {abs(neg_conf)}%"
 
+        def _select_candidate(i: int, cands: list[tuple[int, int, str, tuple]], frac: float, cohort_n: int):
+            mode = str(getattr(wcfg, "EST_SELECTION_MODE", "accuracy_first")).strip().lower()
+            if mode == "range_first":
+                best = _select_by_narrowest_then_conf(cands)
+                width, neg_conf, mdl, _row = best
+                return best, f"legacy: narrowest range width {width}; conf {abs(neg_conf)}%"
+            # default accuracy-first
+            return _select_best_candidate(i, cands, frac, cohort_n)
+
         # Map measure title to index in consistent row lists
         # All lists are in identical order matching our desired display
         measures = [
@@ -1607,7 +1616,7 @@ class Estimator:
             if not candidates:
                 continue
             # Select best candidate per encapsulated strategy
-            best, why = _select_best_candidate(idx, candidates, frac_elapsed, n)
+            best, why = _select_candidate(idx, candidates, frac_elapsed, n)
             mixed_rows.append(best[3])
             mixed_models.append(best[2])
             try:
@@ -1713,7 +1722,12 @@ class Estimator:
                 if lines and lines[-1] != "":
                     lines.append("")
                 # Dashes row for 6 columns
-                lines += [title, fmt_row(header), fmt_row(["-"*widths[0], "-"*widths[1], "-"*widths[2], "-"*widths[3], "-"*widths[4], "-"*widths[5]])]
+                # Underline row: omit dashes for columns with empty header text
+                dash_row = [
+                    ("-" * widths[i]) if header[i] else ""
+                    for i in range(len(header))
+                ]
+                lines += [title, fmt_row(header), fmt_row(dash_row)]
                 for row6 in preview_rows:
                     lines.append(fmt_row(row6))
         # Verbose details if requested

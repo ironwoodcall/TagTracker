@@ -70,6 +70,11 @@ EST_RECENT_DAYS = 30
 # best-model guidance for mixed outputs.
 EST_CALIBRATION_FILE = ""
 
+# Selection strategy for 'best guess' rows in STANDARD output.
+#   'accuracy_first' (default): calibration best_model -> narrowest range -> confidence
+#   'range_first'            : narrowest range -> confidence (legacy behavior)
+EST_SELECTION_MODE = "accuracy_first"
+
 # Import any local web config to override this module's values.
 try:
     from web_local_config import * # pylint:disable=wildcard-import
