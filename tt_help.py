@@ -51,17 +51,17 @@ Information and reports
   Show recent activity         :  RECENT [time] [time]
   Show audit info              :  AUDIT [time]
   Show times for leftovers     :  LEFT
-  Show day-end stats report    :  STATS [time]
-  Graph of busy- and fullness  :  GRAPH
-  Show tag configurations      :  TAGS
-  Show chart of all activity   :  CHART
   Estimate further bikes today :  ESTIMATE [STANDARD|VERBOSE|LEGACY]
-  Detailed dump of today data  :  DUMP ['full']
+  Show tag configurations      :  TAGS
+  Show day-end stats report    :  STATS [time]
+  Graph busy- and fullness     :  GRAPH
+  Show chart of all activity   :  CHART
+  Debug data dump              :  DUMP [full]
 
 Other
   Help with commands           :  HELP [command]
   Set tag display to UPPERCASE :  UC | UPPERCASE
-  Set tag display to lowercase :  LC | LOWECASE
+  Set tag display to lowercase :  LC | LOWERCASE
   Send reports to shared drive :  PUBLISH
   Exit                         :  EXIT | x
 
@@ -119,19 +119,19 @@ Description:
 
     Call without arguments to list current notes.
 
-    The system will automatically delete notes that seem no longer relevent.
-    (E.g. in the examples above, after those those bikes are checked back out, then
+    The system will automatically delete notes that seem no longer relevant.
+    (E.g. in the examples above, after those bikes are checked back out, then
     after a 15 minute delay, their corresponding notes will be automatically deleted.)
     If a note was wrongly deleted, use the 'UNDELETE' command (below), and the
     system will not auto-delete that note again.
 
-    Call with argument 'DELETE" (or 'DEL' or 'D'), to manually delete notes.
+    Call with argument 'DELETE' (or 'DEL' or 'D'), to manually delete notes.
     Call with argument 'UNDELETE' (or 'UNDEL' or 'U') to recover deleted notes.
 
 """,
 
     CmdKeys.CMD_BIKE_OUT: """
-Command: IN <tag(s)> [time]
+Command: OUT <tag(s)> [time]
 
 Can be invoked as
   {}
@@ -156,12 +156,12 @@ Arguments:
     <tag(s)>: one or more tags to check in or out
 
 Description
-  Check a bike in or out, depending on whether it it is currently on-site:
+  Check a bike in or out, depending on whether it is currently on-site:
   - if the bike is on-site, this will check the bike out (same as OUT <tag>).
   - if the bike is coming in, this will check the bike in unless the tag is being re-used.
 
-  If a tag has been previously checked in the out, this will not know whether
-  this command is a duplicated check-out, or intended as a new check-in.
+  If a tag has been previously checked in then out, this will not know whether
+  this command is a duplicate check-out, or intended as a new check-in.
 
   To re-use a tag for a new check-in, use the 'IN' command.
 
@@ -174,13 +174,13 @@ Description
 
     CmdKeys.CMD_ESTIMATE: """
 Command: ESTIMATE [STANDARD|VERBOSE|LEGACY] --> default is STANDARD
-    (with FULL and OLD as ailases for VERBOSE and OLD)
+    (FULL is an alias for VERBOSE; OLD is an alias for LEGACY)
 
 Can be invoked as
   {}
 
 Arguments:
-    [STANDARD] (default): give the best guess estiamte based on multiple models
+    [STANDARD] (default): best guess estimates selected from multiple models
     [LEGACY|OLD]        : use the legacy estimator interface
     [VERBOSE|FULL]      : show verbose details for the current estimator
 
@@ -195,10 +195,16 @@ Description
   VERBOSE adds detailed information about inputs, matched-day counts,
   the models used and their statistics and parameters.
 
+  Notes (STANDARD output):
+    - "Range (90%)" is a 90% prediction interval for each measure.
+    - "Confidence" is a smooth percentage reflecting time-of-day, sample size,
+      and the spread of similar days (varies by model).
+    - "Model" indicates which model produced the row's estimate.
+
 Examples
   EST              # current estimator summary
   EST VERBOSE      # detailed estimation information
-  EST LEGACY       # estimate usiong the legacy estimator
+  EST LEGACY       # estimate using the legacy estimator
 """,
 
     CmdKeys.CMD_GRAPHS: """
@@ -211,9 +217,8 @@ Arguments:
     [end_time] : optional ending time for graphs (default: end of day)
 
 Description
-    Shows histograms representing how busy (bikes in + out) and how
-    full the site is through the day.  If optional [end_time] is supplied
-    then only data up to that time is incorporated in the graphs.
+    Shows histograms of busyness (ins + outs) and fullness across the day.
+    If [end_time] is supplied, only data up to that time is included.
 
 """,
 }
