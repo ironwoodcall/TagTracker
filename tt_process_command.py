@@ -523,13 +523,21 @@ def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
     pr.iprint()
     pr.iprint("Estimating...")
     # Always call the estimator via URL (DB lives on server)
-    # Optional args: OLD|LEGACY uses legacy estimator; FULL|VERBOSE requests verbose.
+    # Optional args:
+    #   STANDARD -> same as default (current)
+    #   LEGACY|OLD -> legacy estimator
+    #   FULL|VERBOSE -> verbose output
     choice = (args[0].strip().upper() if args else "") if args else ""
+    allowed = {"", "STANDARD", "LEGACY", "OLD", "FULL", "F", "VERBOSE", "V", "VER"}
+    if args and choice not in allowed:
+        pr.iprint(f"Unrecognized parameter '{args[0]}'", style=k.WARNING_STYLE)
+        return
     est_type = "current"
     if choice in {"OLD", "LEGACY"}:
         est_type = "legacy"
-    elif choice in {"FULL", "VERBOSE"}:
+    elif choice in {"FULL", "VERBOSE", "F", "VER"}:
         est_type = "verbose"
+    # STANDARD or empty uses default 'current'
     message_lines: List[str] = tt_call_estimator.get_estimate_via_url(
         today, estimation_type=est_type
     )
