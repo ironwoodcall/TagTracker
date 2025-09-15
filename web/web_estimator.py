@@ -67,6 +67,7 @@ import tt_default_hours
 # import client_base_config as cfg
 import web.web_estimator_rf as rf
 from web_estimator_models import SimpleModel as SimpleModelNew, LRModel as LRModelNew
+from web_estimator_render import render_tables as _render_tables
 
 # pylint: enable=wrong-import-position
 
