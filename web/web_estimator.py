@@ -1623,7 +1623,7 @@ class Estimator:
     def result_msg(self) -> list[str]:
         if self.state == ERROR:
             return [f"Can't estimate because: {self.error}"]
-        return _render_tables(
+        lines = _render_tables(
             as_of_when=self.as_of_when,
             verbose=self.verbose,
             tables=getattr(self, 'tables', []) or [],
@@ -1635,6 +1635,46 @@ class Estimator:
             calib=getattr(self, '_calib', None),
             calib_debug=getattr(self, '_calib_debug', None),
         )
+        # Append extended details that were present before refactor
+        if self.verbose:
+            try:
+                lines.append("")
+                lines.append(f"Bikes so far: {self.bikes_so_far}")
+                lines.append(f"Open/Close: {self.time_open} - {self.time_closed}")
+                open_num = self.time_open.num if self.time_open and self.time_open.num is not None else 0
+                close_num = self.time_closed.num if self.time_closed and self.time_closed.num is not None else 24 * 60
+                span = max(1, close_num - open_num)
+                frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - open_num) / span))
+                lines.append(f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)")
+                lines.append(f"Similar-day rows: {len(getattr(self, 'similar_dates', []) or [])} ({getattr(self, '_match_note', '')})")
+                lines.append(f"Match tolerance (VARIANCE): {getattr(self, 'VARIANCE', '')}")
+                lines.append(f"Outlier Z cutoff: {getattr(self, 'Z_CUTOFF', '')}")
+                sm = getattr(self, 'simple_model', None)
+                if sm and getattr(sm, 'state', None) == OK:
+                    lines.append("")
+                    lines.append("Simple model (similar days)")
+                    lines.append(f"  Points matched: {getattr(sm, 'num_points', '')}")
+                    lines.append(f"  Discarded as outliers: {getattr(sm, 'num_discarded', '')}")
+                    lines.append(f"  Min/Median/Mean/Max: {sm.min}/{sm.median}/{sm.mean}/{sm.max}")
+                # Confidence overview
+                matched = self._matched_dates()
+                level = self._confidence_level(len(matched), frac_elapsed)
+                lines.append("")
+                lines.append(f"Confidence level: {level}")
+                rb = self._band(level, 'remainder')
+                ab = self._band(level, 'activity')
+                pb = self._band(level, 'peak')
+                tb = self._band(level, 'peaktime')
+                rbs = self._band_scaled(rb, len(matched), frac_elapsed, 'remainder')
+                abs_ = self._band_scaled(ab, len(matched), frac_elapsed, 'activity')
+                pbs = self._band_scaled(pb, len(matched), frac_elapsed, 'peak')
+                tbs = self._band_scaled(tb, len(matched), frac_elapsed, 'peaktime')
+                lines.append(f"Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}")
+                lines.append(f"Base bands (before scaling): {rb}/{ab}/{pb}/{tb}")
+            except Exception:
+                # Do not fail rendering on details
+                pass
+        return lines
 
 
 if __name__ == "__main__":

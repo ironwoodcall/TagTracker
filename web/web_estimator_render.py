@@ -66,7 +66,7 @@ def render_tables(
         return lines
 
     # FULL: page-level title then all model tables (skip mixed at index 0)
-    lines.append("Detailed Esdtimation Information")
+    lines.append("Detailed Estimation Information")
     lines.append("")
     for t_index, (title_base, rows, model_code) in enumerate(tables):
         if t_index == 0:
