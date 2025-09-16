@@ -52,6 +52,7 @@ import os
 import sys
 import math
 import statistics
+import time
 from typing import Optional
 
 sys.path.append("../")
@@ -1703,6 +1704,7 @@ if __name__ == "__main__":
                 max_bikes_time_today=my_args[4],
             )
 
+        start_time = time.perf_counter()
         estimate_any = None
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
         if is_cgi:
@@ -1724,6 +1726,9 @@ if __name__ == "__main__":
 
         for line in estimate_any.result_msg():
             print(line)
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
+        print( f"\n\nQuery took {elapsed_time:.1f} seconds.")
     except Exception as e:  # pylint:disable=broad-except
         # Always emit something helpful rather than a blank page
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
