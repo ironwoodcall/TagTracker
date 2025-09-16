@@ -26,6 +26,7 @@ import sqlite3
 import sys
 import os
 import urllib.parse
+import time
 
 sys.path.append("../")
 sys.path.append("./")
@@ -213,7 +214,7 @@ def html_head(
     print("<body>")
 
 
-def webpage_footer(ttdb: sqlite3.Connection):
+def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
     """Prints the footer for each webpage"""
 
     print("<pre>")
@@ -226,12 +227,16 @@ def webpage_footer(ttdb: sqlite3.Connection):
             print(line)
         print()
 
+    print( f"Elapsed time for query: {elapsed_time:.1f} seconds.")
+
     print(db.db_latest(ttdb))
 
     print(f"TagTracker version {get_version_info()}")
 
 
 # =================================================================
+
+start_time = time.perf_counter()
 
 org_handle = "no_org"  # FIXME
 caller_org = "no_org"  # FIXME - read from web auth via env
@@ -355,4 +360,5 @@ else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)
 
-webpage_footer(database)
+
+webpage_footer(database, time.perf_counter() - start_time)
