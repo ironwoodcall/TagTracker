@@ -398,7 +398,7 @@ def main():
                     X = (np.array(xs, dtype=float).reshape(-1, 1) if HAVE_NP
                          else [[float(x)] for x in xs])
                     y = (np.array(ys, dtype=float) if HAVE_NP else [float(v) for v in ys])
-                    model = RandomForestRegressor(n_estimators=100, random_state=0)
+                    model = RandomForestRegressor(n_estimators=100, random_state=0, n_jobs=-1)
                     model.fit(X, y)
                     x0_arr = (np.array([[float(x0)]], dtype=float) if HAVE_NP else [[float(x0)]])
                     pred = model.predict(x0_arr)[0]
