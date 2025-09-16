@@ -1,0 +1,124 @@
+TagTracker Estimator: Models, Calibration, and Best-Guess Logic
+================================================================
+
+Overview
+--------
+The estimator combines several simple models to predict:
+  - Activity, now to +60 minutes (ins + outs)
+  - Further bikes in today (remainder)
+  - Time max bikes onsite (HH:MM)
+  - Max bikes onsite (count)
+
+Each model yields a point estimate, a 90% prediction range, and a
+confidence score. The default (STANDARD) output shows a “best guess” row
+for each measure, selected from the models below. The FULL view shows all
+models and additional details.
+
+
+Models
+------
+1) Similar‑Day Median (SM)
+   - For a given “now”, it matches similar days and uses the median of the
+     matched values.
+   - Inputs:
+     * Matching by schedule (open/close within tolerances) and bikes_so_far
+       (within a variance window); outliers trimmed by Z‑score on the matched
+       set.
+   - 90% range:
+     * Empirical 5th–95th percentiles of the matched distribution, or from
+       calibration residuals when available.
+   - Strengths: robust to small samples; stable early in the day.
+   - Caveats: can be wide when data is noisy or heterogeneous.
+
+2) Linear Regression (LR)
+   - Fits y = a·before + b to similar days and predicts from bikes_so_far.
+   - 90% range:
+     * 5th–95th percentiles of training residuals added to the point
+       prediction, or calibrated residuals when available.
+   - Strengths: often best mid/late day when the relationship is smooth;
+     captures ramps better than a median.
+   - Caveats: unstable with very small cohorts; can under/over‑shoot if the
+     day’s shape deviates from the fitted line.
+
+3) Schedule‑Only (Recent) (REC)
+   - Ignores bikes_so_far; uses the recent N similar days (by schedule) and
+     reports the median per measure.
+   - 90% range:
+     * 5th–95th percentiles across the recent window, or calibrated residuals
+       when available.
+   - Strengths: useful early in the day when occupancy has little signal;
+     stable reference.
+   - Caveats: may lag current conditions; broader ranges when recent days
+     vary widely.
+
+4) Random Forest (RF)
+   - Random‑forest regression on similar days (befores → measure).
+   - 90% range:
+     * 5th–95th percentiles of RF training residuals added to the point
+       prediction. When RF is included in calibration, per‑bin residual bands
+       are preferred.
+   - Strengths: non‑linear patterns; can outperform LR when relationships are
+     non‑linear.
+   - Caveats: needs enough data; risk of overfitting small cohorts.
+
+
+Calibration JSON
+----------------
+The estimator can use backtest‑derived calibration to ensure the 90% ranges
+achieve consistent coverage per time‑of‑day bin. The calibration file is
+produced by helpers/estimator_calibrate_models.py and referenced in
+web_local_config.py via EST_CALIBRATION_FILE.
+
+Structure (keys):
+  - time_bins          : list of labels like "0.00-0.20" defining bins
+  - models             : list of model codes: ["SM","LR","REC","RF"]
+  - residual_bands     : per‑model, per‑measure, per‑bin {q05,q95}
+      residual_bands[model][measure][bin] -> { "q05": float, "q95": float }
+      measures are "fut" (further bikes), "act" (activity), "peak" (max).
+  - best_model         : per‑measure, per‑bin winning model code by MAE
+      best_model[measure][bin] -> "SM"|"LR"|"REC"|"RF"
+  - creation_date      : ISO timestamp of calibration file creation
+  - comment            : arbitrary string (backtester name, notes, etc.)
+
+When present, calibrated residual bands replace on‑the‑fly ranges for SM,
+LR, REC, and RF, improving cross‑model comparability.
+
+
+Best‑Guess Selection (STANDARD)
+--------------------------------
+For each measure (row), the estimator chooses a model using these rules:
+  1) Prefer the calibration best_model for the current time bin
+     (lowest MAE in backtests for that measure/bin), if available.
+  2) Otherwise choose the narrowest 90% range (numeric ranges clamp to 0).
+  3) If still tied, choose the higher Confidence.
+
+The chosen model is shown in the Model column. Confidence is a smooth score
+based on time‑of‑day progress, matched sample size, and the model’s spread
+for that measure.
+
+
+Alternate (legacy) selection
+----------------------------
+An older selection heuristic (kept internally for reference) preferred:
+  - Narrowest 90% range first, then higher Confidence, then calibration
+    suggestion. It is no longer used for STANDARD, but remains in the
+    codebase for comparison/testing.
+
+
+Where models tend to shine
+--------------------------
+  - Early day: REC often provides a stable baseline; SM is robust. LR/RF may
+    be less stable if cohorts are small.
+  - Mid day: SM vs. LR/RF depends on data; LR often tightens as signal grows;
+    RF can help with non‑linear patterns.
+  - Late day: LR and RF frequently yield tighter, well‑calibrated ranges;
+    SM remains a solid fallback.
+
+
+Operational Notes
+-----------------
+  - STANDARD output shows only the best‑guess rows (one per measure).
+  - FULL output shows all model tables, marks which rows were selected, and
+    displays calibration metadata if available.
+  - Configure EST_CALIBRATION_FILE in web_local_config.py to point at the
+    JSON file generated by the backtester.

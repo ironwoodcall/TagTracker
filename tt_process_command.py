@@ -27,6 +27,7 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 
 # pylint: disable=wrong-import-position
 import common.tt_constants as k
+from typing import Optional, List
 from common.tt_tag import TagID
 
 # from tt_realtag import Stay
@@ -511,7 +512,7 @@ def dump_data_command(today: TrackerDay, args: list):
             pr.iprint(value)
 
 
-def estimate(today: TrackerDay) -> None:
+def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
     """Estimate how many more bikes.
     # Args:
     #     bikes_so_far: default current bikes so far
@@ -521,8 +522,25 @@ def estimate(today: TrackerDay) -> None:
     """
     pr.iprint()
     pr.iprint("Estimating...")
-    # time.sleep(1)
-    message_lines = tt_call_estimator.get_estimate_via_url(today)
+    # Always call the estimator via URL (DB lives on server)
+    # Optional args:
+    #   STANDARD -> same as default (current)
+    #   LEGACY|OLD -> legacy estimator
+    #   FULL|VERBOSE -> verbose output
+    choice = (args[0].strip().upper() if args else "") if args else ""
+    allowed = {"", "STANDARD", "LEGACY", "OLD", "FULL", "F", "VERBOSE", "V", "VER"}
+    if args and choice not in allowed:
+        pr.iprint(f"Unrecognized ESTIMATE parameter '{args[0]}'", style=k.WARNING_STYLE)
+        return
+    est_type = "current"
+    if choice in {"OLD", "LEGACY"}:
+        est_type = "legacy"
+    elif choice in {"FULL", "VERBOSE", "F", "VER", "V"}:
+        est_type = "verbose"
+    # STANDARD or empty uses default 'current'
+    message_lines: List[str] = tt_call_estimator.get_estimate_via_url(
+        today, estimation_type=est_type
+    )
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]
     pr.iprint()
@@ -594,7 +612,7 @@ def process_command(
     elif cmd == CmdKeys.CMD_EDIT:
         data_changed = edit_event(args=args, today=today)
     elif cmd == CmdKeys.CMD_ESTIMATE:
-        estimate(today=today)
+        estimate(today=today, args=args)
     elif cmd == CmdKeys.CMD_EXIT:
         return False
     # elif cmd == CmdKeys.CMD_FULL_CHART:
