@@ -200,7 +200,19 @@ CREATE TABLE DATALOADS ( -- info about most recent successful data loads
     FOREIGN KEY (day_id) REFERENCES DAY (id) ON DELETE CASCADE
 );
 
-
+-- Indexes
+CREATE INDEX IF NOT EXISTS visit_day_in_idx
+    ON VISIT(day_id, time_in);
+CREATE INDEX IF NOT EXISTS day_orgsite_date_idx
+    ON DAY(orgsite_id, date);
+CREATE INDEX IF NOT EXISTS day_orgsite_open_close_idx
+    ON DAY(orgsite_id, time_open, time_closed);
+CREATE INDEX IF NOT EXISTS visit_day_out_idx
+    ON VISIT(day_id, time_out);
+CREATE INDEX IF NOT EXISTS visit_day_in_out_idx
+    ON VISIT(day_id, time_in, time_out);
+CREATE INDEX IF NOT EXISTS day_date_open_close_idx
+    ON DAY(date, time_open, time_closed);
 
 /*
 
