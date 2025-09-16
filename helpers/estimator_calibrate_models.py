@@ -36,6 +36,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sys
+import shlex
+import time
+import subprocess
 import csv
 import math
 import os
@@ -133,9 +137,11 @@ class DayMeta:
 
 
 def db_connect(dbfile: Optional[str]) -> sqlite3.Connection:
+    """Open SQLite database in read-only mode (always)."""
     if not dbfile or not os.path.exists(dbfile):
         raise SystemExit(f"Database not found: {dbfile}")
-    conn = sqlite3.connect(dbfile)
+    uri = f"file:{dbfile}?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -268,7 +274,11 @@ def main():
     ap.add_argument("--time-bins", default="0-0.2,0.2-0.4,0.4-0.6,0.6-0.8,0.8-1.0")
     ap.add_argument("--per-sample-csv", default="", help="Optional CSV path for per-sample outputs")
     ap.add_argument("--summary-csv", default="", help="Optional CSV path for per-bin summary")
-    ap.add_argument("--recommended", action="store_true", help="Run with recommended settings and emit a suggested config JSON")
+    ap.add_argument("--output", default="", help="Write recommended JSON to this path (atomic)")
+    ap.add_argument("--quiet", action="store_true", help="Suppress stdout; only write JSON if --output is set")
+    ap.add_argument("--recommended", action="store_true", help="Use recommended defaults and emit calibration JSON")
+    ap.add_argument("--validate-only", action="store_true", help="Validate DB reachability and schema, then exit 0/1")
+    ap.add_argument("--backup", type=int, default=0, help="Keep N rotated backups of the JSON (file.json.1..N) before replace")
     args = ap.parse_args()
 
     # Recommended-mode nudges
@@ -288,6 +298,40 @@ def main():
             args.close_tol = 15
         if not args.recent_days:
             args.recent_days = 30
+        # Default lookback: 12 months if start/end not provided (left at full-range defaults)
+        if (args.start == '0000-00-00' or not args.start) and (args.end == '9999-12-31' or not args.end):
+            today = datetime.now().date()
+            start_dt = today - timedelta(days=365)
+            args.start = start_dt.strftime('%Y-%m-%d')
+            args.end = today.strftime('%Y-%m-%d')
+
+    # If running in quiet mode without an output path, refuse to proceed
+    if args.quiet and not args.output:
+        print("(error) --quiet requires --output to be specified", file=sys.stderr)
+        sys.exit(2)
+
+    start_run = time.perf_counter()
+
+    # Validate-only mode: check DB and schema, exit 0/1
+    if args.validate_only:
+        try:
+            conn = db_connect(args.db)
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('DAY','VISIT')")
+            have = {r[0].upper() for r in cur.fetchall()}
+            ok = ('DAY' in have and 'VISIT' in have)
+            conn.close()
+            if not ok:
+                print("(error) required tables DAY and VISIT not both present", file=sys.stderr)
+                sys.exit(1)
+            if not args.quiet:
+                print("Validation OK: DB reachable and schema present (DAY, VISIT)")
+            sys.exit(0)
+        except SystemExit:
+            raise
+        except Exception as e:  # pylint:disable=broad-except
+            print(f"(error) validation failed: {e}", file=sys.stderr)
+            sys.exit(1)
 
     conn = db_connect(args.db)
     days = fetch_days(conn, args.start, args.end)
@@ -461,27 +505,32 @@ def main():
             print(f"(warning) could not open summary CSV: {e}")
             summ_writer = None
 
-    print("\nResidual calibration by frac_elapsed bin (per model/measure):")
+    if not args.quiet:
+        print("\nResidual calibration by frac_elapsed bin (per model/measure):")
     for lo, hi, lbl in bins:
-        print(f"\n== Bin {lbl} ==")
+        if not args.quiet:
+            print(f"\n== Bin {lbl} ==")
         for meas in measures:
             for mdl in models:
                 k = (mdl, meas, lbl)
                 errs = resids.get(k, [])
                 if not errs:
-                    print(f"  {mdl}-{meas}: n=0")
+                    if not args.quiet:
+                        print(f"  {mdl}-{meas}: n=0")
                     if summ_writer:
                         summ_writer.writerow([lbl, mdl, meas, 0, "", "", "", ""])
                     continue
                 mae = statistics.mean(abs(e) for e in errs)
                 q05, q95 = percentiles(errs, 0.05, 0.95)
                 q50 = statistics.median(errs)
-                print(f"  {mdl}-{meas}: n={len(errs)}  MAE={mae:.2f}  Q05={q05:.2f}  Q50={q50:.2f}  Q95={q95:.2f}")
+                if not args.quiet:
+                    print(f"  {mdl}-{meas}: n={len(errs)}  MAE={mae:.2f}  Q05={q05:.2f}  Q50={q50:.2f}  Q95={q95:.2f}")
                 if summ_writer:
                     summ_writer.writerow([lbl, mdl, meas, len(errs), f"{mae:.3f}", f"{q05:.3f}", f"{q50:.3f}", f"{q95:.3f}"])
 
         # Best model per measure for this bin
-        print("  Best model (by MAE):")
+        if not args.quiet:
+            print("  Best model (by MAE):")
         for meas in measures:
             best = None
             best_mae = 1e18
@@ -495,9 +544,11 @@ def main():
                     best_mae = mae
                     best = mdl
             if best is None:
-                print(f"    {meas}: n=0")
+                if not args.quiet:
+                    print(f"    {meas}: n=0")
             else:
-                print(f"    {meas}: {best} (MAE={best_mae:.2f})")
+                if not args.quiet:
+                    print(f"    {meas}: {best} (MAE={best_mae:.2f})")
 
     # Close summary file
     # noinspection PyBroadException
@@ -550,13 +601,28 @@ def main():
         fill_bin(res_work, bins)
 
         # Build recommended config structure
+        # Include the exact command-line args used in 'comment'
+        _argv = " ".join(shlex.quote(a) for a in sys.argv[1:])
+        # Git metadata (best-effort)
+        git_commit = git_branch = None
+        try:
+            git_commit = subprocess.check_output(["git","rev-parse","--short","HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+            git_branch = subprocess.check_output(["git","rev-parse","--abbrev-ref","HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        except Exception:
+            pass
+        duration_seconds = round(time.perf_counter() - start_run, 3)
         reco = {
             "time_bins": [lbl for _lo,_hi,lbl in bins],
             "models": ["SM","LR","REC","RF"],
             "residual_bands": {},
             "best_model": {"fut": {}, "act": {}, "peak": {}},
             "creation_date": datetime.now().isoformat(timespec='seconds'),
-            "comment": "helpers/estimator_calibrate_models.py",
+            "comment": f"helpers/estimator_calibrate_models.py args: {_argv}",
+            "db_path": args.db,
+            "window": {"start": args.start, "end": args.end},
+            "duration_seconds": duration_seconds,
+            "git": {"commit": git_commit, "branch": git_branch},
+            "workers": getattr(args, 'workers', 0),
         }
         # Residual bands per model/measure/bin
         for mdl in ["SM","LR","REC","RF"]:
@@ -586,9 +652,38 @@ def main():
                         best_mae = mae; best = mdl
                 reco["best_model"][meas][lbl] = best
 
-        print("\nBEGIN RECOMMENDED CONFIG JSON")
-        print(json.dumps(reco, indent=2))
-        print("END RECOMMENDED CONFIG JSON\n")
+        # Emit JSON: to file if --output given; else to stdout (unless --quiet)
+        try:
+            if args.output:
+                out_tmp = args.output + ".new"
+                # Write JSON
+                with open(out_tmp, "w", encoding="utf-8") as fh:
+                    json.dump(reco, fh, indent=2)
+                # Validate JSON by re-opening
+                with open(out_tmp, "r", encoding="utf-8") as fh:
+                    _ = json.load(fh)
+                # Rotate backups if requested
+                if args.backup and os.path.exists(args.output):
+                    try:
+                        n = int(args.backup)
+                        for i in range(n-1, 0, -1):
+                            older = f"{args.output}.{i}"
+                            newer = f"{args.output}.{i+1}"
+                            if os.path.exists(older):
+                                os.replace(older, newer)
+                        os.replace(args.output, f"{args.output}.1")
+                    except Exception:
+                        # Non-fatal; continue with replace
+                        pass
+                # Atomically publish
+                os.replace(out_tmp, args.output)
+            elif not args.quiet:
+                print("\nBEGIN RECOMMENDED CONFIG JSON")
+                print(json.dumps(reco, indent=2))
+                print("END RECOMMENDED CONFIG JSON\n")
+        except Exception as e:  # pylint:disable=broad-except
+            print(f"(error) writing JSON: {e}")
+            raise
 
 
 if __name__ == "__main__":

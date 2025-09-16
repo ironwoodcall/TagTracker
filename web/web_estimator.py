@@ -673,10 +673,12 @@ class Estimator:
     orgsite_id = 1  # FIXME: hardwired orgsite (kept consistent with old)
 
     # --- Model names (centralized) ---
-    MODEL_SM = "Similar Days"
-    MODEL_LR = "Lin Regress"
-    MODEL_REC = "Recent Days"
-    MODEL_RF = "Rand Forest"
+    # NB: These codes must exactly match the codes used in the calibration script
+    MODEL_SM = "SM"
+    MODEL_LR = "LR"
+    MODEL_REC = "REC"
+    MODEL_RF = "RF"
+
 
     MODEL_LONG_NAMES = {
         MODEL_SM: "Similar-Day Median",
