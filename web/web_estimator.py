@@ -686,13 +686,6 @@ class Estimator:
         MODEL_REC: "Schedule-Only (Recent Days)",
         MODEL_RF: "Random Forest",
     }
-    # Optional short display names (<= 8 chars)
-    MODEL_SHORT_NAMES = {
-        MODEL_SM: "SimMed",
-        MODEL_LR: "LinReg",
-        MODEL_REC: "SchedRec",
-        MODEL_RF: "RandFor",
-    }
 
     # Measure label strings (edit here to change table text)
     MEAS_ACTIVITY_TEMPLATE = "Activity, now to {end_time}"
