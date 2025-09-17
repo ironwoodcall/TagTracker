@@ -51,7 +51,7 @@ Information and reports
   Show recent activity         :  RECENT [time] [time]
   Show audit info              :  AUDIT [time]
   Show times for leftovers     :  LEFT
-  Estimate further bikes today :  ESTIMATE [STANDARD|VERBOSE|LEGACY]
+  Estimate further bikes today :  ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE]
   Show tag configurations      :  TAGS
   Show day-end stats report    :  STATS [time]
   Graph busy- and fullness     :  GRAPH
@@ -173,16 +173,20 @@ Description
 """,
 
     CmdKeys.CMD_ESTIMATE: """
-Command: ESTIMATE [STANDARD|VERBOSE|LEGACY] --> default is STANDARD
-    (FULL is an alias for VERBOSE; OLD is an alias for LEGACY)
+Command: ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE] --> default is STANDARD
+    (FULL is an alias for VERBOSE)
 
 Can be invoked as
   {}
 
 Arguments:
     [STANDARD] (default): best guess estimates selected from multiple models
-    [LEGACY|OLD]        : use the legacy estimator interface
     [VERBOSE|FULL]      : show verbose details for the current estimator
+    [QUICK]             : perform a faster estimate by excluding the
+                          random forest regressor model
+    [SCHEDULE]          : estimate using only recent schedule patterns,
+                          ignoring how many bikes so far today. This is
+                          useful for estimates early in the day
 
 Description
   Estimates the rest of the day using historical data for similar days.
@@ -204,7 +208,6 @@ Description
 Examples
   EST              # current estimator summary
   EST VERBOSE      # detailed estimation information
-  EST LEGACY       # estimate using the legacy estimator
 """,
 
     CmdKeys.CMD_GRAPHS: """
