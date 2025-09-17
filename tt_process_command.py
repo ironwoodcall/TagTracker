@@ -532,15 +532,15 @@ def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
     if args and choice not in allowed:
         pr.iprint(f"Unrecognized ESTIMATE parameter '{args[0]}'", style=k.WARNING_STYLE)
         return
-    est_type = "standard"
+    estimation_type = "standard"
     if choice in {"FULL", "VERBOSE", "F", "VER", "V"}:
-        est_type = "verbose"
+        estimation_type = "verbose"
     elif choice in {"SCHEDULE", "QUICK"}:
-        est_type = choice.lower()
+        estimation_type = choice.lower()
 
     # STANDARD or empty uses default 'current'
     message_lines: List[str] = tt_call_estimator.get_estimate_via_url(
-        today, estimation_type=est_type
+        today, estimation_type=estimation_type
     )
     if not message_lines:
         message_lines = ["Nothing returned, don't know why. Sorry."]

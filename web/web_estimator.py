@@ -5,7 +5,7 @@ CGI parameters:
     bikes_so_far: current bike count (as of now).
     opening_time: service opening time for today (HHMM or HH:MM).
     closing_time: service closing time for today (HHMM or HH:MM).
-    est_type: optional; set to "verbose" for extended output.
+    estimation_type: optional; set to "verbose" for extended output.
 
 Estimates assume the request is for today at "now" and rely on the provided opening and closing times.
 """
@@ -1312,14 +1312,14 @@ if __name__ == "__main__":
             bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
             opening_time = query_parms.get("opening_time", [""])[0]
             closing_time = query_parms.get("closing_time", [""])[0]
-            est_type = (
-                (query_parms.get("est_type", [""])[0] or "").strip().lower()
+            estimation_type = (
+                (query_parms.get("estimation_type", [""])[0] or "").strip().lower()
             )
             return Estimator(
                 bikes_so_far=bikes_so_far,
                 opening_time=opening_time,
                 closing_time=closing_time,
-                verbose=(est_type == "verbose"),
+                verbose=(estimation_type == "verbose"),
             )
 
 
