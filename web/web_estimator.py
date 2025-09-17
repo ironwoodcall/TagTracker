@@ -1,27 +1,17 @@
 #!/usr/bin/env python3
 """Estimate how many more bikes to expect.
 
-API (CGI or CLI):
-    opening_time, closing_time, bikes_so_far, [max_bikes_today], [max_bikes_time_today]
-    where
-        opening_time: service opening time for today (HHMM or HH:MM)
-        closing_time: service closing time for today (HHMM or HH:MM)
-        bikes_so_far: bikes currently parked (as of now)
-        max_bikes_today: optional, for future use (ignored if provided)
-        max_bikes_time_today: optional, for future use (ignored if provided)
+CGI parameters:
+    bikes_so_far: current bike count (as of now).
+    opening_time: service opening time for today (HHMM or HH:MM).
+    closing_time: service closing time for today (HHMM or HH:MM).
+    est_type: optional; set to "verbose" for extended output.
 
-Assumptions:
-    - Estimation is for today, at "now".
-    - Optional `estimation_type` query parameter routes behavior:
-        * current or missing -> use Estimator (this module)
-        * verbose -> Estimator (same output for now; verbose not yet implemented)
-
+Estimates assume the request is for today at "now" and rely on the provided opening and closing times.
 """
-
 
 import urllib.request
 import urllib.parse
-import json
 import traceback as _tb
 from web_estimator_calibration import (
     load_calibration as _calib_load,
@@ -31,7 +21,6 @@ from web_estimator_calibration import (
 from web_estimator_selection import dispatch_select as _select_dispatch
 import os
 import sys
-import math
 import time
 from typing import Optional
 
@@ -1316,24 +1305,20 @@ class Estimator:
 
 if __name__ == "__main__":
     try:
-        # Parse CGI/CLI inputs for the estimator
+        # Parse CGI inputs for the estimator
         def _init_from_cgi() -> Estimator:
             query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
             query_parms = urllib.parse.parse_qs(query_str)
             bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
             opening_time = query_parms.get("opening_time", [""])[0]
             closing_time = query_parms.get("closing_time", [""])[0]
-            max_bikes_today = query_parms.get("max_bikes_today", [""])[0]
-            max_bikes_time_today = query_parms.get("max_bikes_time_today", [""])[0]
             est_type = (
-                (query_parms.get("estimation_type", [""])[0] or "").strip().lower()
+                (query_parms.get("est_type", [""])[0] or "").strip().lower()
             )
             return Estimator(
                 bikes_so_far=bikes_so_far,
                 opening_time=opening_time,
                 closing_time=closing_time,
-                max_bikes_today=max_bikes_today,
-                max_bikes_time_today=max_bikes_time_today,
                 verbose=(est_type == "verbose"),
             )
 

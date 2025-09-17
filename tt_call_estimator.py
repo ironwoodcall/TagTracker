@@ -36,13 +36,11 @@ def get_estimate_via_url(
     bikes_so_far: Optional[int] = None,
     opening_time: str = "",
     closing_time: str = "",
-    max_bikes_today: str = "",
-    max_bikes_time_today: str = "",
-    estimation_type: str = "current",
+    estimation_type: str = "standard",
 ) -> list[str]:
-    """Call estimator URL (new API) to get the estimate.
+    """Call estimator URL to get the estimate.
 
-    New API assumes: today, as of now. Parameters sent:
+    API assumes: today, as of now. Parameters sent:
       opening_time, closing_time, bikes_so_far, [max_bikes_today], [max_bikes_time_today]
     """
     now = VTime("now")
@@ -61,10 +59,6 @@ def get_estimate_via_url(
         f"opening_time={opening_time}",
         f"closing_time={closing_time}",
     ]
-    if max_bikes_today:
-        parts.append(f"max_bikes_today={max_bikes_today}")
-    if max_bikes_time_today:
-        parts.append(f"max_bikes_time_today={max_bikes_time_today}")
     if estimation_type:
         parts.append(f"estimation_type={estimation_type}")
         # Legacy CGI expects 'time_closed' (not 'closing_time'), plus dow/as_of_when
