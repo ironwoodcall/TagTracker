@@ -35,7 +35,6 @@ import web_base_config as wcfg
 import common.tt_util as ut
 from common.tt_time import VTime
 import common.tt_dbutil as db
-import tt_default_hours
 
 # import client_base_config as cfg
 import web.web_estimator_rf as rf
@@ -99,25 +98,18 @@ class Estimator:
         bikes_so_far: str = "",
         opening_time: str = "",
         closing_time: str = "",
-        max_bikes_today: str = "",
-        max_bikes_time_today: str = "",
-        # Back-compat keyword aliases from legacy callers
-        time_open: str = "",
-        time_closed: str = "",
         estimation_type: str = "",
-        verbose: bool = False,
+
     ) -> None:
         self.state = INCOMPLETE
         self.error = ""
         self.database = None
         self.estimation_type = (estimation_type or "").strip().lower()
-        self.verbose = bool(verbose or self.estimation_type == "verbose")
+        self.verbose = bool(self.estimation_type == "verbose")
         raw_open_param = (opening_time or "").strip()
         raw_close_param = (closing_time or "").strip()
-        raw_open_alias = (time_open or "").strip()
-        raw_close_alias = (time_closed or "").strip()
-        has_open_param = bool(raw_open_param or raw_open_alias)
-        has_close_param = bool(raw_close_param or raw_close_alias)
+        has_open_param = bool(raw_open_param)
+        has_close_param = bool(raw_close_param)
 
         if self.estimation_type == "schedule" and not (has_open_param and has_close_param):
             self.error = "Please provide both opening_time and closing_time when estimation_type=schedule."
@@ -142,54 +134,57 @@ class Estimator:
             return
         self.database = db.db_connect(DBFILE)
 
-        # Inputs: bikes_so_far (defaults to count right now)
-        if not bikes_so_far:
-            bikes_so_far = self._bikes_right_now()
-        bikes_so_far = str(bikes_so_far).strip()
-        if not bikes_so_far.isdigit():
-            self.error = "Missing or bad bikes_so_far parameter."
-            self.state = ERROR
-            return
-        self.bikes_so_far = int(bikes_so_far)
+        bikes_input = str(bikes_so_far or "").strip()
+        if self.estimation_type != "schedule":
+            if not bikes_input:
+                fetched = self._bikes_right_now()
+                bikes_input = str(fetched).strip() if fetched is not None else ""
+            if not bikes_input or not bikes_input.isdigit():
+                self.error = "Missing or bad bikes_so_far parameter."
+                self.state = ERROR
+                return
+        else:
+            if bikes_input and not bikes_input.isdigit():
+                self.error = "Bad bikes_so_far parameter."
+                self.state = ERROR
+                return
+            if not bikes_input:
+                bikes_input = "0"
+        self.bikes_so_far = int(bikes_input)
 
-        # New API assumes estimation is for "now"
         self.as_of_when = VTime("now")
         if not self.as_of_when:
             self.error = "Bad current time."
             self.state = ERROR
             return
 
-        # Today context
         today_date = ut.date_str("today")
         self.dow = ut.dow_int(today_date)
 
-        # Schedule: opening and closing time (from params or defaults)
-        # Accept legacy keyword aliases if provided
-        if not opening_time and time_open:
-            opening_time = time_open
-        if not closing_time and time_closed:
-            closing_time = time_closed
+        opening_candidate = raw_open_param.strip()
+        closing_candidate = raw_close_param.strip()
+        if not opening_candidate or not closing_candidate:
+            db_open, db_close = self._fetch_today_schedule()
+            if not opening_candidate and db_open:
+                opening_candidate = str(db_open).strip()
+            if not closing_candidate and db_close:
+                closing_candidate = str(db_close).strip()
 
-        if not opening_time or not closing_time:
-            default_open, default_close = tt_default_hours.get_default_hours(today_date)
-            opening_time = opening_time or default_open
-            closing_time = closing_time or default_close
+        if not opening_candidate or not closing_candidate:
+            self.error = "Unable to determine opening_time and closing_time for today."
+            self.state = ERROR
+            return
 
-        # Final fallbacks if defaults are also missing
-        if not opening_time:
-            opening_time = "00:00"
-        if not closing_time:
-            # Assume service can run to end-of-day if unknown
-            closing_time = "24:00"
-
-        self.time_closed = VTime(closing_time)
-        self.time_open = VTime(opening_time)
-
-        # If still invalid, clamp to safe values for calculations
+        self.time_open = VTime(opening_candidate)
+        self.time_closed = VTime(closing_candidate)
         if not self.time_open:
-            self.time_open = VTime("00:00")
+            self.error = f"Invalid opening_time '{opening_candidate}'."
+            self.state = ERROR
+            return
         if not self.time_closed:
-            self.time_closed = VTime("24:00")
+            self.error = f"Invalid closing_time '{closing_candidate}'."
+            self.state = ERROR
+            return
 
         # Data buffers
         self.similar_dates: list[str] = []
@@ -234,6 +229,21 @@ class Estimator:
             ["cnt"],
         )
         return int(rows[0].cnt) if rows else 0
+
+    def _fetch_today_schedule(self) -> tuple[str | None, str | None]:
+        today = ut.date_str("today")
+        cursor = self.database.cursor()
+        day_id = db.fetch_day_id(cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id)
+        if not day_id:
+            return None, None
+        rows = db.db_fetch(
+            self.database,
+            f"SELECT time_open, time_closed FROM day WHERE id = {day_id}",
+            ["time_open", "time_closed"],
+        )
+        if rows:
+            return rows[0].time_open, rows[0].time_closed
+        return None, None
 
     def _time_bounds(self, base: VTime, tol_min: int) -> tuple[str, str]:
         base_num = base.num if base and base.num is not None else 0
@@ -1390,7 +1400,6 @@ if __name__ == "__main__":
                 opening_time=opening_time,
                 closing_time=closing_time,
                 estimation_type=estimation_type,
-                verbose=(estimation_type == "verbose"),
             )
 
 
