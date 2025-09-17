@@ -5,7 +5,10 @@ CGI parameters:
     bikes_so_far: current bike count (as of now).
     opening_time: service opening time for today (HHMM or HH:MM).
     closing_time: service closing time for today (HHMM or HH:MM).
-    estimation_type: optional; set to "verbose" for extended output.
+    estimation_type: optional; values include
+        "verbose" (detailed output),
+        "quick" (skip Random Forest), and
+        "schedule" (REC model only; requires opening and closing times).
 
 Estimates assume the request is for today at "now" and rely on the provided opening and closing times.
 """
@@ -101,12 +104,36 @@ class Estimator:
         # Back-compat keyword aliases from legacy callers
         time_open: str = "",
         time_closed: str = "",
+        estimation_type: str = "",
         verbose: bool = False,
     ) -> None:
         self.state = INCOMPLETE
         self.error = ""
         self.database = None
-        self.verbose = bool(verbose)
+        self.estimation_type = (estimation_type or "").strip().lower()
+        self.verbose = bool(verbose or self.estimation_type == "verbose")
+        raw_open_param = (opening_time or "").strip()
+        raw_close_param = (closing_time or "").strip()
+        raw_open_alias = (time_open or "").strip()
+        raw_close_alias = (time_closed or "").strip()
+        has_open_param = bool(raw_open_param or raw_open_alias)
+        has_close_param = bool(raw_close_param or raw_close_alias)
+
+        if self.estimation_type == "schedule" and not (has_open_param and has_close_param):
+            self.error = "Please provide both opening_time and closing_time when estimation_type=schedule."
+            self.state = ERROR
+            return
+
+        self._allowed_models = {
+            self.MODEL_SM,
+            self.MODEL_LR,
+            self.MODEL_REC,
+            self.MODEL_RF,
+        }
+        if self.estimation_type == "schedule":
+            self._allowed_models = {self.MODEL_REC}
+        elif self.estimation_type == "quick":
+            self._allowed_models = {self.MODEL_SM, self.MODEL_LR, self.MODEL_REC}
 
         DBFILE = wcfg.DB_FILENAME
         if not os.path.exists(DBFILE):
@@ -553,69 +580,109 @@ class Estimator:
         )
 
         # --- SIMPLE rows (with calibration applied) ---
-        simple_rows = self._build_simple_rows(
-            t_end, nxh_activity, remainder, peak_time, peak_val,
-            (act_band, rem_band, peak_band, ptime_band),
-            (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
-            (conf_act, conf_rem, conf_pt, conf_pk),
-            frac_elapsed
-        )
+        simple_rows = []
+        if self._model_enabled(self.MODEL_SM):
+            simple_rows = self._build_simple_rows(
+                t_end, nxh_activity, remainder, peak_time, peak_val,
+                (act_band, rem_band, peak_band, ptime_band),
+                (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
+                (conf_act, conf_rem, conf_pt, conf_pk),
+                frac_elapsed
+            )
 
         # --- LINEAR REGRESSION rows (with calibration & residual ranges) ---
-        lr_rows = self._build_lr_rows(
-            t_end, remainder, nxh_activity, peak_val, peak_time,
-            all_acts, all_peaks,
-            (act_band, rem_band, peak_band, ptime_band),
-            (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
-            frac_elapsed
-        )
+        lr_rows = []
+        if self._model_enabled(self.MODEL_LR):
+            lr_rows = self._build_lr_rows(
+                t_end, remainder, nxh_activity, peak_val, peak_time,
+                all_acts, all_peaks,
+                (act_band, rem_band, peak_band, ptime_band),
+                (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
+                frac_elapsed
+            )
 
         # --- RECENT (schedule-only) rows (with calibration) ---
-        rec_rows = self._build_recent_rows(
-            t_end, remainder, nxh_activity, peak_val, peak_time,
-            (act_band, rem_band, peak_band, ptime_band),
-            frac_elapsed
-        )
+        rec_rows = []
+        if self._model_enabled(self.MODEL_REC):
+            rec_rows = self._build_recent_rows(
+                t_end, remainder, nxh_activity, peak_val, peak_time,
+                (act_band, rem_band, peak_band, ptime_band),
+                frac_elapsed
+            )
 
         # --- RANDOM FOREST rows (if available; with calibration) ---
-        rf_rows = self._build_rf_rows(
-            t_end, remainder, nxh_activity, peak_val, peak_time,
-            (act_band, rem_band, peak_band, ptime_band),
-            (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
-            frac_elapsed
-        )
+        rf_rows = []
+        if self._model_enabled(self.MODEL_RF):
+            rf_rows = self._build_rf_rows(
+                t_end, remainder, nxh_activity, peak_val, peak_time,
+                (act_band, rem_band, peak_band, ptime_band),
+                (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
+                frac_elapsed
+            )
 
         # --- Mixed selection across models per measure ---
-        tables_by_model = {
-            self.MODEL_SM: simple_rows,
-            self.MODEL_LR: lr_rows,
-            self.MODEL_REC: rec_rows,
-        }
+        tables_by_model: dict[str, list[tuple[str, str, str, str, str]]] = {}
+        if simple_rows:
+            tables_by_model[self.MODEL_SM] = simple_rows
+        if lr_rows:
+            tables_by_model[self.MODEL_LR] = lr_rows
+        if rec_rows:
+            tables_by_model[self.MODEL_REC] = rec_rows
         if rf_rows:
             tables_by_model[self.MODEL_RF] = rf_rows
+
+        if not tables_by_model:
+            self.error = "No estimation models were available for the requested estimation_type."
+            self.state = ERROR
+            return
 
         mixed_rows, mixed_models, selected_by_model, selection_info = self._select_rows(
             t_end, tables_by_model, frac_elapsed, n
         )
+        if self.estimation_type == "schedule":
+            selection_info.insert(0, "estimation_type=schedule: REC model only")
+        elif self.estimation_type == "quick":
+            selection_info.insert(0, "estimation_type=quick: Random Forest skipped")
         self._selection_info = selection_info
 
         # --- Final table packaging (Mixed first) ---
         self.tables = [
             ("Best Guess Estimates", mixed_rows, None),
-            (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model", simple_rows, self.MODEL_SM),
-            (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model",  lr_rows,    self.MODEL_LR),
-            (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model", rec_rows,   self.MODEL_REC),
         ]
-        # Always include RF section (results or placeholder)
-        if rf_rows:
+        if simple_rows:
             self.tables.append(
-                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model", rf_rows, self.MODEL_RF)
+                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model", simple_rows, self.MODEL_SM)
+            )
+        elif self._model_enabled(self.MODEL_SM):
+            self.tables.append(
+                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model", [("No estimates available", "", "", "", "")], None)
+            )
+        if lr_rows:
+            self.tables.append(
+                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model", lr_rows, self.MODEL_LR)
+            )
+        elif self._model_enabled(self.MODEL_LR):
+            self.tables.append(
+                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model", [("No estimates available", "", "", "", "")], None)
+            )
+        if rec_rows:
+            self.tables.append(
+                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model", rec_rows, self.MODEL_REC)
             )
         else:
             self.tables.append(
-                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
-                [("Random Forest unavailable", "", "", "", "")], None)
+                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model", [("No estimates available", "", "", "", "")], None)
             )
+        if self._model_enabled(self.MODEL_RF):
+            if rf_rows:
+                self.tables.append(
+                    (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model", rf_rows, self.MODEL_RF)
+                )
+            else:
+                self.tables.append(
+                    (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
+                    [("Random Forest unavailable", "", "", "", "")], None)
+                )
 
         # Book-keeping
         self._mixed_models = mixed_models
@@ -625,6 +692,9 @@ class Estimator:
         self.min = max(0, int(remainder) - rem_band)
         self.max = int(remainder) + rem_band
         self.state = OK
+
+    def _model_enabled(self, model_code: str) -> bool:
+        return model_code in self._allowed_models
 
 
     # =========================
@@ -1319,6 +1389,7 @@ if __name__ == "__main__":
                 bikes_so_far=bikes_so_far,
                 opening_time=opening_time,
                 closing_time=closing_time,
+                estimation_type=estimation_type,
                 verbose=(estimation_type == "verbose"),
             )
 
@@ -1354,3 +1425,4 @@ if __name__ == "__main__":
             print("\n".join(_tb.format_exception(type(e), e, e.__traceback__)))
         except Exception:  # pylint:disable=broad-except
             pass
+
