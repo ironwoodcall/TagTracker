@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Estimate how many more bikes to expect.
 
-New API (CGI or CLI):
+API (CGI or CLI):
     opening_time, closing_time, bikes_so_far, [max_bikes_today], [max_bikes_time_today]
     where
         opening_time: service opening time for today (HHMM or HH:MM)
@@ -10,40 +10,17 @@ New API (CGI or CLI):
         max_bikes_today: optional, for future use (ignored if provided)
         max_bikes_time_today: optional, for future use (ignored if provided)
 
-Assumptions for new API:
+Assumptions:
     - Estimation is for today, at "now".
     - Optional `estimation_type` query parameter routes behavior:
-        * legacy  -> use Estimator_old (legacy interface)
-        * current or missing -> use Estimator (new API)
+        * current or missing -> use Estimator (this module)
         * verbose -> Estimator (same output for now; verbose not yet implemented)
-
-Backward compatibility:
-    - If new parameters are not provided, falls back to legacy params
-      (bikes_so_far, as_of_when, dow, time_closed) and Estimator_old.
-
-Copyright (C) 2023-2024 Julias Hocking & Todd Glover
-
-    Notwithstanding the licensing information below, this code may not
-    be used in a commercial (for-profit, non-profit or government) setting
-    without the copyright-holder's written consent.
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published
-    by the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
 
 
 import urllib.request
+import urllib.parse
 import json
 import traceback as _tb
 from web_estimator_calibration import (
@@ -55,7 +32,6 @@ from web_estimator_selection import dispatch_select as _select_dispatch
 import os
 import sys
 import math
-import statistics
 import time
 from typing import Optional
 
@@ -81,587 +57,6 @@ INCOMPLETE = "incomplete"  # initialized but not ready to use
 READY = "ready"  # model is ready to use
 OK = "ok"  # model has been used to create a guess OK
 ERROR = "error"  # the model is unusable, in an error state
-
-PRINT_WIDTH = 47
-
-
-def _format_measure(m):
-    """Format a regression measure as a string."""
-    if m is None or m != m or not isinstance(m, (float, int)):
-        return "?"
-    return f"{m:.2f}"
-
-
-class SimpleModel:
-    """A simple model using mean & median for similar days."""
-
-    def __init__(self) -> None:
-        self.raw_befores = None
-        self.raw_afters = None
-        self.raw_dates = []
-        self.match_tolerance = None
-        self.matched_afters = []
-        self.matched_dates = []
-        self.num_points = None
-        self.trim_tolerance = None
-        self.trimmed_afters = []
-        self.discarded_afters = []
-        self.discarded_dates = []
-        self.num_discarded = None
-
-        self.min = None
-        self.max = None
-        self.mean = None
-        self.median = None
-
-        self.error = ""
-        self.state = INCOMPLETE
-
-    def _discard_outliers(
-        self,
-    ) -> None:
-        """Create trimmed_data by discarding outliers."""
-        # For 2 or fewer data points, the idea of outliers means nothing.
-        if len(self.matched_afters) <= 2:
-            self.trimmed_afters = self.matched_afters
-            self.num_discarded = self.num_points - len(self.trimmed_afters)
-            return
-        # Make new list, discarding outliers.
-        mean = statistics.mean(self.matched_afters)
-        std_dev = statistics.stdev(self.matched_afters)
-        if std_dev == 0:
-            self.trimmed_afters = self.matched_afters
-            self.num_discarded = self.num_points - len(self.trimmed_afters)
-            return
-
-        z_scores = [(x - mean) / std_dev for x in self.matched_afters]
-        self.trimmed_afters = [
-            self.matched_afters[i]
-            for i in range(len(self.matched_afters))
-            if abs(z_scores[i]) <= self.trim_tolerance
-        ]
-        self.num_discarded = self.num_points - len(self.trimmed_afters)
-
-    def create_model(
-        self,
-        dates: list[str],
-        befores: list[int],
-        afters: list[int],
-        tolerance: float,
-        z_threshold: float,
-    ):
-        if self.state == ERROR:
-            return
-        self.raw_dates = dates
-        self.raw_befores = befores
-        self.raw_afters = afters
-        self.match_tolerance = tolerance
-        self.trim_tolerance = z_threshold
-        self.state = READY
-
-    def guess(self, bikes_so_far: int):
-        """Calculate results for our simple mean & median) model."""
-        if self.state == ERROR:
-            return
-        if self.state not in [READY, OK]:
-            self.state = ERROR
-            self.error = "can not guess, model not in ready state."
-            return
-
-        # Find data points that match our bikes-so-far
-        # values within this dist are considered same
-        self.matched_afters = []
-        for i, this_bikes_so_far in enumerate(self.raw_befores):
-            if abs(bikes_so_far - this_bikes_so_far) <= self.match_tolerance:
-                self.matched_afters.append(self.raw_afters[i])
-        self.num_points = len(self.matched_afters)
-
-        # Discard outliers (z score > z cutodd)
-        self._discard_outliers()
-
-        # Check for no data.
-        if not self.matched_afters:
-            self.error = "no similar dates"
-            self.state = ERROR
-            return
-
-        # Calculate return value statistics
-        # (Both data and trimmed_data now have length > 0)
-        self.min = min(self.trimmed_afters)
-        self.max = max(self.trimmed_afters)
-        self.mean = int(statistics.mean(self.trimmed_afters))
-        self.median = int(statistics.median(self.trimmed_afters))
-        self.state = OK
-
-    def result_msg(self) -> list[str]:
-        """Return list of strings as long message."""
-
-        lines = ["Using a model that averages roughly similar dates:"]
-        if self.state != OK:
-            lines += [f"    Can't estimate because: {self.error}"]
-            return lines
-
-        mean_median = [self.mean, self.median]
-        mean_median.sort()
-        if mean_median[0] == mean_median[1]:
-            mm_str = f"{mean_median[0]}"
-        else:
-            mm_str = f"{mean_median[0]} [median] or {mean_median[1]} [mean]"
-
-        lines.append(f"    Expect {mm_str} more {ut.plural(self.median,'bike')}.")
-
-        one_line = (
-            f"Based on {self.num_points} similar previous "
-            f"{ut.plural(self.num_points,'day')}"
-        )
-        if self.num_discarded:
-            one_line = (
-                f"{one_line} ({self.num_discarded} "
-                f"{ut.plural(self.num_discarded,'outlier')} discarded)"
-            )
-        one_line = f"{one_line}."
-        lines = lines + [
-            f"    {s}" for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)
-        ]
-
-        return lines
-
-
-class LRModel:
-    """A linear regression model using least squares."""
-
-    def __init__(self):
-        self.state = INCOMPLETE
-        self.error = None
-        self.xy_data = None
-        self.num_points = None
-        self.slope = None
-        self.intercept = None
-        self.r_squared = None
-        self.correlation_coefficient = None
-        self.nmae = None
-        self.nrmse = None
-
-        self.further_bikes = None
-
-    # def calculate_nrmse(self):
-    #     sum_squared_errors = sum(
-    #         (y - (self.slope * x + self.intercept)) ** 2 for x, y in self.xy_data
-    #     )
-    #     rmse = math.sqrt(sum_squared_errors / self.num_points)
-
-    #     range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
-    #     if range_y == 0:
-    #         self.nmrse = "DIV/0"
-    #     else:
-    #         self.nrmse = rmse / range_y
-
-    # def calculate_nmae(self):
-    #     sum_absolute_errors = sum(
-    #         abs(y - (self.slope * x + self.intercept)) for x, y in self.xy_data
-    #     )
-    #     range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
-    #     divisor = self.num_points * range_y
-    #     if divisor == 0:
-    #         self.nmae = "DIV/0"
-    #     else:
-    #         self.nmae = sum_absolute_errors / divisor
-
-    def calculate_model(self, xy_data):
-        if self.state == ERROR:
-            return
-
-        self.xy_data = xy_data
-        self.num_points = len(xy_data)
-        if self.num_points < 2:
-            self.error = "not enough data points"
-            self.state = ERROR
-            return
-
-        if [x for x, _ in xy_data] == [0] * len(xy_data):
-            self.error = "all x values are 0"
-            self.state = ERROR
-            return
-
-        sum_x, sum_y, sum_xy, sum_x_squared, sum_y_squared = 0, 0, 0, 0, 0
-
-        for x, y in xy_data:
-            sum_x += x
-            sum_y += y
-            sum_xy += x * y
-            sum_x_squared += x**2
-            sum_y_squared += y**2
-
-        mean_x = sum_x / self.num_points
-        mean_y = sum_y / self.num_points
-
-        try:
-            self.slope = (self.num_points * sum_xy - sum_x * sum_y) / (
-                self.num_points * sum_x_squared - sum_x**2
-            )
-        except ZeroDivisionError:
-            self.error = "DIV/0 in slope calculation."
-            self.state = ERROR
-            return
-        self.intercept = mean_y - self.slope * mean_x
-
-        # Calculate the correlation coefficient (r) and goodness of fit (R^2)
-        sum_diff_prod = sum((x - mean_x) * (y - mean_y) for x, y in xy_data)
-        sum_x_diff_squared = sum((x - mean_x) ** 2 for x, _ in xy_data)
-        sum_y_diff_squared = sum((y - mean_y) ** 2 for _, y in xy_data)
-        try:
-            self.correlation_coefficient = sum_diff_prod / (
-                math.sqrt(sum_x_diff_squared) * math.sqrt(sum_y_diff_squared)
-            )
-            self.r_squared = self.correlation_coefficient * self.correlation_coefficient
-        except ZeroDivisionError:
-            self.correlation_coefficient = "DIV/0"
-            self.r_squared = "DIV/0"
-
-        # self.calculate_nrmse()
-        # self.calculate_nmae()
-
-        self.state = READY
-
-    def guess(self, x: float) -> float:
-        # Predict y based on the linear regression equation
-        if self.state == ERROR:
-            return
-        if self.state not in [READY, OK]:
-            self.state = ERROR
-            self.error = "model not ready, can not guess"
-            return
-        self.further_bikes = round(self.slope * x + self.intercept)
-        self.state = OK
-        return
-
-    def result_msg(self) -> list[str]:
-        """Return list of strings as long message."""
-
-        lines = ["Using a linear regression model:"]
-        if self.state != OK:
-            lines.append(f"    Can't estimate because: {self.error}")
-            return lines
-        # cc = _format_measure(self.correlation_coefficient)
-        # rs = _format_measure(self.r_squared)
-
-        lines = lines + [
-            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
-        ]
-
-        lines.append(
-            f"    Based on {self.num_points} "
-            f"data {ut.plural(self.num_points,'point')} "
-        )
-        # nrmse_str = _format_measure(self.nrmse)
-        # nmae_str = _format_measure(self.nmae)
-        # if nmae_str == "?" and nrmse_str == "?":
-        #     lines.append("    Model quality can not be calculated.")
-        # else:
-        #     lines.append(f"    NMAE {nmae_str}; NRMSE {nrmse_str} [lower is better].")
-
-        return lines
-
-
-class Estimator_old:
-    """Data and methods to estimate how many more bikes to expect."""
-
-    DBFILE = wcfg.DB_FILENAME
-
-    orgsite_id = 1  # FIXME hardwired orgsite
-
-    def __init__(
-        self,
-        bikes_so_far="",
-        as_of_when="",
-        dow_in="",
-        time_closed="",
-    ) -> None:
-        """Set up the inputs and results vars.
-
-        Inputs are thoroughly checked and default values figured out.
-
-        This will make guesses about any missing inputs
-        except the number of bikes so far.
-        """
-
-        # This will be INCOMPLETE, OK or ERROR
-        self.state = INCOMPLETE
-        # This stays empty unless set to an error message.
-        self.error = ""  # Error message
-
-        # Min and Max from all the models
-        self.min = None
-        self.max = None
-
-        # These are inputs
-        self.bikes_so_far = None
-        self.dow = None
-        self.as_of_when = None
-        self.time_closed = None
-        # This is the raw data
-        self.similar_dates = []
-        self.befores = []
-        self.afters = []
-        # These are for the resulting 'simple model' estimate
-        self.simple_model = SimpleModel()
-        # This is for the linear regression model
-        self.lr_model = LRModel()
-        # This for the random forest estimate
-        self.rf_model = rf.RandomForestRegressorModel()
-
-        # pylint: disable-next=invalid-name
-        DBFILE = wcfg.DB_FILENAME
-        if not os.path.exists(DBFILE):
-            self.error = "Database not found"
-            self.state = ERROR
-            return
-        self.database = db.db_connect(DBFILE)
-
-        # Now process the inputs from passed-in values.
-        ##if not bikes_so_far and not as_of_when and not dow_in and not time_closed:
-        if not bikes_so_far:
-            bikes_so_far = self._bikes_right_now()
-
-        bikes_so_far = str(bikes_so_far).strip()
-        if not bikes_so_far.isdigit():
-            self.error = "Missing or bad bikes_so_far parameter."
-            self.state = ERROR
-            return
-        self.bikes_so_far = int(bikes_so_far)
-
-        as_of_when = as_of_when if as_of_when else "now"
-        self.as_of_when = VTime(as_of_when)
-        if not self.as_of_when:
-            self.error = "Bad as_of_when parameter."
-            self.state = ERROR
-            return
-
-        # dow is 1..7; dow_date is most recent date of that dow,
-        # in case there is no closing time given, we will have a
-        # date on which to base the closing time
-        dow_in = dow_in if dow_in else "today"
-        dow_date = None
-        maybe_dow = ut.dow_int(dow_in)
-        if maybe_dow:
-            dow_in = maybe_dow
-        if str(dow_in).strip() in ["1", "2", "3", "4", "5", "6", "7"]:
-            self.dow = int(dow_in)
-            dow_date = ut.most_recent_dow(self.dow)
-        else:
-            dow_date = ut.date_str(dow_in)
-            if dow_date:
-                self.dow = ut.dow_int(dow_date)
-            else:
-                self.error = "Bad dow parameter."
-                self.state = ERROR
-                return
-
-        # closing time, if not given, will be most recent day that matches
-        # the given day of the week, or of the date if that was given as dow.
-        if not time_closed:
-            time_closed = tt_default_hours.get_default_hours(dow_date)[1]
-        self.time_closed = VTime(time_closed)  # Closing time today
-        if not self.time_closed:
-            self.error = "Missing or bad time_closed parameter."
-            self.state = ERROR
-            return
-
-    def _bikes_right_now(self) -> int:
-        today = ut.date_str("today")
-        cursor = self.database.cursor()
-        day_id = db.fetch_day_id(
-            cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id
-        )
-        if not day_id:
-            print("no data matches this day")
-            return None
-        # ut.squawk(f"{day_id=}")
-        rows = db.db_fetch(
-            self.database,
-            f"select count(time_in) from visit where day_id = {day_id} and time_in > ''",
-            ["count"],
-        )
-        if not rows:
-            return None
-        return rows[0].count
-
-    def _sql_str(self) -> str:
-        """Build SQL query."""
-        if self.dow in [6, 7]:
-            dow_set = f"({self.dow})"
-        else:
-            dow_set = "(1,2,3,4,5)"
-        today = ut.date_str("today")
-
-        sql = f"""
-            SELECT
-                D.date,
-                SUM(CASE WHEN V.time_in <= '{self.as_of_when}' THEN 1 ELSE 0 END) AS befores,
-                SUM(CASE WHEN V.time_in > '{self.as_of_when}' THEN 1 ELSE 0 END) AS afters
-            FROM
-                DAY D
-            JOIN
-                VISIT V ON D.id = V.day_id
-            WHERE
-                D.orgsite_id = {self.orgsite_id}
-                AND D.weekday IN {dow_set}
-                AND D.date != '{today}'
-                AND D.time_closed = '{self.time_closed}'
-            GROUP BY
-                D.date;
-        """
-        return sql
-
-    def _fetch_raw_data(self) -> None:
-        """Get raw data from the database into self.befores, self.afters."""
-        # Collect data from database
-        sql = self._sql_str()
-        data_rows = db.db_fetch(self.database, sql, ["date", "before", "after"])
-        if not data_rows:
-            self.error = "no data returned from database."
-            self.state = ERROR
-            return
-
-        self.befores = [int(r.before) for r in data_rows]
-        self.afters = [int(r.after) for r in data_rows]
-        self.similar_dates = [r.date for r in data_rows]
-
-    def guess(self) -> None:
-        """Set self result info from the database."""
-
-        # Get data from the database
-        self._fetch_raw_data()
-        if self.state == ERROR:
-            return
-
-        # Rounding for how close a historic bikes_so_far
-        # is to the requested to be considered the same
-        VARIANCE = 10  # pylint: disable=invalid-name
-        # Z score at which to eliminate a data point an an outlier
-        Z_CUTOFF = 2.5  # pylint: disable=invalid-name
-        self.simple_model.create_model(
-            self.similar_dates, self.befores, self.afters, VARIANCE, Z_CUTOFF
-        )
-        self.simple_model.guess(self.bikes_so_far)
-
-        # Calculate using linear regression.
-        self.lr_model.calculate_model(list(zip(self.befores, self.afters)))
-        self.lr_model.guess(self.bikes_so_far)
-
-        # min and max of the guesses so far
-        self.min = min(
-            (
-                v
-                for v in [
-                    self.simple_model.mean,
-                    self.simple_model.median,
-                    self.lr_model.further_bikes,
-                ]
-                if v is not None
-            ),
-            default=None,
-        )
-        self.max = max(
-            (
-                v
-                for v in [
-                    self.simple_model.mean,
-                    self.simple_model.median,
-                    self.lr_model.further_bikes,
-                ]
-                if v is not None
-            ),
-            default=None,
-        )
-
-        if rf.POSSIBLE:
-            self.rf_model.create_model([], self.befores, self.afters)
-            self.rf_model.guess(self.bikes_so_far)
-            self.min = min(self.min, self.rf_model.further_bikes)
-            self.max = max(self.max, self.rf_model.further_bikes)
-
-    def result_msg(self) -> list[str]:
-        """Return list of strings as long message."""
-
-        lines = []
-        if self.state == ERROR:
-            lines.append(f"Can't estimate because: {self.error}")
-            return lines
-
-        if self.dow == 6:
-            dayname = "Saturday"
-        elif self.dow == 7:
-            dayname = "Sunday"
-        else:
-            dayname = "weekday"
-
-        one_line = (
-            f"Estimating for a typical {dayname} with {self.bikes_so_far} "
-            f"{ut.plural(self.bikes_so_far,'bike')} parked by {self.as_of_when.short}, "
-            f"closing at {self.time_closed}:"
-        )
-        lines = [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
-
-        predictions = []
-        lines += [""] + self.simple_model.result_msg()
-        if self.simple_model.state == OK:
-            predictions += [self.simple_model.mean, self.simple_model.median]
-        lines += [""] + self.lr_model.result_msg()
-        if self.lr_model.state == OK:
-            predictions += [self.lr_model.further_bikes]
-        if rf.POSSIBLE:
-            lines += [""] + self.rf_model.result_msg()
-            if self.rf_model.state == rf.OK:
-                predictions += [self.rf_model.further_bikes]
-        # Find day-total expectation
-        prediction_str = "?"
-        if predictions:
-            min_day_total = min(predictions) + self.bikes_so_far
-            max_day_total = max(predictions) + self.bikes_so_far
-            if min_day_total == max_day_total:
-                prediction_str = str(min_day_total)
-            else:
-                prediction_str = f"{min_day_total} to {max_day_total}"
-
-        lines = [
-            "How many more bikes?",
-            "",
-            f"Expect a total of {prediction_str} bikes for the day.",
-            "",
-        ] + lines
-
-        one_line = (
-            "Estimation performed at "
-            f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
-        )
-        if self.as_of_when < "12:30":
-            one_line = f"{one_line}  Estimates early in the day may be of low quality."
-        lines = lines + [""] + [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
-
-        return lines
-
-
-def _init_from_cgi_old() -> Estimator_old:
-    """Read initialization parameters from CGI env var.
-
-    CGI parameters: as at top of file.
-        bikes_so_far, dow,as_of_when,time_closed
-
-    """
-    query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
-    query_parms = urllib.parse.parse_qs(query_str)
-    bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
-    dow = query_parms.get("dow", [""])[0]
-    as_of_when = query_parms.get("as_of_when", [""])[0]
-    time_closed = query_parms.get("time_closed", [""])[0]
-
-    return Estimator_old(bikes_so_far, as_of_when, dow, time_closed)
-
-
-def _init_from_args_old() -> Estimator_old:
-    my_args = sys.argv[1:] + ["", "", "", "", "", "", "", ""]
-    return Estimator_old(my_args[0], my_args[1], my_args[2], my_args[3])
 
 
 # New estimator that provides a concise estimation table
@@ -693,9 +88,9 @@ class Estimator:
 
     # Measure label strings (edit here to change table text)
     MEAS_ACTIVITY_TEMPLATE = "Activity, now to {end_time}"
-    MEAS_FURTHER = "Further bikes in today"
-    MEAS_TIME_MAX = "Time max bikes onsite"
-    MEAS_MAX = "Max bikes onsite"
+    MEAS_FURTHER = "Further bikes expected"
+    MEAS_TIME_MAX = "Time most bikes onsite"
+    MEAS_MAX = "Most bikes onsite"
 
     # Table headers (centralized)
     HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Confidence", "Model"]
@@ -1795,7 +1190,7 @@ class Estimator:
         if mode == "range_first":
             best = self._select_by_narrowest_then_conf(cands)
             width, neg_conf, mdl, _row = best
-            return best, f"legacy: narrowest range width {width}; conf {abs(neg_conf)}%"
+            return best, f"range-first: narrowest range width {width}; conf {abs(neg_conf)}%"
         return self._best_candidate_accuracy_first(i, cands, frac, cohort_n)
 
     def _select_rows(self, t_end: "VTime", tables_by_model: dict, frac_elapsed: float, cohort_n: int):
@@ -1921,8 +1316,8 @@ class Estimator:
 
 if __name__ == "__main__":
     try:
-        # Prefer new-API parameters; fall back to old for compatibility
-        def _init_from_cgi_new() -> Estimator:
+        # Parse CGI/CLI inputs for the estimator
+        def _init_from_cgi() -> Estimator:
             query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
             query_parms = urllib.parse.parse_qs(query_str)
             bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
@@ -1942,32 +1337,16 @@ if __name__ == "__main__":
                 verbose=(est_type == "verbose"),
             )
 
-        def _init_from_args_new() -> Estimator:
-            my_args = sys.argv[1:] + ["", "", "", "", ""]
-            return Estimator(
-                bikes_so_far=my_args[0],
-                opening_time=my_args[1],
-                closing_time=my_args[2],
-                max_bikes_today=my_args[3],
-                max_bikes_time_today=my_args[4],
-            )
 
         start_time = time.perf_counter()
         estimate_any = None
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
         if is_cgi:
             print("Content-type: text/plain\n")
-            q = ut.untaint(os.environ.get("QUERY_STRING", ""))
-            qd = urllib.parse.parse_qs(q)
-            est_type = (qd.get("estimation_type", [""])[0] or "").strip().lower()
-            if est_type == "legacy":
-                estimate_any = _init_from_cgi_old()
-            else:
-                # 'current' (default) and 'verbose' both use the new estimator for now
-                estimate_any = _init_from_cgi_new()
+            estimate_any = _init_from_cgi()
         else:
-            # CLI defaults to new API
-            estimate_any = _init_from_args_new()
+            print( "Must use CGI interface")
+            exit()
 
         if estimate_any.state != ERROR:
             estimate_any.guess()
