@@ -233,7 +233,7 @@ Can be invoked as:
 Arguments:
     <tag(s)>: one or more tags to mark as retired
 
-Description
+Description:
   Retires tags so they will no longer be used.
 
   TagTracker keeps two records:
@@ -256,7 +256,7 @@ Can be invoked as:
 Arguments:
     <tag(s)>: one or more tags to make usable again
 
-Description
+Description:
   Makes previously retired tags once again available for use.
 
   TagTracker keeps two records:
