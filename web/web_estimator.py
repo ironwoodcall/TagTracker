@@ -6,6 +6,7 @@ CGI parameters:
     opening_time: service opening time for today (HHMM or HH:MM).
     closing_time: service closing time for today (HHMM or HH:MM).
     estimation_type: optional; values include
+        "standard" (default)
         "verbose" (detailed output),
         "quick" (skip Random Forest), and
         "schedule" (REC model only; requires opening and closing times).
