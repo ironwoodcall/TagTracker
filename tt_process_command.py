@@ -45,6 +45,7 @@ import tt_help
 import tt_audit_report as aud
 import tt_reports as rep
 import tt_tag_inv as inv
+import tt_retire
 
 # from tt_cmdparse import CmdBits
 from tt_commands import (
@@ -641,6 +642,8 @@ def process_command(
     elif cmd == CmdKeys.CMD_REGISTRATIONS:
         if today.registrations.process_registration("".join(args)):
             data_changed = True
+    elif cmd == CmdKeys.CMD_RETIRE:
+        data_changed = tt_retire.retire(today=today, tags=args[0])
     elif cmd == CmdKeys.CMD_STATS:
         rep.summary_report(day=today, args=args)
         # Force publication when do day-end reports
@@ -648,6 +651,8 @@ def process_command(
         ##last_published = maybe_publish(last_published, force=True)
     elif cmd == CmdKeys.CMD_TAGS:
         inv.tags_config_report(today, args, False)
+    elif cmd == CmdKeys.CMD_UNRETIRE:
+        data_changed = tt_retire.unretire(today=today, tags=args[0])
     elif cmd in {CmdKeys.CMD_UPPERCASE, CmdKeys.CMD_LOWERCASE}:
         # Change to uc or lc tags
         set_tag_case(cmd == CmdKeys.CMD_UPPERCASE)

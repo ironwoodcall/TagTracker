@@ -102,8 +102,10 @@ class CmdKeys:
     CMD_QUERY = "QUERY"
     CMD_RECENT = "RECENT"
     CMD_REGISTRATIONS = "REGISTRATIONS"
+    CMD_RETIRE = "RETIRE"
     CMD_STATS = "STATS"
     CMD_TAGS = "TAGS"
+    CMD_UNRETIRE = "UNRETIRE"
     CMD_UPPERCASE = "UPPERCASE"
 
 
@@ -260,10 +262,16 @@ COMMANDS = {
     ),
     # Registrations:  e.g. r or r + 1 or r +1... so 2 args total.
     CmdKeys.CMD_REGISTRATIONS: CmdConfig(
-        invoke=["registrations", "registration", "register", "reg", "r"],
+        invoke=["registrations", "registration", "register", "reg"],
         arg_configs=[
             ArgConfig(ARG_TOKEN, optional=True),
             ArgConfig(ARG_TOKEN, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_RETIRE: CmdConfig(
+        invoke=["retire","ret"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Retire what tag(s)? "),
         ],
     ),
     CmdKeys.CMD_STATS: CmdConfig(
@@ -276,6 +284,12 @@ COMMANDS = {
         invoke=["tags", "tag", "t"],
         arg_configs=[
             ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_UNRETIRE: CmdConfig(
+        invoke=["unretire","unret"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Unretire what tag(s)? "),
         ],
     ),
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),

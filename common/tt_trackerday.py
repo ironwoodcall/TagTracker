@@ -367,6 +367,42 @@ class TrackerDay:
         if exclude_set is not self.retired_tagids:
             self.retired_tagids.discard(tagid)
 
+    def retire_tag(self, tagid: TagID) -> bool:
+        """Add tagid to today's retired set and mark BikeTag retired.
+
+        Returns True if a change occurred.
+        """
+        biketag = self.biketags.get(tagid)
+        if not biketag:
+            return False
+        if biketag.status not in {BikeTag.UNUSED, BikeTag.RETIRED}:
+            return False
+        changed = False
+        if tagid not in self.retired_tagids:
+            self.retired_tagids.add(tagid)
+            changed = True
+        if biketag.status != BikeTag.RETIRED:
+            biketag.status = BikeTag.RETIRED
+            changed = True
+        return changed
+
+    def unretire_tag(self, tagid: TagID) -> bool:
+        """Remove tagid from today's retired set and mark BikeTag unused.
+
+        Returns True if a change occurred.
+        """
+        biketag = self.biketags.get(tagid)
+        if not biketag:
+            return False
+        changed = False
+        if tagid in self.retired_tagids:
+            self.retired_tagids.discard(tagid)
+            changed = True
+        if biketag.status == BikeTag.RETIRED:
+            biketag.status = BikeTag.UNUSED
+            changed = True
+        return changed
+
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
         return frozenset(
