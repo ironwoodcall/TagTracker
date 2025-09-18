@@ -99,7 +99,6 @@ class Estimator:
         opening_time: str = "",
         closing_time: str = "",
         estimation_type: str = "",
-
     ) -> None:
         self.state = INCOMPLETE
         self.error = ""
@@ -108,13 +107,15 @@ class Estimator:
         self.verbose = bool(self.estimation_type == "verbose")
         raw_open_param = (opening_time or "").strip()
         raw_close_param = (closing_time or "").strip()
-        has_open_param = bool(raw_open_param)
-        has_close_param = bool(raw_close_param)
+        # has_open_param = bool(raw_open_param)
+        # has_close_param = bool(raw_close_param)
 
-        if self.estimation_type == "schedule" and not (has_open_param and has_close_param):
-            self.error = "Please provide both opening_time and closing_time when estimation_type=schedule."
-            self.state = ERROR
-            return
+        # if self.estimation_type == "schedule" and not (
+        #     has_open_param and has_close_param
+        # ):
+        #     self.error = "Please provide both opening_time and closing_time when estimation_type=schedule."
+        #     self.state = ERROR
+        #     return
 
         self._allowed_models = {
             self.MODEL_SM,
@@ -233,7 +234,9 @@ class Estimator:
     def _fetch_today_schedule(self) -> tuple[str | None, str | None]:
         today = ut.date_str("today")
         cursor = self.database.cursor()
-        day_id = db.fetch_day_id(cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id)
+        day_id = db.fetch_day_id(
+            cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id
+        )
         if not day_id:
             return None, None
         rows = db.db_fetch(
@@ -572,62 +575,100 @@ class Estimator:
         all_acts, all_peaks, all_ptimes = self._collect_all_stats_for_similar()
 
         # --- Point estimates from matched or fallbacks ---
-        nxh_activity, peak_val, peak_time = self._point_estimates_from(matched, nxh_acts, peaks)
+        nxh_activity, peak_val, peak_time = self._point_estimates_from(
+            matched, nxh_acts, peaks
+        )
 
         # --- Confidence level & base bands (scaled later per model) ---
         level = self._confidence_level(n, frac_elapsed)
-        rem_band, act_band, peak_band, ptime_band = self._base_bands(level, n, frac_elapsed)
+        rem_band, act_band, peak_band, ptime_band = self._base_bands(
+            level, n, frac_elapsed
+        )
 
         # --- Empirical 90% ranges from samples (Simple) ---
-        (rem_lo, rem_hi), (act_lo, act_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi) = \
+        (rem_lo, rem_hi), (act_lo, act_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi) = (
             self._simple_percentile_ranges(nxh_acts, peaks)
+        )
 
         # --- Smooth confidences (Simple) ---
         conf_rem, conf_act, conf_pk, conf_pt = self._simple_confidences(
-            remainder, nxh_activity, peak_val, (ptime_lo, ptime_hi), total_span,
-            (rem_lo, rem_hi), (act_lo, act_hi), (pk_lo, pk_hi),
-            n, frac_elapsed
+            remainder,
+            nxh_activity,
+            peak_val,
+            (ptime_lo, ptime_hi),
+            total_span,
+            (rem_lo, rem_hi),
+            (act_lo, act_hi),
+            (pk_lo, pk_hi),
+            n,
+            frac_elapsed,
         )
 
         # --- SIMPLE rows (with calibration applied) ---
         simple_rows = []
         if self._model_enabled(self.MODEL_SM):
             simple_rows = self._build_simple_rows(
-                t_end, nxh_activity, remainder, peak_time, peak_val,
+                t_end,
+                nxh_activity,
+                remainder,
+                peak_time,
+                peak_val,
                 (act_band, rem_band, peak_band, ptime_band),
-                (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
+                (act_lo, act_hi),
+                (rem_lo, rem_hi),
+                (pk_lo, pk_hi),
+                (ptime_lo, ptime_hi),
                 (conf_act, conf_rem, conf_pt, conf_pk),
-                frac_elapsed
+                frac_elapsed,
             )
 
         # --- LINEAR REGRESSION rows (with calibration & residual ranges) ---
         lr_rows = []
         if self._model_enabled(self.MODEL_LR):
             lr_rows = self._build_lr_rows(
-                t_end, remainder, nxh_activity, peak_val, peak_time,
-                all_acts, all_peaks,
+                t_end,
+                remainder,
+                nxh_activity,
+                peak_val,
+                peak_time,
+                all_acts,
+                all_peaks,
                 (act_band, rem_band, peak_band, ptime_band),
-                (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
-                frac_elapsed
+                (act_lo, act_hi),
+                (rem_lo, rem_hi),
+                (pk_lo, pk_hi),
+                (ptime_lo, ptime_hi),
+                frac_elapsed,
             )
 
         # --- RECENT (schedule-only) rows (with calibration) ---
         rec_rows = []
         if self._model_enabled(self.MODEL_REC):
             rec_rows = self._build_recent_rows(
-                t_end, remainder, nxh_activity, peak_val, peak_time,
+                t_end,
+                remainder,
+                nxh_activity,
+                peak_val,
+                peak_time,
                 (act_band, rem_band, peak_band, ptime_band),
-                frac_elapsed
+                frac_elapsed,
             )
 
         # --- RANDOM FOREST rows (if available; with calibration) ---
         rf_rows = []
         if self._model_enabled(self.MODEL_RF):
             rf_rows = self._build_rf_rows(
-                t_end, remainder, nxh_activity, peak_val, peak_time,
+                t_end,
+                remainder,
+                nxh_activity,
+                peak_val,
+                peak_time,
                 (act_band, rem_band, peak_band, ptime_band),
-                (act_lo, act_hi), (rem_lo, rem_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi),
-                frac_elapsed
+                (act_lo, act_hi),
+                (rem_lo, rem_hi),
+                (pk_lo, pk_hi),
+                (ptime_lo, ptime_hi),
+                frac_elapsed,
             )
 
         # --- Mixed selection across models per measure ---
@@ -642,7 +683,9 @@ class Estimator:
             tables_by_model[self.MODEL_RF] = rf_rows
 
         if not tables_by_model:
-            self.error = "No estimation models were available for the requested estimation_type."
+            self.error = (
+                "No estimation models were available for the requested estimation_type."
+            )
             self.state = ERROR
             return
 
@@ -661,37 +704,68 @@ class Estimator:
         ]
         if simple_rows:
             self.tables.append(
-                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model", simple_rows, self.MODEL_SM)
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model",
+                    simple_rows,
+                    self.MODEL_SM,
+                )
             )
         elif self._model_enabled(self.MODEL_SM):
             self.tables.append(
-                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model", [("No estimates available", "", "", "", "")], None)
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model",
+                    [("No estimates available", "", "", "", "")],
+                    None,
+                )
             )
         if lr_rows:
             self.tables.append(
-                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model", lr_rows, self.MODEL_LR)
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model",
+                    lr_rows,
+                    self.MODEL_LR,
+                )
             )
         elif self._model_enabled(self.MODEL_LR):
             self.tables.append(
-                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model", [("No estimates available", "", "", "", "")], None)
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model",
+                    [("No estimates available", "", "", "", "")],
+                    None,
+                )
             )
         if rec_rows:
             self.tables.append(
-                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model", rec_rows, self.MODEL_REC)
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model",
+                    rec_rows,
+                    self.MODEL_REC,
+                )
             )
         else:
             self.tables.append(
-                (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model", [("No estimates available", "", "", "", "")], None)
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model",
+                    [("No estimates available", "", "", "", "")],
+                    None,
+                )
             )
         if self._model_enabled(self.MODEL_RF):
             if rf_rows:
                 self.tables.append(
-                    (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model", rf_rows, self.MODEL_RF)
+                    (
+                        f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
+                        rf_rows,
+                        self.MODEL_RF,
+                    )
                 )
             else:
                 self.tables.append(
-                    (f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
-                    [("Random Forest unavailable", "", "", "", "")], None)
+                    (
+                        f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
+                        [("Random Forest unavailable", "", "", "", "")],
+                        None,
+                    )
                 )
 
         # Book-keeping
@@ -706,14 +780,21 @@ class Estimator:
     def _model_enabled(self, model_code: str) -> bool:
         return model_code in self._allowed_models
 
-
     # =========================
     #         HELPERS
     # =========================
 
     def _elapsed_fraction(self) -> tuple[int, int, int, float]:
-        open_num = self.time_open.num if self.time_open and self.time_open.num is not None else 0
-        close_num = self.time_closed.num if self.time_closed and self.time_closed.num is not None else 24 * 60
+        open_num = (
+            self.time_open.num
+            if self.time_open and self.time_open.num is not None
+            else 0
+        )
+        close_num = (
+            self.time_closed.num
+            if self.time_closed and self.time_closed.num is not None
+            else 24 * 60
+        )
         # Ensure positive span
         if close_num <= open_num:
             close_num = max(open_num + 60, 24 * 60)
@@ -730,32 +811,43 @@ class Estimator:
             remainder = self.simple_model.median
         return int(remainder if remainder is not None else 0)
 
-    def _collect_stats_for_dates(self, dates) -> tuple[list[int], list[tuple[int, "VTime"]]]:
+    def _collect_stats_for_dates(
+        self, dates
+    ) -> tuple[list[int], list[tuple[int, "VTime"]]]:
         nxh_acts: list[int] = []
         peaks: list[tuple[int, VTime]] = []
         for d in dates:
             vlist = self._visits_for_date(d)
-            _b, _a, _outs_to_t, ins_nxh, outs_nxh = self._counts_for_time(vlist, self.as_of_when)
+            _b, _a, _outs_to_t, ins_nxh, outs_nxh = self._counts_for_time(
+                vlist, self.as_of_when
+            )
             nxh_acts.append(int(ins_nxh + outs_nxh))
             p, pt = self._peak_all_day_occupancy(vlist)
             peaks.append((int(p), pt))
         return nxh_acts, peaks
 
-    def _collect_all_stats_for_similar(self) -> tuple[list[int], list[int], list["VTime"]]:
+    def _collect_all_stats_for_similar(
+        self,
+    ) -> tuple[list[int], list[int], list["VTime"]]:
         all_acts: list[int] = []
         all_peaks: list[int] = []
         all_ptimes: list[VTime] = []
         for d in self.similar_dates:
             vlist = self._visits_for_date(d)
-            _b2, _a2, _outs2, ins2, outs2 = self._counts_for_time(vlist, self.as_of_when)
+            _b2, _a2, _outs2, ins2, outs2 = self._counts_for_time(
+                vlist, self.as_of_when
+            )
             all_acts.append(int(ins2 + outs2))
             p2, pt2 = self._peak_all_day_occupancy(vlist)
             all_peaks.append(int(p2))
             all_ptimes.append(pt2)
         return all_acts, all_peaks, all_ptimes
 
-    def _point_estimates_from(self, matched_dates, nxh_acts, peaks) -> tuple[int, int, "VTime"]:
+    def _point_estimates_from(
+        self, matched_dates, nxh_acts, peaks
+    ) -> tuple[int, int, "VTime"]:
         import statistics
+
         nxh_activity = int(statistics.median(nxh_acts)) if nxh_acts else 0
         if peaks:
             peak_val = int(statistics.median([p for p, _ in peaks]))
@@ -766,11 +858,21 @@ class Estimator:
             peak_time = self.as_of_when
         return nxh_activity, peak_val, peak_time
 
-    def _base_bands(self, level: int, n: int, frac_elapsed: float) -> tuple[int, int, int, int]:
-        rem_band = self._band_scaled(self._band(level, "remainder"), n, frac_elapsed, "remainder")
-        act_band = self._band_scaled(self._band(level, "activity"),  n, frac_elapsed, "activity")
-        peak_band = self._band_scaled(self._band(level, "peak"),     n, frac_elapsed, "peak")
-        ptime_band = self._band_scaled(self._band(level, "peaktime"), n, frac_elapsed, "peaktime")
+    def _base_bands(
+        self, level: int, n: int, frac_elapsed: float
+    ) -> tuple[int, int, int, int]:
+        rem_band = self._band_scaled(
+            self._band(level, "remainder"), n, frac_elapsed, "remainder"
+        )
+        act_band = self._band_scaled(
+            self._band(level, "activity"), n, frac_elapsed, "activity"
+        )
+        peak_band = self._band_scaled(
+            self._band(level, "peak"), n, frac_elapsed, "peak"
+        )
+        ptime_band = self._band_scaled(
+            self._band(level, "peaktime"), n, frac_elapsed, "peaktime"
+        )
         return rem_band, act_band, peak_band, ptime_band
 
     def _percentiles_or_none(self, data: list[int], lo: float, hi: float):
@@ -781,8 +883,14 @@ class Estimator:
     def _simple_percentile_ranges(self, nxh_acts, peaks):
         # Remainder from simple_model trimmed_afters (if any)
         rem_lo = rem_hi = None
-        if getattr(self, "simple_model", None) and self.simple_model.state == OK and self.simple_model.trimmed_afters:
-            rem_lo, rem_hi = self._percentiles(self.simple_model.trimmed_afters, 0.05, 0.95)
+        if (
+            getattr(self, "simple_model", None)
+            and self.simple_model.state == OK
+            and self.simple_model.trimmed_afters
+        ):
+            rem_lo, rem_hi = self._percentiles(
+                self.simple_model.trimmed_afters, 0.05, 0.95
+            )
 
         act_lo, act_hi = self._percentiles_or_none(nxh_acts, 0.05, 0.95)
 
@@ -819,33 +927,65 @@ class Estimator:
         peak_val: int,
         ptime_bounds: tuple["VTime|None", "VTime|None"],
         total_span: int,
-        rem_bounds, act_bounds, pk_bounds,
-        n: int, frac_elapsed: float
+        rem_bounds,
+        act_bounds,
+        pk_bounds,
+        n: int,
+        frac_elapsed: float,
     ):
         rem_lo, rem_hi = rem_bounds
         act_lo, act_hi = act_bounds
         pk_lo, pk_hi = pk_bounds
         ptime_lo, ptime_hi = ptime_bounds
 
-        rem_spread = (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
-        rem_scale  = (max(1.0, float(remainder), float(rem_hi or 0)) if rem_spread is not None else None)
+        rem_spread = (
+            (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
+        )
+        rem_scale = (
+            max(1.0, float(remainder), float(rem_hi or 0))
+            if rem_spread is not None
+            else None
+        )
         conf_rem = self._smooth_conf_wrapper(n, frac_elapsed, rem_spread, rem_scale)
 
-        act_spread = (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
-        act_scale  = (max(1.0, float(nxh_activity), float(act_hi or 0)) if act_spread is not None else None)
+        act_spread = (
+            (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
+        )
+        act_scale = (
+            max(1.0, float(nxh_activity), float(act_hi or 0))
+            if act_spread is not None
+            else None
+        )
         conf_act = self._smooth_conf_wrapper(n, frac_elapsed, act_spread, act_scale)
 
-        pk_spread = (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
-        pk_scale  = (max(1.0, float(peak_val), float(pk_hi or 0)) if pk_spread is not None else None)
+        pk_spread = (
+            (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
+        )
+        pk_scale = (
+            max(1.0, float(peak_val), float(pk_hi or 0))
+            if pk_spread is not None
+            else None
+        )
         conf_pk = self._smooth_conf_wrapper(n, frac_elapsed, pk_spread, pk_scale)
 
-        pt_spread = ((ptime_hi.num - ptime_lo.num) if (ptime_lo is not None and ptime_hi is not None) else None)
-        pt_scale  = float(total_span) if pt_spread is not None else None
+        pt_spread = (
+            (ptime_hi.num - ptime_lo.num)
+            if (ptime_lo is not None and ptime_hi is not None)
+            else None
+        )
+        pt_scale = float(total_span) if pt_spread is not None else None
         conf_pt = self._smooth_conf_wrapper(n, frac_elapsed, pt_spread, pt_scale)
 
         return conf_rem, conf_act, conf_pk, conf_pt
 
-    def _apply_calib(self, model_code: str, measure_code: str, point_val: int, base_band: int, frac_elapsed: float):
+    def _apply_calib(
+        self,
+        model_code: str,
+        measure_code: str,
+        point_val: int,
+        base_band: int,
+        frac_elapsed: float,
+    ):
         """Apply calibration residual band if available; return (range_str, adjusted_band)."""
         band = base_band
         rstr = ""
@@ -865,9 +1005,12 @@ class Estimator:
         peak_time: "VTime",
         peak_val: int,
         bands: tuple[int, int, int, int],
-        act_bounds, rem_bounds, pk_bounds, ptime_bounds,
+        act_bounds,
+        rem_bounds,
+        pk_bounds,
+        ptime_bounds,
         confs: tuple[str, str, str, str],
-        frac_elapsed: float
+        frac_elapsed: float,
     ):
         act_band, rem_band, peak_band, ptime_band = bands
         act_lo, act_hi = act_bounds
@@ -876,15 +1019,45 @@ class Estimator:
         ptime_lo, ptime_hi = ptime_bounds
         conf_act, conf_rem, conf_pt, conf_pk = confs
 
-        sm_act_rng, sm_act_band = self._apply_calib(self.MODEL_SM, "act",  int(nxh_activity), act_band,  frac_elapsed)
-        sm_fut_rng, sm_fut_band = self._apply_calib(self.MODEL_SM, "fut",  int(remainder),     rem_band,  frac_elapsed)
-        sm_pk_rng,  sm_pk_band  = self._apply_calib(self.MODEL_SM, "peak", int(peak_val),      peak_band, frac_elapsed)
+        sm_act_rng, sm_act_band = self._apply_calib(
+            self.MODEL_SM, "act", int(nxh_activity), act_band, frac_elapsed
+        )
+        sm_fut_rng, sm_fut_band = self._apply_calib(
+            self.MODEL_SM, "fut", int(remainder), rem_band, frac_elapsed
+        )
+        sm_pk_rng, sm_pk_band = self._apply_calib(
+            self.MODEL_SM, "peak", int(peak_val), peak_band, frac_elapsed
+        )
 
         rows = [
-            (self._activity_label(t_end), f"{int(nxh_activity)}", f"+/- {sm_act_band}", sm_act_rng or self._rng_str(act_lo, act_hi, False), conf_act),
-            (self.MEAS_FURTHER,          f"{int(remainder)}",     f"+/- {sm_fut_band} bikes", sm_fut_rng or self._rng_str(rem_lo, rem_hi, False), conf_rem),
-            (self.MEAS_TIME_MAX,         f"{peak_time.short}",    f"+/- {ptime_band} minutes", self._rng_str(ptime_lo, ptime_hi, True),          conf_pt),
-            (self.MEAS_MAX,              f"{int(peak_val)}",      f"+/- {sm_pk_band} bikes",   sm_pk_rng or self._rng_str(pk_lo, pk_hi, False),  conf_pk),
+            (
+                self._activity_label(t_end),
+                f"{int(nxh_activity)}",
+                f"+/- {sm_act_band}",
+                sm_act_rng or self._rng_str(act_lo, act_hi, False),
+                conf_act,
+            ),
+            (
+                self.MEAS_FURTHER,
+                f"{int(remainder)}",
+                f"+/- {sm_fut_band} bikes",
+                sm_fut_rng or self._rng_str(rem_lo, rem_hi, False),
+                conf_rem,
+            ),
+            (
+                self.MEAS_TIME_MAX,
+                f"{peak_time.short}",
+                f"+/- {ptime_band} minutes",
+                self._rng_str(ptime_lo, ptime_hi, True),
+                conf_pt,
+            ),
+            (
+                self.MEAS_MAX,
+                f"{int(peak_val)}",
+                f"+/- {sm_pk_band} bikes",
+                sm_pk_rng or self._rng_str(pk_lo, pk_hi, False),
+                conf_pk,
+            ),
         ]
         return rows
 
@@ -892,7 +1065,8 @@ class Estimator:
         npts = len(xs)
         if npts < 2:
             return None
-        sx = sum(xs); sy = sum(ys)
+        sx = sum(xs)
+        sy = sum(ys)
         sxx = sum(x * x for x in xs)
         sxy = sum(x * y for x, y in zip(xs, ys))
         denom = npts * sxx - sx * sx
@@ -917,10 +1091,13 @@ class Estimator:
             return ""
         return self._rng_str(point + lo_res, point + hi_res, False)
 
-    def _scale_band(self, base: int, model_width: int | None, ref_width: int | None) -> int:
+    def _scale_band(
+        self, base: int, model_width: int | None, ref_width: int | None
+    ) -> int:
         if model_width is None or ref_width is None or ref_width <= 0:
             return base
         import math
+
         sf = math.sqrt(max(1, model_width) / max(1, ref_width))
         sf = max(0.5, min(2.0, sf))
         return int(round(base * sf))
@@ -935,8 +1112,11 @@ class Estimator:
         all_acts: list[int],
         all_peaks: list[int],
         bands: tuple[int, int, int, int],
-        act_bounds, rem_bounds, pk_bounds, ptime_bounds,
-        frac_elapsed: float
+        act_bounds,
+        rem_bounds,
+        pk_bounds,
+        ptime_bounds,
+        frac_elapsed: float,
     ):
         act_band, rem_band, peak_band, ptime_band = bands
         act_lo, act_hi = act_bounds
@@ -956,61 +1136,131 @@ class Estimator:
             pass
 
         # Activity via hand LR
-        coeff_act = self._linreg([float(x) for x in self.befores], [float(y) for y in all_acts])
+        coeff_act = self._linreg(
+            [float(x) for x in self.befores], [float(y) for y in all_acts]
+        )
         lr_act_val = int(nxh_activity)
         if coeff_act:
             a, b = coeff_act
             lr_act_val = max(0, int(round(a * float(self.bikes_so_far) + b)))
 
         # Peak via hand LR
-        coeff_pk = self._linreg([float(x) for x in self.befores], [float(y) for y in all_peaks])
+        coeff_pk = self._linreg(
+            [float(x) for x in self.befores], [float(y) for y in all_peaks]
+        )
         lr_peak_val = int(peak_val)
         if coeff_pk:
             ap, bp = coeff_pk
             lr_peak_val = max(0, int(round(ap * float(self.bikes_so_far) + bp)))
 
         # Residual ranges
-        rem_lo_res, rem_hi_res = self._residual_ranges(self.befores, self.afters,
-                                                    self._linreg([float(x) for x in self.befores], [float(y) for y in self.afters]))
-        act_lo_res, act_hi_res = self._residual_ranges(self.befores, all_acts, coeff_act)
-        pk_lo_res,  pk_hi_res  = self._residual_ranges(self.befores, all_peaks, coeff_pk)
+        rem_lo_res, rem_hi_res = self._residual_ranges(
+            self.befores,
+            self.afters,
+            self._linreg(
+                [float(x) for x in self.befores], [float(y) for y in self.afters]
+            ),
+        )
+        act_lo_res, act_hi_res = self._residual_ranges(
+            self.befores, all_acts, coeff_act
+        )
+        pk_lo_res, pk_hi_res = self._residual_ranges(self.befores, all_peaks, coeff_pk)
 
         # Reference widths (Simple)
-        rem_w_ref = ((rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None)
-        act_w_ref = ((act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None)
-        pk_w_ref  = ((pk_hi  - pk_lo)  if (pk_lo  is not None and pk_hi  is not None) else None)
+        rem_w_ref = (
+            (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
+        )
+        act_w_ref = (
+            (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
+        )
+        pk_w_ref = (
+            (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
+        )
 
         # LR widths
-        rem_w_lr = ((rem_hi_res - rem_lo_res) if (rem_lo_res is not None and rem_hi_res is not None) else None)
-        act_w_lr = ((act_hi_res - act_lo_res) if (act_lo_res is not None and act_hi_res is not None) else None)
-        pk_w_lr  = ((pk_hi_res  - pk_lo_res)  if (pk_lo_res  is not None and pk_hi_res  is not None) else None)
+        rem_w_lr = (
+            (rem_hi_res - rem_lo_res)
+            if (rem_lo_res is not None and rem_hi_res is not None)
+            else None
+        )
+        act_w_lr = (
+            (act_hi_res - act_lo_res)
+            if (act_lo_res is not None and act_hi_res is not None)
+            else None
+        )
+        pk_w_lr = (
+            (pk_hi_res - pk_lo_res)
+            if (pk_lo_res is not None and pk_hi_res is not None)
+            else None
+        )
 
         # Model-specific bands (scaled) + calibration
-        lr_act_rng, act_band_lr = self._apply_calib(self.MODEL_LR, "act",
-                                                    lr_act_val,
-                                                    self._scale_band(act_band, act_w_lr, act_w_ref),
-                                                    frac_elapsed)
-        lr_rem_rng, rem_band_lr = self._apply_calib(self.MODEL_LR, "fut",
-                                                    lr_remainder,
-                                                    self._scale_band(rem_band, rem_w_lr, rem_w_ref),
-                                                    frac_elapsed)
-        lr_pk_rng,  pk_band_lr  = self._apply_calib(self.MODEL_LR, "peak",
-                                                    lr_peak_val,
-                                                    self._scale_band(peak_band, pk_w_lr, pk_w_ref),
-                                                    frac_elapsed)
+        lr_act_rng, act_band_lr = self._apply_calib(
+            self.MODEL_LR,
+            "act",
+            lr_act_val,
+            self._scale_band(act_band, act_w_lr, act_w_ref),
+            frac_elapsed,
+        )
+        lr_rem_rng, rem_band_lr = self._apply_calib(
+            self.MODEL_LR,
+            "fut",
+            lr_remainder,
+            self._scale_band(rem_band, rem_w_lr, rem_w_ref),
+            frac_elapsed,
+        )
+        lr_pk_rng, pk_band_lr = self._apply_calib(
+            self.MODEL_LR,
+            "peak",
+            lr_peak_val,
+            self._scale_band(peak_band, pk_w_lr, pk_w_ref),
+            frac_elapsed,
+        )
         pt_band_lr = ptime_band  # time kept same
 
         # Confidences
-        conf_rem_lr = self._smooth_conf(len(self.befores), frac_elapsed, rem_w_lr, max(1.0, float(lr_remainder)))
-        conf_act_lr = self._smooth_conf(len(self.befores), frac_elapsed, act_w_lr, max(1.0, float(lr_act_val)))
-        conf_pk_lr  = self._smooth_conf(len(self.befores), frac_elapsed, pk_w_lr,  max(1.0, float(lr_peak_val)))
-        conf_pt_lr  = self._smooth_conf(len(self.befores), frac_elapsed, None,     None)  # same as simple
+        conf_rem_lr = self._smooth_conf(
+            len(self.befores), frac_elapsed, rem_w_lr, max(1.0, float(lr_remainder))
+        )
+        conf_act_lr = self._smooth_conf(
+            len(self.befores), frac_elapsed, act_w_lr, max(1.0, float(lr_act_val))
+        )
+        conf_pk_lr = self._smooth_conf(
+            len(self.befores), frac_elapsed, pk_w_lr, max(1.0, float(lr_peak_val))
+        )
+        conf_pt_lr = self._smooth_conf(
+            len(self.befores), frac_elapsed, None, None
+        )  # same as simple
 
         rows = [
-            (self._activity_label(t_end), f"{lr_act_val}",    f"+/- {act_band_lr}", lr_act_rng or self._rng_from_res(lr_act_val, act_lo_res, act_hi_res), conf_act_lr),
-            (self.MEAS_FURTHER,          f"{lr_remainder}",  f"+/- {rem_band_lr} bikes", lr_rem_rng or self._rng_from_res(lr_remainder, rem_lo_res, rem_hi_res), conf_rem_lr),
-            (self.MEAS_TIME_MAX,         f"{peak_time.short}", f"+/- {pt_band_lr} minutes", self._rng_str(ptime_lo, ptime_hi, True), conf_pt_lr),
-            (self.MEAS_MAX,              f"{lr_peak_val}",   f"+/- {pk_band_lr} bikes", lr_pk_rng or self._rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res), conf_pk_lr),
+            (
+                self._activity_label(t_end),
+                f"{lr_act_val}",
+                f"+/- {act_band_lr}",
+                lr_act_rng or self._rng_from_res(lr_act_val, act_lo_res, act_hi_res),
+                conf_act_lr,
+            ),
+            (
+                self.MEAS_FURTHER,
+                f"{lr_remainder}",
+                f"+/- {rem_band_lr} bikes",
+                lr_rem_rng or self._rng_from_res(lr_remainder, rem_lo_res, rem_hi_res),
+                conf_rem_lr,
+            ),
+            (
+                self.MEAS_TIME_MAX,
+                f"{peak_time.short}",
+                f"+/- {pt_band_lr} minutes",
+                self._rng_str(ptime_lo, ptime_hi, True),
+                conf_pt_lr,
+            ),
+            (
+                self.MEAS_MAX,
+                f"{lr_peak_val}",
+                f"+/- {pk_band_lr} bikes",
+                lr_pk_rng or self._rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res),
+                conf_pk_lr,
+            ),
         ]
         return rows
 
@@ -1022,16 +1272,23 @@ class Estimator:
         peak_val_baseline: int,
         peak_time_baseline: "VTime",
         bands: tuple[int, int, int, int],
-        frac_elapsed: float
+        frac_elapsed: float,
     ):
         import statistics as _st
+
         act_band, rem_band, peak_band, ptime_band = bands
 
         # recent_n defaults
-        recent_n = int(getattr(wcfg, "EST_RECENT_DAYS", 30)) if 'wcfg' in globals() else 30
+        recent_n = (
+            int(getattr(wcfg, "EST_RECENT_DAYS", 30)) if "wcfg" in globals() else 30
+        )
 
         # Map date -> after (proxy) from pre-aggregated self.afters
-        date_to_after = {d: int(self.afters[i]) for i, d in enumerate(self.similar_dates) if i < len(self.afters)}
+        date_to_after = {
+            d: int(self.afters[i])
+            for i, d in enumerate(self.similar_dates)
+            if i < len(self.afters)
+        }
         rec_dates = sorted(self.similar_dates, reverse=True)[:recent_n]
 
         rec_acts, rec_afters, rec_peaks, rec_ptimes = [], [], [], []
@@ -1048,22 +1305,54 @@ class Estimator:
             rec_peaks.append(int(p3))
             rec_ptimes.append(int(pt3.num))
 
-        rec_act_val  = int(_st.median(rec_acts))   if rec_acts   else int(nxh_activity_baseline)
-        rec_rem_val  = int(_st.median(rec_afters)) if rec_afters else int(remainder_baseline)
-        rec_peak_val = int(_st.median(rec_peaks))  if rec_peaks  else int(peak_val_baseline)
-        rec_ptime_val = VTime(int(_st.median(rec_ptimes))) if rec_ptimes else peak_time_baseline
+        rec_act_val = (
+            int(_st.median(rec_acts)) if rec_acts else int(nxh_activity_baseline)
+        )
+        rec_rem_val = (
+            int(_st.median(rec_afters)) if rec_afters else int(remainder_baseline)
+        )
+        rec_peak_val = (
+            int(_st.median(rec_peaks)) if rec_peaks else int(peak_val_baseline)
+        )
+        rec_ptime_val = (
+            VTime(int(_st.median(rec_ptimes))) if rec_ptimes else peak_time_baseline
+        )
 
         # 90% ranges
-        r_act_lo, r_act_hi = (self._percentiles(rec_acts,   0.05, 0.95) if rec_acts   else (None, None))
-        r_rem_lo, r_rem_hi = (self._percentiles(rec_afters, 0.05, 0.95) if rec_afters else (None, None))
-        r_pk_lo,  r_pk_hi  = (self._percentiles(rec_peaks,  0.05, 0.95) if rec_peaks  else (None, None))
-        _pt_lo, _pt_hi = (self._percentiles(rec_ptimes,     0.05, 0.95) if rec_ptimes else (None, None))
-        r_pt_lo, r_pt_hi = ((VTime(_pt_lo), VTime(_pt_hi)) if (_pt_lo is not None and _pt_hi is not None) else (None, None))
+        r_act_lo, r_act_hi = (
+            self._percentiles(rec_acts, 0.05, 0.95) if rec_acts else (None, None)
+        )
+        r_rem_lo, r_rem_hi = (
+            self._percentiles(rec_afters, 0.05, 0.95) if rec_afters else (None, None)
+        )
+        r_pk_lo, r_pk_hi = (
+            self._percentiles(rec_peaks, 0.05, 0.95) if rec_peaks else (None, None)
+        )
+        _pt_lo, _pt_hi = (
+            self._percentiles(rec_ptimes, 0.05, 0.95) if rec_ptimes else (None, None)
+        )
+        r_pt_lo, r_pt_hi = (
+            (VTime(_pt_lo), VTime(_pt_hi))
+            if (_pt_lo is not None and _pt_hi is not None)
+            else (None, None)
+        )
 
         # Widths
-        r_act_w = ((r_act_hi - r_act_lo) if (r_act_lo is not None and r_act_hi is not None) else None)
-        r_rem_w = ((r_rem_hi - r_rem_lo) if (r_rem_lo is not None and r_rem_hi is not None) else None)
-        r_pk_w  = ((r_pk_hi  - r_pk_lo)  if (r_pk_lo  is not None and r_pk_hi  is not None) else None)
+        r_act_w = (
+            (r_act_hi - r_act_lo)
+            if (r_act_lo is not None and r_act_hi is not None)
+            else None
+        )
+        r_rem_w = (
+            (r_rem_hi - r_rem_lo)
+            if (r_rem_lo is not None and r_rem_hi is not None)
+            else None
+        )
+        r_pk_w = (
+            (r_pk_hi - r_pk_lo)
+            if (r_pk_lo is not None and r_pk_hi is not None)
+            else None
+        )
 
         # Reference widths from simple for scaling; if missing, fall back to recent widths
         # (They’ll be used only in _scale_band guard-railed.)
@@ -1071,39 +1360,78 @@ class Estimator:
         # If you want exact scaling vs simple, pass those widths in from caller.
         act_w_ref = r_act_w
         rem_w_ref = r_rem_w
-        pk_w_ref  = r_pk_w
+        pk_w_ref = r_pk_w
 
         # Apply calibration & scaling
-        rec_act_rng, act_band_rec = self._apply_calib(self.MODEL_REC, "act",
-                                                    rec_act_val,
-                                                    self._scale_band(act_band, r_act_w, act_w_ref),
-                                                    frac_elapsed)
-        rec_rem_rng, rem_band_rec = self._apply_calib(self.MODEL_REC, "fut",
-                                                    rec_rem_val,
-                                                    self._scale_band(rem_band, r_rem_w, rem_w_ref),
-                                                    frac_elapsed)
-        rec_pk_rng,  pk_band_rec  = self._apply_calib(self.MODEL_REC, "peak",
-                                                    rec_peak_val,
-                                                    self._scale_band(peak_band, r_pk_w, pk_w_ref),
-                                                    frac_elapsed)
+        rec_act_rng, act_band_rec = self._apply_calib(
+            self.MODEL_REC,
+            "act",
+            rec_act_val,
+            self._scale_band(act_band, r_act_w, act_w_ref),
+            frac_elapsed,
+        )
+        rec_rem_rng, rem_band_rec = self._apply_calib(
+            self.MODEL_REC,
+            "fut",
+            rec_rem_val,
+            self._scale_band(rem_band, r_rem_w, rem_w_ref),
+            frac_elapsed,
+        )
+        rec_pk_rng, pk_band_rec = self._apply_calib(
+            self.MODEL_REC,
+            "peak",
+            rec_peak_val,
+            self._scale_band(peak_band, r_pk_w, pk_w_ref),
+            frac_elapsed,
+        )
         pt_band_rec = ptime_band
 
         # Confidences (n = # recent dates)
-        conf_act_rec = self._smooth_conf(len(rec_dates), frac_elapsed, r_act_w, max(1.0, float(rec_act_val)))
-        conf_rem_rec = self._smooth_conf(len(rec_dates), frac_elapsed, r_rem_w, max(1.0, float(rec_rem_val)))
-        conf_pk_rec  = self._smooth_conf(len(rec_dates), frac_elapsed, r_pk_w,  max(1.0, float(rec_peak_val)))
-        conf_pt_rec  = self._smooth_conf(len(rec_dates), frac_elapsed, None,     None)
+        conf_act_rec = self._smooth_conf(
+            len(rec_dates), frac_elapsed, r_act_w, max(1.0, float(rec_act_val))
+        )
+        conf_rem_rec = self._smooth_conf(
+            len(rec_dates), frac_elapsed, r_rem_w, max(1.0, float(rec_rem_val))
+        )
+        conf_pk_rec = self._smooth_conf(
+            len(rec_dates), frac_elapsed, r_pk_w, max(1.0, float(rec_peak_val))
+        )
+        conf_pt_rec = self._smooth_conf(len(rec_dates), frac_elapsed, None, None)
 
         rows = [
-            (self._activity_label(t_end), f"{rec_act_val}",  f"+/- {act_band_rec}",  rec_act_rng or self._rng_str(r_act_lo, r_act_hi, False), conf_act_rec),
-            (self.MEAS_FURTHER,          f"{rec_rem_val}",  f"+/- {rem_band_rec} bikes", rec_rem_rng or self._rng_str(r_rem_lo, r_rem_hi, False), conf_rem_rec),
-            (self.MEAS_TIME_MAX,         f"{rec_ptime_val.short}", f"+/- {pt_band_rec} minutes", self._rng_str(r_pt_lo, r_pt_hi, True),             conf_pt_rec),
-            (self.MEAS_MAX,              f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rec_pk_rng or self._rng_str(r_pk_lo, r_pk_hi, False),     conf_pk_rec),
+            (
+                self._activity_label(t_end),
+                f"{rec_act_val}",
+                f"+/- {act_band_rec}",
+                rec_act_rng or self._rng_str(r_act_lo, r_act_hi, False),
+                conf_act_rec,
+            ),
+            (
+                self.MEAS_FURTHER,
+                f"{rec_rem_val}",
+                f"+/- {rem_band_rec} bikes",
+                rec_rem_rng or self._rng_str(r_rem_lo, r_rem_hi, False),
+                conf_rem_rec,
+            ),
+            (
+                self.MEAS_TIME_MAX,
+                f"{rec_ptime_val.short}",
+                f"+/- {pt_band_rec} minutes",
+                self._rng_str(r_pt_lo, r_pt_hi, True),
+                conf_pt_rec,
+            ),
+            (
+                self.MEAS_MAX,
+                f"{rec_peak_val}",
+                f"+/- {pk_band_rec} bikes",
+                rec_pk_rng or self._rng_str(r_pk_lo, r_pk_hi, False),
+                conf_pk_rec,
+            ),
         ]
         return rows
 
     def _rf_possible(self) -> bool:
-        return 'rf' in globals() and getattr(rf, "POSSIBLE", False)
+        return "rf" in globals() and getattr(rf, "POSSIBLE", False)
 
     def _build_rf_rows(
         self,
@@ -1113,8 +1441,11 @@ class Estimator:
         peak_val_baseline: int,
         peak_time: "VTime",
         bands: tuple[int, int, int, int],
-        act_bounds, rem_bounds, pk_bounds, ptime_bounds,
-        frac_elapsed: float
+        act_bounds,
+        rem_bounds,
+        pk_bounds,
+        ptime_bounds,
+        frac_elapsed: float,
     ):
         if not self._rf_possible():
             return []
@@ -1131,9 +1462,11 @@ class Estimator:
         rf_fut = rf.RandomForestRegressorModel()
         rf_fut.create_model(self.similar_dates, self.befores, self.afters)
         rf_fut.guess(self.bikes_so_far)
-        rf_remainder = (int(rf_fut.further_bikes)
-                        if rf_fut.state == OK and rf_fut.further_bikes is not None
-                        else int(remainder_baseline))
+        rf_remainder = (
+            int(rf_fut.further_bikes)
+            if rf_fut.state == OK and rf_fut.further_bikes is not None
+            else int(remainder_baseline)
+        )
 
         # activity
         # Build all_acts from similar dates for consistency
@@ -1141,17 +1474,21 @@ class Estimator:
         rf_act = rf.RandomForestRegressorModel()
         rf_act.create_model(self.similar_dates, self.befores, all_acts)
         rf_act.guess(self.bikes_so_far)
-        rf_act_val = (int(rf_act.further_bikes)
-                    if rf_act.state == OK and rf_act.further_bikes is not None
-                    else int(nxh_activity_baseline))
+        rf_act_val = (
+            int(rf_act.further_bikes)
+            if rf_act.state == OK and rf_act.further_bikes is not None
+            else int(nxh_activity_baseline)
+        )
 
         # peak
         rf_pk = rf.RandomForestRegressorModel()
         rf_pk.create_model(self.similar_dates, self.befores, all_peaks)
         rf_pk.guess(self.bikes_so_far)
-        rf_peak_val = (int(rf_pk.further_bikes)
-                    if rf_pk.state == OK and rf_pk.further_bikes is not None
-                    else int(peak_val_baseline))
+        rf_peak_val = (
+            int(rf_pk.further_bikes)
+            if rf_pk.state == OK and rf_pk.further_bikes is not None
+            else int(peak_val_baseline)
+        )
 
         def _rf_residuals(model, y_true: list[int]):
             try:
@@ -1166,20 +1503,26 @@ class Estimator:
 
         fut_lo_res, fut_hi_res, fut_w = _rf_residuals(rf_fut, self.afters)
         act_lo_res, act_hi_res, act_w = _rf_residuals(rf_act, all_acts)
-        pk_lo_res,  pk_hi_res,  pk_w  = _rf_residuals(rf_pk,  all_peaks)
+        pk_lo_res, pk_hi_res, pk_w = _rf_residuals(rf_pk, all_peaks)
 
         # Bands scaled & calibrated
         rf_rem_rng = self._rng_from_res(rf_remainder, fut_lo_res, fut_hi_res)
-        rf_act_rng = self._rng_from_res(rf_act_val,   act_lo_res, act_hi_res)
-        rf_pk_rng  = self._rng_from_res(rf_peak_val,  pk_lo_res,  pk_hi_res)
+        rf_act_rng = self._rng_from_res(rf_act_val, act_lo_res, act_hi_res)
+        rf_pk_rng = self._rng_from_res(rf_peak_val, pk_lo_res, pk_hi_res)
 
         rem_band_rf = self._scale_band(rem_band, fut_w, None)
         act_band_rf = self._scale_band(act_band, act_w, None)
-        pk_band_rf  = self._scale_band(peak_band, pk_w,  None)
+        pk_band_rf = self._scale_band(peak_band, pk_w, None)
 
-        cal_act_rng, act_band_rf = self._apply_calib(self.MODEL_RF, "act",  rf_act_val,   act_band_rf,  frac_elapsed)
-        cal_fut_rng, rem_band_rf = self._apply_calib(self.MODEL_RF, "fut",  rf_remainder, rem_band_rf,  frac_elapsed)
-        cal_pk_rng,  pk_band_rf  = self._apply_calib(self.MODEL_RF, "peak", rf_peak_val,  pk_band_rf,   frac_elapsed)
+        cal_act_rng, act_band_rf = self._apply_calib(
+            self.MODEL_RF, "act", rf_act_val, act_band_rf, frac_elapsed
+        )
+        cal_fut_rng, rem_band_rf = self._apply_calib(
+            self.MODEL_RF, "fut", rf_remainder, rem_band_rf, frac_elapsed
+        )
+        cal_pk_rng, pk_band_rf = self._apply_calib(
+            self.MODEL_RF, "peak", rf_peak_val, pk_band_rf, frac_elapsed
+        )
 
         if cal_act_rng:
             rf_act_rng = cal_act_rng
@@ -1188,16 +1531,46 @@ class Estimator:
         if cal_pk_rng:
             rf_pk_rng = cal_pk_rng
 
-        conf_rem_rf = self._smooth_conf(len(self.befores), frac_elapsed, fut_w, max(1.0, float(rf_remainder)))
-        conf_act_rf = self._smooth_conf(len(self.befores), frac_elapsed, act_w, max(1.0, float(rf_act_val)))
-        conf_pk_rf  = self._smooth_conf(len(self.befores), frac_elapsed, pk_w,  max(1.0, float(rf_peak_val)))
-        conf_pt     = self._smooth_conf(len(self.befores), frac_elapsed, None,  None)
+        conf_rem_rf = self._smooth_conf(
+            len(self.befores), frac_elapsed, fut_w, max(1.0, float(rf_remainder))
+        )
+        conf_act_rf = self._smooth_conf(
+            len(self.befores), frac_elapsed, act_w, max(1.0, float(rf_act_val))
+        )
+        conf_pk_rf = self._smooth_conf(
+            len(self.befores), frac_elapsed, pk_w, max(1.0, float(rf_peak_val))
+        )
+        conf_pt = self._smooth_conf(len(self.befores), frac_elapsed, None, None)
 
         rows = [
-            (self._activity_label(t_end), f"{rf_act_val}",     f"+/- {act_band_rf}", rf_act_rng or self._rng_str(act_lo, act_hi, False), conf_act_rf),
-            (self.MEAS_FURTHER,          f"{rf_remainder}",   f"+/- {rem_band_rf} bikes", rf_rem_rng or self._rng_str(rem_lo, rem_hi, False), conf_rem_rf),
-            (self.MEAS_TIME_MAX,         f"{peak_time.short}", f"+/- {ptime_band} minutes", self._rng_str(ptime_lo, ptime_hi, True), conf_pt),
-            (self.MEAS_MAX,              f"{rf_peak_val}",    f"+/- {pk_band_rf} bikes", rf_pk_rng or self._rng_str(pk_lo, pk_hi, False), conf_pk_rf),
+            (
+                self._activity_label(t_end),
+                f"{rf_act_val}",
+                f"+/- {act_band_rf}",
+                rf_act_rng or self._rng_str(act_lo, act_hi, False),
+                conf_act_rf,
+            ),
+            (
+                self.MEAS_FURTHER,
+                f"{rf_remainder}",
+                f"+/- {rem_band_rf} bikes",
+                rf_rem_rng or self._rng_str(rem_lo, rem_hi, False),
+                conf_rem_rf,
+            ),
+            (
+                self.MEAS_TIME_MAX,
+                f"{peak_time.short}",
+                f"+/- {ptime_band} minutes",
+                self._rng_str(ptime_lo, ptime_hi, True),
+                conf_pt,
+            ),
+            (
+                self.MEAS_MAX,
+                f"{rf_peak_val}",
+                f"+/- {pk_band_rf} bikes",
+                rf_pk_rng or self._rng_str(pk_lo, pk_hi, False),
+                conf_pk_rf,
+            ),
         ]
         return rows
 
@@ -1213,7 +1586,8 @@ class Estimator:
         try:
             a, b = rng.split("-", 1)
             if is_time:
-                va = VTime(a.strip()); vb = VTime(b.strip())
+                va = VTime(a.strip())
+                vb = VTime(b.strip())
                 if not va or not vb:
                     return 10**9
                 return max(0, int(vb.num) - int(va.num))
@@ -1243,7 +1617,11 @@ class Estimator:
                     if cand[2] == pref:
                         return cand, f"calibrated best_model {pref} for bin {lbl}"
         # Guardrail: prefer robust SM/REC with tiny cohort or missing calib
-        guard_min = int(getattr(wcfg, "EST_MIN_COHORT_FOR_SELECTION", 4)) if 'wcfg' in globals() else 4
+        guard_min = (
+            int(getattr(wcfg, "EST_MIN_COHORT_FOR_SELECTION", 4))
+            if "wcfg" in globals()
+            else 4
+        )
         if cohort_n < guard_min or not getattr(self, "_calib_best", None):
             for target in [self.MODEL_SM, self.MODEL_REC]:
                 for cand in cands:
@@ -1259,15 +1637,20 @@ class Estimator:
         if mode == "range_first":
             best = self._select_by_narrowest_then_conf(cands)
             width, neg_conf, mdl, _row = best
-            return best, f"range-first: narrowest range width {width}; conf {abs(neg_conf)}%"
+            return (
+                best,
+                f"range-first: narrowest range width {width}; conf {abs(neg_conf)}%",
+            )
         return self._best_candidate_accuracy_first(i, cands, frac, cohort_n)
 
-    def _select_rows(self, t_end: "VTime", tables_by_model: dict, frac_elapsed: float, cohort_n: int):
+    def _select_rows(
+        self, t_end: "VTime", tables_by_model: dict, frac_elapsed: float, cohort_n: int
+    ):
         measures = [
             self._activity_label(t_end),  # index 0
-            self.MEAS_FURTHER,            # index 1
-            self.MEAS_TIME_MAX,           # index 2
-            self.MEAS_MAX,                # index 3
+            self.MEAS_FURTHER,  # index 1
+            self.MEAS_TIME_MAX,  # index 2
+            self.MEAS_MAX,  # index 3
         ]
         mixed_rows: list[tuple[str, str, str, str, str]] = []
         mixed_models: list[str] = []
@@ -1287,15 +1670,21 @@ class Estimator:
                     continue
                 r = rows[idx]  # (measure, value, margin, range, conf)
                 rng = r[3]
-                is_time = (idx == 2)
+                is_time = idx == 2
                 width = self._range_width(rng, is_time)
                 confv = self._parse_conf(r[4])
                 candidates.append((width, -confv, mdl_code, r))
             if not candidates:
                 continue
 
-            sel_mode = str(getattr(wcfg, "EST_SELECTION_MODE", "accuracy_first")) if 'wcfg' in globals() else "accuracy_first"
-            best, why = self._select_dispatch(sel_mode, idx, candidates, frac_elapsed, cohort_n)
+            sel_mode = (
+                str(getattr(wcfg, "EST_SELECTION_MODE", "accuracy_first"))
+                if "wcfg" in globals()
+                else "accuracy_first"
+            )
+            best, why = self._select_dispatch(
+                sel_mode, idx, candidates, frac_elapsed, cohort_n
+            )
             mixed_rows.append(best[3])
             mixed_models.append(best[2])
             if best[2] in selected_by_model:
@@ -1402,7 +1791,6 @@ if __name__ == "__main__":
                 estimation_type=estimation_type,
             )
 
-
         start_time = time.perf_counter()
         estimate_any = None
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
@@ -1410,7 +1798,7 @@ if __name__ == "__main__":
             print("Content-type: text/plain\n")
             estimate_any = _init_from_cgi()
         else:
-            print( "Must use CGI interface")
+            print("Must use CGI interface")
             exit()
 
         if estimate_any.state != ERROR:
@@ -1434,4 +1822,3 @@ if __name__ == "__main__":
             print("\n".join(_tb.format_exception(type(e), e, e.__traceback__)))
         except Exception:  # pylint:disable=broad-except
             pass
-
