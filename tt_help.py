@@ -75,14 +75,14 @@ For help about a specific command, try 'help <command>' e.g. 'help edit'.
     CmdKeys.CMD_BIKE_IN: """
 Command: IN <tag(s)> [time]
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
     <tag(s)>: one or more tags to go onto bikes being checked in
     [time]: optional time to assign to the check-in(s). Default is 'now'
 
-Description
+Description:
   Check a bike in.  If 'time' is given, checks it in for that time.
 
   If the tag has been used previously, this will re-use the tag for
@@ -92,10 +92,10 @@ Description
     CmdKeys.CMD_LEFTOVERS: """
 Command: LEFT <tag(s)> [time]
 
-Can be invoked as
+Can be invoked as:
   {}
 
-Description
+Description:
   Lists the most recent check-in times for any bikes currently on-site.
 
   This is to make it easier to find phone numbers for any bikes that
@@ -106,7 +106,7 @@ Description
     CmdKeys.CMD_NOTES: """
 Command: NOTE [note message|DELETE|UNDELETE]
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Description:
@@ -132,14 +132,14 @@ Description:
     CmdKeys.CMD_BIKE_OUT: """
 Command: OUT <tag(s)> [time]
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
     <tag(s)>: one or more tags of bikes being checked out
     [time]: optional time to assign to the check-out(s). Default is 'now'
 
-Description
+Description:
   Check a bike out.  This makes the tag available for re-use.
 
 
@@ -148,13 +148,13 @@ Description
     CmdKeys.CMD_BIKE_INOUT: """
 Command: <tag(s)>
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
     <tag(s)>: one or more tags to check in or out
 
-Description
+Description:
   Check a bike in or out, depending on whether it is currently on-site:
   - if the bike is on-site, this will check the bike out (same as OUT <tag>).
   - if the bike is coming in, this will check the bike in unless the tag is being re-used.
@@ -175,7 +175,7 @@ Description
 Command: ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE] --> default is STANDARD
     (FULL is an alias for VERBOSE)
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
@@ -187,7 +187,7 @@ Arguments:
                           ignoring how many bikes so far today. This is
                           useful for estimates early in the day
 
-Description
+Description:
   Estimates the rest of the day using historical data for similar days.
   The summary shows:
     - Further bikes today (remainder)
@@ -212,13 +212,13 @@ Examples
     CmdKeys.CMD_GRAPHS: """
 Command: GRAPH [end_time]
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
     [end_time] : optional ending time for graphs (default: end of day)
 
-Description
+Description:
     Shows histograms of busyness (ins + outs) and fullness across the day.
     If [end_time] is supplied, only data up to that time is included.
 
@@ -227,7 +227,7 @@ Description
     CmdKeys.CMD_RETIRE: """
 Command: RETIRE <tag(s)>
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
@@ -250,7 +250,7 @@ Description
     CmdKeys.CMD_UNRETIRE: """
 Command: UNRETIRE <tag(s)>
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
