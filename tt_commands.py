@@ -204,7 +204,6 @@ COMMANDS = {
                 ARG_TAGS, optional=False, prompt="Delete check in/out for what tag(s)? "
             ),
             ArgConfig(ARG_INOUT, optional=False, prompt="Enter 'in' or 'out': "),
-            ArgConfig(ARG_YESNO, optional=False, prompt="Enter 'y' to confirm: "),
         ],
     ),
     CmdKeys.CMD_DUMP: CmdConfig(
@@ -418,17 +417,22 @@ def _chunkize_for_one_arg(
 
     elif arg_conf.arg_type == ARG_TAGS:
         tagslist = []
+        dups = set()
         while arg_parts:
             tag = TagID(arg_parts[0])
             if tag:
                 # Check for and remove duplicate
                 if tag in tagslist:
-                    parsed.message = f"Ignoring duplicate of tagid '{tag.original}'."
+                    dups.add(tag)
+                    # parsed.message = f"Ignoring duplicate of tagid '{tag.original}'."
                 else:
                     tagslist.append(tag)
                 del arg_parts[0]
             else:
                 break
+        if dups:
+            parsed.message = f"Ignoring duplicated of tag(s) '{', '.join(sorted(list(dups)))}'."
+
         if tagslist:
 
             parsed.result_args.append(tagslist)
