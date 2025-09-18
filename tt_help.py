@@ -223,6 +223,56 @@ Description
     If [end_time] is supplied, only data up to that time is included.
 
 """,
+
+    CmdKeys.CMD_RETIRE: """
+Command: RETIRE <tag(s)>
+
+Can be invoked as
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to mark as retired
+
+Description
+  Retires tags so they will no longer be used.
+
+  TagTracker keeps two records:
+    - Today's tracker data: removes the tag from the live inventory immediately
+      when it has not been used yet today.
+    - Configuration data: blocks the tag from use on future days.
+
+  If a tag was already used today, RETIRE only updates the config; it takes effect
+  at tomorrow's open. Tags already retired are left unchanged.
+
+  Use the UNRETIRE command to reverse this operation.
+""",
+
+    CmdKeys.CMD_UNRETIRE: """
+Command: UNRETIRE <tag(s)>
+
+Can be invoked as
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to make usable again
+
+Description
+  Makes previously retired tags once again available for use.
+
+  TagTracker keeps two records:
+    - Today's tracker data: removes the tag from the live inventory immediately
+      when it has not been used yet today.
+    - Configuration data: blocks the tag from use on future days.
+
+
+  UNRETIRE fixes both data sources:
+    - Today's tracker data: this puts the tag back into the live inventory immediately.
+    - Configuration data: this makes the tag available for future days.
+
+  Tags already usable remain unchanged.
+
+  Use the RETIRE command to reverse this operation.
+""",
 }
 
 

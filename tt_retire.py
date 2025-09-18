@@ -1,4 +1,3 @@
-
 """RETIRE/UNRETIRE command helpers."""
 
 from __future__ import annotations
@@ -13,7 +12,9 @@ import common.tt_constants as k
 from common.tt_biketag import BikeTag
 from common.tt_tag import TagID
 from common.tt_trackerday import TrackerDay
+import common.tt_util as ut
 import tt_printer as pr
+
 
 _CONFIG_FILE = Path(__file__).resolve().parent / "client_local_config.py"
 _CONFIG_PATTERN = re.compile(
@@ -58,6 +59,10 @@ def unretire(today: TrackerDay, tags: Sequence[TagID]) -> bool:
 
 
 def _process(today: TrackerDay, tags: Sequence[TagID], mode: str) -> bool:
+    """Process the retire or unretire command.
+    On entry:
+        tags is a list of valid tagids to process
+    """
     if not tags:
         pr.iprint("No tags supplied.", style=k.WARNING_STYLE)
         return False
@@ -67,10 +72,7 @@ def _process(today: TrackerDay, tags: Sequence[TagID], mode: str) -> bool:
         pr.iprint(str(exc), style=k.ERROR_STYLE)
         return False
 
-    outcomes = [
-        _evaluate_tag(TagID(tag), today, config_tags, mode)
-        for tag in tags
-    ]
+    outcomes = [_evaluate_tag(TagID(tag), today, config_tags, mode) for tag in tags]
     _display_outcomes(outcomes)
 
     actionable = [outcome for outcome in outcomes if outcome.needs_change]
@@ -79,7 +81,7 @@ def _process(today: TrackerDay, tags: Sequence[TagID], mode: str) -> bool:
         return False
 
     if not _confirm(len(actionable)):
-        pr.iprint("No changes made.", style=k.SUBTITLE_STYLE)
+        pr.iprint("No changes made.", style=k.WARNING_STYLE)
         return False
 
     try:
@@ -93,7 +95,7 @@ def _process(today: TrackerDay, tags: Sequence[TagID], mode: str) -> bool:
     if config_changed or today_changed:
         _summarize_changes(today_changed, config_delta)
     else:
-        pr.iprint("Nothing needed changing after review.", style=k.SUBTITLE_STYLE)
+        pr.iprint("Nothing needed changing.", style=k.SUBTITLE_STYLE)
 
     return today_changed
 
@@ -106,7 +108,9 @@ def _load_config_state() -> tuple[str, re.Match[str], set[TagID]]:
 
     match = _CONFIG_PATTERN.search(text)
     if not match:
-        raise RuntimeError("Could not locate RETIRED_TAGS block in client_local_config.py.")
+        raise RuntimeError(
+            "Could not locate RETIRED_TAGS block in client_local_config.py."
+        )
 
     body = match.group("body")
     tags, errors = TagID.parse_tagids_str(body, "RETIRED_TAGS configuration")
@@ -120,13 +124,22 @@ def _load_config_state() -> tuple[str, re.Match[str], set[TagID]]:
 
 def _display_outcomes(outcomes: Sequence[TagOutcome]) -> None:
     width = max((len(str(o.tag)) for o in outcomes), default=4)
+    pr.iprint()
     for outcome in outcomes:
-        pr.iprint(f"{str(outcome.tag):>{width}}  {outcome.message}", style=outcome.style)
+        pr.iprint(
+            f"{str(outcome.tag):<{width}}  {outcome.message}",
+            style=outcome.style,
+            num_indents=2,
+        )
 
 
 def _confirm(count: int) -> bool:
-    prompt = f"OK to change {count} tag{'s' if count != 1 else ''} (y/n)? "
-    reply = pr.tt_inp(prompt, style=k.PROMPT_STYLE).strip().lower()
+    pr.iprint(
+        f"Enter 'y' to confirm changing {count} tag{'s' if count != 1 else ''}: ",
+        end="",
+        style=k.PROMPT_STYLE,
+    )
+    reply = pr.tt_inp("").strip().lower()
     return reply == "y"
 
 
@@ -171,12 +184,10 @@ def _write_config_state(
     original_text: str, match: re.Match[str], tags: Iterable[TagID]
 ) -> None:
     body = _format_body(tags)
-    new_text = (
-        f"{original_text[:match.start('body')]}{body}{original_text[match.end('body'):]}"
-    )
-    temp_path = _CONFIG_FILE.with_suffix('.tmp')
+    new_text = f"{original_text[:match.start('body')]}{body}{original_text[match.end('body'):]}"
+    temp_path = _CONFIG_FILE.with_suffix(".tmp")
     try:
-        temp_path.write_text(new_text, encoding='utf-8')
+        temp_path.write_text(new_text, encoding="utf-8")
         temp_path.replace(_CONFIG_FILE)
     except OSError as exc:
         raise RuntimeError(f"Unable to update {_CONFIG_FILE.name}: {exc}") from exc
@@ -184,7 +195,9 @@ def _write_config_state(
 
 
 def _format_body(tags: Iterable[TagID]) -> str:
-    tokens = sorted({TagID(tag).canon.upper() for tag in tags})
+    # tokens = sorted({TagID(tag).canon.upper() for tag in tags})
+    tokens = [tag.canon.upper() for tag in sorted({TagID(tag) for tag in tags})]
+
     if not tokens:
         return "\n\n"
     lines = []
@@ -200,8 +213,8 @@ def _evaluate_tag(
     if not biketag:
         return TagOutcome(
             tag=tag,
-            message="Tag not available for use, ignoring",
-            style=k.WARNING_STYLE,
+            message="Is not available for use (ignoring)",
+            style=k.ANSWER_STYLE,
         )
 
     in_config = tag in config_tags
@@ -214,10 +227,10 @@ def _evaluate_tag(
 def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcome:
     if biketag.status == BikeTag.RETIRED:
         if in_config:
-            return TagOutcome(tag, "Already retired", k.SUBTITLE_STYLE)
+            return TagOutcome(tag, "is already retired", k.ANSWER_STYLE)
         return TagOutcome(
             tag,
-            "Will retire in config",
+            "Will be retired in the config file",
             k.ANSWER_STYLE,
             add_to_config=True,
         )
@@ -227,12 +240,12 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
         if used_today:
             return TagOutcome(
                 tag,
-                "Already marked to retire starting tomorrow",
-                k.SUBTITLE_STYLE,
+                "Is already marked as retired, starting tomorrow",
+                k.ANSWER_STYLE,
             )
         return TagOutcome(
             tag,
-            "Will retire (already retired in config)",
+            "Will be retired [and is already retired in config]",
             k.ANSWER_STYLE,
             retire_today=True,
         )
@@ -240,13 +253,13 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
     if used_today:
         return TagOutcome(
             tag,
-            "Will mark for retirement starting tomorrow, already used today",
+            "Will be marked for retirement starting tomorrow (already used today)",
             k.ANSWER_STYLE,
             add_to_config=True,
         )
     return TagOutcome(
         tag,
-        "Will retire",
+        "Will be retired",
         k.ANSWER_STYLE,
         retire_today=True,
         add_to_config=True,
@@ -258,14 +271,14 @@ def _evaluate_unretire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutc
         if in_config:
             return TagOutcome(
                 tag,
-                "Will unretire",
+                "Will be unretired",
                 k.ANSWER_STYLE,
                 unretire_today=True,
                 remove_from_config=True,
             )
         return TagOutcome(
             tag,
-            "Will unretire (already unretired in config)",
+            "Will be unretired [and is already unretired in config]",
             k.ANSWER_STYLE,
             unretire_today=True,
         )
@@ -273,22 +286,26 @@ def _evaluate_unretire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutc
     if in_config:
         return TagOutcome(
             tag,
-            "Will unretire in config",
+            "Will be unretired in config",
             k.ANSWER_STYLE,
             remove_from_config=True,
         )
-    return TagOutcome(tag, "Already unretired", k.SUBTITLE_STYLE)
+    return TagOutcome(tag, "Is already unretired", k.ANSWER_STYLE)
 
 
 def _summarize_changes(today_changed: bool, config_delta: tuple[int, int]) -> None:
     added, removed = config_delta
     parts = []
-    if added:
-        parts.append(f"added {added} to config")
-    if removed:
-        parts.append(f"removed {removed} from config")
     if today_changed:
-        parts.append("updated today's tracker")
+        parts.append("updated today's tracker data")
+    if added:
+        parts.append(f"added {added} {ut.plural(added,'tag')} to config file")
+    if removed:
+        parts.append(f"removed {removed} {ut.plural(removed,'tag')} from config file")
 
-    summary = "Changes applied." if not parts else "Changes applied: " + ", ".join(parts) + "."
-    pr.iprint(summary, style=k.ANSWER_STYLE)
+    summary = (
+        "Changes applied."
+        if not parts
+        else "Changes applied: " + ", and ".join(parts) + "."
+    )
+    pr.iprint(summary, style=k.SUBTITLE_STYLE)
