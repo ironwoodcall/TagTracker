@@ -60,9 +60,8 @@ Information and reports
 
 Other
   Help with commands           :  HELP [command]
-  Set tag display to UPPERCASE :  UC | UPPERCASE
-  Set tag display to lowercase :  LC | LOWERCASE
-  Send reports to shared drive :  PUBLISH
+  Set tags to UPPER/LOWER CASE :  UPPERCASE | UC | LOWERCASE | LC
+  Retire or unretire tags      :  RETIRE | UNRETIRE <tag(s)>
   Exit                         :  EXIT | x
 
 Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
