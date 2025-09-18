@@ -1,57 +1,30 @@
 #!/usr/bin/env python3
 """Estimate how many more bikes to expect.
 
-New API (CGI or CLI):
-    opening_time, closing_time, bikes_so_far, [max_bikes_today], [max_bikes_time_today]
-    where
-        opening_time: service opening time for today (HHMM or HH:MM)
-        closing_time: service closing time for today (HHMM or HH:MM)
-        bikes_so_far: bikes currently parked (as of now)
-        max_bikes_today: optional, for future use (ignored if provided)
-        max_bikes_time_today: optional, for future use (ignored if provided)
+CGI parameters:
+    bikes_so_far: current bike count (as of now).
+    opening_time: service opening time for today (HHMM or HH:MM).
+    closing_time: service closing time for today (HHMM or HH:MM).
+    estimation_type: optional; values include
+        "standard" (default)
+        "verbose" (detailed output),
+        "quick" (skip Random Forest), and
+        "schedule" (REC model only; requires opening and closing times).
 
-Assumptions for new API:
-    - Estimation is for today, at "now".
-    - Optional `estimation_type` query parameter routes behavior:
-        * legacy  -> use Estimator_old (legacy interface)
-        * current or missing -> use Estimator (new API)
-        * verbose -> Estimator (same output for now; verbose not yet implemented)
-
-Backward compatibility:
-    - If new parameters are not provided, falls back to legacy params
-      (bikes_so_far, as_of_when, dow, time_closed) and Estimator_old.
-
-Copyright (C) 2023-2024 Julias Hocking & Todd Glover
-
-    Notwithstanding the licensing information below, this code may not
-    be used in a commercial (for-profit, non-profit or government) setting
-    without the copyright-holder's written consent.
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published
-    by the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+Estimates assume the request is for today at "now" and rely on the provided opening and closing times.
 """
 
-
 import urllib.request
-import json
+import urllib.parse
 import traceback as _tb
-from web_estimator_calibration import load_calibration as _calib_load, bin_label as _calib_bin_label, residual_band as _calib_residual_band
+from web_estimator_calibration import (
+    load_calibration as _calib_load,
+    bin_label as _calib_bin_label,
+    residual_band as _calib_residual_band,
+)
 from web_estimator_selection import dispatch_select as _select_dispatch
 import os
 import sys
-import math
-import statistics
 import time
 from typing import Optional
 
@@ -63,7 +36,6 @@ import web_base_config as wcfg
 import common.tt_util as ut
 from common.tt_time import VTime
 import common.tt_dbutil as db
-import tt_default_hours
 
 # import client_base_config as cfg
 import web.web_estimator_rf as rf
@@ -77,587 +49,6 @@ INCOMPLETE = "incomplete"  # initialized but not ready to use
 READY = "ready"  # model is ready to use
 OK = "ok"  # model has been used to create a guess OK
 ERROR = "error"  # the model is unusable, in an error state
-
-PRINT_WIDTH = 47
-
-
-def _format_measure(m):
-    """Format a regression measure as a string."""
-    if m is None or m != m or not isinstance(m, (float, int)):
-        return "?"
-    return f"{m:.2f}"
-
-
-class SimpleModel:
-    """A simple model using mean & median for similar days."""
-
-    def __init__(self) -> None:
-        self.raw_befores = None
-        self.raw_afters = None
-        self.raw_dates = []
-        self.match_tolerance = None
-        self.matched_afters = []
-        self.matched_dates = []
-        self.num_points = None
-        self.trim_tolerance = None
-        self.trimmed_afters = []
-        self.discarded_afters = []
-        self.discarded_dates = []
-        self.num_discarded = None
-
-        self.min = None
-        self.max = None
-        self.mean = None
-        self.median = None
-
-        self.error = ""
-        self.state = INCOMPLETE
-
-    def _discard_outliers(
-        self,
-    ) -> None:
-        """Create trimmed_data by discarding outliers."""
-        # For 2 or fewer data points, the idea of outliers means nothing.
-        if len(self.matched_afters) <= 2:
-            self.trimmed_afters = self.matched_afters
-            self.num_discarded = self.num_points - len(self.trimmed_afters)
-            return
-        # Make new list, discarding outliers.
-        mean = statistics.mean(self.matched_afters)
-        std_dev = statistics.stdev(self.matched_afters)
-        if std_dev == 0:
-            self.trimmed_afters = self.matched_afters
-            self.num_discarded = self.num_points - len(self.trimmed_afters)
-            return
-
-        z_scores = [(x - mean) / std_dev for x in self.matched_afters]
-        self.trimmed_afters = [
-            self.matched_afters[i]
-            for i in range(len(self.matched_afters))
-            if abs(z_scores[i]) <= self.trim_tolerance
-        ]
-        self.num_discarded = self.num_points - len(self.trimmed_afters)
-
-    def create_model(
-        self,
-        dates: list[str],
-        befores: list[int],
-        afters: list[int],
-        tolerance: float,
-        z_threshold: float,
-    ):
-        if self.state == ERROR:
-            return
-        self.raw_dates = dates
-        self.raw_befores = befores
-        self.raw_afters = afters
-        self.match_tolerance = tolerance
-        self.trim_tolerance = z_threshold
-        self.state = READY
-
-    def guess(self, bikes_so_far: int):
-        """Calculate results for our simple mean & median) model."""
-        if self.state == ERROR:
-            return
-        if self.state not in [READY, OK]:
-            self.state = ERROR
-            self.error = "can not guess, model not in ready state."
-            return
-
-        # Find data points that match our bikes-so-far
-        # values within this dist are considered same
-        self.matched_afters = []
-        for i, this_bikes_so_far in enumerate(self.raw_befores):
-            if abs(bikes_so_far - this_bikes_so_far) <= self.match_tolerance:
-                self.matched_afters.append(self.raw_afters[i])
-        self.num_points = len(self.matched_afters)
-
-        # Discard outliers (z score > z cutodd)
-        self._discard_outliers()
-
-        # Check for no data.
-        if not self.matched_afters:
-            self.error = "no similar dates"
-            self.state = ERROR
-            return
-
-        # Calculate return value statistics
-        # (Both data and trimmed_data now have length > 0)
-        self.min = min(self.trimmed_afters)
-        self.max = max(self.trimmed_afters)
-        self.mean = int(statistics.mean(self.trimmed_afters))
-        self.median = int(statistics.median(self.trimmed_afters))
-        self.state = OK
-
-    def result_msg(self) -> list[str]:
-        """Return list of strings as long message."""
-
-        lines = ["Using a model that averages roughly similar dates:"]
-        if self.state != OK:
-            lines += [f"    Can't estimate because: {self.error}"]
-            return lines
-
-        mean_median = [self.mean, self.median]
-        mean_median.sort()
-        if mean_median[0] == mean_median[1]:
-            mm_str = f"{mean_median[0]}"
-        else:
-            mm_str = f"{mean_median[0]} [median] or {mean_median[1]} [mean]"
-
-        lines.append(f"    Expect {mm_str} more {ut.plural(self.median,'bike')}.")
-
-        one_line = (
-            f"Based on {self.num_points} similar previous "
-            f"{ut.plural(self.num_points,'day')}"
-        )
-        if self.num_discarded:
-            one_line = (
-                f"{one_line} ({self.num_discarded} "
-                f"{ut.plural(self.num_discarded,'outlier')} discarded)"
-            )
-        one_line = f"{one_line}."
-        lines = lines + [
-            f"    {s}" for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)
-        ]
-
-        return lines
-
-
-class LRModel:
-    """A linear regression model using least squares."""
-
-    def __init__(self):
-        self.state = INCOMPLETE
-        self.error = None
-        self.xy_data = None
-        self.num_points = None
-        self.slope = None
-        self.intercept = None
-        self.r_squared = None
-        self.correlation_coefficient = None
-        self.nmae = None
-        self.nrmse = None
-
-        self.further_bikes = None
-
-    # def calculate_nrmse(self):
-    #     sum_squared_errors = sum(
-    #         (y - (self.slope * x + self.intercept)) ** 2 for x, y in self.xy_data
-    #     )
-    #     rmse = math.sqrt(sum_squared_errors / self.num_points)
-
-    #     range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
-    #     if range_y == 0:
-    #         self.nmrse = "DIV/0"
-    #     else:
-    #         self.nrmse = rmse / range_y
-
-    # def calculate_nmae(self):
-    #     sum_absolute_errors = sum(
-    #         abs(y - (self.slope * x + self.intercept)) for x, y in self.xy_data
-    #     )
-    #     range_y = max(y for _, y in self.xy_data) - min(y for _, y in self.xy_data)
-    #     divisor = self.num_points * range_y
-    #     if divisor == 0:
-    #         self.nmae = "DIV/0"
-    #     else:
-    #         self.nmae = sum_absolute_errors / divisor
-
-    def calculate_model(self, xy_data):
-        if self.state == ERROR:
-            return
-
-        self.xy_data = xy_data
-        self.num_points = len(xy_data)
-        if self.num_points < 2:
-            self.error = "not enough data points"
-            self.state = ERROR
-            return
-
-        if [x for x, _ in xy_data] == [0] * len(xy_data):
-            self.error = "all x values are 0"
-            self.state = ERROR
-            return
-
-        sum_x, sum_y, sum_xy, sum_x_squared, sum_y_squared = 0, 0, 0, 0, 0
-
-        for x, y in xy_data:
-            sum_x += x
-            sum_y += y
-            sum_xy += x * y
-            sum_x_squared += x**2
-            sum_y_squared += y**2
-
-        mean_x = sum_x / self.num_points
-        mean_y = sum_y / self.num_points
-
-        try:
-            self.slope = (self.num_points * sum_xy - sum_x * sum_y) / (
-                self.num_points * sum_x_squared - sum_x**2
-            )
-        except ZeroDivisionError:
-            self.error = "DIV/0 in slope calculation."
-            self.state = ERROR
-            return
-        self.intercept = mean_y - self.slope * mean_x
-
-        # Calculate the correlation coefficient (r) and goodness of fit (R^2)
-        sum_diff_prod = sum((x - mean_x) * (y - mean_y) for x, y in xy_data)
-        sum_x_diff_squared = sum((x - mean_x) ** 2 for x, _ in xy_data)
-        sum_y_diff_squared = sum((y - mean_y) ** 2 for _, y in xy_data)
-        try:
-            self.correlation_coefficient = sum_diff_prod / (
-                math.sqrt(sum_x_diff_squared) * math.sqrt(sum_y_diff_squared)
-            )
-            self.r_squared = self.correlation_coefficient * self.correlation_coefficient
-        except ZeroDivisionError:
-            self.correlation_coefficient = "DIV/0"
-            self.r_squared = "DIV/0"
-
-        # self.calculate_nrmse()
-        # self.calculate_nmae()
-
-        self.state = READY
-
-    def guess(self, x: float) -> float:
-        # Predict y based on the linear regression equation
-        if self.state == ERROR:
-            return
-        if self.state not in [READY, OK]:
-            self.state = ERROR
-            self.error = "model not ready, can not guess"
-            return
-        self.further_bikes = round(self.slope * x + self.intercept)
-        self.state = OK
-        return
-
-    def result_msg(self) -> list[str]:
-        """Return list of strings as long message."""
-
-        lines = ["Using a linear regression model:"]
-        if self.state != OK:
-            lines.append(f"    Can't estimate because: {self.error}")
-            return lines
-        # cc = _format_measure(self.correlation_coefficient)
-        # rs = _format_measure(self.r_squared)
-
-        lines = lines + [
-            f"    Expect {self.further_bikes} more {ut.plural(self.further_bikes,'bike')}."
-        ]
-
-        lines.append(
-            f"    Based on {self.num_points} "
-            f"data {ut.plural(self.num_points,'point')} "
-        )
-        # nrmse_str = _format_measure(self.nrmse)
-        # nmae_str = _format_measure(self.nmae)
-        # if nmae_str == "?" and nrmse_str == "?":
-        #     lines.append("    Model quality can not be calculated.")
-        # else:
-        #     lines.append(f"    NMAE {nmae_str}; NRMSE {nrmse_str} [lower is better].")
-
-        return lines
-
-
-class Estimator_old:
-    """Data and methods to estimate how many more bikes to expect."""
-
-    DBFILE = wcfg.DB_FILENAME
-
-    orgsite_id = 1  # FIXME hardwired orgsite
-
-    def __init__(
-        self,
-        bikes_so_far="",
-        as_of_when="",
-        dow_in="",
-        time_closed="",
-    ) -> None:
-        """Set up the inputs and results vars.
-
-        Inputs are thoroughly checked and default values figured out.
-
-        This will make guesses about any missing inputs
-        except the number of bikes so far.
-        """
-
-        # This will be INCOMPLETE, OK or ERROR
-        self.state = INCOMPLETE
-        # This stays empty unless set to an error message.
-        self.error = ""  # Error message
-
-        # Min and Max from all the models
-        self.min = None
-        self.max = None
-
-        # These are inputs
-        self.bikes_so_far = None
-        self.dow = None
-        self.as_of_when = None
-        self.time_closed = None
-        # This is the raw data
-        self.similar_dates = []
-        self.befores = []
-        self.afters = []
-        # These are for the resulting 'simple model' estimate
-        self.simple_model = SimpleModel()
-        # This is for the linear regression model
-        self.lr_model = LRModel()
-        # This for the random forest estimate
-        self.rf_model = rf.RandomForestRegressorModel()
-
-        # pylint: disable-next=invalid-name
-        DBFILE = wcfg.DB_FILENAME
-        if not os.path.exists(DBFILE):
-            self.error = "Database not found"
-            self.state = ERROR
-            return
-        self.database = db.db_connect(DBFILE)
-
-        # Now process the inputs from passed-in values.
-        ##if not bikes_so_far and not as_of_when and not dow_in and not time_closed:
-        if not bikes_so_far:
-            bikes_so_far = self._bikes_right_now()
-
-        bikes_so_far = str(bikes_so_far).strip()
-        if not bikes_so_far.isdigit():
-            self.error = "Missing or bad bikes_so_far parameter."
-            self.state = ERROR
-            return
-        self.bikes_so_far = int(bikes_so_far)
-
-        as_of_when = as_of_when if as_of_when else "now"
-        self.as_of_when = VTime(as_of_when)
-        if not self.as_of_when:
-            self.error = "Bad as_of_when parameter."
-            self.state = ERROR
-            return
-
-        # dow is 1..7; dow_date is most recent date of that dow,
-        # in case there is no closing time given, we will have a
-        # date on which to base the closing time
-        dow_in = dow_in if dow_in else "today"
-        dow_date = None
-        maybe_dow = ut.dow_int(dow_in)
-        if maybe_dow:
-            dow_in = maybe_dow
-        if str(dow_in).strip() in ["1", "2", "3", "4", "5", "6", "7"]:
-            self.dow = int(dow_in)
-            dow_date = ut.most_recent_dow(self.dow)
-        else:
-            dow_date = ut.date_str(dow_in)
-            if dow_date:
-                self.dow = ut.dow_int(dow_date)
-            else:
-                self.error = "Bad dow parameter."
-                self.state = ERROR
-                return
-
-        # closing time, if not given, will be most recent day that matches
-        # the given day of the week, or of the date if that was given as dow.
-        if not time_closed:
-            time_closed = tt_default_hours.get_default_hours(dow_date)[1]
-        self.time_closed = VTime(time_closed)  # Closing time today
-        if not self.time_closed:
-            self.error = "Missing or bad time_closed parameter."
-            self.state = ERROR
-            return
-
-    def _bikes_right_now(self) -> int:
-        today = ut.date_str("today")
-        cursor = self.database.cursor()
-        day_id = db.fetch_day_id(
-            cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id
-        )
-        if not day_id:
-            print("no data matches this day")
-            return None
-        # ut.squawk(f"{day_id=}")
-        rows = db.db_fetch(
-            self.database,
-            f"select count(time_in) from visit where day_id = {day_id} and time_in > ''",
-            ["count"],
-        )
-        if not rows:
-            return None
-        return rows[0].count
-
-    def _sql_str(self) -> str:
-        """Build SQL query."""
-        if self.dow in [6, 7]:
-            dow_set = f"({self.dow})"
-        else:
-            dow_set = "(1,2,3,4,5)"
-        today = ut.date_str("today")
-
-        sql = f"""
-            SELECT
-                D.date,
-                SUM(CASE WHEN V.time_in <= '{self.as_of_when}' THEN 1 ELSE 0 END) AS befores,
-                SUM(CASE WHEN V.time_in > '{self.as_of_when}' THEN 1 ELSE 0 END) AS afters
-            FROM
-                DAY D
-            JOIN
-                VISIT V ON D.id = V.day_id
-            WHERE
-                D.orgsite_id = {self.orgsite_id}
-                AND D.weekday IN {dow_set}
-                AND D.date != '{today}'
-                AND D.time_closed = '{self.time_closed}'
-            GROUP BY
-                D.date;
-        """
-        return sql
-
-    def _fetch_raw_data(self) -> None:
-        """Get raw data from the database into self.befores, self.afters."""
-        # Collect data from database
-        sql = self._sql_str()
-        data_rows = db.db_fetch(self.database, sql, ["date", "before", "after"])
-        if not data_rows:
-            self.error = "no data returned from database."
-            self.state = ERROR
-            return
-
-        self.befores = [int(r.before) for r in data_rows]
-        self.afters = [int(r.after) for r in data_rows]
-        self.similar_dates = [r.date for r in data_rows]
-
-    def guess(self) -> None:
-        """Set self result info from the database."""
-
-        # Get data from the database
-        self._fetch_raw_data()
-        if self.state == ERROR:
-            return
-
-        # Rounding for how close a historic bikes_so_far
-        # is to the requested to be considered the same
-        VARIANCE = 10  # pylint: disable=invalid-name
-        # Z score at which to eliminate a data point an an outlier
-        Z_CUTOFF = 2.5  # pylint: disable=invalid-name
-        self.simple_model.create_model(
-            self.similar_dates, self.befores, self.afters, VARIANCE, Z_CUTOFF
-        )
-        self.simple_model.guess(self.bikes_so_far)
-
-        # Calculate using linear regression.
-        self.lr_model.calculate_model(list(zip(self.befores, self.afters)))
-        self.lr_model.guess(self.bikes_so_far)
-
-        # min and max of the guesses so far
-        self.min = min(
-            (
-                v
-                for v in [
-                    self.simple_model.mean,
-                    self.simple_model.median,
-                    self.lr_model.further_bikes,
-                ]
-                if v is not None
-            ),
-            default=None,
-        )
-        self.max = max(
-            (
-                v
-                for v in [
-                    self.simple_model.mean,
-                    self.simple_model.median,
-                    self.lr_model.further_bikes,
-                ]
-                if v is not None
-            ),
-            default=None,
-        )
-
-        if rf.POSSIBLE:
-            self.rf_model.create_model([], self.befores, self.afters)
-            self.rf_model.guess(self.bikes_so_far)
-            self.min = min(self.min, self.rf_model.further_bikes)
-            self.max = max(self.max, self.rf_model.further_bikes)
-
-    def result_msg(self) -> list[str]:
-        """Return list of strings as long message."""
-
-        lines = []
-        if self.state == ERROR:
-            lines.append(f"Can't estimate because: {self.error}")
-            return lines
-
-        if self.dow == 6:
-            dayname = "Saturday"
-        elif self.dow == 7:
-            dayname = "Sunday"
-        else:
-            dayname = "weekday"
-
-        one_line = (
-            f"Estimating for a typical {dayname} with {self.bikes_so_far} "
-            f"{ut.plural(self.bikes_so_far,'bike')} parked by {self.as_of_when.short}, "
-            f"closing at {self.time_closed}:"
-        )
-        lines = [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
-
-        predictions = []
-        lines += [""] + self.simple_model.result_msg()
-        if self.simple_model.state == OK:
-            predictions += [self.simple_model.mean, self.simple_model.median]
-        lines += [""] + self.lr_model.result_msg()
-        if self.lr_model.state == OK:
-            predictions += [self.lr_model.further_bikes]
-        if rf.POSSIBLE:
-            lines += [""] + self.rf_model.result_msg()
-            if self.rf_model.state == rf.OK:
-                predictions += [self.rf_model.further_bikes]
-        # Find day-total expectation
-        prediction_str = "?"
-        if predictions:
-            min_day_total = min(predictions) + self.bikes_so_far
-            max_day_total = max(predictions) + self.bikes_so_far
-            if min_day_total == max_day_total:
-                prediction_str = str(min_day_total)
-            else:
-                prediction_str = f"{min_day_total} to {max_day_total}"
-
-        lines = [
-            "How many more bikes?",
-            "",
-            f"Expect a total of {prediction_str} bikes for the day.",
-            "",
-        ] + lines
-
-        one_line = (
-            "Estimation performed at "
-            f"{VTime('now').short} on {ut.date_str('now',long_date=True)}."
-        )
-        if self.as_of_when < "12:30":
-            one_line = f"{one_line}  Estimates early in the day may be of low quality."
-        lines = lines + [""] + [s for s in ut.line_wrapper(one_line, width=PRINT_WIDTH)]
-
-        return lines
-
-
-def _init_from_cgi_old() -> Estimator_old:
-    """Read initialization parameters from CGI env var.
-
-    CGI parameters: as at top of file.
-        bikes_so_far, dow,as_of_when,time_closed
-
-    """
-    query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
-    query_parms = urllib.parse.parse_qs(query_str)
-    bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
-    dow = query_parms.get("dow", [""])[0]
-    as_of_when = query_parms.get("as_of_when", [""])[0]
-    time_closed = query_parms.get("time_closed", [""])[0]
-
-    return Estimator_old(bikes_so_far, as_of_when, dow, time_closed)
-
-
-def _init_from_args_old() -> Estimator_old:
-    my_args = sys.argv[1:] + ["", "", "", "", "", "", "", ""]
-    return Estimator_old(my_args[0], my_args[1], my_args[2], my_args[3])
 
 
 # New estimator that provides a concise estimation table
@@ -680,7 +71,6 @@ class Estimator:
     MODEL_REC = "REC"
     MODEL_RF = "RF"
 
-
     MODEL_LONG_NAMES = {
         MODEL_SM: "Similar-Day Median",
         MODEL_LR: "Linear Regression",
@@ -690,9 +80,9 @@ class Estimator:
 
     # Measure label strings (edit here to change table text)
     MEAS_ACTIVITY_TEMPLATE = "Activity, now to {end_time}"
-    MEAS_FURTHER = "Further bikes in today"
-    MEAS_TIME_MAX = "Time max bikes onsite"
-    MEAS_MAX = "Max bikes onsite"
+    MEAS_FURTHER = "Further bikes expected"
+    MEAS_TIME_MAX = "Time most bikes onsite"
+    MEAS_MAX = "Most bikes onsite"
 
     # Table headers (centralized)
     HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Confidence", "Model"]
@@ -709,17 +99,35 @@ class Estimator:
         bikes_so_far: str = "",
         opening_time: str = "",
         closing_time: str = "",
-        max_bikes_today: str = "",
-        max_bikes_time_today: str = "",
-        # Back-compat keyword aliases from legacy callers
-        time_open: str = "",
-        time_closed: str = "",
-        verbose: bool = False,
+        estimation_type: str = "",
     ) -> None:
         self.state = INCOMPLETE
         self.error = ""
         self.database = None
-        self.verbose = bool(verbose)
+        self.estimation_type = (estimation_type or "").strip().lower()
+        self.verbose = bool(self.estimation_type == "verbose")
+        raw_open_param = (opening_time or "").strip()
+        raw_close_param = (closing_time or "").strip()
+        # has_open_param = bool(raw_open_param)
+        # has_close_param = bool(raw_close_param)
+
+        # if self.estimation_type == "schedule" and not (
+        #     has_open_param and has_close_param
+        # ):
+        #     self.error = "Please provide both opening_time and closing_time when estimation_type=schedule."
+        #     self.state = ERROR
+        #     return
+
+        self._allowed_models = {
+            self.MODEL_SM,
+            self.MODEL_LR,
+            self.MODEL_REC,
+            self.MODEL_RF,
+        }
+        if self.estimation_type == "schedule":
+            self._allowed_models = {self.MODEL_REC}
+        elif self.estimation_type == "quick":
+            self._allowed_models = {self.MODEL_SM, self.MODEL_LR, self.MODEL_REC}
 
         DBFILE = wcfg.DB_FILENAME
         if not os.path.exists(DBFILE):
@@ -728,54 +136,57 @@ class Estimator:
             return
         self.database = db.db_connect(DBFILE)
 
-        # Inputs: bikes_so_far (defaults to count right now)
-        if not bikes_so_far:
-            bikes_so_far = self._bikes_right_now()
-        bikes_so_far = str(bikes_so_far).strip()
-        if not bikes_so_far.isdigit():
-            self.error = "Missing or bad bikes_so_far parameter."
-            self.state = ERROR
-            return
-        self.bikes_so_far = int(bikes_so_far)
+        bikes_input = str(bikes_so_far or "").strip()
+        if self.estimation_type != "schedule":
+            if not bikes_input:
+                fetched = self._bikes_right_now()
+                bikes_input = str(fetched).strip() if fetched is not None else ""
+            if not bikes_input or not bikes_input.isdigit():
+                self.error = "Missing or bad bikes_so_far parameter."
+                self.state = ERROR
+                return
+        else:
+            if bikes_input and not bikes_input.isdigit():
+                self.error = "Bad bikes_so_far parameter."
+                self.state = ERROR
+                return
+            if not bikes_input:
+                bikes_input = "0"
+        self.bikes_so_far = int(bikes_input)
 
-        # New API assumes estimation is for "now"
         self.as_of_when = VTime("now")
         if not self.as_of_when:
             self.error = "Bad current time."
             self.state = ERROR
             return
 
-        # Today context
-        dow_date = ut.date_str("today")
-        self.dow = ut.dow_int(dow_date)
+        today_date = ut.date_str("today")
+        self.dow = ut.dow_int(today_date)
 
-        # Schedule: opening and closing time (from params or defaults)
-        # Accept legacy keyword aliases if provided
-        if not opening_time and time_open:
-            opening_time = time_open
-        if not closing_time and time_closed:
-            closing_time = time_closed
+        opening_candidate = raw_open_param.strip()
+        closing_candidate = raw_close_param.strip()
+        if not opening_candidate or not closing_candidate:
+            db_open, db_close = self._fetch_today_schedule()
+            if not opening_candidate and db_open:
+                opening_candidate = str(db_open).strip()
+            if not closing_candidate and db_close:
+                closing_candidate = str(db_close).strip()
 
-        if not opening_time or not closing_time:
-            default_open, default_close = tt_default_hours.get_default_hours(dow_date)
-            opening_time = opening_time or default_open
-            closing_time = closing_time or default_close
+        if not opening_candidate or not closing_candidate:
+            self.error = "Unable to determine opening_time and closing_time for today."
+            self.state = ERROR
+            return
 
-        # Final fallbacks if defaults are also missing
-        if not opening_time:
-            opening_time = "00:00"
-        if not closing_time:
-            # Assume service can run to end-of-day if unknown
-            closing_time = "24:00"
-
-        self.time_closed = VTime(closing_time)
-        self.time_open = VTime(opening_time)
-
-        # If still invalid, clamp to safe values for calculations
+        self.time_open = VTime(opening_candidate)
+        self.time_closed = VTime(closing_candidate)
         if not self.time_open:
-            self.time_open = VTime("00:00")
+            self.error = f"Invalid opening_time '{opening_candidate}'."
+            self.state = ERROR
+            return
         if not self.time_closed:
-            self.time_closed = VTime("24:00")
+            self.error = f"Invalid closing_time '{closing_candidate}'."
+            self.state = ERROR
+            return
 
         # Data buffers
         self.similar_dates: list[str] = []
@@ -809,7 +220,9 @@ class Estimator:
     def _bikes_right_now(self) -> int:
         today = ut.date_str("today")
         cursor = self.database.cursor()
-        day_id = db.fetch_day_id(cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id)
+        day_id = db.fetch_day_id(
+            cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id
+        )
         if not day_id:
             return 0
         rows = db.db_fetch(
@@ -818,6 +231,23 @@ class Estimator:
             ["cnt"],
         )
         return int(rows[0].cnt) if rows else 0
+
+    def _fetch_today_schedule(self) -> tuple[str | None, str | None]:
+        today = ut.date_str("today")
+        cursor = self.database.cursor()
+        day_id = db.fetch_day_id(
+            cursor=cursor, date=today, maybe_orgsite_id=self.orgsite_id
+        )
+        if not day_id:
+            return None, None
+        rows = db.db_fetch(
+            self.database,
+            f"SELECT time_open, time_closed FROM day WHERE id = {day_id}",
+            ["time_open", "time_closed"],
+        )
+        if rows:
+            return rows[0].time_open, rows[0].time_closed
+        return None, None
 
     def _time_bounds(self, base: VTime, tol_min: int) -> tuple[str, str]:
         base_num = base.num if base and base.num is not None else 0
@@ -867,7 +297,8 @@ class Estimator:
             for s in self._calib["time_bins"]:
                 try:
                     a, b = s.split("-", 1)
-                    lo = float(a); hi = float(b)
+                    lo = float(a)
+                    hi = float(b)
                     bins.append((lo, hi, s))
                 except Exception:
                     continue
@@ -877,8 +308,12 @@ class Estimator:
     def _bin_label(self, frac_elapsed: float) -> str | None:
         return _calib_bin_label(self._calib_bins, frac_elapsed)
 
-    def _calib_residual_band(self, model: str, measure: str, frac_elapsed: float) -> tuple[float, float] | None:
-        return _calib_residual_band(self._calib, self._calib_bins, model, measure, frac_elapsed)
+    def _calib_residual_band(
+        self, model: str, measure: str, frac_elapsed: float
+    ) -> tuple[float, float] | None:
+        return _calib_residual_band(
+            self._calib, self._calib_bins, model, measure, frac_elapsed
+        )
 
     def _fetch_raw_data(self) -> None:
         # Try: match both opening and closing times within tolerance
@@ -914,7 +349,11 @@ class Estimator:
         return out
 
     def _visits_for_date(self, date_str: str) -> list[tuple[VTime, Optional[VTime]]]:
-        day_id = db.fetch_day_id(cursor=self.database.cursor(), date=date_str, maybe_orgsite_id=self.orgsite_id)
+        day_id = db.fetch_day_id(
+            cursor=self.database.cursor(),
+            date=date_str,
+            maybe_orgsite_id=self.orgsite_id,
+        )
         if not day_id:
             return []
         rows = db.db_fetch(
@@ -930,7 +369,9 @@ class Estimator:
         return out
 
     @staticmethod
-    def _counts_for_time(visits: list[tuple[VTime, Optional[VTime]]], t: VTime) -> tuple[int, int, int, int, int]:
+    def _counts_for_time(
+        visits: list[tuple[VTime, Optional[VTime]]], t: VTime
+    ) -> tuple[int, int, int, int, int]:
         t_end = VTime(min(t.num + 60, 24 * 60))
         before_ins = sum(1 for tin, _ in visits if tin and tin <= t)
         after_ins = sum(1 for tin, _ in visits if tin and tin > t)
@@ -940,8 +381,12 @@ class Estimator:
         return before_ins, after_ins, outs_up_to_t, ins_next, outs_next
 
     @staticmethod
-    def _peak_future_occupancy(visits: list[tuple[VTime, Optional[VTime]]], t: VTime, close: VTime) -> tuple[int, VTime]:
-        occ_now = sum(1 for tin, _ in visits if tin and tin <= t) - sum(1 for _, tout in visits if tout and tout <= t)
+    def _peak_future_occupancy(
+        visits: list[tuple[VTime, Optional[VTime]]], t: VTime, close: VTime
+    ) -> tuple[int, VTime]:
+        occ_now = sum(1 for tin, _ in visits if tin and tin <= t) - sum(
+            1 for _, tout in visits if tout and tout <= t
+        )
         events: list[tuple[int, int]] = []
         for tin, tout in visits:
             if tin and t < tin <= close:
@@ -960,7 +405,9 @@ class Estimator:
         return peak, peak_time
 
     @staticmethod
-    def _peak_all_day_occupancy(visits: list[tuple[VTime, Optional[VTime]]]) -> tuple[int, VTime]:
+    def _peak_all_day_occupancy(
+        visits: list[tuple[VTime, Optional[VTime]]],
+    ) -> tuple[int, VTime]:
         """Compute the maximum occupancy and when it occurs over the entire day.
 
         Uses all visit events (ins as +1, outs as -1) from the day's data
@@ -993,9 +440,13 @@ class Estimator:
         if isinstance(cfg, dict):
             high = cfg.get("High", high)
             med = cfg.get("Medium", med)
-        if n >= int(high.get("min_n", 12)) and frac_elapsed >= float(high.get("min_frac", 0.4)):
+        if n >= int(high.get("min_n", 12)) and frac_elapsed >= float(
+            high.get("min_frac", 0.4)
+        ):
             return "High"
-        if n >= int(med.get("min_n", 8)) and frac_elapsed >= float(med.get("min_frac", 0.2)):
+        if n >= int(med.get("min_n", 8)) and frac_elapsed >= float(
+            med.get("min_frac", 0.2)
+        ):
             return "Medium"
         return "Low"
 
@@ -1036,6 +487,7 @@ class Estimator:
         # Sample-size factor: sqrt scaling around n_ref; capped to reasonable bounds
         nn = max(1, int(n))
         import math
+
         sf = math.sqrt(n_ref / nn)
         sf = max(0.70, min(1.15, sf))
 
@@ -1043,7 +495,9 @@ class Estimator:
         return max(0, int(round(base * scale)))
 
     @staticmethod
-    def _percentiles(values: list[int], p_lo: float = 0.05, p_hi: float = 0.95) -> tuple[int, int]:
+    def _percentiles(
+        values: list[int], p_lo: float = 0.05, p_hi: float = 0.95
+    ) -> tuple[int, int]:
         """Compute (low, high) empirical percentiles as integers without numpy."""
         vals = sorted(int(v) for v in values)
         n = len(vals)
@@ -1051,6 +505,7 @@ class Estimator:
             return None, None  # type: ignore[return-value]
         if n == 1:
             return vals[0], vals[0]
+
         def q_at(p: float) -> int:
             p = max(0.0, min(1.0, float(p)))
             pos = p * (n - 1)
@@ -1059,13 +514,21 @@ class Estimator:
             if i >= n - 1:
                 return vals[-1]
             return int(round(vals[i] * (1 - frac) + vals[i + 1] * frac))
+
         return q_at(p_lo), q_at(p_hi)
 
     @staticmethod
     def _clamp01(x: float) -> float:
         return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
 
-    def _smooth_conf(self, n: int, frac_elapsed: float, spread: float | None, denom: float | None, n_ref: int = 12) -> str:
+    def _smooth_conf(
+        self,
+        n: int,
+        frac_elapsed: float,
+        spread: float | None,
+        denom: float | None,
+        n_ref: int = 12,
+    ) -> str:
         """Compute a smooth % confidence reflecting time, sample size, and variation.
 
         - Time-of-day factor pf grows linearly from 0.3 at open to 1.0 at close.
@@ -1094,77 +557,344 @@ class Estimator:
         return f"{int(round(score))}%"
 
     def guess(self) -> None:
+        """Top-level coordinator for estimate generation."""
         if self.state == ERROR:
             return
-        # Fraction elapsed
-        open_num = self.time_open.num if self.time_open and self.time_open.num is not None else 0
+
+        # --- Time window & progress ---
+        open_num, close_num, total_span, frac_elapsed = self._elapsed_fraction()
+        t_end = self._clamp_time_plus(self.as_of_when, minutes=60)
+
+        # --- Cohorts & simple remainder baseline ---
+        matched = self._matched_dates()
+        n = len(matched)
+
+        remainder = self._prepare_remainder_default()
+
+        # --- Stats over matched & similar cohorts ---
+        nxh_acts, peaks = self._collect_stats_for_dates(matched)
+        all_acts, all_peaks, all_ptimes = self._collect_all_stats_for_similar()
+
+        # --- Point estimates from matched or fallbacks ---
+        nxh_activity, peak_val, peak_time = self._point_estimates_from(
+            matched, nxh_acts, peaks
+        )
+
+        # --- Confidence level & base bands (scaled later per model) ---
+        level = self._confidence_level(n, frac_elapsed)
+        rem_band, act_band, peak_band, ptime_band = self._base_bands(
+            level, n, frac_elapsed
+        )
+
+        # --- Empirical 90% ranges from samples (Simple) ---
+        (rem_lo, rem_hi), (act_lo, act_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi) = (
+            self._simple_percentile_ranges(nxh_acts, peaks)
+        )
+
+        # --- Smooth confidences (Simple) ---
+        conf_rem, conf_act, conf_pk, conf_pt = self._simple_confidences(
+            remainder,
+            nxh_activity,
+            peak_val,
+            (ptime_lo, ptime_hi),
+            total_span,
+            (rem_lo, rem_hi),
+            (act_lo, act_hi),
+            (pk_lo, pk_hi),
+            n,
+            frac_elapsed,
+        )
+
+        # --- SIMPLE rows (with calibration applied) ---
+        simple_rows = []
+        if self._model_enabled(self.MODEL_SM):
+            simple_rows = self._build_simple_rows(
+                t_end,
+                nxh_activity,
+                remainder,
+                peak_time,
+                peak_val,
+                (act_band, rem_band, peak_band, ptime_band),
+                (act_lo, act_hi),
+                (rem_lo, rem_hi),
+                (pk_lo, pk_hi),
+                (ptime_lo, ptime_hi),
+                (conf_act, conf_rem, conf_pt, conf_pk),
+                frac_elapsed,
+            )
+
+        # --- LINEAR REGRESSION rows (with calibration & residual ranges) ---
+        lr_rows = []
+        if self._model_enabled(self.MODEL_LR):
+            lr_rows = self._build_lr_rows(
+                t_end,
+                remainder,
+                nxh_activity,
+                peak_val,
+                peak_time,
+                all_acts,
+                all_peaks,
+                (act_band, rem_band, peak_band, ptime_band),
+                (act_lo, act_hi),
+                (rem_lo, rem_hi),
+                (pk_lo, pk_hi),
+                (ptime_lo, ptime_hi),
+                frac_elapsed,
+            )
+
+        # --- RECENT (schedule-only) rows (with calibration) ---
+        rec_rows = []
+        if self._model_enabled(self.MODEL_REC):
+            rec_rows = self._build_recent_rows(
+                t_end,
+                remainder,
+                nxh_activity,
+                peak_val,
+                peak_time,
+                (act_band, rem_band, peak_band, ptime_band),
+                frac_elapsed,
+            )
+
+        # --- RANDOM FOREST rows (if available; with calibration) ---
+        rf_rows = []
+        if self._model_enabled(self.MODEL_RF):
+            rf_rows = self._build_rf_rows(
+                t_end,
+                remainder,
+                nxh_activity,
+                peak_val,
+                peak_time,
+                (act_band, rem_band, peak_band, ptime_band),
+                (act_lo, act_hi),
+                (rem_lo, rem_hi),
+                (pk_lo, pk_hi),
+                (ptime_lo, ptime_hi),
+                frac_elapsed,
+            )
+
+        # --- Mixed selection across models per measure ---
+        tables_by_model: dict[str, list[tuple[str, str, str, str, str]]] = {}
+        if simple_rows:
+            tables_by_model[self.MODEL_SM] = simple_rows
+        if lr_rows:
+            tables_by_model[self.MODEL_LR] = lr_rows
+        if rec_rows:
+            tables_by_model[self.MODEL_REC] = rec_rows
+        if rf_rows:
+            tables_by_model[self.MODEL_RF] = rf_rows
+
+        if not tables_by_model:
+            self.error = (
+                "No estimation models were available for the requested estimation_type."
+            )
+            self.state = ERROR
+            return
+
+        mixed_rows, mixed_models, selected_by_model, selection_info = self._select_rows(
+            t_end, tables_by_model, frac_elapsed, n
+        )
+        if self.estimation_type == "schedule":
+            selection_info.insert(0, "estimation_type=schedule: REC model only")
+        elif self.estimation_type == "quick":
+            selection_info.insert(0, "estimation_type=quick: Random Forest skipped")
+        self._selection_info = selection_info
+
+        # --- Final table packaging (Mixed first) ---
+        self.tables = [
+            ("Best Guess Estimates", mixed_rows, None),
+        ]
+        if simple_rows:
+            self.tables.append(
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model",
+                    simple_rows,
+                    self.MODEL_SM,
+                )
+            )
+        elif self._model_enabled(self.MODEL_SM):
+            self.tables.append(
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model",
+                    [("No estimates available", "", "", "", "")],
+                    None,
+                )
+            )
+        if lr_rows:
+            self.tables.append(
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model",
+                    lr_rows,
+                    self.MODEL_LR,
+                )
+            )
+        elif self._model_enabled(self.MODEL_LR):
+            self.tables.append(
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model",
+                    [("No estimates available", "", "", "", "")],
+                    None,
+                )
+            )
+        if rec_rows:
+            self.tables.append(
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model",
+                    rec_rows,
+                    self.MODEL_REC,
+                )
+            )
+        else:
+            self.tables.append(
+                (
+                    f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model",
+                    [("No estimates available", "", "", "", "")],
+                    None,
+                )
+            )
+        if self._model_enabled(self.MODEL_RF):
+            if rf_rows:
+                self.tables.append(
+                    (
+                        f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
+                        rf_rows,
+                        self.MODEL_RF,
+                    )
+                )
+            else:
+                self.tables.append(
+                    (
+                        f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
+                        [("Random Forest unavailable", "", "", "", "")],
+                        None,
+                    )
+                )
+
+        # Book-keeping
+        self._mixed_models = mixed_models
+        self._selected_by_model = selected_by_model
+
+        # Legacy min/max for callers expecting prior API
+        self.min = max(0, int(remainder) - rem_band)
+        self.max = int(remainder) + rem_band
+        self.state = OK
+
+    def _model_enabled(self, model_code: str) -> bool:
+        return model_code in self._allowed_models
+
+    # =========================
+    #         HELPERS
+    # =========================
+
+    def _elapsed_fraction(self) -> tuple[int, int, int, float]:
+        open_num = (
+            self.time_open.num
+            if self.time_open and self.time_open.num is not None
+            else 0
+        )
         close_num = (
-            self.time_closed.num if self.time_closed and self.time_closed.num is not None else 24 * 60
+            self.time_closed.num
+            if self.time_closed and self.time_closed.num is not None
+            else 24 * 60
         )
         # Ensure positive span
         if close_num <= open_num:
             close_num = max(open_num + 60, 24 * 60)
         total_span = max(1, close_num - open_num)
         frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - open_num) / total_span))
+        return open_num, close_num, total_span, frac_elapsed
 
-        # Matched dates by bikes_so_far window
-        matched = self._matched_dates()
-        n = len(matched)
+    def _clamp_time_plus(self, t: "VTime", minutes: int) -> "VTime":
+        return VTime(min(t.num + minutes, 24 * 60))
 
-        # Further-bikes (remainder): SM median if available
+    def _prepare_remainder_default(self) -> int:
         remainder = None
-        if self.simple_model.state == OK:
+        if getattr(self, "simple_model", None) and self.simple_model.state == OK:
             remainder = self.simple_model.median
-        if remainder is None:
-            remainder = 0
+        return int(remainder if remainder is not None else 0)
 
-        # Next-hour activity and Peak (whole-day) via matched-day visits
+    def _collect_stats_for_dates(
+        self, dates
+    ) -> tuple[list[int], list[tuple[int, "VTime"]]]:
         nxh_acts: list[int] = []
         peaks: list[tuple[int, VTime]] = []
-        for d in matched:
+        for d in dates:
             vlist = self._visits_for_date(d)
-            _b, _a, _outs_to_t, ins_nxh, outs_nxh = self._counts_for_time(vlist, self.as_of_when)
+            _b, _a, _outs_to_t, ins_nxh, outs_nxh = self._counts_for_time(
+                vlist, self.as_of_when
+            )
             nxh_acts.append(int(ins_nxh + outs_nxh))
-            # Use whole-day peak for similar days (can occur before or after 'now')
             p, pt = self._peak_all_day_occupancy(vlist)
             peaks.append((int(p), pt))
+        return nxh_acts, peaks
 
-        # Build activity/peak arrays for all similar dates (for alternate models)
+    def _collect_all_stats_for_similar(
+        self,
+    ) -> tuple[list[int], list[int], list["VTime"]]:
         all_acts: list[int] = []
         all_peaks: list[int] = []
         all_ptimes: list[VTime] = []
         for d in self.similar_dates:
             vlist = self._visits_for_date(d)
-            _b2, _a2, _outs2, ins2, outs2 = self._counts_for_time(vlist, self.as_of_when)
+            _b2, _a2, _outs2, ins2, outs2 = self._counts_for_time(
+                vlist, self.as_of_when
+            )
             all_acts.append(int(ins2 + outs2))
             p2, pt2 = self._peak_all_day_occupancy(vlist)
             all_peaks.append(int(p2))
             all_ptimes.append(pt2)
+        return all_acts, all_peaks, all_ptimes
+
+    def _point_estimates_from(
+        self, matched_dates, nxh_acts, peaks
+    ) -> tuple[int, int, "VTime"]:
+        import statistics
 
         nxh_activity = int(statistics.median(nxh_acts)) if nxh_acts else 0
         if peaks:
             peak_val = int(statistics.median([p for p, _ in peaks]))
-            # Estimate time of peak as median time among those with max (rough proxy)
             times = [pt.num for _p, pt in peaks]
             peak_time = VTime(int(statistics.median(times)))
         else:
             peak_val = self.bikes_so_far
             peak_time = self.as_of_when
+        return nxh_activity, peak_val, peak_time
 
-        # Confidence levels and dynamic bands
-        level = self._confidence_level(n, frac_elapsed)
-        rem_band = self._band_scaled(self._band(level, "remainder"), n, frac_elapsed, "remainder")
-        act_band = self._band_scaled(self._band(level, "activity"), n, frac_elapsed, "activity")
-        peak_band = self._band_scaled(self._band(level, "peak"), n, frac_elapsed, "peak")
-        ptime_band = self._band_scaled(self._band(level, "peaktime"), n, frac_elapsed, "peaktime")
+    def _base_bands(
+        self, level: int, n: int, frac_elapsed: float
+    ) -> tuple[int, int, int, int]:
+        rem_band = self._band_scaled(
+            self._band(level, "remainder"), n, frac_elapsed, "remainder"
+        )
+        act_band = self._band_scaled(
+            self._band(level, "activity"), n, frac_elapsed, "activity"
+        )
+        peak_band = self._band_scaled(
+            self._band(level, "peak"), n, frac_elapsed, "peak"
+        )
+        ptime_band = self._band_scaled(
+            self._band(level, "peaktime"), n, frac_elapsed, "peaktime"
+        )
+        return rem_band, act_band, peak_band, ptime_band
 
-        # 90% ranges from matched samples (when available)
+    def _percentiles_or_none(self, data: list[int], lo: float, hi: float):
+        if not data:
+            return (None, None)
+        return self._percentiles(data, lo, hi)
+
+    def _simple_percentile_ranges(self, nxh_acts, peaks):
+        # Remainder from simple_model trimmed_afters (if any)
         rem_lo = rem_hi = None
-        if getattr(self, 'simple_model', None) and self.simple_model.state == OK and self.simple_model.trimmed_afters:
-            rem_lo, rem_hi = self._percentiles(self.simple_model.trimmed_afters, 0.05, 0.95)
-        act_lo = act_hi = None
-        if nxh_acts:
-            act_lo, act_hi = self._percentiles(nxh_acts, 0.05, 0.95)
+        if (
+            getattr(self, "simple_model", None)
+            and self.simple_model.state == OK
+            and self.simple_model.trimmed_afters
+        ):
+            rem_lo, rem_hi = self._percentiles(
+                self.simple_model.trimmed_afters, 0.05, 0.95
+            )
+
+        act_lo, act_hi = self._percentiles_or_none(nxh_acts, 0.05, 0.95)
+
         pk_lo = pk_hi = None
         ptime_lo = ptime_hi = None
         if peaks:
@@ -1174,82 +904,228 @@ class Estimator:
             tlo, thi = self._percentiles(ptmins, 0.05, 0.95)
             ptime_lo, ptime_hi = VTime(tlo), VTime(thi)
 
-        # Build table rows with added Range and %confidence columns, preserving existing text
-        def rng_str(lo, hi, is_time=False):
-            if lo is None or hi is None:
-                return ""
-            if is_time:
-                return f"{lo.short}-{hi.short}"
-            # Clamp lower bound of numeric ranges to 0 to avoid negatives
-            try:
-                lo_i = max(0, int(lo))
-                hi_i = int(hi)
-            except Exception:
-                return ""
-            return f"{lo_i}-{hi_i}"
+        return (rem_lo, rem_hi), (act_lo, act_hi), (pk_lo, pk_hi), (ptime_lo, ptime_hi)
 
-        # Prepare per-measure smooth confidences reflecting variation
-        # Remainder confidence: spread relative to center (use hi as scale if center small)
-        rem_spread = (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
-        rem_scale = max(1.0, float(remainder), float(rem_hi or 0)) if rem_spread is not None else None
-        conf_rem = self._smooth_conf(n, frac_elapsed, rem_spread, rem_scale)
+    def _rng_str(self, lo, hi, is_time: bool = False) -> str:
+        if lo is None or hi is None:
+            return ""
+        if is_time:
+            return f"{lo.short}-{hi.short}"
+        try:
+            lo_i = max(0, int(lo))
+            hi_i = int(hi)
+        except Exception:
+            return ""
+        return f"{lo_i}-{hi_i}"
 
-        # Peak value confidence
-        pk_spread = (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
-        pk_scale = max(1.0, float(peak_val), float(pk_hi or 0)) if pk_spread is not None else None
-        conf_pk = self._smooth_conf(n, frac_elapsed, pk_spread, pk_scale)
+    def _smooth_conf_wrapper(self, n: int, frac_elapsed: float, spread, scale):
+        return self._smooth_conf(n, frac_elapsed, spread, scale)
 
-        # Peak time confidence: minutes window relative to total span
-        pt_spread = ((ptime_hi.num - ptime_lo.num) if (ptime_lo is not None and ptime_hi is not None) else None)
+    def _simple_confidences(
+        self,
+        remainder: int,
+        nxh_activity: int,
+        peak_val: int,
+        ptime_bounds: tuple["VTime|None", "VTime|None"],
+        total_span: int,
+        rem_bounds,
+        act_bounds,
+        pk_bounds,
+        n: int,
+        frac_elapsed: float,
+    ):
+        rem_lo, rem_hi = rem_bounds
+        act_lo, act_hi = act_bounds
+        pk_lo, pk_hi = pk_bounds
+        ptime_lo, ptime_hi = ptime_bounds
+
+        rem_spread = (
+            (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
+        )
+        rem_scale = (
+            max(1.0, float(remainder), float(rem_hi or 0))
+            if rem_spread is not None
+            else None
+        )
+        conf_rem = self._smooth_conf_wrapper(n, frac_elapsed, rem_spread, rem_scale)
+
+        act_spread = (
+            (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
+        )
+        act_scale = (
+            max(1.0, float(nxh_activity), float(act_hi or 0))
+            if act_spread is not None
+            else None
+        )
+        conf_act = self._smooth_conf_wrapper(n, frac_elapsed, act_spread, act_scale)
+
+        pk_spread = (
+            (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
+        )
+        pk_scale = (
+            max(1.0, float(peak_val), float(pk_hi or 0))
+            if pk_spread is not None
+            else None
+        )
+        conf_pk = self._smooth_conf_wrapper(n, frac_elapsed, pk_spread, pk_scale)
+
+        pt_spread = (
+            (ptime_hi.num - ptime_lo.num)
+            if (ptime_lo is not None and ptime_hi is not None)
+            else None
+        )
         pt_scale = float(total_span) if pt_spread is not None else None
-        conf_pt = self._smooth_conf(n, frac_elapsed, pt_spread, pt_scale)
+        conf_pt = self._smooth_conf_wrapper(n, frac_elapsed, pt_spread, pt_scale)
 
-        # Next-hour activity confidence
-        act_spread = (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
-        act_scale = max(1.0, float(nxh_activity), float(act_hi or 0)) if act_spread is not None else None
-        conf_act = self._smooth_conf(n, frac_elapsed, act_spread, act_scale)
+        return conf_rem, conf_act, conf_pk, conf_pt
 
-        # Build three tables: Simple (median), Linear Regression, Schedule-Only Recent
-        t_end = VTime(min(self.as_of_when.num + 60, 24 * 60))
-        # Apply calibration residual bands if available to build model-specific ranges and margins
-        def _apply_calib(model_code: str, measure_code: str, point_val: int, base_band: int) -> tuple[str, int]:
-            band = base_band
-            rstr = ""
-            calib = self._calib_residual_band(model_code, measure_code, frac_elapsed)
-            if calib:
-                q05, q95 = calib
-                # Use symmetric margin as half-width (rounded)
-                half = int(round(max(0.0, (q95 - q05) / 2.0)))
-                band = max(base_band, half)
-                rstr = rng_str(int(point_val + q05), int(point_val + q95), False)
-            return rstr, band
+    def _apply_calib(
+        self,
+        model_code: str,
+        measure_code: str,
+        point_val: int,
+        base_band: int,
+        frac_elapsed: float,
+    ):
+        """Apply calibration residual band if available; return (range_str, adjusted_band)."""
+        band = base_band
+        rstr = ""
+        calib = self._calib_residual_band(model_code, measure_code, frac_elapsed)
+        if calib:
+            q05, q95 = calib
+            half = int(round(max(0.0, (q95 - q05) / 2.0)))
+            band = max(base_band, half)
+            rstr = self._rng_str(int(point_val + q05), int(point_val + q95), False)
+        return rstr, band
 
-        # Simple (SM)
-        sm_act_rng, sm_act_band = _apply_calib(self.MODEL_SM, "act", int(nxh_activity), act_band)
-        sm_fut_rng, sm_fut_band = _apply_calib(self.MODEL_SM, "fut", int(remainder), rem_band)
-        sm_pk_rng, sm_pk_band = _apply_calib(self.MODEL_SM, "peak", int(peak_val), peak_band)
-        simple_rows = [
-            (self._activity_label(t_end), f"{int(nxh_activity)}", f"+/- {sm_act_band}", sm_act_rng or rng_str(act_lo, act_hi, False), conf_act),
-            (self.MEAS_FURTHER, f"{int(remainder)}", f"+/- {sm_fut_band} bikes", sm_fut_rng or rng_str(rem_lo, rem_hi, False), conf_rem),
-            (self.MEAS_TIME_MAX, f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
-            (self.MEAS_MAX, f"{int(peak_val)}", f"+/- {sm_pk_band} bikes", sm_pk_rng or rng_str(pk_lo, pk_hi, False), conf_pk),
+    def _build_simple_rows(
+        self,
+        t_end: "VTime",
+        nxh_activity: int,
+        remainder: int,
+        peak_time: "VTime",
+        peak_val: int,
+        bands: tuple[int, int, int, int],
+        act_bounds,
+        rem_bounds,
+        pk_bounds,
+        ptime_bounds,
+        confs: tuple[str, str, str, str],
+        frac_elapsed: float,
+    ):
+        act_band, rem_band, peak_band, ptime_band = bands
+        act_lo, act_hi = act_bounds
+        rem_lo, rem_hi = rem_bounds
+        pk_lo, pk_hi = pk_bounds
+        ptime_lo, ptime_hi = ptime_bounds
+        conf_act, conf_rem, conf_pt, conf_pk = confs
+
+        sm_act_rng, sm_act_band = self._apply_calib(
+            self.MODEL_SM, "act", int(nxh_activity), act_band, frac_elapsed
+        )
+        sm_fut_rng, sm_fut_band = self._apply_calib(
+            self.MODEL_SM, "fut", int(remainder), rem_band, frac_elapsed
+        )
+        sm_pk_rng, sm_pk_band = self._apply_calib(
+            self.MODEL_SM, "peak", int(peak_val), peak_band, frac_elapsed
+        )
+
+        rows = [
+            (
+                self._activity_label(t_end),
+                f"{int(nxh_activity)}",
+                f"+/- {sm_act_band}",
+                sm_act_rng or self._rng_str(act_lo, act_hi, False),
+                conf_act,
+            ),
+            (
+                self.MEAS_FURTHER,
+                f"{int(remainder)}",
+                f"+/- {sm_fut_band} bikes",
+                sm_fut_rng or self._rng_str(rem_lo, rem_hi, False),
+                conf_rem,
+            ),
+            (
+                self.MEAS_TIME_MAX,
+                f"{peak_time.short}",
+                f"+/- {ptime_band} minutes",
+                self._rng_str(ptime_lo, ptime_hi, True),
+                conf_pt,
+            ),
+            (
+                self.MEAS_MAX,
+                f"{int(peak_val)}",
+                f"+/- {sm_pk_band} bikes",
+                sm_pk_rng or self._rng_str(pk_lo, pk_hi, False),
+                conf_pk,
+            ),
         ]
+        return rows
 
-        # Linear regression helpers
-        def _linreg(xs: list[float], ys: list[float]):
-            npts = len(xs)
-            if npts < 2:
-                return None
-            sx = sum(xs); sy = sum(ys)
-            sxx = sum(x*x for x in xs); sxy = sum(x*y for x, y in zip(xs, ys))
-            denom = npts * sxx - sx * sx
-            if denom == 0:
-                return None
-            a = (npts * sxy - sx * sy) / denom
-            b = (sy - a * sx) / npts
-            return a, b
+    def _linreg(self, xs: list[float], ys: list[float]):
+        npts = len(xs)
+        if npts < 2:
+            return None
+        sx = sum(xs)
+        sy = sum(ys)
+        sxx = sum(x * x for x in xs)
+        sxy = sum(x * y for x, y in zip(xs, ys))
+        denom = npts * sxx - sx * sx
+        if denom == 0:
+            return None
+        a = (npts * sxy - sx * sy) / denom
+        b = (sy - a * sx) / npts
+        return a, b
 
-        # Remainder via LR (befores->afters)
+    def _residual_ranges(self, xs: list[int], ys: list[int], coeff):
+        if not coeff:
+            return (None, None)
+        a, b = coeff
+        resids = [int(y - (a * float(x) + b)) for x, y in zip(xs, ys)]
+        if not resids:
+            return (None, None)
+        lo, hi = self._percentiles(resids, 0.05, 0.95)
+        return int(lo), int(hi)
+
+    def _rng_from_res(self, point: int, lo_res, hi_res) -> str:
+        if lo_res is None or hi_res is None:
+            return ""
+        return self._rng_str(point + lo_res, point + hi_res, False)
+
+    def _scale_band(
+        self, base: int, model_width: int | None, ref_width: int | None
+    ) -> int:
+        if model_width is None or ref_width is None or ref_width <= 0:
+            return base
+        import math
+
+        sf = math.sqrt(max(1, model_width) / max(1, ref_width))
+        sf = max(0.5, min(2.0, sf))
+        return int(round(base * sf))
+
+    def _build_lr_rows(
+        self,
+        t_end: "VTime",
+        remainder: int,
+        nxh_activity: int,
+        peak_val: int,
+        peak_time: "VTime",
+        all_acts: list[int],
+        all_peaks: list[int],
+        bands: tuple[int, int, int, int],
+        act_bounds,
+        rem_bounds,
+        pk_bounds,
+        ptime_bounds,
+        frac_elapsed: float,
+    ):
+        act_band, rem_band, peak_band, ptime_band = bands
+        act_lo, act_hi = act_bounds
+        rem_lo, rem_hi = rem_bounds
+        pk_lo, pk_hi = pk_bounds
+        ptime_lo, ptime_hi = ptime_bounds
+
+        # Remainder via LR model class (if available)
         lr_remainder = int(remainder)
         try:
             lr = LRModelNew()
@@ -1259,362 +1135,564 @@ class Estimator:
                 lr_remainder = int(lr.further_bikes)
         except Exception:
             pass
-        # Activity via LR (befores->activity)
+
+        # Activity via hand LR
+        coeff_act = self._linreg(
+            [float(x) for x in self.befores], [float(y) for y in all_acts]
+        )
         lr_act_val = int(nxh_activity)
-        coeff = _linreg([float(x) for x in self.befores], [float(y) for y in all_acts])
-        if coeff:
-            a, b = coeff
+        if coeff_act:
+            a, b = coeff_act
             lr_act_val = max(0, int(round(a * float(self.bikes_so_far) + b)))
-        # Peak via LR (befores->peak)
+
+        # Peak via hand LR
+        coeff_pk = self._linreg(
+            [float(x) for x in self.befores], [float(y) for y in all_peaks]
+        )
         lr_peak_val = int(peak_val)
-        coeff_p = _linreg([float(x) for x in self.befores], [float(y) for y in all_peaks])
-        if coeff_p:
-            ap, bp = coeff_p
+        if coeff_pk:
+            ap, bp = coeff_pk
             lr_peak_val = max(0, int(round(ap * float(self.bikes_so_far) + bp)))
-        # LR residual-based ranges and bands
-        def _resid_ranges(xs: list[int], ys: list[int], a_b):
-            if not a_b:
-                return None, None
-            a, b = a_b
-            resids = [int(y - (a * float(x) + b)) for x, y in zip(xs, ys)]
-            if not resids:
-                return None, None
-            lo, hi = self._percentiles(resids, 0.05, 0.95)
-            return int(lo), int(hi)
 
-        # Remainder residuals
-        rem_lo_res, rem_hi_res = _resid_ranges(self.befores, self.afters, _linreg([float(x) for x in self.befores], [float(y) for y in self.afters]))
-        # Activity residuals
-        act_lo_res, act_hi_res = _resid_ranges(self.befores, all_acts, coeff)
-        # Peak residuals
-        pk_lo_res, pk_hi_res = _resid_ranges(self.befores, all_peaks, coeff_p)
+        # Residual ranges
+        rem_lo_res, rem_hi_res = self._residual_ranges(
+            self.befores,
+            self.afters,
+            self._linreg(
+                [float(x) for x in self.befores], [float(y) for y in self.afters]
+            ),
+        )
+        act_lo_res, act_hi_res = self._residual_ranges(
+            self.befores, all_acts, coeff_act
+        )
+        pk_lo_res, pk_hi_res = self._residual_ranges(self.befores, all_peaks, coeff_pk)
 
-        # Compute LR 90% ranges by adding residual bounds to point predictions
-        def _rng_from_res(point: int, lo_res, hi_res):
-            if lo_res is None or hi_res is None:
-                return ""
-            return rng_str(point + lo_res, point + hi_res, False)
-
-        # Scale bands per-model using range width ratios (clamped)
-        def _scale_band(base: int, model_width: int | None, ref_width: int | None) -> int:
-            if model_width is None or ref_width is None or ref_width <= 0:
-                return base
-            import math
-            sf = math.sqrt(max(1, model_width) / max(1, ref_width))
-            sf = max(0.5, min(2.0, sf))
-            return int(round(base * sf))
-
-        # Reference (simple) widths
-        rem_w_ref = (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
-        act_w_ref = (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
-        pk_w_ref = (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
+        # Reference widths (Simple)
+        rem_w_ref = (
+            (rem_hi - rem_lo) if (rem_lo is not None and rem_hi is not None) else None
+        )
+        act_w_ref = (
+            (act_hi - act_lo) if (act_lo is not None and act_hi is not None) else None
+        )
+        pk_w_ref = (
+            (pk_hi - pk_lo) if (pk_lo is not None and pk_hi is not None) else None
+        )
 
         # LR widths
-        rem_w_lr = ((rem_hi_res - rem_lo_res) if (rem_lo_res is not None and rem_hi_res is not None) else None)
-        act_w_lr = ((act_hi_res - act_lo_res) if (act_lo_res is not None and act_hi_res is not None) else None)
-        pk_w_lr = ((pk_hi_res - pk_lo_res) if (pk_lo_res is not None and pk_hi_res is not None) else None)
+        rem_w_lr = (
+            (rem_hi_res - rem_lo_res)
+            if (rem_lo_res is not None and rem_hi_res is not None)
+            else None
+        )
+        act_w_lr = (
+            (act_hi_res - act_lo_res)
+            if (act_lo_res is not None and act_hi_res is not None)
+            else None
+        )
+        pk_w_lr = (
+            (pk_hi_res - pk_lo_res)
+            if (pk_lo_res is not None and pk_hi_res is not None)
+            else None
+        )
 
-        # Model-specific bands and calibrated ranges for LR
-        lr_act_rng, act_band_lr = _apply_calib(self.MODEL_LR, "act", lr_act_val, _scale_band(act_band, act_w_lr, act_w_ref))
-        lr_rem_rng, rem_band_lr = _apply_calib(self.MODEL_LR, "fut", lr_remainder, _scale_band(rem_band, rem_w_lr, rem_w_ref))
-        lr_pk_rng, pk_band_lr = _apply_calib(self.MODEL_LR, "peak", lr_peak_val, _scale_band(peak_band, pk_w_lr, pk_w_ref))
-        pt_band_lr = ptime_band  # keep same for time for now
+        # Model-specific bands (scaled) + calibration
+        lr_act_rng, act_band_lr = self._apply_calib(
+            self.MODEL_LR,
+            "act",
+            lr_act_val,
+            self._scale_band(act_band, act_w_lr, act_w_ref),
+            frac_elapsed,
+        )
+        lr_rem_rng, rem_band_lr = self._apply_calib(
+            self.MODEL_LR,
+            "fut",
+            lr_remainder,
+            self._scale_band(rem_band, rem_w_lr, rem_w_ref),
+            frac_elapsed,
+        )
+        lr_pk_rng, pk_band_lr = self._apply_calib(
+            self.MODEL_LR,
+            "peak",
+            lr_peak_val,
+            self._scale_band(peak_band, pk_w_lr, pk_w_ref),
+            frac_elapsed,
+        )
+        pt_band_lr = ptime_band  # time kept same
 
-        # Model-specific confidences
-        conf_rem_lr = self._smooth_conf(len(self.befores), frac_elapsed, rem_w_lr, max(1.0, float(lr_remainder)))
-        conf_act_lr = self._smooth_conf(len(self.befores), frac_elapsed, act_w_lr, max(1.0, float(lr_act_val)))
-        conf_pk_lr = self._smooth_conf(len(self.befores), frac_elapsed, pk_w_lr, max(1.0, float(lr_peak_val)))
-        conf_pt_lr = conf_pt
+        # Confidences
+        conf_rem_lr = self._smooth_conf(
+            len(self.befores), frac_elapsed, rem_w_lr, max(1.0, float(lr_remainder))
+        )
+        conf_act_lr = self._smooth_conf(
+            len(self.befores), frac_elapsed, act_w_lr, max(1.0, float(lr_act_val))
+        )
+        conf_pk_lr = self._smooth_conf(
+            len(self.befores), frac_elapsed, pk_w_lr, max(1.0, float(lr_peak_val))
+        )
+        conf_pt_lr = self._smooth_conf(
+            len(self.befores), frac_elapsed, None, None
+        )  # same as simple
 
-        lr_rows = [
-            (self._activity_label(t_end), f"{lr_act_val}", f"+/- {act_band_lr}", lr_act_rng or _rng_from_res(lr_act_val, act_lo_res, act_hi_res), conf_act_lr),
-            (self.MEAS_FURTHER, f"{lr_remainder}", f"+/- {rem_band_lr} bikes", lr_rem_rng or _rng_from_res(lr_remainder, rem_lo_res, rem_hi_res), conf_rem_lr),
-            (self.MEAS_TIME_MAX, f"{peak_time.short}", f"+/- {pt_band_lr} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt_lr),
-            (self.MEAS_MAX, f"{lr_peak_val}", f"+/- {pk_band_lr} bikes", lr_pk_rng or _rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res), conf_pk_lr),
+        rows = [
+            (
+                self._activity_label(t_end),
+                f"{lr_act_val}",
+                f"+/- {act_band_lr}",
+                lr_act_rng or self._rng_from_res(lr_act_val, act_lo_res, act_hi_res),
+                conf_act_lr,
+            ),
+            (
+                self.MEAS_FURTHER,
+                f"{lr_remainder}",
+                f"+/- {rem_band_lr} bikes",
+                lr_rem_rng or self._rng_from_res(lr_remainder, rem_lo_res, rem_hi_res),
+                conf_rem_lr,
+            ),
+            (
+                self.MEAS_TIME_MAX,
+                f"{peak_time.short}",
+                f"+/- {pt_band_lr} minutes",
+                self._rng_str(ptime_lo, ptime_hi, True),
+                conf_pt_lr,
+            ),
+            (
+                self.MEAS_MAX,
+                f"{lr_peak_val}",
+                f"+/- {pk_band_lr} bikes",
+                lr_pk_rng or self._rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res),
+                conf_pk_lr,
+            ),
         ]
+        return rows
 
-        # Schedule-only recent model (ignores bikes_so_far; uses recent N similar days)
-        recent_n = int(getattr(wcfg, "EST_RECENT_DAYS", 30))
-        # Map date -> after (remainder proxy)
-        date_to_after = {d: int(self.afters[i]) for i, d in enumerate(self.similar_dates) if i < len(self.afters)}
-        # Pick most recent similar dates
+    def _build_recent_rows(
+        self,
+        t_end: "VTime",
+        remainder_baseline: int,
+        nxh_activity_baseline: int,
+        peak_val_baseline: int,
+        peak_time_baseline: "VTime",
+        bands: tuple[int, int, int, int],
+        frac_elapsed: float,
+    ):
+        import statistics as _st
+
+        act_band, rem_band, peak_band, ptime_band = bands
+
+        # recent_n defaults
+        recent_n = (
+            int(getattr(wcfg, "EST_RECENT_DAYS", 30)) if "wcfg" in globals() else 30
+        )
+
+        # Map date -> after (proxy) from pre-aggregated self.afters
+        date_to_after = {
+            d: int(self.afters[i])
+            for i, d in enumerate(self.similar_dates)
+            if i < len(self.afters)
+        }
         rec_dates = sorted(self.similar_dates, reverse=True)[:recent_n]
-        # Build lists for recent window
-        rec_acts: list[int] = []
-        rec_afters: list[int] = []
-        rec_peaks: list[int] = []
-        rec_ptimes: list[int] = []
+
+        rec_acts, rec_afters, rec_peaks, rec_ptimes = [], [], [], []
         for d in rec_dates:
             vlist = self._visits_for_date(d)
             _b3, _a3, _o3, ins3, outs3 = self._counts_for_time(vlist, self.as_of_when)
             rec_acts.append(int(ins3 + outs3))
-            # afters from pre-aggregated if available
             if d in date_to_after:
                 rec_afters.append(int(date_to_after[d]))
             else:
-                # fallback compute 'after' by counting ins after now
                 _btmp, _atmp, *_ = self._counts_for_time(vlist, self.as_of_when)
                 rec_afters.append(int(_atmp))
             p3, pt3 = self._peak_all_day_occupancy(vlist)
             rec_peaks.append(int(p3))
             rec_ptimes.append(int(pt3.num))
 
-        # Predictions as medians over recent window
-        import statistics as _st
-        rec_act_val = int(_st.median(rec_acts)) if rec_acts else int(nxh_activity)
-        rec_rem_val = int(_st.median(rec_afters)) if rec_afters else int(remainder)
-        rec_peak_val = int(_st.median(rec_peaks)) if rec_peaks else int(peak_val)
-        rec_ptime_val = VTime(int(_st.median(rec_ptimes))) if rec_ptimes else peak_time
+        rec_act_val = (
+            int(_st.median(rec_acts)) if rec_acts else int(nxh_activity_baseline)
+        )
+        rec_rem_val = (
+            int(_st.median(rec_afters)) if rec_afters else int(remainder_baseline)
+        )
+        rec_peak_val = (
+            int(_st.median(rec_peaks)) if rec_peaks else int(peak_val_baseline)
+        )
+        rec_ptime_val = (
+            VTime(int(_st.median(rec_ptimes))) if rec_ptimes else peak_time_baseline
+        )
 
-        # Ranges over recents
-        r_act_lo, r_act_hi = self._percentiles(rec_acts, 0.05, 0.95) if rec_acts else (None, None)
-        r_rem_lo, r_rem_hi = self._percentiles(rec_afters, 0.05, 0.95) if rec_afters else (None, None)
-        r_pk_lo, r_pk_hi = self._percentiles(rec_peaks, 0.05, 0.95) if rec_peaks else (None, None)
-        _pt_lo, _pt_hi = self._percentiles(rec_ptimes, 0.05, 0.95) if rec_ptimes else (None, None)
-        r_pt_lo, r_pt_hi = (VTime(_pt_lo), VTime(_pt_hi)) if (_pt_lo is not None and _pt_hi is not None) else (None, None)
+        # 90% ranges
+        r_act_lo, r_act_hi = (
+            self._percentiles(rec_acts, 0.05, 0.95) if rec_acts else (None, None)
+        )
+        r_rem_lo, r_rem_hi = (
+            self._percentiles(rec_afters, 0.05, 0.95) if rec_afters else (None, None)
+        )
+        r_pk_lo, r_pk_hi = (
+            self._percentiles(rec_peaks, 0.05, 0.95) if rec_peaks else (None, None)
+        )
+        _pt_lo, _pt_hi = (
+            self._percentiles(rec_ptimes, 0.05, 0.95) if rec_ptimes else (None, None)
+        )
+        r_pt_lo, r_pt_hi = (
+            (VTime(_pt_lo), VTime(_pt_hi))
+            if (_pt_lo is not None and _pt_hi is not None)
+            else (None, None)
+        )
 
-        # Model-specific bands via width scaling
-        r_act_w = (r_act_hi - r_act_lo) if (r_act_lo is not None and r_act_hi is not None) else None
-        r_rem_w = (r_rem_hi - r_rem_lo) if (r_rem_lo is not None and r_rem_hi is not None) else None
-        r_pk_w = (r_pk_hi - r_pk_lo) if (r_pk_lo is not None and r_pk_hi is not None) else None
-        # Apply calibration to REC as well
-        rec_act_rng, act_band_rec = _apply_calib(self.MODEL_REC, "act", rec_act_val, _scale_band(act_band, r_act_w, act_w_ref))
-        rec_rem_rng, rem_band_rec = _apply_calib(self.MODEL_REC, "fut", rec_rem_val, _scale_band(rem_band, r_rem_w, rem_w_ref))
-        rec_pk_rng, pk_band_rec = _apply_calib(self.MODEL_REC, "peak", rec_peak_val, _scale_band(peak_band, r_pk_w, pk_w_ref))
+        # Widths
+        r_act_w = (
+            (r_act_hi - r_act_lo)
+            if (r_act_lo is not None and r_act_hi is not None)
+            else None
+        )
+        r_rem_w = (
+            (r_rem_hi - r_rem_lo)
+            if (r_rem_lo is not None and r_rem_hi is not None)
+            else None
+        )
+        r_pk_w = (
+            (r_pk_hi - r_pk_lo)
+            if (r_pk_lo is not None and r_pk_hi is not None)
+            else None
+        )
+
+        # Reference widths from simple for scaling; if missing, fall back to recent widths
+        # (They’ll be used only in _scale_band guard-railed.)
+        # We'll re-compute simple widths here safely from precomputed simple quantiles (not passed).
+        # If you want exact scaling vs simple, pass those widths in from caller.
+        act_w_ref = r_act_w
+        rem_w_ref = r_rem_w
+        pk_w_ref = r_pk_w
+
+        # Apply calibration & scaling
+        rec_act_rng, act_band_rec = self._apply_calib(
+            self.MODEL_REC,
+            "act",
+            rec_act_val,
+            self._scale_band(act_band, r_act_w, act_w_ref),
+            frac_elapsed,
+        )
+        rec_rem_rng, rem_band_rec = self._apply_calib(
+            self.MODEL_REC,
+            "fut",
+            rec_rem_val,
+            self._scale_band(rem_band, r_rem_w, rem_w_ref),
+            frac_elapsed,
+        )
+        rec_pk_rng, pk_band_rec = self._apply_calib(
+            self.MODEL_REC,
+            "peak",
+            rec_peak_val,
+            self._scale_band(peak_band, r_pk_w, pk_w_ref),
+            frac_elapsed,
+        )
         pt_band_rec = ptime_band
 
-        # Confidences for recents (n = #recent dates used)
-        conf_act_rec = self._smooth_conf(len(rec_dates), frac_elapsed, r_act_w, max(1.0, float(rec_act_val)))
-        conf_rem_rec = self._smooth_conf(len(rec_dates), frac_elapsed, r_rem_w, max(1.0, float(rec_rem_val)))
-        conf_pk_rec = self._smooth_conf(len(rec_dates), frac_elapsed, r_pk_w, max(1.0, float(rec_peak_val)))
-        conf_pt_rec = conf_pt
+        # Confidences (n = # recent dates)
+        conf_act_rec = self._smooth_conf(
+            len(rec_dates), frac_elapsed, r_act_w, max(1.0, float(rec_act_val))
+        )
+        conf_rem_rec = self._smooth_conf(
+            len(rec_dates), frac_elapsed, r_rem_w, max(1.0, float(rec_rem_val))
+        )
+        conf_pk_rec = self._smooth_conf(
+            len(rec_dates), frac_elapsed, r_pk_w, max(1.0, float(rec_peak_val))
+        )
+        conf_pt_rec = self._smooth_conf(len(rec_dates), frac_elapsed, None, None)
 
-        rec_rows = [
-            (self._activity_label(t_end), f"{rec_act_val}", f"+/- {act_band_rec}", rec_act_rng or rng_str(r_act_lo, r_act_hi, False), conf_act_rec),
-            (self.MEAS_FURTHER, f"{rec_rem_val}", f"+/- {rem_band_rec} bikes", rec_rem_rng or rng_str(r_rem_lo, r_rem_hi, False), conf_rem_rec),
-            (self.MEAS_TIME_MAX, f"{rec_ptime_val.short}", f"+/- {pt_band_rec} minutes", rng_str(r_pt_lo, r_pt_hi, True), conf_pt_rec),
-            (self.MEAS_MAX, f"{rec_peak_val}", f"+/- {pk_band_rec} bikes", rec_pk_rng or rng_str(r_pk_lo, r_pk_hi, False), conf_pk_rec),
+        rows = [
+            (
+                self._activity_label(t_end),
+                f"{rec_act_val}",
+                f"+/- {act_band_rec}",
+                rec_act_rng or self._rng_str(r_act_lo, r_act_hi, False),
+                conf_act_rec,
+            ),
+            (
+                self.MEAS_FURTHER,
+                f"{rec_rem_val}",
+                f"+/- {rem_band_rec} bikes",
+                rec_rem_rng or self._rng_str(r_rem_lo, r_rem_hi, False),
+                conf_rem_rec,
+            ),
+            (
+                self.MEAS_TIME_MAX,
+                f"{rec_ptime_val.short}",
+                f"+/- {pt_band_rec} minutes",
+                self._rng_str(r_pt_lo, r_pt_hi, True),
+                conf_pt_rec,
+            ),
+            (
+                self.MEAS_MAX,
+                f"{rec_peak_val}",
+                f"+/- {pk_band_rec} bikes",
+                rec_pk_rng or self._rng_str(r_pk_lo, r_pk_hi, False),
+                conf_pk_rec,
+            ),
         ]
+        return rows
 
-        # Random Forest model (if available)
-        rf_rows: list[tuple[str, str, str, str, str]] = []
+    def _rf_possible(self) -> bool:
+        return "rf" in globals() and getattr(rf, "POSSIBLE", False)
+
+    def _build_rf_rows(
+        self,
+        t_end: "VTime",
+        remainder_baseline: int,
+        nxh_activity_baseline: int,
+        peak_val_baseline: int,
+        peak_time: "VTime",
+        bands: tuple[int, int, int, int],
+        act_bounds,
+        rem_bounds,
+        pk_bounds,
+        ptime_bounds,
+        frac_elapsed: float,
+    ):
+        if not self._rf_possible():
+            return []
+
+        act_band, rem_band, peak_band, ptime_band = bands
+        act_lo, act_hi = act_bounds
+        rem_lo, rem_hi = rem_bounds
+        pk_lo, pk_hi = pk_bounds
+        ptime_lo, ptime_hi = ptime_bounds
+
+        import numpy as _np
+
+        # Train RF models
+        rf_fut = rf.RandomForestRegressorModel()
+        rf_fut.create_model(self.similar_dates, self.befores, self.afters)
+        rf_fut.guess(self.bikes_so_far)
+        rf_remainder = (
+            int(rf_fut.further_bikes)
+            if rf_fut.state == OK and rf_fut.further_bikes is not None
+            else int(remainder_baseline)
+        )
+
+        # activity
+        # Build all_acts from similar dates for consistency
+        all_acts, all_peaks, _ = self._collect_all_stats_for_similar()
+        rf_act = rf.RandomForestRegressorModel()
+        rf_act.create_model(self.similar_dates, self.befores, all_acts)
+        rf_act.guess(self.bikes_so_far)
+        rf_act_val = (
+            int(rf_act.further_bikes)
+            if rf_act.state == OK and rf_act.further_bikes is not None
+            else int(nxh_activity_baseline)
+        )
+
+        # peak
+        rf_pk = rf.RandomForestRegressorModel()
+        rf_pk.create_model(self.similar_dates, self.befores, all_peaks)
+        rf_pk.guess(self.bikes_so_far)
+        rf_peak_val = (
+            int(rf_pk.further_bikes)
+            if rf_pk.state == OK and rf_pk.further_bikes is not None
+            else int(peak_val_baseline)
+        )
+
+        def _rf_residuals(model, y_true: list[int]):
+            try:
+                preds = model.rf_model.predict(_np.array(self.befores).reshape(-1, 1))
+                res = [int(y - int(round(p))) for y, p in zip(y_true, preds)]
+                if not res:
+                    return None, None, None
+                lo, hi = self._percentiles(res, 0.05, 0.95)
+                return int(lo), int(hi), int(hi - lo)
+            except Exception:
+                return None, None, None
+
+        fut_lo_res, fut_hi_res, fut_w = _rf_residuals(rf_fut, self.afters)
+        act_lo_res, act_hi_res, act_w = _rf_residuals(rf_act, all_acts)
+        pk_lo_res, pk_hi_res, pk_w = _rf_residuals(rf_pk, all_peaks)
+
+        # Bands scaled & calibrated
+        rf_rem_rng = self._rng_from_res(rf_remainder, fut_lo_res, fut_hi_res)
+        rf_act_rng = self._rng_from_res(rf_act_val, act_lo_res, act_hi_res)
+        rf_pk_rng = self._rng_from_res(rf_peak_val, pk_lo_res, pk_hi_res)
+
+        rem_band_rf = self._scale_band(rem_band, fut_w, None)
+        act_band_rf = self._scale_band(act_band, act_w, None)
+        pk_band_rf = self._scale_band(peak_band, pk_w, None)
+
+        cal_act_rng, act_band_rf = self._apply_calib(
+            self.MODEL_RF, "act", rf_act_val, act_band_rf, frac_elapsed
+        )
+        cal_fut_rng, rem_band_rf = self._apply_calib(
+            self.MODEL_RF, "fut", rf_remainder, rem_band_rf, frac_elapsed
+        )
+        cal_pk_rng, pk_band_rf = self._apply_calib(
+            self.MODEL_RF, "peak", rf_peak_val, pk_band_rf, frac_elapsed
+        )
+
+        if cal_act_rng:
+            rf_act_rng = cal_act_rng
+        if cal_fut_rng:
+            rf_rem_rng = cal_fut_rng
+        if cal_pk_rng:
+            rf_pk_rng = cal_pk_rng
+
+        conf_rem_rf = self._smooth_conf(
+            len(self.befores), frac_elapsed, fut_w, max(1.0, float(rf_remainder))
+        )
+        conf_act_rf = self._smooth_conf(
+            len(self.befores), frac_elapsed, act_w, max(1.0, float(rf_act_val))
+        )
+        conf_pk_rf = self._smooth_conf(
+            len(self.befores), frac_elapsed, pk_w, max(1.0, float(rf_peak_val))
+        )
+        conf_pt = self._smooth_conf(len(self.befores), frac_elapsed, None, None)
+
+        rows = [
+            (
+                self._activity_label(t_end),
+                f"{rf_act_val}",
+                f"+/- {act_band_rf}",
+                rf_act_rng or self._rng_str(act_lo, act_hi, False),
+                conf_act_rf,
+            ),
+            (
+                self.MEAS_FURTHER,
+                f"{rf_remainder}",
+                f"+/- {rem_band_rf} bikes",
+                rf_rem_rng or self._rng_str(rem_lo, rem_hi, False),
+                conf_rem_rf,
+            ),
+            (
+                self.MEAS_TIME_MAX,
+                f"{peak_time.short}",
+                f"+/- {ptime_band} minutes",
+                self._rng_str(ptime_lo, ptime_hi, True),
+                conf_pt,
+            ),
+            (
+                self.MEAS_MAX,
+                f"{rf_peak_val}",
+                f"+/- {pk_band_rf} bikes",
+                rf_pk_rng or self._rng_str(pk_lo, pk_hi, False),
+                conf_pk_rf,
+            ),
+        ]
+        return rows
+
+    def _parse_conf(self, pct: str) -> int:
         try:
-            if getattr(rf, 'POSSIBLE', False):
-                import numpy as _np  # available if rf.POSSIBLE
-                # Remainder
-                rf_fut = rf.RandomForestRegressorModel()
-                rf_fut.create_model(self.similar_dates, self.befores, self.afters)
-                rf_fut.guess(self.bikes_so_far)
-                rf_remainder = int(rf_fut.further_bikes) if rf_fut.state == OK and rf_fut.further_bikes is not None else int(remainder)
-                # Activity
-                rf_act = rf.RandomForestRegressorModel()
-                rf_act.create_model(self.similar_dates, self.befores, all_acts)
-                rf_act.guess(self.bikes_so_far)
-                rf_act_val = int(rf_act.further_bikes) if rf_act.state == OK and rf_act.further_bikes is not None else int(nxh_activity)
-                # Peak
-                rf_pk = rf.RandomForestRegressorModel()
-                rf_pk.create_model(self.similar_dates, self.befores, all_peaks)
-                rf_pk.guess(self.bikes_so_far)
-                rf_peak_val = int(rf_pk.further_bikes) if rf_pk.state == OK and rf_pk.further_bikes is not None else int(peak_val)
-
-                # Residual ranges from training predictions
-                def _rf_residuals(model, y_true: list[int]) -> tuple[int|None, int|None, int|None]:
-                    try:
-                        preds = model.rf_model.predict(_np.array(self.befores).reshape(-1,1))
-                        res = [int(y - int(round(p))) for y, p in zip(y_true, preds)]
-                        if not res:
-                            return None, None, None
-                        lo, hi = self._percentiles(res, 0.05, 0.95)
-                        return int(lo), int(hi), int(hi - lo)
-                    except Exception:
-                        return None, None, None
-
-                fut_lo_res, fut_hi_res, fut_w = _rf_residuals(rf_fut, self.afters)
-                act_lo_res, act_hi_res, act_w = _rf_residuals(rf_act, all_acts)
-                pk_lo_res, pk_hi_res, pk_w = _rf_residuals(rf_pk, all_peaks)
-
-                # Build RF rows using residual-derived ranges and scaled bands
-                rf_rem_rng = _rng_from_res(rf_remainder, fut_lo_res, fut_hi_res)
-                rf_act_rng = _rng_from_res(rf_act_val, act_lo_res, act_hi_res)
-                rf_pk_rng = _rng_from_res(rf_peak_val, pk_lo_res, pk_hi_res)
-                rem_band_rf = _scale_band(rem_band, fut_w, rem_w_ref)
-                act_band_rf = _scale_band(act_band, act_w, act_w_ref)
-                pk_band_rf = _scale_band(peak_band, pk_w, pk_w_ref)
-                # Prefer calibrated residual bands if present (align coverage)
-                cal_act_rng, act_band_rf = _apply_calib(self.MODEL_RF, "act", rf_act_val, act_band_rf)
-                cal_fut_rng, rem_band_rf = _apply_calib(self.MODEL_RF, "fut", rf_remainder, rem_band_rf)
-                cal_pk_rng, pk_band_rf = _apply_calib(self.MODEL_RF, "peak", rf_peak_val, pk_band_rf)
-                if cal_act_rng:
-                    rf_act_rng = cal_act_rng
-                if cal_fut_rng:
-                    rf_rem_rng = cal_fut_rng
-                if cal_pk_rng:
-                    rf_pk_rng = cal_pk_rng
-
-                conf_rem_rf = self._smooth_conf(len(self.befores), frac_elapsed, fut_w, max(1.0, float(rf_remainder)))
-                conf_act_rf = self._smooth_conf(len(self.befores), frac_elapsed, act_w, max(1.0, float(rf_act_val)))
-                conf_pk_rf = self._smooth_conf(len(self.befores), frac_elapsed, pk_w, max(1.0, float(rf_peak_val)))
-
-                rf_rows = [
-                    (self._activity_label(t_end), f"{rf_act_val}", f"+/- {act_band_rf}", rf_act_rng or rng_str(act_lo, act_hi, False), conf_act_rf),
-                    (self.MEAS_FURTHER, f"{rf_remainder}", f"+/- {rem_band_rf} bikes", rf_rem_rng or rng_str(rem_lo, rem_hi, False), conf_rem_rf),
-                    (self.MEAS_TIME_MAX, f"{peak_time.short}", f"+/- {ptime_band} minutes", rng_str(ptime_lo, ptime_hi, True), conf_pt),
-                    (self.MEAS_MAX, f"{rf_peak_val}", f"+/- {pk_band_rf} bikes", rf_pk_rng or rng_str(pk_lo, pk_hi, False), conf_pk_rf),
-                ]
+            return int(str(pct).strip().strip("%"))
         except Exception:
-            rf_rows = []
+            return 0
 
-        # Build a Mixed table choosing best per measure across models
-        def _parse_conf(pct: str) -> int:
+    def _range_width(self, rng: str, is_time: bool) -> int:
+        if not rng:
+            return 10**9
+        try:
+            a, b = rng.split("-", 1)
+            if is_time:
+                va = VTime(a.strip())
+                vb = VTime(b.strip())
+                if not va or not vb:
+                    return 10**9
+                return max(0, int(vb.num) - int(va.num))
+            return abs(int(str(b).strip()) - int(str(a).strip()))
+        except Exception:
+            return 10**9
+
+    def _measure_key_by_index(self, i: int) -> str | None:
+        # 0=activity, 1=further, 2=peaktime, 3=peak
+        return "act" if i == 0 else ("fut" if i == 1 else ("peak" if i == 3 else None))
+
+    def _select_by_narrowest_then_conf(self, cands: list[tuple[int, int, str, tuple]]):
+        cands.sort()  # width asc, then -conf asc
+        return cands[0]
+
+    def _best_candidate_accuracy_first(self, i: int, cands, frac: float, cohort_n: int):
+        meas_key = self._measure_key_by_index(i)
+        # Try calibration-best model
+        if getattr(self, "_calib_best", None) and meas_key:
+            lbl = self._bin_label(frac)
             try:
-                return int(str(pct).strip().strip('%'))
+                pref = self._calib_best.get(meas_key, {}).get(lbl)
             except Exception:
-                return 0
-        def _range_width(rng: str, is_time: bool) -> int:
-            if not rng:
-                return 10**9
-            try:
-                a, b = rng.split('-', 1)
-                if is_time:
-                    va = VTime(a.strip())
-                    vb = VTime(b.strip())
-                    if not va or not vb:
-                        return 10**9
-                    return max(0, int(vb.num) - int(va.num))
-                return abs(int(str(b).strip()) - int(str(a).strip()))
-            except Exception:
-                return 10**9
+                pref = None
+            if pref:
+                for cand in cands:
+                    if cand[2] == pref:
+                        return cand, f"calibrated best_model {pref} for bin {lbl}"
+        # Guardrail: prefer robust SM/REC with tiny cohort or missing calib
+        guard_min = (
+            int(getattr(wcfg, "EST_MIN_COHORT_FOR_SELECTION", 4))
+            if "wcfg" in globals()
+            else 4
+        )
+        if cohort_n < guard_min or not getattr(self, "_calib_best", None):
+            for target in [self.MODEL_SM, self.MODEL_REC]:
+                for cand in cands:
+                    if cand[2] == target:
+                        return cand, f"guardrail: n={cohort_n}; prefer {target}"
+        # Fallback: narrowest then conf
+        best = self._select_by_narrowest_then_conf(cands)
+        width, neg_conf, mdl, _row = best
+        return best, f"narrowest range width {width}; conf {abs(neg_conf)}%"
 
-        # Selection helpers (encapsulated)
-        def _measure_key_by_index(i: int) -> str | None:
-            # 0=activity, 1=further, 2=peaktime (no calibration key), 3=peak
-            return 'act' if i == 0 else ('fut' if i == 1 else ('peak' if i == 3 else None))
-
-        def _select_by_narrowest_then_conf(cands: list[tuple[int, int, str, tuple]]):
-            # Old strategy: narrowest 90% range first, then higher confidence
-            cands.sort()  # width asc, then -conf asc
-            return cands[0]
-
-        def _select_best_candidate(i: int, cands: list[tuple[int, int, str, tuple]], frac: float, cohort_n: int):
-            # New strategy (accuracy-first):
-            # 1) calibration best_model (by MAE) for this measure/bin if present
-            # 2) narrowest 90% range
-            # 3) higher confidence
-            meas_key = _measure_key_by_index(i)
-            # Try calibration-guided best
-            if self._calib_best and meas_key:
-                lbl = self._bin_label(frac)
-                try:
-                    pref = self._calib_best.get(meas_key, {}).get(lbl)
-                except Exception:
-                    pref = None
-                if pref:
-                    # Find candidate with preferred model code
-                    for cand in cands:
-                        if cand[2] == pref:
-                            return cand, f"calibrated best_model {pref} for bin {lbl}"
-            # Guardrail: tiny cohort or no calibration -> prefer robust SM then REC
-            try:
-                guard_min = int(getattr(wcfg, "EST_MIN_COHORT_FOR_SELECTION", 4))
-            except Exception:
-                guard_min = 4
-            if cohort_n < guard_min or not self._calib_best:
-                for target in [self.MODEL_SM, self.MODEL_REC]:
-                    for cand in cands:
-                        if cand[2] == target:
-                            return cand, f"guardrail: n={cohort_n}; prefer {target}"
-            # Fallback to narrowest + confidence
-            best = _select_by_narrowest_then_conf(cands)
+    def _select_dispatch(self, mode: str, i: int, cands, frac: float, cohort_n: int):
+        mode = str(mode or "accuracy_first").strip().lower()
+        if mode == "range_first":
+            best = self._select_by_narrowest_then_conf(cands)
             width, neg_conf, mdl, _row = best
-            return best, f"narrowest range width {width}; conf {abs(neg_conf)}%"
+            return (
+                best,
+                f"range-first: narrowest range width {width}; conf {abs(neg_conf)}%",
+            )
+        return self._best_candidate_accuracy_first(i, cands, frac, cohort_n)
 
-        def _select_candidate(i: int, cands: list[tuple[int, int, str, tuple]], frac: float, cohort_n: int):
-            mode = str(getattr(wcfg, "EST_SELECTION_MODE", "accuracy_first")).strip().lower()
-            if mode == "range_first":
-                best = _select_by_narrowest_then_conf(cands)
-                width, neg_conf, mdl, _row = best
-                return best, f"legacy: narrowest range width {width}; conf {abs(neg_conf)}%"
-            # default accuracy-first
-            return _select_best_candidate(i, cands, frac, cohort_n)
-
-        # Map measure title to index in consistent row lists
-        # All lists are in identical order matching our desired display
+    def _select_rows(
+        self, t_end: "VTime", tables_by_model: dict, frac_elapsed: float, cohort_n: int
+    ):
         measures = [
-            self._activity_label(t_end),
-            self.MEAS_FURTHER,
-            self.MEAS_TIME_MAX,
-            self.MEAS_MAX,
+            self._activity_label(t_end),  # index 0
+            self.MEAS_FURTHER,  # index 1
+            self.MEAS_TIME_MAX,  # index 2
+            self.MEAS_MAX,  # index 3
         ]
-        tables_by_model = {
-            self.MODEL_SM: simple_rows,
-            self.MODEL_LR: lr_rows,
-            self.MODEL_REC: rec_rows,
-        }
-        # Include Random Forest in mixed selection if available
-        if rf_rows:
-            tables_by_model[self.MODEL_RF] = rf_rows
         mixed_rows: list[tuple[str, str, str, str, str]] = []
         mixed_models: list[str] = []
-        # Selected rows per model code (SM/LR/REC/RF)
         selected_by_model: dict[str, set[int]] = {
-            self.MODEL_SM: set(), self.MODEL_LR: set(), self.MODEL_REC: set(), self.MODEL_RF: set()
+            self.MODEL_SM: set(),
+            self.MODEL_LR: set(),
+            self.MODEL_REC: set(),
+            self.MODEL_RF: set(),
         }
-        # Track selection rationale for FULL diagnostics
-        self._selection_info: list[str] = []
+        selection_info: list[str] = []
+
         for idx, title_txt in enumerate(measures):
-            # Collect candidates (model, row)
+            # Gather candidates across models
             candidates = []
             for mdl_code, rows in tables_by_model.items():
                 if idx >= len(rows):
                     continue
-                r = rows[idx]
-                # r = (measure, value, margin, range, conf)
+                r = rows[idx]  # (measure, value, margin, range, conf)
                 rng = r[3]
-                is_time = (idx == 2)
-                width = _range_width(rng, is_time)
-                confv = _parse_conf(r[4])
+                is_time = idx == 2
+                width = self._range_width(rng, is_time)
+                confv = self._parse_conf(r[4])
                 candidates.append((width, -confv, mdl_code, r))
             if not candidates:
                 continue
-            # Select best candidate per encapsulated strategy
-            # Selection mode and bin label are passed for richer rationale
-            sel_mode = str(getattr(wcfg, "EST_SELECTION_MODE", "accuracy_first"))
-            bin_lbl = self._bin_label(frac_elapsed)
-            best, why = _select_dispatch(sel_mode, self._calib_best, idx, candidates, frac_elapsed, n, int(getattr(wcfg, "EST_MIN_COHORT_FOR_SELECTION", 4)), None, bin_lbl)
+
+            sel_mode = (
+                str(getattr(wcfg, "EST_SELECTION_MODE", "accuracy_first"))
+                if "wcfg" in globals()
+                else "accuracy_first"
+            )
+            best, why = self._select_dispatch(
+                sel_mode, idx, candidates, frac_elapsed, cohort_n
+            )
             mixed_rows.append(best[3])
             mixed_models.append(best[2])
-            try:
-                if best[2] in selected_by_model:
-                    selected_by_model[best[2]].add(idx)
-            except Exception:
-                pass
-            # Save rationale text
-            self._selection_info.append(
-                f"Chosen: {best[2]} for '{title_txt}' ({why})"
-            )
+            if best[2] in selected_by_model:
+                selected_by_model[best[2]].add(idx)
+            selection_info.append(f"Chosen: {best[2]} for '{title_txt}' ({why})")
 
-        # Store tables for rendering (Mixed first). Include model code alongside title and rows
-        # Each entry: (title, rows, model_code or None for Mixed)
-        self.tables: list[tuple[str, list[tuple[str, str, str, str, str]], str | None]] = [
-            ("Best Guess Estimates", mixed_rows, None),
-            (f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model", simple_rows, self.MODEL_SM),
-            (f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model", lr_rows, self.MODEL_LR),
-            (f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model", rec_rows, self.MODEL_REC),
-        ]
-        # Always append an RF table (results or placeholder) for FULL view
-        if rf_rows:
-            self.tables.append((f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model", rf_rows, self.MODEL_RF))
-        else:
-            self.tables.append((f"Estimation — {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model", [("Random Forest unavailable", "", "", "", "")], None))
-        self._mixed_models = mixed_models
-        self._selected_by_model = selected_by_model
-
-        # Back-compat: expose min/max remainder used by callers expecting legacy API
-        rem_min = max(0, int(remainder) - rem_band)
-        rem_max = int(remainder) + rem_band
-        self.min = rem_min
-        self.max = rem_max
-        self.state = OK
+        return mixed_rows, mixed_models, selected_by_model, selection_info
 
     def result_msg(self) -> list[str]:
         if self.state == ERROR:
@@ -1622,14 +1700,14 @@ class Estimator:
         lines = _render_tables(
             as_of_when=self.as_of_when,
             verbose=self.verbose,
-            tables=getattr(self, 'tables', []) or [],
+            tables=getattr(self, "tables", []) or [],
             header_mixed=self.HEADER_MIXED,
             header_full=self.HEADER_FULL,
-            mixed_models=getattr(self, '_mixed_models', None),
-            selected_by_model=getattr(self, '_selected_by_model', None),
-            selection_info=getattr(self, '_selection_info', None),
-            calib=getattr(self, '_calib', None),
-            calib_debug=getattr(self, '_calib_debug', None),
+            mixed_models=getattr(self, "_mixed_models", None),
+            selected_by_model=getattr(self, "_selected_by_model", None),
+            selection_info=getattr(self, "_selection_info", None),
+            calib=getattr(self, "_calib", None),
+            calib_debug=getattr(self, "_calib_debug", None),
         )
         # Append extended details that were present before refactor
         if self.verbose:
@@ -1637,35 +1715,57 @@ class Estimator:
                 lines.append("")
                 lines.append(f"Bikes so far: {self.bikes_so_far}")
                 lines.append(f"Open/Close: {self.time_open} - {self.time_closed}")
-                open_num = self.time_open.num if self.time_open and self.time_open.num is not None else 0
-                close_num = self.time_closed.num if self.time_closed and self.time_closed.num is not None else 24 * 60
+                open_num = (
+                    self.time_open.num
+                    if self.time_open and self.time_open.num is not None
+                    else 0
+                )
+                close_num = (
+                    self.time_closed.num
+                    if self.time_closed and self.time_closed.num is not None
+                    else 24 * 60
+                )
                 span = max(1, close_num - open_num)
-                frac_elapsed = max(0.0, min(1.0, (self.as_of_when.num - open_num) / span))
-                lines.append(f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)")
-                lines.append(f"Similar-day rows: {len(getattr(self, 'similar_dates', []) or [])} ({getattr(self, '_match_note', '')})")
-                lines.append(f"Match tolerance (VARIANCE): {getattr(self, 'VARIANCE', '')}")
+                frac_elapsed = max(
+                    0.0, min(1.0, (self.as_of_when.num - open_num) / span)
+                )
+                lines.append(
+                    f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)"
+                )
+                lines.append(
+                    f"Similar-day rows: {len(getattr(self, 'similar_dates', []) or [])} ({getattr(self, '_match_note', '')})"
+                )
+                lines.append(
+                    f"Match tolerance (VARIANCE): {getattr(self, 'VARIANCE', '')}"
+                )
                 lines.append(f"Outlier Z cutoff: {getattr(self, 'Z_CUTOFF', '')}")
-                sm = getattr(self, 'simple_model', None)
-                if sm and getattr(sm, 'state', None) == OK:
+                sm = getattr(self, "simple_model", None)
+                if sm and getattr(sm, "state", None) == OK:
                     lines.append("")
                     lines.append("Simple model (similar days)")
                     lines.append(f"  Points matched: {getattr(sm, 'num_points', '')}")
-                    lines.append(f"  Discarded as outliers: {getattr(sm, 'num_discarded', '')}")
-                    lines.append(f"  Min/Median/Mean/Max: {sm.min}/{sm.median}/{sm.mean}/{sm.max}")
+                    lines.append(
+                        f"  Discarded as outliers: {getattr(sm, 'num_discarded', '')}"
+                    )
+                    lines.append(
+                        f"  Min/Median/Mean/Max: {sm.min}/{sm.median}/{sm.mean}/{sm.max}"
+                    )
                 # Confidence overview
                 matched = self._matched_dates()
                 level = self._confidence_level(len(matched), frac_elapsed)
                 lines.append("")
                 lines.append(f"Confidence level: {level}")
-                rb = self._band(level, 'remainder')
-                ab = self._band(level, 'activity')
-                pb = self._band(level, 'peak')
-                tb = self._band(level, 'peaktime')
-                rbs = self._band_scaled(rb, len(matched), frac_elapsed, 'remainder')
-                abs_ = self._band_scaled(ab, len(matched), frac_elapsed, 'activity')
-                pbs = self._band_scaled(pb, len(matched), frac_elapsed, 'peak')
-                tbs = self._band_scaled(tb, len(matched), frac_elapsed, 'peaktime')
-                lines.append(f"Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}")
+                rb = self._band(level, "remainder")
+                ab = self._band(level, "activity")
+                pb = self._band(level, "peak")
+                tb = self._band(level, "peaktime")
+                rbs = self._band_scaled(rb, len(matched), frac_elapsed, "remainder")
+                abs_ = self._band_scaled(ab, len(matched), frac_elapsed, "activity")
+                pbs = self._band_scaled(pb, len(matched), frac_elapsed, "peak")
+                tbs = self._band_scaled(tb, len(matched), frac_elapsed, "peaktime")
+                lines.append(
+                    f"Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}"
+                )
                 lines.append(f"Base bands (before scaling): {rb}/{ab}/{pb}/{tb}")
             except Exception:
                 # Do not fail rendering on details
@@ -1675,33 +1775,21 @@ class Estimator:
 
 if __name__ == "__main__":
     try:
-        # Prefer new-API parameters; fall back to old for compatibility
-        def _init_from_cgi_new() -> Estimator:
+        # Parse CGI inputs for the estimator
+        def _init_from_cgi() -> Estimator:
             query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
             query_parms = urllib.parse.parse_qs(query_str)
             bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
             opening_time = query_parms.get("opening_time", [""])[0]
             closing_time = query_parms.get("closing_time", [""])[0]
-            max_bikes_today = query_parms.get("max_bikes_today", [""])[0]
-            max_bikes_time_today = query_parms.get("max_bikes_time_today", [""])[0]
-            est_type = (query_parms.get("estimation_type", [""])[0] or "").strip().lower()
+            estimation_type = (
+                (query_parms.get("estimation_type", [""])[0] or "").strip().lower()
+            )
             return Estimator(
                 bikes_so_far=bikes_so_far,
                 opening_time=opening_time,
                 closing_time=closing_time,
-                max_bikes_today=max_bikes_today,
-                max_bikes_time_today=max_bikes_time_today,
-                verbose=(est_type == "verbose"),
-            )
-
-        def _init_from_args_new() -> Estimator:
-            my_args = sys.argv[1:] + ["", "", "", "", ""]
-            return Estimator(
-                bikes_so_far=my_args[0],
-                opening_time=my_args[1],
-                closing_time=my_args[2],
-                max_bikes_today=my_args[3],
-                max_bikes_time_today=my_args[4],
+                estimation_type=estimation_type,
             )
 
         start_time = time.perf_counter()
@@ -1709,17 +1797,10 @@ if __name__ == "__main__":
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
         if is_cgi:
             print("Content-type: text/plain\n")
-            q = ut.untaint(os.environ.get("QUERY_STRING", ""))
-            qd = urllib.parse.parse_qs(q)
-            est_type = (qd.get("estimation_type", [""])[0] or "").strip().lower()
-            if est_type == "legacy":
-                estimate_any = _init_from_cgi_old()
-            else:
-                # 'current' (default) and 'verbose' both use the new estimator for now
-                estimate_any = _init_from_cgi_new()
+            estimate_any = _init_from_cgi()
         else:
-            # CLI defaults to new API
-            estimate_any = _init_from_args_new()
+            print("Must use CGI interface")
+            exit()
 
         if estimate_any.state != ERROR:
             estimate_any.guess()
@@ -1728,7 +1809,7 @@ if __name__ == "__main__":
             print(line)
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
-        print( f"\n\nQuery took {elapsed_time:.1f} seconds.")
+        print(f"\n\nQuery took {elapsed_time:.1f} seconds.")
     except Exception as e:  # pylint:disable=broad-except
         # Always emit something helpful rather than a blank page
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
