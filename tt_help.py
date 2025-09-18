@@ -241,10 +241,13 @@ Description:
       when it has not been used yet today.
     - Configuration data: blocks the tag from use on future days.
 
-  If a tag was already used today, RETIRE only updates the config; it takes effect
-  at tomorrow's open. Tags already retired are left unchanged.
+  RETIRE adjusts both data sources.
+    - If a tag was already used today, RETIRE only updates the config; the
+      change takes effect at tomorrow's open.
+    - Tags already retired are left unchanged.
 
   Use the UNRETIRE command to reverse this operation.
+  Use the TAGS command to see a list of retired tags.
 """,
 
     CmdKeys.CMD_UNRETIRE: """
@@ -264,7 +267,6 @@ Description:
       when it has not been used yet today.
     - Configuration data: blocks the tag from use on future days.
 
-
   UNRETIRE fixes both data sources:
     - Today's tracker data: this puts the tag back into the live inventory immediately.
     - Configuration data: this makes the tag available for future days.
@@ -272,6 +274,7 @@ Description:
   Tags already usable remain unchanged.
 
   Use the RETIRE command to reverse this operation.
+  Use the TAGS command to see a list of retired tags.
 """,
 }
 
