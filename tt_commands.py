@@ -431,7 +431,7 @@ def _chunkize_for_one_arg(
             else:
                 break
         if dups:
-            parsed.message = f"Ignoring duplicated of tag(s) '{', '.join(sorted(list(dups)))}'."
+            parsed.message = f"Ignoring duplicates of: '{', '.join(sorted(list(dups)))}'."
 
         if tagslist:
 
