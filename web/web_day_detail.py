@@ -557,6 +557,8 @@ def summary_table(
             <td>{the_estimate}</td></tr>
         """
         )
+    full_est = web_estimator.Estimator(estimation_type="VERBOSE")
+    full_est.guess()
     print(
         f"""
         <tr><td colspan=2>Most bikes at once (at {day_data.time_fullest_combined.tidy}):</td>
@@ -569,7 +571,9 @@ def summary_table(
                 {tag_reuse_pct:.0%}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
             <td>{day_data.bikes_registered}</td></tr>
+        <tr><td colspan=3><pre>{full_est.result_msg()}</pre></td></tr>
             """
+
     )
 
     if not is_today:
