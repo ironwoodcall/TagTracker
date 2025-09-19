@@ -571,7 +571,7 @@ def summary_table(
                 {tag_reuse_pct:.0%}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
             <td>{day_data.bikes_registered}</td></tr>
-        <tr><td colspan=3><pre>{full_est.result_msg()}</pre></td></tr>
+        <tr><td colspan=3><pre>{"<br>".join(full_est.result_msg())}</pre></td></tr>
             """
 
     )
