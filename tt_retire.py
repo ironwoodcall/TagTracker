@@ -73,9 +73,10 @@ def _process(today: TrackerDay, tags: Sequence[TagID], mode: str) -> bool:
         return False
 
     outcomes = [_evaluate_tag(TagID(tag), today, config_tags, mode) for tag in tags]
-    _display_outcomes(outcomes)
-
     actionable = [outcome for outcome in outcomes if outcome.needs_change]
+
+    _display_outcomes(outcomes, actionable)
+
     if not actionable:
         pr.iprint("Nothing to change.", style=k.SUBTITLE_STYLE)
         return False
@@ -122,9 +123,12 @@ def _load_config_state() -> tuple[str, re.Match[str], set[TagID]]:
     return text, match, tags
 
 
-def _display_outcomes(outcomes: Sequence[TagOutcome]) -> None:
+def _display_outcomes(outcomes: Sequence[TagOutcome], actionable:bool) -> None:
     width = max((len(str(o.tag)) for o in outcomes), default=4)
     pr.iprint()
+    if actionable:
+        pr.iprint( "Use this command with care!",style=k.ERROR_STYLE)
+
     for outcome in outcomes:
         pr.iprint(
             f"{str(outcome.tag):<{width}}  {outcome.message}",
@@ -213,7 +217,7 @@ def _evaluate_tag(
     if not biketag:
         return TagOutcome(
             tag=tag,
-            message="Is not available for use (ignoring)",
+            message="is not available for use (ignoring)",
             style=k.ANSWER_STYLE,
         )
 
@@ -230,7 +234,7 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
             return TagOutcome(tag, "is already retired", k.ANSWER_STYLE)
         return TagOutcome(
             tag,
-            "Will be retired in the config file",
+            "will be retired in the config file",
             k.ANSWER_STYLE,
             add_to_config=True,
         )
@@ -240,12 +244,12 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
         if used_today:
             return TagOutcome(
                 tag,
-                "Is already marked as retired, starting tomorrow",
+                "is already marked as retired, starting tomorrow",
                 k.ANSWER_STYLE,
             )
         return TagOutcome(
             tag,
-            "Will be retired [and is already retired in config]",
+            "will be retired [and is already retired in config]",
             k.ANSWER_STYLE,
             retire_today=True,
         )
@@ -253,13 +257,13 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
     if used_today:
         return TagOutcome(
             tag,
-            "Will be marked for retirement starting tomorrow (already used today)",
+            "will be marked for retirement starting tomorrow (already used today)",
             k.ANSWER_STYLE,
             add_to_config=True,
         )
     return TagOutcome(
         tag,
-        "Will be retired",
+        "will be retired",
         k.ANSWER_STYLE,
         retire_today=True,
         add_to_config=True,
@@ -271,14 +275,14 @@ def _evaluate_unretire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutc
         if in_config:
             return TagOutcome(
                 tag,
-                "Will be unretired",
+                "will be unretired",
                 k.ANSWER_STYLE,
                 unretire_today=True,
                 remove_from_config=True,
             )
         return TagOutcome(
             tag,
-            "Will be unretired [and is already unretired in config]",
+            "will be unretired [and is already unretired in config]",
             k.ANSWER_STYLE,
             unretire_today=True,
         )
@@ -286,11 +290,11 @@ def _evaluate_unretire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutc
     if in_config:
         return TagOutcome(
             tag,
-            "Will be unretired in config",
+            "will be unretired in config",
             k.ANSWER_STYLE,
             remove_from_config=True,
         )
-    return TagOutcome(tag, "Is already unretired", k.ANSWER_STYLE)
+    return TagOutcome(tag, "is already unretired", k.ANSWER_STYLE)
 
 
 def _summarize_changes(today_changed: bool, config_delta: tuple[int, int]) -> None:
