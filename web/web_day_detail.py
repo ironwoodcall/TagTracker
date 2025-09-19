@@ -530,7 +530,7 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = web_estimator.Estimator(estimation_type="QUICK")
+        est = web_estimator.Estimator(estimation_type="STANDARD")
         est.guess()
         if est.state != web_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
