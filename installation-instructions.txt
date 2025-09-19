@@ -1,0 +1,46 @@
+# Installation Instructions
+
+## CLI Client Data Entry Portion
+
+### Prerequisites
+- TagTracker runs in a linux environment (including Windows Subsystem for Linux).  I use Ubuntu.
+- Python 3.10 or newer (`tagtracker.py` exits if an older interpreter is used).
+- Git access to the TagTracker repository, or a copy of this source tree.
+- Command-line access on the workstation that will host the data entry client.
+- Optional: a command-line audio player such as `mpg321` if you intend to keep sound prompts enabled (`client_base_config.py`/`client_local_config.py`).
+
+### 1. Obtain the Source
+1. Choose an installation directory on the client workstation.
+2. Clone the project (`git clone https://github.com/ironwoodcall/TagTracker.git`) or copy the prepared release bundle into the target directory.
+3. Verify that the `tagtracker.py` entry point, `client_base_config.py`, and supporting `common/` and `client/` packages are present.
+
+### 2. Create a Python Environment
+1. From the project root, create a virtual environment (`python -m venv .venv`).
+2. Activate it:
+   - PowerShell: `.venv\Scripts\Activate.ps1`
+   - bash: `source .venv/bin/activate`
+3. Install any Python packages that your deployment requires. The core CLI currently uses only the standard library, but this is the place to add extras (for example, if you deploy alternate sound back ends).
+
+### 3. Configure the Client
+1. Review `client_base_config.py` for default settings and documentation of each option.
+2. Copy `client_base_config.py` to `client_local_config.py` (or edit the existing local file) and override site-specific values:
+   - `SITE_NAME`, `SITE_HANDLE`, and optional `DATA_OWNER` notice text.
+   - Tag lists (`REGULAR_TAGS`, `OVERSIZE_TAGS`, `RETIRED_TAGS`) and colour name mappings.
+   - Operating hours (`SEASON_HOURS`, `SPECIAL_HOURS`) and behaviour flags such as `INTERNET_MONITORING_FREQUENCY` or `PUBLISH_FREQUENCY`.
+   - Sound settings, including the player executable path, if audio prompts are desired.
+3. Confirm that paths such as `DATA_FOLDER`, `REPORTS_FOLDER`, and `ECHO_FOLDER` point to writable locations on this workstation. Adjust them if the default relative paths do not suit your deployment.
+
+### 4. Prepare Runtime Directories
+1. Create any folders referenced in the local config (`../data`, `../reports`, `../support`, etc.).
+2. Ensure the TagTracker operator has write permission to those folders; the CLI performs a writability check on startup.
+
+### 5. Verify the Installation
+1. With the virtual environment active, run `python tagtracker.py` from the project root.
+2. Confirm that the splash screen renders correctly, the configured data owner notice appears, and no configuration errors are reported.
+3. Perform a quick test session (check a tag in and out) and confirm that the corresponding `.dat` file is written to the `DATA_FOLDER`.
+4. If sounds are enabled, confirm they play; otherwise set `SOUND_ENABLED = False` or update the audio player path.
+5. Exit TagTracker with the `exit` command and review `reports/` to ensure scheduled publishing (if enabled) is writing output.
+
+### 6. Operational Hand-Off
+- Provide frontline staff with the TagTracker command reference (the `help` command inside the CLI) and instructions on how to launch the virtual environment and start the program at the beginning of each shift.
+- Record any site-specific conventions (for example, laptop sleep policies or daily data export routines) alongside these installation notes.
