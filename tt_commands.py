@@ -102,8 +102,10 @@ class CmdKeys:
     CMD_QUERY = "QUERY"
     CMD_RECENT = "RECENT"
     CMD_REGISTRATIONS = "REGISTRATIONS"
+    CMD_RETIRE = "RETIRE"
     CMD_STATS = "STATS"
     CMD_TAGS = "TAGS"
+    CMD_UNRETIRE = "UNRETIRE"
     CMD_UPPERCASE = "UPPERCASE"
 
 
@@ -202,7 +204,6 @@ COMMANDS = {
                 ARG_TAGS, optional=False, prompt="Delete check in/out for what tag(s)? "
             ),
             ArgConfig(ARG_INOUT, optional=False, prompt="Enter 'in' or 'out': "),
-            ArgConfig(ARG_YESNO, optional=False, prompt="Enter 'y' to confirm: "),
         ],
     ),
     CmdKeys.CMD_DUMP: CmdConfig(
@@ -260,10 +261,16 @@ COMMANDS = {
     ),
     # Registrations:  e.g. r or r + 1 or r +1... so 2 args total.
     CmdKeys.CMD_REGISTRATIONS: CmdConfig(
-        invoke=["registrations", "registration", "register", "reg", "r"],
+        invoke=["registrations", "registration", "register", "reg"],
         arg_configs=[
             ArgConfig(ARG_TOKEN, optional=True),
             ArgConfig(ARG_TOKEN, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_RETIRE: CmdConfig(
+        invoke=["retire","ret"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Retire what tag(s)? "),
         ],
     ),
     CmdKeys.CMD_STATS: CmdConfig(
@@ -276,6 +283,12 @@ COMMANDS = {
         invoke=["tags", "tag", "t"],
         arg_configs=[
             ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_UNRETIRE: CmdConfig(
+        invoke=["unretire","unret"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Unretire what tag(s)? "),
         ],
     ),
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
@@ -404,17 +417,22 @@ def _chunkize_for_one_arg(
 
     elif arg_conf.arg_type == ARG_TAGS:
         tagslist = []
+        dups = set()
         while arg_parts:
             tag = TagID(arg_parts[0])
             if tag:
                 # Check for and remove duplicate
                 if tag in tagslist:
-                    parsed.message = f"Ignoring duplicate of tagid '{tag.original}'."
+                    dups.add(tag)
+                    # parsed.message = f"Ignoring duplicate of tagid '{tag.original}'."
                 else:
                     tagslist.append(tag)
                 del arg_parts[0]
             else:
                 break
+        if dups:
+            parsed.message = f"Ignoring duplicates of: '{', '.join(sorted(list(dups)))}'."
+
         if tagslist:
 
             parsed.result_args.append(tagslist)

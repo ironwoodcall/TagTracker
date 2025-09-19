@@ -60,9 +60,8 @@ Information and reports
 
 Other
   Help with commands           :  HELP [command]
-  Set tag display to UPPERCASE :  UC | UPPERCASE
-  Set tag display to lowercase :  LC | LOWERCASE
-  Send reports to shared drive :  PUBLISH
+  Set tags to UPPER/LOWER CASE :  UPPERCASE | UC | LOWERCASE | LC
+  Retire or unretire tags      :  RETIRE | UNRETIRE <tag(s)>
   Exit                         :  EXIT | x
 
 Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
@@ -76,14 +75,14 @@ For help about a specific command, try 'help <command>' e.g. 'help edit'.
     CmdKeys.CMD_BIKE_IN: """
 Command: IN <tag(s)> [time]
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
     <tag(s)>: one or more tags to go onto bikes being checked in
     [time]: optional time to assign to the check-in(s). Default is 'now'
 
-Description
+Description:
   Check a bike in.  If 'time' is given, checks it in for that time.
 
   If the tag has been used previously, this will re-use the tag for
@@ -93,10 +92,10 @@ Description
     CmdKeys.CMD_LEFTOVERS: """
 Command: LEFT <tag(s)> [time]
 
-Can be invoked as
+Can be invoked as:
   {}
 
-Description
+Description:
   Lists the most recent check-in times for any bikes currently on-site.
 
   This is to make it easier to find phone numbers for any bikes that
@@ -107,7 +106,7 @@ Description
     CmdKeys.CMD_NOTES: """
 Command: NOTE [note message|DELETE|UNDELETE]
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Description:
@@ -133,14 +132,14 @@ Description:
     CmdKeys.CMD_BIKE_OUT: """
 Command: OUT <tag(s)> [time]
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
     <tag(s)>: one or more tags of bikes being checked out
     [time]: optional time to assign to the check-out(s). Default is 'now'
 
-Description
+Description:
   Check a bike out.  This makes the tag available for re-use.
 
 
@@ -149,13 +148,13 @@ Description
     CmdKeys.CMD_BIKE_INOUT: """
 Command: <tag(s)>
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
     <tag(s)>: one or more tags to check in or out
 
-Description
+Description:
   Check a bike in or out, depending on whether it is currently on-site:
   - if the bike is on-site, this will check the bike out (same as OUT <tag>).
   - if the bike is coming in, this will check the bike in unless the tag is being re-used.
@@ -176,7 +175,7 @@ Description
 Command: ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE] --> default is STANDARD
     (FULL is an alias for VERBOSE)
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
@@ -188,7 +187,7 @@ Arguments:
                           ignoring how many bikes so far today. This is
                           useful for estimates early in the day
 
-Description
+Description:
   Estimates the rest of the day using historical data for similar days.
   The summary shows:
     - Further bikes today (remainder)
@@ -213,16 +212,69 @@ Examples
     CmdKeys.CMD_GRAPHS: """
 Command: GRAPH [end_time]
 
-Can be invoked as
+Can be invoked as:
   {}
 
 Arguments:
     [end_time] : optional ending time for graphs (default: end of day)
 
-Description
+Description:
     Shows histograms of busyness (ins + outs) and fullness across the day.
     If [end_time] is supplied, only data up to that time is included.
 
+""",
+
+    CmdKeys.CMD_RETIRE: """
+Command: RETIRE <tag(s)>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to mark as retired
+
+Description:
+  Retires tags so they will no longer be used.
+
+  TagTracker keeps two records:
+    - Today's tracker data: removes the tag from the live inventory immediately
+      when it has not been used yet today.
+    - Configuration data: blocks the tag from use on future days.
+
+  RETIRE adjusts both data sources.
+    - If a tag was already used today, RETIRE only updates the config; the
+      change takes effect at tomorrow's open.
+    - Tags already retired are left unchanged.
+
+  Use the UNRETIRE command to reverse this operation.
+  Use the TAGS command to see a list of retired tags.
+""",
+
+    CmdKeys.CMD_UNRETIRE: """
+Command: UNRETIRE <tag(s)>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to make usable again
+
+Description:
+  Makes previously retired tags once again available for use.
+
+  TagTracker keeps two records:
+    - Today's tracker data: removes the tag from the live inventory immediately
+      when it has not been used yet today.
+    - Configuration data: blocks the tag from use on future days.
+
+  UNRETIRE fixes both data sources:
+    - Today's tracker data: this puts the tag back into the live inventory immediately.
+    - Configuration data: this makes the tag available for future days.
+
+  Tags already usable remain unchanged.
+
+  Use the RETIRE command to reverse this operation.
+  Use the TAGS command to see a list of retired tags.
 """,
 }
 
