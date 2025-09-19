@@ -1,26 +1,42 @@
 #!/usr/bin/env python3
-"""Load datafile records into TagTracker database.
+"""
+Load TagTracker datafiles into an SQLite database.
 
-Options:
-    --force: reload given datafiles even if already loaded (default behaviour
-            is to successfully load any given file only once, as identified
-             by its file fingerprint (md5hash))
-    --quiet: no output except error output (to stderr)
-    --verbose: extra-chatty output
+This script ingests one or more TagTracker datafiles, validates their contents,
+and records day summaries, bike visits, and per-period block data into a
+persistent SQLite database. It also maintains a log of previously loaded
+files (with fingerprints) to avoid accidental duplicate loads.
 
-This should run on the tagtracker server.
-Supersedes "tracker2db.py"
+Features:
+    - Automatically calculates file fingerprints (md5) and timestamps.
+    - Skips files already loaded successfully unless --force is given.
+    - Handles duplicate filenames by keeping only the newest (--newest-only)
+      or last-seen (--tail-only).
+    - Inserts data into the following tables:
+        * DAY (daily summary statistics)
+        * VISIT (individual bike visits)
+        * BLOCK (per-period visit counts)
+        * DATALOADS (audit log of file loads)
 
-This is a script to update a persistent SQLite database in a configurable
-directory with data from all available (by default) or specific TagTracker
-data files.  It uses some modules that it shares in common with the TT client.
+Command-line options:
+    --force        Reload datafiles even if already recorded
+    --quiet        Suppress all normal output (errors still shown on stderr)
+    --verbose      Print detailed progress information
+    --newest-only  For files with the same basename, only load the newest one
+    --tail-only    For files with the same basename, only load the last in the list
+    --org          Organization handle (default: "no_org")
 
-Before running this, the database will need to be created.
-See "create_database.sql".
+Arguments:
+    dataglob       One or more file globs specifying the datafiles to load
+    dbfile         Path to the SQLite database file
 
-By default this avoids repeating a previously successful datafile load
-by keeping a datafile_loads table in the database.  The --force option
-will force reloading.
+Requirements:
+    - The SQLite database must already exist (see create_database.sql).
+    - Database schema must include tables for DAY, VISIT, BLOCK, and DATALOADS.
+
+Intended usage:
+    Run on the TagTracker server to keep the central database updated from
+    local or batch-exported datafiles.
 
 Copyright (C) 2024 Todd Glover & Julias Hocking
 
