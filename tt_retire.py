@@ -1,11 +1,33 @@
-"""RETIRE/UNRETIRE command helpers."""
+"""TagTracker by Julias Hocking.
+
+RETIRE/UNRETIRE helpers
+
+Copyright (C) 2023-2025 Julias Hocking & Todd Glover
+
+    Notwithstanding the licensing information below, this code may not
+    be used in a commercial (for-profit, non-profit or government) setting
+    without the copyright-holder's written consent.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, Optional
 
 import client_base_config as cfg
 import common.tt_constants as k
@@ -101,19 +123,14 @@ def _process(today: TrackerDay, tags: Sequence[TagID], mode: str) -> bool:
     return today_changed
 
 
-def _load_config_state() -> tuple[str, re.Match[str], set[TagID]]:
+def _load_config_state() -> tuple[str, Optional[re.Match[str]], set[TagID]]:
     try:
         text = _CONFIG_FILE.read_text(encoding="utf-8")
     except OSError as exc:
         raise RuntimeError(f"Unable to read {_CONFIG_FILE.name}: {exc}") from exc
 
     match = _CONFIG_PATTERN.search(text)
-    if not match:
-        raise RuntimeError(
-            "Could not locate RETIRED_TAGS block in client_local_config.py."
-        )
-
-    body = match.group("body")
+    body = match.group("body") if match else ""
     tags, errors = TagID.parse_tagids_str(body, "RETIRED_TAGS configuration")
     if errors:
         for err in errors:
@@ -139,19 +156,19 @@ def _display_outcomes(outcomes: Sequence[TagOutcome], actionable:bool) -> None:
 
 def _confirm(count: int) -> bool:
     pr.iprint(
-        f"Enter 'y' to confirm changing {count} tag{'s' if count != 1 else ''}: ",
+        f"Enter 'YES' (in uppercase) to confirm changing {count} tag{'s' if count != 1 else ''}: ",
         end="",
         style=k.PROMPT_STYLE,
     )
-    reply = pr.tt_inp("").strip().lower()
-    return reply == "y"
+    reply = pr.tt_inp("").strip()
+    return reply == "YES"
 
 
 def _apply_changes(
     today: TrackerDay,
     config_tags: set[TagID],
     config_text: str,
-    match: re.Match[str],
+    match: Optional[re.Match[str]],
     actionable: Sequence[TagOutcome],
 ) -> tuple[bool, bool, tuple[int, int]]:
     add_tags: set[TagID] = set()
@@ -185,10 +202,20 @@ def _apply_changes(
 
 
 def _write_config_state(
-    original_text: str, match: re.Match[str], tags: Iterable[TagID]
+    original_text: str, match: Optional[re.Match[str]], tags: Iterable[TagID]
 ) -> None:
     body = _format_body(tags)
-    new_text = f"{original_text[:match.start('body')]}{body}{original_text[match.end('body'):]}"
+    if match:
+        new_text = (
+            f"{original_text[:match.start('body')]}{body}{original_text[match.end('body'):]}"
+        )
+    else:
+        new_block = f"RETIRED_TAGS = \"\"\"{body}\"\"\"\n"
+        if original_text.strip():
+            base = original_text.rstrip()
+            new_text = f"{base}\n\n{new_block}"
+        else:
+            new_text = new_block
     temp_path = _CONFIG_FILE.with_suffix(".tmp")
     try:
         temp_path.write_text(new_text, encoding="utf-8")
