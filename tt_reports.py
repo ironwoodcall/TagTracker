@@ -116,7 +116,7 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
         start_time = VTime(start_time)
         end_time = VTime(end_time)
 
-    ut.squawk(f"{args=}; {start_time=},{end_time=}")
+    ut.squawk(f"{args=}; {start_time=},{end_time=}", cfg.DEBUG)
     # Anything we can work with?
     if not start_time or not end_time or start_time > end_time:
         pr.iprint(
