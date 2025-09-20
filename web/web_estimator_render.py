@@ -37,14 +37,14 @@ def _col_widths(rows: List[List[str]]) -> List[int]:
 
 
 def _fmt_row(r: List[str], widths: List[int]) -> str:
-    # Left-justify 1st, 3rd, 4th; right-justify 2nd and last by convention
+    # Left-justify 1st, right-justify others
     # Column count can vary; make a safe format with spacing between columns
     out: List[str] = []
     for i, s in enumerate(r):
-        if i in (1, len(r) - 1):
-            out.append(str(s).rjust(widths[i]))
-        else:
+        if i in (0,):
             out.append(str(s).ljust(widths[i]))
+        else:
+            out.append(str(s).rjust(widths[i]))
     return "  ".join(out)
 
 

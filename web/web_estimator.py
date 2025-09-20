@@ -1054,7 +1054,7 @@ class Estimator:
             (
                 self._activity_label(t_end),
                 f"{int(nxh_activity)}",
-                f"+/- {sm_act_band}",
+                f"+/- {sm_act_band} events",
                 sm_act_rng or self._rng_str(act_lo, act_hi, False),
                 conf_act,
             ),
@@ -1257,7 +1257,7 @@ class Estimator:
             (
                 self._activity_label(t_end),
                 f"{lr_act_val}",
-                f"+/- {act_band_lr}",
+                f"+/- {act_band_lr} events",
                 lr_act_rng or self._rng_from_res(lr_act_val, act_lo_res, act_hi_res),
                 conf_act_lr,
             ),
@@ -1423,7 +1423,7 @@ class Estimator:
             (
                 self._activity_label(t_end),
                 f"{rec_act_val}",
-                f"+/- {act_band_rec}",
+                f"+/- {act_band_rec} events",
                 rec_act_rng or self._rng_str(r_act_lo, r_act_hi, False),
                 conf_act_rec,
             ),
@@ -1567,7 +1567,7 @@ class Estimator:
             (
                 self._activity_label(t_end),
                 f"{rf_act_val}",
-                f"+/- {act_band_rf}",
+                f"+/- {act_band_rf} events",
                 rf_act_rng or self._rng_str(act_lo, act_hi, False),
                 conf_act_rf,
             ),
