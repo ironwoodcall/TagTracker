@@ -1,6 +1,4 @@
-"""TagTracker by Julias Hocking.
-
-Functions to save and retrieve data (OldTrackerDay objects) in datafiles.
+"""Functions to save and retrieve data (OldTrackerDay objects) in datafiles.
 
 Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 

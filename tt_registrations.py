@@ -77,7 +77,7 @@ class Registrations:
             new_count = num
         else:
             self.display_error_message("")
-
+            return
         if new_count < 0:
             self.display_error_message("Number of registrations can not be < 0")
             return

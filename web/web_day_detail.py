@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """HTML report on tags in/out for one day.
 
-Copyright (C) 2023-2024 Julias Hocking & Todd Glover
+Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting
@@ -530,7 +530,7 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = web_estimator.Estimator(time_closed=day_data.time_closed)
+        est = web_estimator.Estimator(estimation_type="STANDARD")
         est.guess()
         if est.state != web_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
@@ -569,7 +569,9 @@ def summary_table(
                 {tag_reuse_pct:.0%}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
             <td>{day_data.bikes_registered}</td></tr>
+        <tr><td colspan=3><pre>{"<br>".join(est.result_msg())}</pre></td></tr>
             """
+
     )
 
     if not is_today:
