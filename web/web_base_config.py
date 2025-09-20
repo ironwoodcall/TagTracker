@@ -25,6 +25,13 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     """
+###########################################################
+#            BEGINNING OF CONFIG SECTION                  #
+# To make a new web_local_config.py configuration file,   #
+# copy from here down to "END OF CONFIG SECTION" and put  #
+# it into a new file called "web_local_config.py" in the  #
+# 'web' subdirectory (the same directory as this file.)   #
+###########################################################
 
 
 # Arbitrary string to describe this location
@@ -74,6 +81,13 @@ EST_CALIBRATION_FILE = ""
 #   'accuracy_first' (default): calibration best_model -> narrowest range -> confidence
 #   'range_first'            : narrowest range -> confidence (legacy behavior)
 EST_SELECTION_MODE = "accuracy_first"
+
+#######################################
+#        END OF CONFIG SECTION        #
+#                                     #
+# Do not include any code below here  #
+# in the web_local_config.py file.    #
+#######################################
 
 # Import any local web config to override this module's values.
 try:
