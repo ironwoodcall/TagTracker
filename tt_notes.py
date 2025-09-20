@@ -1,7 +1,7 @@
 """Class to manage Notes capability for TagTracker.
 
 
-Copyright (C) 2023-2024 Julias Hocking & Todd Glover
+Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
     Notwithstanding the licensing information below, this code may not
     be used in a commercial (for-profit, non-profit or government) setting
