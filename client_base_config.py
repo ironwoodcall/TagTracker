@@ -28,6 +28,14 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 import sys
 import re
 
+###########################################################
+#            BEGINNING OF CONFIG SECTION                  #
+# To make a new client_local_config.py configuration file,#
+# copy from here down to "END OF CONFIG SECTION" and put  #
+# it into a new file called "client_local_config.py"      #
+# in the same directory as this file.                     #
+###########################################################
+
 # Screen appearance
 SCREEN_WIDTH = 80  # characters
 USE_COLOUR = True
@@ -137,6 +145,12 @@ SPECIAL_HOURS = {}
 #     "2024-02-06": ["1:00", "23:00"],
 # }
 
+#######################################
+#        END OF CONFIG SECTION        #
+#                                     #
+# Do not include any code below here  #
+# in the client_local_config.py file. #
+#######################################
 
 
 # Import any local config to override this module's values.
