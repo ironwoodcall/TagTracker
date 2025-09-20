@@ -569,10 +569,11 @@ def summary_table(
                 {tag_reuse_pct:.0%}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
             <td>{day_data.bikes_registered}</td></tr>
+        """)
+    if is_today and est is not None and est.state != web_estimator.ERROR:
+        print(f"""
         <tr><td colspan=3><pre>{"<br>".join(est.result_msg())}</pre></td></tr>
-            """
-
-    )
+            """)
 
     if not is_today:
         print(
