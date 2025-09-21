@@ -312,7 +312,12 @@ elif what == cc.WHAT_BLOCKS_DOW:
     web_block_report.blocks_report(database, dow_parameter)
 elif what == cc.WHAT_DETAIL:
     web_season_report.season_detail(
-        database, sort_by=sort_by, sort_direction=sort_direction, pages_back=pages_back
+        database,
+        sort_by=sort_by,
+        sort_direction=sort_direction,
+        pages_back=pages_back,
+        start_date=date_start,
+        end_date=date_end,
     )
 elif what == cc.WHAT_SUMMARY:
     web_season_report.season_summary(database)
