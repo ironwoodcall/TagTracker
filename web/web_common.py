@@ -309,7 +309,25 @@ class URLParameters:
             return f"Invalid hex date value '{hex_string}'."
 
 
-def selfref(
+def _resolve_script_path(script_name: str) -> str:
+    """Return a sanitized script path for links within the same host."""
+
+    current_script = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
+    if not script_name:
+        return current_script
+
+    clean_name = ut.untaint(script_name)
+    if clean_name.startswith("/"):
+        return clean_name
+
+    if "/" not in current_script:
+        return clean_name
+
+    base_dir = current_script.rsplit("/", 1)[0]
+    return f"{base_dir}/{clean_name}"
+
+
+def _build_query_params(
     what: str = "",
     qdate: str = "",
     qtime: str = "",
@@ -322,9 +340,8 @@ def selfref(
     end_date: str = "",
     pages_back=None,
 ) -> str:
-    """Return a self-reference with the given parameters."""
+    """Create a query string fragment from the standard parameter set."""
 
-    me = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
     params = {
         "what": what,
         "date": qdate,
@@ -340,13 +357,81 @@ def selfref(
         "back": pages_back if pages_back is not None else "",
     }
 
-    # Filter out None and empty strings
     filtered_params = {key: value for key, value in params.items() if value}
+    if not filtered_params:
+        return ""
 
-    # Create parameter strings
-    params_str = "&".join(f"{key}={value}" for key, value in filtered_params.items())
+    return "&".join(f"{key}={value}" for key, value in filtered_params.items())
 
-    return f"{me}{ut.untaint('?' + params_str if params_str else '')}"
+
+def make_url(
+    script_name: str,
+    *,
+    what: str = "",
+    qdate: str = "",
+    qtime: str = "",
+    qtag: str = "",
+    qdow: str = "",
+    qsort: str = "",
+    qdir: str = "",
+    text_note: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    pages_back=None,
+) -> str:
+    """Return a URL for the given script on this host with the provided parameters."""
+
+    target = _resolve_script_path(script_name)
+    query = _build_query_params(
+        what=what,
+        qdate=qdate,
+        qtime=qtime,
+        qtag=qtag,
+        qdow=qdow,
+        qsort=qsort,
+        qdir=qdir,
+        text_note=text_note,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=pages_back,
+    )
+
+    if not query:
+        return target
+
+    return f"{target}{ut.untaint('?' + query)}"
+
+
+def selfref(
+    what: str = "",
+    qdate: str = "",
+    qtime: str = "",
+    qtag: str = "",
+    qdow: str = "",
+    qsort: str = "",
+    qdir: str = "",
+    text_note: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    pages_back=None,
+) -> str:
+    """Return a self-reference with the given parameters."""
+
+    script_name = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
+    return make_url(
+        script_name,
+        what=what,
+        qdate=qdate,
+        qtime=qtime,
+        qtag=qtag,
+        qdow=qdow,
+        qsort=qsort,
+        qdir=qdir,
+        text_note=text_note,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=pages_back,
+    )
 
 
 def style() -> str:
