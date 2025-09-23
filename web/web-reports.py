@@ -27,7 +27,6 @@ import sys
 import os
 import urllib.parse
 import time
-from datetime import datetime, timedelta
 
 sys.path.append("../")
 sys.path.append("./")
@@ -253,20 +252,6 @@ if not database:
     print("<br>No database")
     sys.exit()
 
-# Determine default date range for reports
-today_str = ut.date_str("today")
-one_year_ago = (
-    datetime.strptime(today_str, "%Y-%m-%d") - timedelta(days=365)
-).strftime("%Y-%m-%d")
-db_start_date, _ = db.fetch_date_range_limits(database, orgsite_id=ORGSITE_ID)
-start_candidates = [one_year_ago]
-if db_start_date:
-    start_candidates.append(db_start_date)
-default_start_date = max(start_candidates) if start_candidates else ""
-default_end_date = today_str
-if default_start_date and default_end_date and default_start_date > default_end_date:
-    default_start_date = default_end_date
-
 # Set text colours off (for the text-based reports)
 pr.COLOUR_ACTIVE = True
 k.set_html_style()
@@ -315,8 +300,15 @@ html_head()
 if not what:
     sys.exit()
 
-date_start = query_params.get("start_date", [""])[0] or default_start_date
-date_end = query_params.get("end_date", [""])[0] or default_end_date
+requested_start = query_params.get("start_date", [""])[0]
+requested_end = query_params.get("end_date", [""])[0]
+
+date_start, date_end, _default_start_date, _default_end_date = cc.resolve_date_range(
+    database,
+    orgsite_id=ORGSITE_ID,
+    start_date=requested_start,
+    end_date=requested_end,
+)
 
 
 if what == cc.WHAT_TAG_HISTORY:

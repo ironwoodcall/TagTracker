@@ -129,9 +129,16 @@ def season_frequencies_report(
         print(f"No data found for {orgsite_id=}")
         return
 
-    # Adjust start_date and end_date based on fetched limits
-    start_date = max(start_date or db_start_date, db_start_date)
-    end_date = min(end_date or db_end_date, db_end_date)
+    requested_start = "" if start_date in ("", "0000-00-00") else start_date
+    requested_end = "" if end_date in ("", "9999-99-99") else end_date
+
+    start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
+        ttdb,
+        orgsite_id=orgsite_id,
+        start_date=requested_start,
+        end_date=requested_end,
+        db_limits=(db_start_date, db_end_date),
+    )
 
     title_bit = title_bit if title_bit else "all days of the week"
     table_vars = (
@@ -446,18 +453,21 @@ def season_detail(
 ):
     """A summary in which each row is one day."""
 
-    # Normalize date filters for downstream calls
-    if start_date in ("", "0000-00-00"):
-        start_date = ""
-    if end_date in ("", "9999-99-99"):
-        end_date = ""
+    requested_start = "" if start_date in ("", "0000-00-00") else start_date
+    requested_end = "" if end_date in ("", "9999-99-99") else end_date
 
-    # Determine sensible defaults for the date selector
     db_start_date, db_end_date = db.fetch_date_range_limits(
-        ttdb, orgsite_id=1
+        ttdb,
+        orgsite_id=1,
     )
-    default_start = start_date or (db_start_date or "")
-    default_end = end_date or (db_end_date or "")
+
+    start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
+        ttdb,
+        orgsite_id=1,
+        start_date=requested_start,
+        end_date=requested_end,
+        db_limits=(db_start_date, db_end_date),
+    )
 
     # list of each day's totals
     all_days = cc.get_days_data(
@@ -559,8 +569,8 @@ def season_detail(
     print(
         generate_date_filter_form(
             self_url,
-            default_start_date=default_start,
-            default_end_date=default_end,
+            default_start_date=start_date,
+            default_end_date=end_date,
         )
     )
 

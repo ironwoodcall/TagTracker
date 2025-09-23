@@ -197,6 +197,68 @@ def main_and_back_buttons(pages_back: int) -> str:
         return main_page_button()
 
 
+def resolve_date_range(
+    ttdb: sqlite3.Connection,
+    *,
+    orgsite_id: int = 1,
+    start_date: str = "",
+    end_date: str = "",
+    today: str = "today",
+    db_limits=None,
+) -> tuple[str, str, str, str]:
+    """Return effective and default date ranges for reports.
+
+    The default range spans from max(earliest day in DB, one year ago) to today (or
+    the latest day in DB if earlier). Any provided start/end dates are normalised,
+    clamped to available data, and ensured to remain in-order.
+    """
+
+    today_str = ut.date_str(today) if today else ""
+    if not today_str:
+        today_str = datetime.today().strftime("%Y-%m-%d")
+
+    year_ago = (
+        datetime.strptime(today_str, "%Y-%m-%d") - timedelta(days=365)
+    ).strftime("%Y-%m-%d")
+
+    if db_limits is None:
+        db_start, db_end = db.fetch_date_range_limits(
+            ttdb,
+            orgsite_id=orgsite_id,
+        )
+    else:
+        db_start, db_end = db_limits
+
+    default_end_candidates = [today_str]
+    if db_end:
+        default_end_candidates.append(db_end)
+    default_end = min(default_end_candidates)
+
+    default_start_candidates = [year_ago]
+    if db_start:
+        default_start_candidates.append(db_start)
+    default_start = max(default_start_candidates)
+
+    if default_start > default_end:
+        default_start = default_end
+
+    requested_start = ut.date_str(start_date) if start_date else ""
+    requested_end = ut.date_str(end_date) if end_date else ""
+
+    resolved_start = requested_start or default_start
+    resolved_end = requested_end or default_end
+
+    if db_start:
+        resolved_start = max(resolved_start, db_start)
+    if db_end:
+        resolved_end = min(resolved_end, db_end)
+
+    if resolved_start > resolved_end:
+        resolved_start = resolved_end
+
+    return resolved_start, resolved_end, default_start, default_end
+
+
 class URLParameters:
     """All the things that get read from the URL query string.
 
