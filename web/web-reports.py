@@ -314,9 +314,20 @@ date_start, date_end, _default_start_date, _default_end_date = cc.resolve_date_r
 if what == cc.WHAT_TAG_HISTORY:
     web_tags_report.one_tag_history_report(database, tag)
 elif what == cc.WHAT_BLOCKS:
-    web_block_report.blocks_report(database)
+    web_block_report.blocks_report(
+        database,
+        pages_back=pages_back,
+        start_date=date_start,
+        end_date=date_end,
+    )
 elif what == cc.WHAT_BLOCKS_DOW:
-    web_block_report.blocks_report(database, dow_parameter)
+    web_block_report.blocks_report(
+        database,
+        dow_parameter,
+        pages_back=pages_back,
+        start_date=date_start,
+        end_date=date_end,
+    )
 elif what == cc.WHAT_DETAIL:
     web_season_report.season_detail(
         database,
