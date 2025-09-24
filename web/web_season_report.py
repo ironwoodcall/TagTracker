@@ -129,9 +129,16 @@ def season_frequencies_report(
         print(f"No data found for {orgsite_id=}")
         return
 
-    # Adjust start_date and end_date based on fetched limits
-    start_date = max(start_date or db_start_date, db_start_date)
-    end_date = min(end_date or db_end_date, db_end_date)
+    requested_start = "" if start_date in ("", "0000-00-00") else start_date
+    requested_end = "" if end_date in ("", "9999-99-99") else end_date
+
+    start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
+        ttdb,
+        orgsite_id=orgsite_id,
+        start_date=requested_start,
+        end_date=requested_end,
+        db_limits=(db_start_date, db_end_date),
+    )
 
     title_bit = title_bit if title_bit else "all days of the week"
     table_vars = (
@@ -446,6 +453,22 @@ def season_detail(
 ):
     """A summary in which each row is one day."""
 
+    requested_start = "" if start_date in ("", "0000-00-00") else start_date
+    requested_end = "" if end_date in ("", "9999-99-99") else end_date
+
+    db_start_date, db_end_date = db.fetch_date_range_limits(
+        ttdb,
+        orgsite_id=1,
+    )
+
+    start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
+        ttdb,
+        orgsite_id=1,
+        start_date=requested_start,
+        end_date=requested_end,
+        db_limits=(db_start_date, db_end_date),
+    )
+
     # list of each day's totals
     all_days = cc.get_days_data(
         ttdb=ttdb, min_date=start_date, max_date=end_date
@@ -459,6 +482,14 @@ def season_detail(
     # Sort the all_days ldataccording to the sort parameter
     sort_by = sort_by if sort_by else cc.SORT_DATE
     sort_direction = sort_direction if sort_direction else cc.ORDER_REVERSE
+    self_url = cc.selfref(
+        cc.WHAT_DETAIL,
+        qsort=sort_by,
+        qdir=sort_direction,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=pages_back + 1,
+    )
     if sort_direction == cc.ORDER_FORWARD:
         other_direction = cc.ORDER_REVERSE
         direction_msg = ""
@@ -530,10 +561,18 @@ def season_detail(
 
     max_precip_colour = dc.Dimension(interpolation_exponent=1)
     max_precip_colour.add_config(0, "white")
-    max_precip_colour.add_config(days_totals.max_precipitation, "azure")
+    if days_totals.max_precipitation not in (None, 0):
+        max_precip_colour.add_config(days_totals.max_precipitation, "azure")
 
     print(f"<h1>{cc.titleize(': Detail')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
+    print(
+        generate_date_filter_form(
+            self_url,
+            default_start_date=start_date,
+            default_end_date=end_date,
+        )
+    )
 
     print("<br><br>")
 

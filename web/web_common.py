@@ -197,6 +197,68 @@ def main_and_back_buttons(pages_back: int) -> str:
         return main_page_button()
 
 
+def resolve_date_range(
+    ttdb: sqlite3.Connection,
+    *,
+    orgsite_id: int = 1,
+    start_date: str = "",
+    end_date: str = "",
+    today: str = "today",
+    db_limits=None,
+) -> tuple[str, str, str, str]:
+    """Return effective and default date ranges for reports.
+
+    The default range spans from max(earliest day in DB, one year ago) to today (or
+    the latest day in DB if earlier). Any provided start/end dates are normalised,
+    clamped to available data, and ensured to remain in-order.
+    """
+
+    today_str = ut.date_str(today) if today else ""
+    if not today_str:
+        today_str = datetime.today().strftime("%Y-%m-%d")
+
+    year_ago = (
+        datetime.strptime(today_str, "%Y-%m-%d") - timedelta(days=365)
+    ).strftime("%Y-%m-%d")
+
+    if db_limits is None:
+        db_start, db_end = db.fetch_date_range_limits(
+            ttdb,
+            orgsite_id=orgsite_id,
+        )
+    else:
+        db_start, db_end = db_limits
+
+    default_end_candidates = [today_str]
+    if db_end:
+        default_end_candidates.append(db_end)
+    default_end = min(default_end_candidates)
+
+    default_start_candidates = [year_ago]
+    if db_start:
+        default_start_candidates.append(db_start)
+    default_start = max(default_start_candidates)
+
+    if default_start > default_end:
+        default_start = default_end
+
+    requested_start = ut.date_str(start_date) if start_date else ""
+    requested_end = ut.date_str(end_date) if end_date else ""
+
+    resolved_start = requested_start or default_start
+    resolved_end = requested_end or default_end
+
+    if db_start:
+        resolved_start = max(resolved_start, db_start)
+    if db_end:
+        resolved_end = min(resolved_end, db_end)
+
+    if resolved_start > resolved_end:
+        resolved_start = resolved_end
+
+    return resolved_start, resolved_end, default_start, default_end
+
+
 class URLParameters:
     """All the things that get read from the URL query string.
 
@@ -309,7 +371,25 @@ class URLParameters:
             return f"Invalid hex date value '{hex_string}'."
 
 
-def selfref(
+def _resolve_script_path(script_name: str) -> str:
+    """Return a sanitized script path for links within the same host."""
+
+    current_script = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
+    if not script_name:
+        return current_script
+
+    clean_name = ut.untaint(script_name)
+    if clean_name.startswith("/"):
+        return clean_name
+
+    if "/" not in current_script:
+        return clean_name
+
+    base_dir = current_script.rsplit("/", 1)[0]
+    return f"{base_dir}/{clean_name}"
+
+
+def _build_query_params(
     what: str = "",
     qdate: str = "",
     qtime: str = "",
@@ -322,9 +402,8 @@ def selfref(
     end_date: str = "",
     pages_back=None,
 ) -> str:
-    """Return a self-reference with the given parameters."""
+    """Create a query string fragment from the standard parameter set."""
 
-    me = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
     params = {
         "what": what,
         "date": qdate,
@@ -340,13 +419,81 @@ def selfref(
         "back": pages_back if pages_back is not None else "",
     }
 
-    # Filter out None and empty strings
     filtered_params = {key: value for key, value in params.items() if value}
+    if not filtered_params:
+        return ""
 
-    # Create parameter strings
-    params_str = "&".join(f"{key}={value}" for key, value in filtered_params.items())
+    return "&".join(f"{key}={value}" for key, value in filtered_params.items())
 
-    return f"{me}{ut.untaint('?' + params_str if params_str else '')}"
+
+def make_url(
+    script_name: str,
+    *,
+    what: str = "",
+    qdate: str = "",
+    qtime: str = "",
+    qtag: str = "",
+    qdow: str = "",
+    qsort: str = "",
+    qdir: str = "",
+    text_note: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    pages_back=None,
+) -> str:
+    """Return a URL for the given script on this host with the provided parameters."""
+
+    target = _resolve_script_path(script_name)
+    query = _build_query_params(
+        what=what,
+        qdate=qdate,
+        qtime=qtime,
+        qtag=qtag,
+        qdow=qdow,
+        qsort=qsort,
+        qdir=qdir,
+        text_note=text_note,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=pages_back,
+    )
+
+    if not query:
+        return target
+
+    return f"{target}{ut.untaint('?' + query)}"
+
+
+def selfref(
+    what: str = "",
+    qdate: str = "",
+    qtime: str = "",
+    qtag: str = "",
+    qdow: str = "",
+    qsort: str = "",
+    qdir: str = "",
+    text_note: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    pages_back=None,
+) -> str:
+    """Return a self-reference with the given parameters."""
+
+    script_name = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
+    return make_url(
+        script_name,
+        what=what,
+        qdate=qdate,
+        qtime=qtime,
+        qtag=qtag,
+        qdow=qdow,
+        qsort=qsort,
+        qdir=qdir,
+        text_note=text_note,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=pages_back,
+    )
 
 
 def style() -> str:

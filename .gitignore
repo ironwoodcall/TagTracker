@@ -26,3 +26,5 @@ ttdev
 client_local_config.py
 web_local_config.py
 *~
+web/estimator_calibration_config.json
+estimator_calibration_config.json

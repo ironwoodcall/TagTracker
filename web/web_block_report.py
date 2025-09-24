@@ -34,6 +34,7 @@ import common.tt_util as ut
 import web_common as cc
 import datacolors as dc
 import colortable
+from web_daterange_selector import generate_date_filter_form
 
 XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 X_TOP_COLOR = "red"
@@ -70,20 +71,26 @@ class _OneDay:
         self.blocks = copy.deepcopy(_OneDay._allblocks)
 
 
-def _process_iso_dow(iso_dow, orgsite_id: int) -> tuple[str, str]:
+def _process_iso_dow(
+    iso_dow,
+    orgsite_id: int,
+    start_date: str = "",
+    end_date: str = "",
+) -> tuple[str, str]:
     # Use dow to make report title prefix, and day filter for SQL queries.
+    conditions = [f"orgsite_id = {orgsite_id}"]
     if iso_dow:
         iso_dow = int(iso_dow)
-    if not iso_dow:
-        title_bit = ""
-        day_where_clause = f"where orgsite_id = {orgsite_id}"
-    else:
-        # sqlite uses unix dow, so need to adjust dow from 1->7 to 0->6.
         title_bit = f"{ut.dow_str(iso_dow)} "
-        day_where_clause = (
-            f" where orgsite_id = {orgsite_id} "
-            f"and strftime('%w',date) = '{iso_dow % 7}' "
-        )
+        conditions.append(f"strftime('%w',date) = '{iso_dow % 7}'")
+    else:
+        title_bit = ""
+    if start_date:
+        conditions.append(f"date >= '{start_date}'")
+    if end_date:
+        conditions.append(f"date <= '{end_date}'")
+
+    day_where_clause = f" where {' and '.join(conditions)}"
 
     return title_bit, day_where_clause
 
@@ -184,13 +191,21 @@ def print_the_html(
     day_full_colors: dc.Dimension,
     pages_back: int,
     page_title_prefix: str = "",
+    date_filter_html: str = "",
+    date_range_label: str = "",
 ):
     def column_gap() -> str:
         """Make a thicker vertical cell border to mark off sets of blocks."""
         return "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
 
-    print(f"<h1>{page_title_prefix}Daily activity detail</h1>")
-    print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
+    title = f"{page_title_prefix}Daily activity detail"
+    if date_range_label:
+        title = f"{title} ({date_range_label})"
+    print(f"<h1>{title}</h1>")
+    print(f"{cc.main_and_back_buttons(pages_back)}<br>")
+    if date_filter_html:
+        print(date_filter_html)
+    print("<br><br>")
 
     # We frequently use xycolors(0,0). Save & store it.
     zero_bg = xy_colors.css_bg((0, 0))
@@ -306,6 +321,8 @@ def blocks_report(
     ttdb: sqlite3.Connection,
     iso_dow: str | int = "",
     pages_back: int = 1,
+    start_date: str = "",
+    end_date: str = "",
 ):
     """Print block-by-block colors report for all days
 
@@ -317,11 +334,51 @@ def blocks_report(
     orgsite_id = 1  # orgsite_id hardcoded
 
     cc.test_dow_parameter(iso_dow, list_ok=False)
-    title_bit, day_where_clause = _process_iso_dow(iso_dow,orgsite_id=orgsite_id)
+
+    start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
+        ttdb,
+        orgsite_id=orgsite_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    title_bit, day_where_clause = _process_iso_dow(
+        iso_dow,
+        orgsite_id=orgsite_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    target_what = cc.WHAT_BLOCKS_DOW if iso_dow else cc.WHAT_BLOCKS
+    self_url = cc.selfref(
+        what=target_what,
+        qdow=iso_dow if iso_dow else None,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=pages_back + 1,
+    )
+    date_filter_html = generate_date_filter_form(
+        self_url,
+        default_start_date=start_date,
+        default_end_date=end_date,
+    )
 
     dayrows:list[db.DBRow] = _fetch_day_data(ttdb, day_where_clause)
     visitrows_in:list[db.DBRow] = _fetch_visit_data(ttdb, day_where_clause, "in")
     visitrows_out:list[db.DBRow] = _fetch_visit_data(ttdb, day_where_clause, "out")
+
+    range_label = f"{start_date} to {end_date}" if start_date or end_date else ""
+
+    if not dayrows:
+        heading = f"{title_bit}Daily activity detail"
+        if range_label:
+            heading = f"{heading} ({range_label})"
+        print(f"<h1>{heading}</h1>")
+        print(f"{cc.main_and_back_buttons(pages_back)}<br>")
+        print(date_filter_html)
+        print("<br><br>")
+        print("<p>No data found for the selected date range.</p>")
+        return
 
     # Create structures for the html tables
     tabledata, day_maxes = process_day_data(dayrows)
@@ -344,6 +401,8 @@ def blocks_report(
         day_full_colors,
         pages_back,
         page_title_prefix=title_bit,
+        date_filter_html=date_filter_html,
+        date_range_label=range_label,
     )
 
 

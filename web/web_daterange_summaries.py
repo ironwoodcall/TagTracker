@@ -129,11 +129,18 @@ def daterange_summary(
         print(f"No data found for {orgsite_id=}")
         return
 
-    # Adjust start_date and end_date based on fetched limits
-    start_date = max(start_date or db_start_date, db_start_date)
-    end_date = min(end_date or db_end_date, db_end_date)
+    requested_start = "" if start_date in ("", "0000-00-00") else start_date
+    requested_end = "" if end_date in ("", "9999-99-99") else end_date
 
-    _daterange_summary_pagetop(start_date,end_date,pages_back)
+    start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
+        ttdb,
+        orgsite_id=orgsite_id,
+        start_date=requested_start,
+        end_date=requested_end,
+        db_limits=(db_start_date, db_end_date),
+    )
+
+    _daterange_summary_pagetop(start_date, end_date, pages_back)
 
     self_url = cc.selfref(
         what=cc.WHAT_DATERANGE,
