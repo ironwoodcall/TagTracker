@@ -217,6 +217,7 @@ COMMANDS = {
                 ARG_TAGS, optional=False, prompt="Delete check in/out for what tag(s)? "
             ),
             ArgConfig(ARG_INOUT, optional=False, prompt="Enter 'in' or 'out': "),
+            ArgConfig(ARG_YESNO, optional=False, prompt="Enter 'y' to confirm: "),
         ],
     ),
     CmdKeys.CMD_DUMP: CmdConfig(
