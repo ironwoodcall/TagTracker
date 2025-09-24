@@ -79,7 +79,7 @@ from common.tt_biketag import BikeTagError
 from common.tt_bikevisit import BikeVisit
 
 from common.tt_daysummary import DaySummary, PeriodDetail
-# from common.tt_time import VTime
+from common.tt_time import VTime
 from common.tt_constants import REGULAR, OVERSIZE, COMBINED
 
 # Pre-declare this global for linting purposes.
@@ -749,6 +749,89 @@ def insert_into_dataloads(
     return True
 
 
+def _sanitize_day_visits(day: TrackerDay) -> list[str]:
+    """Attempt to repair or drop problematic visits instead of rejecting a file."""
+
+    notes = []
+    for tagid, biketag in day.biketags.items():
+        if not biketag.visits:
+            continue
+
+        visits_sorted = sorted(
+            biketag.visits,
+            key=lambda visit: (
+                visit.time_in.num if visit.time_in else -1,
+                getattr(visit, "seq", 0),
+            ),
+        )
+
+        cleaned_visits = []
+        last_end: VTime | None = None
+        for index, visit in enumerate(visits_sorted, start=1):
+            label = f"{tagid}:{index}"
+
+            if not visit.time_in:
+                notes.append(f"Removed {label} because it is missing a check-in time.")
+                continue
+
+            if visit.time_out and visit.time_in > visit.time_out:
+                notes.append(
+                    f"Adjusted {label} checkout from {visit.time_out} to {visit.time_in}."
+                )
+                visit.time_out = VTime(visit.time_in)
+
+            if last_end and visit.time_in < last_end:
+                if visit.time_out and visit.time_out <= last_end:
+                    notes.append(
+                        f"Removed {label} because it ended before the prior visit's checkout."
+                    )
+                    continue
+
+                adjusted_start = VTime(last_end)
+                notes.append(
+                    f"Shifted {label} check-in from {visit.time_in} to {adjusted_start} to avoid overlap."
+                )
+                visit.time_in = adjusted_start
+
+            cleaned_visits.append(visit)
+            last_end = visit.time_out if visit.time_out else visit.time_in
+
+        unfinished = [v for v in cleaned_visits if not v.time_out]
+        if len(unfinished) > 1:
+            for extra in unfinished[:-1]:
+                notes.append(
+                    f"Removed {tagid} visit starting {extra.time_in} lacking checkout before the final visit."
+                )
+                cleaned_visits.remove(extra)
+
+        if unfinished:
+            last_unfinished = unfinished[-1]
+            if last_unfinished in cleaned_visits:
+                last_index = cleaned_visits.index(last_unfinished)
+                if last_index != len(cleaned_visits) - 1:
+                    notes.append(
+                        f"Removed {tagid} visit starting {last_unfinished.time_in} without checkout because another visit follows."
+                    )
+                    cleaned_visits.pop(last_index)
+
+        if len(cleaned_visits) != len(biketag.visits):
+            notes.append(
+                f"{tagid}: retained {len(cleaned_visits)} of {len(biketag.visits)} visits after repair."
+            )
+
+        biketag.visits = cleaned_visits
+
+        if biketag.status != biketag.RETIRED:
+            if not biketag.visits:
+                biketag.status = biketag.UNUSED
+            elif biketag.visits[-1].time_out:
+                biketag.status = biketag.DONE
+            else:
+                biketag.status = biketag.IN_USE
+
+    return notes
+
+
 def read_datafile(filename: str) -> tuple[TrackerDay, DaySummary]:
     """Read and prepare one filename into TrackerDay & DaySummary obects."""
     file_info: FileInfo = Statuses.files[filename]
@@ -770,9 +853,18 @@ def read_datafile(filename: str) -> tuple[TrackerDay, DaySummary]:
 
     lint_msgs = day.lint_check(strict_datetimes=True, allow_quick_checkout=True)
     if lint_msgs:
-        msg = [f"Errors reading datafile {filename}:"] + lint_msgs
-        file_info.set_bad(msg)
-        return None, None
+        repair_notes = _sanitize_day_visits(day)
+        if repair_notes:
+            file_info.error_list.extend([f"AUTO-REPAIR: {note}" for note in repair_notes])
+            if args.verbose:
+                print(f"   Auto-repaired visits in {filename}:")
+                for note in repair_notes:
+                    print(f"      {note}")
+        lint_msgs = day.lint_check(strict_datetimes=True, allow_quick_checkout=True)
+        if lint_msgs:
+            msg = [f"Errors reading datafile {filename}:"] + lint_msgs
+            file_info.set_bad(msg)
+            return None, None
 
     day_summary = DaySummary(day=day, as_of_when="24:00")
     return day, day_summary

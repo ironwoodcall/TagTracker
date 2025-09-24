@@ -62,21 +62,21 @@ class BikeVisit:
         # Return duration (in minutes) of visit
         as_of_when = VTime(as_of_when or "now")
 
-        if self.time_in > as_of_when:
-            return None
+        start = self.time_in
 
         if is_close_of_business:
-            end = self.time_out or max(
-                as_of_when,
-                VTime(self.time_in.num + DURATION_EDGECASE_BUFFER),
-            )
-
+            if self.time_out:
+                end = self.time_out
+            else:
+                assumed_end = VTime(self.time_in.num + DURATION_EDGECASE_BUFFER)
+                end = max(as_of_when, assumed_end)
         else:
+            if self.time_in > as_of_when:
+                return None
             if self.time_out:
                 end = min(self.time_out, as_of_when)
             else:
                 end = as_of_when
 
-        dur = end.num - self.time_in.num
-        dur = dur if dur >= 0 else 0
+        dur = max(0, end.num - start.num)
         return dur
