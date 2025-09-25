@@ -397,7 +397,7 @@ def season_summary(ttdb: sqlite3.Connection):
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Today's<br>Visits<br>Detail</b></button>
+          <b>Today's<br>Visits</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -405,22 +405,12 @@ def season_summary(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Daily<br>Visits<br>Activity</b></button>
+          <b>Daily<br>Activity</b></button>
         &nbsp;&nbsp;
         """
     )
     print(
         f"""
-
-        <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Overall<br>Visits<br>Graphs</b></button>
-
-        """
-    )
-    print(
-        f"""
-        <br><br>
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Daily<br>Summaries</b></button>
@@ -432,15 +422,23 @@ def season_summary(ttdb: sqlite3.Connection):
         <button onclick="window.location.href='{summaries_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Period<br>Summaries</b></button>
+        &nbsp;&nbsp;
           """
     )
     print(
         f"""
-       &nbsp;&nbsp;
+        <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Visits<br>Graphs</b></button>
+        &nbsp;&nbsp;
+        """
+    )
+    print(
+        f"""
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Tags<br>Inventory</b></button>
-        <br><br>
+          <b>Inventory<br>of Tags</b></button>
+        &nbsp;&nbsp;
           """
     )
     print(
