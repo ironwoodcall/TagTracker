@@ -10,6 +10,7 @@ CGI parameters:
         "verbose" (detailed output),
         "quick" (skip Random Forest), and
         "schedule" (REC model only; requires opening and closing times).
+    what: alias for estimation_type.
 
 Estimates assume the request is for today at "now" and rely on the provided opening and closing times.
 
@@ -720,9 +721,14 @@ class Estimator:
         self._selection_info = selection_info
 
         # --- Final table packaging (Mixed first) ---
-        self.tables = [
-            ("Best Guess Estimates", mixed_rows, None),
-        ]
+        if self.estimation_type == "quick":
+            self.tables = [
+                ("Quick Best Guess Estimates", mixed_rows, None),
+            ]
+        else:
+            self.tables = [
+                ("Best Guess Estimates", mixed_rows, None),
+            ]
         if simple_rows:
             self.tables.append(
                 (
@@ -1805,6 +1811,10 @@ if __name__ == "__main__":
             estimation_type = (
                 (query_parms.get("estimation_type", [""])[0] or "").strip().lower()
             )
+            if not estimation_type:
+                estimation_type = (
+                    (query_parms.get("what", [""])[0] or "").strip().lower()
+                )
             return Estimator(
                 bikes_so_far=bikes_so_far,
                 opening_time=opening_time,

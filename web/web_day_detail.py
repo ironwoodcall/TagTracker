@@ -530,7 +530,7 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = web_estimator.Estimator(estimation_type="STANDARD")
+        est = web_estimator.Estimator(estimation_type="QUICK")
         est.guess()
         if est.state != web_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
@@ -569,11 +569,17 @@ def summary_table(
                 {tag_reuse_pct:.0%}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
             <td>{day_data.bikes_registered}</td></tr>
-        """)
+        """
+    )
     if is_today and est is not None and est.state != web_estimator.ERROR:
-        print(f"""
-        <tr><td colspan=3><pre>{"<br>".join(est.result_msg())}</pre></td></tr>
-            """)
+        detail_link = cc.make_url("tt_estimator", what="verbose")
+        print(
+            f"""
+        <tr><td colspan=3><pre>{"<br>".join(est.result_msg())}</pre>
+        <a href="{detail_link}" target="_blank">
+        Detailed estimates (opens in new tab/window)</a></td></tr>
+            """
+        )
 
     if not is_today:
         print(
