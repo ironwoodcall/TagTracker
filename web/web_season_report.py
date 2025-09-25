@@ -375,6 +375,8 @@ def season_summary(ttdb: sqlite3.Connection):
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
     summaries_link = cc.selfref(what=cc.WHAT_DATERANGE)
+    download_csv_link = cc.make_url("tt_download", what="csv")
+    download_db_link = cc.make_url("tt_download", what="db")
 
     print(f"<h1 style='display: inline;'>{cc.titleize('Quick Overview')}</h1><br><br>")
     print("<div style='display:inline-block'>")
@@ -438,6 +440,18 @@ def season_summary(ttdb: sqlite3.Connection):
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Tags<br>Inventory</b></button>
+        <br><br>
+          """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{download_csv_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Download<br>CSV</b></button>
+        &nbsp;&nbsp;
+        <button onclick="window.location.href='{download_db_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Download<br>Database</b></button>
         <br><br>
           """
     )

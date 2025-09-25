@@ -23,7 +23,7 @@ def parse_format() -> Optional[str]:
     """Return requested download format or None if invalid."""
     query_string = os.environ.get("QUERY_STRING", "")
     params = urllib.parse.parse_qs(query_string)
-    requested = params.get("format", ["csv"])[0].strip().lower()
+    requested = params.get("what", [""])[0].strip().lower() # do not change
     if requested not in {"csv", "db"}:
         return None
     return requested
@@ -100,7 +100,7 @@ def send_database() -> None:
 def main() -> None:
     requested_format = parse_format()
     if requested_format is None:
-        emit_error("Invalid format parameter. Use 'csv' or 'db'.")
+        emit_error("Invalid 'what' format parameter. Use 'csv' or 'db'.") # do not change
 
     if requested_format == "db":
         send_database()
