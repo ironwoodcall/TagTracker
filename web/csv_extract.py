@@ -9,11 +9,11 @@ import zipfile
 from datetime import datetime
 
 # Import database path from your config
-from web_base_config import DB_FILENAME
+from web_base_config import DB_FILENAME, DATA_OWNER
 
 # --- CGI headers ---
 sys.stdout.write("Content-Type: application/zip\r\n")
-sys.stdout.write("Content-Disposition: attachment; filename=cityhall-bikedata-csv.zip\r\n")
+sys.stdout.write("Content-Disposition: attachment; filename=bikedata-csv.zip\r\n")
 sys.stdout.write("\r\n")
 sys.stdout.flush()
 
@@ -39,6 +39,12 @@ with tempfile.TemporaryDirectory() as csv_dir:
     readme_path = os.path.join(csv_dir, "README.TXT")
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(f"Extraction Date: {datetime.now()}\n")
+        f.write("\n")
+        if isinstance(DATA_OWNER, list):
+            for item in DATA_OWNER:
+                f.write(f"{item}\n")
+        else:
+            f.write(f"{DATA_OWNER}\n")
 
     # --- Stream zip to stdout ---
     with zipfile.ZipFile(sys.stdout.buffer, "w", zipfile.ZIP_DEFLATED) as zf:
