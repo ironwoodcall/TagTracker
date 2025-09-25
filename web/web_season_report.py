@@ -292,7 +292,8 @@ def totals_table(conn: sqlite3.Connection):
         ),
         (
             "Average bikes / day",
-            round(ytd_totals.total_parked_combined / ytd_totals.total_days_open),
+            round(ytd_totals.total_parked_combined /
+                  ytd_totals.total_days_open),
             *["-" for day in day_totals.keys()],
         ),
         (
@@ -310,7 +311,8 @@ def totals_table(conn: sqlite3.Connection):
             VTime(ytd_totals.total_hours_open * 60, allow_large=True),
             *[
                 (
-                    VTime(day_totals[day].total_hours_open * 60, allow_large=True)
+                    VTime(day_totals[day].total_hours_open *
+                          60, allow_large=True)
                     if day_totals[day].total_hours_open
                     else ""
                 )
@@ -378,7 +380,8 @@ def season_summary(ttdb: sqlite3.Connection):
     download_csv_link = cc.make_url("tt_download", what="csv")
     download_db_link = cc.make_url("tt_download", what="db")
 
-    print(f"<h1 style='display: inline;'>{cc.titleize('Quick Overview')}</h1><br><br>")
+    print(
+        f"<h1 style='display: inline;'>{cc.titleize('Quick Overview')}</h1><br><br>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
 
@@ -387,7 +390,7 @@ def season_summary(ttdb: sqlite3.Connection):
     totals_table(conn=ttdb)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
-    ##mini_freq_tables(ttdb)
+    # mini_freq_tables(ttdb)
     print("</div>")
     print("</div>")
     print("<br>")
@@ -517,7 +520,8 @@ def season_detail(
     if sort_by == cc.SORT_DATE:
         sort_msg = f"date{direction_msg}"
     elif sort_by == cc.SORT_DAY:
-        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.weekday)
+        all_days = sorted(all_days, reverse=reverse_sort,
+                          key=lambda x: x.weekday)
         sort_msg = f"day of week{direction_msg}"
     elif sort_by == cc.SORT_PARKED:
         all_days = sorted(
@@ -567,7 +571,7 @@ def season_detail(
     max_left_colour.add_config(10, "red")
 
     max_temp_colour = dc.Dimension()
-    max_temp_colour.add_config(11, "beige")  #'rgb(255, 255, 224)')
+    max_temp_colour.add_config(11, "beige")  # 'rgb(255, 255, 224)')
     max_temp_colour.add_config(35, "orange")
     max_temp_colour.add_config(0, "azure")
 
@@ -698,14 +702,17 @@ def create_blocks_color_maps(block_maxes: cc.BlocksSummary) -> tuple:
     """
     # Set up color maps
     inout_colors = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
-    d1 = inout_colors.add_dimension(interpolation_exponent=0.82, label="Bikes parked")
+    d1 = inout_colors.add_dimension(
+        interpolation_exponent=0.82, label="Bikes parked")
     d1.add_config(0, BLOCK_XY_BOTTOM_COLOR)
     d1.add_config(block_maxes.num_in, BLOCK_X_TOP_COLOR)
-    d2 = inout_colors.add_dimension(interpolation_exponent=0.82, label="Bikes returned")
+    d2 = inout_colors.add_dimension(
+        interpolation_exponent=0.82, label="Bikes returned")
     d2.add_config(0, BLOCK_XY_BOTTOM_COLOR)
     d2.add_config(block_maxes.num_out, BLOCK_Y_TOP_COLOR)
 
-    fullness_colors = dc.Dimension(interpolation_exponent=0.85, label="Bikes onsite")
+    fullness_colors = dc.Dimension(
+        interpolation_exponent=0.85, label="Bikes onsite")
     fullness_colors_list = [
         inout_colors.get_color(0, 0),
         "thistle",

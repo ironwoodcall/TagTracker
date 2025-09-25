@@ -34,7 +34,7 @@ def parse_format() -> Optional[str]:
     query_string = os.environ.get("QUERY_STRING", "")
     params = urllib.parse.parse_qs(query_string)
     debug(f"query_string='{query_string}' params={params}")
-    requested = params.get("what", [""])[0].strip().lower() # do not change
+    requested = params.get("what", [""])[0].strip().lower()  # do not change
     if requested not in {"csv", "db"}:
         debug(f"invalid format requested='{requested}'")
         return None
@@ -90,9 +90,7 @@ def send_csv_archive() -> None:
                     rows = cur.fetchall()
                     writer.writerow(headers)
                     writer.writerows(rows)
-                    debug(
-                        f"table '{table}' headers={headers} rows_written={len(rows)}"
-                    )
+                    debug(f"table '{table}' headers={headers} rows_written={len(rows)}")
         finally:
             conn.close()
             debug("database connection closed after CSV extraction")
@@ -118,13 +116,9 @@ def send_database() -> None:
         debug(f"creating DB archive in temp dir '{tmp_dir}'")
         db_exists = os.path.exists(DB_FILENAME)
         db_size = os.path.getsize(DB_FILENAME) if db_exists else "missing"
-        debug(
-            f"source database '{DB_FILENAME}' exists={db_exists} size={db_size}"
-        )
+        debug(f"source database '{DB_FILENAME}' exists={db_exists} size={db_size}")
         shutil.copyfile(DB_FILENAME, os.path.join(tmp_dir, DB_ARCHIVE_DB_NAME))
-        debug(
-            f"copied database to '{os.path.join(tmp_dir, DB_ARCHIVE_DB_NAME)}'"
-        )
+        debug(f"copied database to '{os.path.join(tmp_dir, DB_ARCHIVE_DB_NAME)}'")
         write_readme(tmp_dir)
         debug(f"readme written: {os.path.join(tmp_dir, 'README.TXT')}")
 
@@ -139,7 +133,9 @@ def send_database() -> None:
 def main() -> None:
     requested_format = parse_format()
     if requested_format is None:
-        emit_error("Invalid 'what' format parameter. Use 'csv' or 'db'.") # do not change
+        emit_error(
+            "Invalid 'what' format parameter. Use 'csv' or 'db'."
+        )  # do not change
 
     debug(f"main dispatching format='{requested_format}'")
     if requested_format == "db":
