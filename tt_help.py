@@ -45,6 +45,7 @@ To enter and change tracking data
   Change operating hours       :  HOURS
   View/manage attendant notes  :  NOTE [DELETE|UNDELETE|note text]
   View/set bike registrations  :  REGISTER [+n|-n|=n]
+  Retire or unretire tags      :  RETIRE | UNRETIRE <tag(s)>
 
 Information and reports
   Show info about one tag      :  QUERY <tag(s)>
@@ -56,12 +57,12 @@ Information and reports
   Show day-end stats report    :  STATS [time]
   Graph busy- and fullness     :  GRAPH
   Show chart of all activity   :  CHART
-  Debug data dump              :  DUMP [full]
 
 Other
   Help with commands           :  HELP [command]
   Set tags to UPPER/LOWER CASE :  UPPERCASE | UC | LOWERCASE | LC
-  Retire or unretire tags      :  RETIRE | UNRETIRE <tag(s)>
+  Display internal data dump   :  DUMP [VERBOSE|V]
+  Emit debug breadcrumbs       :  DEBUG <ON|OFF>
   Exit                         :  EXIT | x
 
 Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
