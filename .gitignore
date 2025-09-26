@@ -28,3 +28,4 @@ web_local_config.py
 *~
 web/estimator_calibration_config.json
 estimator_calibration_config.json
+.tagtracker_version_info
