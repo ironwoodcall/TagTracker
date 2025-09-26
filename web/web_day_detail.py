@@ -469,7 +469,7 @@ def block_activity_table(
 
     print("<table class=general_table style='text-align:right'>")
     print(
-        "<tr><th colspan=9 style='text-align:center'>Half-hour activity"
+        "<tr><th colspan=9 style='text-align:center'>Half-hourly Activity"
         f" for {thisday}</th></tr>"
     )
     print(
@@ -550,25 +550,99 @@ def block_activity_table(
         )
 
     max_block_peak = max([row["block_max"] for row in rows_to_render] or [0])
+    max_total_parked = max([row["total_in"] for row in rows_to_render] or [0])
+    max_in_value = max(
+        [
+            max(row["rg_in"], row["ov_in"], row["all_in"])
+            for row in rows_to_render
+        ]
+        or [0]
+    )
+    max_out_value = max(
+        [
+            max(row["rg_out"], row["ov_out"], row["all_out"])
+            for row in rows_to_render
+        ]
+        or [0]
+    )
+
+    day_total_bikes_colors = dc.Dimension(
+        interpolation_exponent=1.5, label="Bikes parked this day"
+    )
+    day_total_bikes_colors.add_config(0, "white")
+    total_color_max = max(
+        max_total_parked,
+        getattr(day_data, "num_parked_combined", 0) if day_data else 0,
+    )
+    if total_color_max > 0:
+        day_total_bikes_colors.add_config(total_color_max, "green")
+
+    day_full_colors = dc.Dimension(
+        interpolation_exponent=1.5, label="Most bikes this day"
+    )
+    day_full_colors.add_config(0, "white")
+    full_color_max = max(
+        max_block_peak,
+        getattr(day_data, "num_fullest_combined", 0) if day_data else 0,
+    )
+    if full_color_max > 0:
+        day_full_colors.add_config(full_color_max, "teal")
+
+    XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
+    X_TOP_COLOR = "red"
+    Y_TOP_COLOR = "royalblue"
+
+    bikes_in_colors = dc.Dimension(interpolation_exponent=0.82, label="Bikes in")
+    bikes_in_colors.add_config(0, XY_BOTTOM_COLOR)
+    if max_in_value > 0:
+        bikes_in_colors.add_config(max_in_value, X_TOP_COLOR)
+
+    bikes_out_colors = dc.Dimension(interpolation_exponent=0.82, label="Bikes out")
+    bikes_out_colors.add_config(0, XY_BOTTOM_COLOR)
+    if max_out_value > 0:
+        bikes_out_colors.add_config(max_out_value, Y_TOP_COLOR)
+
+    def mix_styles(*parts) -> str:
+        pieces = [p.strip().rstrip(";") for p in parts if p]
+        return (";".join(pieces) + ";") if pieces else ""
 
     for row in rows_to_render:
         row_border = "border-top:3px solid black;" if row["border_top"] else ""
-        time_style = f"text-align:right;{row_border}"
-        cell_style = f"text-align:right;{row_border}"
-        most_style = f"text-align:right;{row_border}"
-        if row["block_max"] == max_block_peak:
-            most_style += "border:3px solid black;font-weight:bold;"
+        base_style = mix_styles("text-align:right", row_border)
+        in_style = lambda val: mix_styles(
+            "text-align:right",
+            row_border,
+            bikes_in_colors.css_bg_fg(val),
+        )
+        out_style = lambda val: mix_styles(
+            "text-align:right",
+            row_border,
+            bikes_out_colors.css_bg_fg(val),
+        )
+        total_style = mix_styles(
+            "text-align:right",
+            row_border,
+            day_total_bikes_colors.css_bg_fg(row["total_in"]),
+        )
+        most_parts = [
+            "text-align:right",
+            row_border,
+            day_full_colors.css_bg_fg(row["block_max"]),
+        ]
+        if row["block_max"] == max_block_peak and max_block_peak:
+            most_parts.extend(["border:3px solid black", "font-weight:bold"])
+        most_style = mix_styles(*most_parts)
 
         print(
             "<tr>"
-            f"<td style='{time_style}'>{row['time_label']}</td>"
-            f"<td style='{cell_style}'>{row['rg_in']}</td>"
-            f"<td style='{cell_style}'>{row['ov_in']}</td>"
-            f"<td style='{cell_style}'>{row['all_in']}</td>"
-            f"<td style='{cell_style}'>{row['rg_out']}</td>"
-            f"<td style='{cell_style}'>{row['ov_out']}</td>"
-            f"<td style='{cell_style}'>{row['all_out']}</td>"
-            f"<td style='{cell_style}'>{row['total_in']}</td>"
+            f"<td style='{base_style}'>{row['time_label']}</td>"
+            f"<td style='{in_style(row['rg_in'])}'>{row['rg_in']}</td>"
+            f"<td style='{in_style(row['ov_in'])}'>{row['ov_in']}</td>"
+            f"<td style='{in_style(row['all_in'])}'>{row['all_in']}</td>"
+            f"<td style='{out_style(row['rg_out'])}'>{row['rg_out']}</td>"
+            f"<td style='{out_style(row['ov_out'])}'>{row['ov_out']}</td>"
+            f"<td style='{out_style(row['all_out'])}'>{row['all_out']}</td>"
+            f"<td style='{total_style}'>{row['total_in']}</td>"
             f"<td style='{most_style}'>{row['block_max']}</td>"
             "</tr>"
         )
