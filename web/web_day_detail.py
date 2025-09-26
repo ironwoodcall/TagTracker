@@ -23,7 +23,9 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 """
 
 import sqlite3
+from collections import defaultdict
 from dataclasses import dataclass
+from typing import Optional
 
 import common.tt_dbutil as db
 from common.tt_tag import TagID
@@ -268,7 +270,6 @@ def one_day_tags_report(
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
 
     summary_table(day_data, stats, tag_reuses, tag_reuse_pct, highlights, is_today)
-    legend_table(daylight, duration_colors)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##print("</div><div>")
@@ -276,9 +277,12 @@ def one_day_tags_report(
     mini_freq_tables(ttdb, thisday)
     print("</div>")
     print("</div>")
-    print("<br>")
+    # print("<br>")
     ##print("</div></div>")
 
+    block_activity_table(thisday, day_data, visits, is_today)
+    # print("<br>")
+    # legend_table(daylight, duration_colors)
     visits_table(
         thisday,
         is_today,
@@ -369,6 +373,279 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
             )
         )
         print("<br>")
+
+
+def block_activity_table(
+    thisday: str, day_data: DayTotals, visits, is_today: bool
+) -> None:
+    """Render a half-hour activity summary for the requested day."""
+
+    if not visits:
+        return
+
+    def to_minutes(maybe_time) -> Optional[int]:
+        if not maybe_time:
+            return None
+        vtime = maybe_time if isinstance(maybe_time, VTime) else VTime(maybe_time)
+        if not vtime or vtime.num is None:
+            return None
+        minute = vtime.num
+        return minute if minute < 24 * 60 else 24 * 60 - 1
+
+    def block_start_minute(minute: Optional[int]) -> Optional[int]:
+        if minute is None:
+            return None
+        return (minute // ut.BLOCK_DURATION) * ut.BLOCK_DURATION
+
+    in_counts = defaultdict(lambda: {"R": 0, "O": 0})
+    out_counts = defaultdict(lambda: {"R": 0, "O": 0})
+    events: list[tuple[int, int]] = []
+    event_minutes: list[int] = []
+
+    for visit in visits:
+        bike_type = (visit.bike_type or "").upper()
+        if bike_type not in {"R", "O"}:
+            bike_type = "R"
+
+        time_in_min = to_minutes(visit.time_in)
+        if time_in_min is not None:
+            block = block_start_minute(time_in_min)
+            if block is not None:
+                in_counts[block][bike_type] += 1
+                event_minutes.append(time_in_min)
+                events.append((time_in_min, 1))
+
+        time_out_min = to_minutes(visit.time_out)
+        if time_out_min is not None:
+            block = block_start_minute(time_out_min)
+            if block is not None:
+                out_counts[block][bike_type] += 1
+                event_minutes.append(time_out_min)
+                events.append((time_out_min, -1))
+
+    open_minutes = to_minutes(day_data.time_open) if day_data else None
+    close_minutes = to_minutes(day_data.time_closed) if day_data else None
+
+    earliest_event = min(event_minutes) if event_minutes else None
+    latest_event = max(event_minutes) if event_minutes else None
+
+    now_minute: Optional[int] = to_minutes("now") if is_today else None
+
+    start_candidates = [c for c in (open_minutes, earliest_event) if c is not None]
+    if not start_candidates:
+        return
+    start_minute = min(start_candidates)
+
+    if is_today:
+        end_candidates = [c for c in (start_minute, to_minutes("now")) if c is not None]
+    else:
+        end_candidates = [
+            c for c in (close_minutes, latest_event, start_minute) if c is not None
+        ]
+
+    end_minute = max(end_candidates)
+
+    start_block = block_start_minute(start_minute)
+    end_block = block_start_minute(end_minute)
+
+    if start_block is None or end_block is None:
+        return
+    if end_block < start_block:
+        end_block = start_block
+
+    stop = end_block + ut.BLOCK_DURATION
+    if is_today and now_minute is not None:
+        stop = end_block + 1
+    block_range = range(start_block, stop, ut.BLOCK_DURATION)
+
+    events.sort(key=lambda item: (item[0], 0 if item[1] > 0 else 1))
+    event_index = 0
+    current_occupancy = 0
+    cumulative_total_in = 0
+
+    close_block = (
+        block_start_minute(close_minutes) if close_minutes is not None else None
+    )
+    open_block = block_start_minute(open_minutes) if open_minutes is not None else None
+    rows_to_render = []
+    closed_boundary_marked = False
+    open_boundary_marked = False
+
+    print("<table class=general_table style='text-align:right'>")
+    print(
+        "<tr><th colspan=9 style='text-align:center'>Half-hourly activity"
+        f" for {thisday}</th></tr>"
+    )
+    print(
+        "<tr>"
+        "<th rowspan=2>Time</th>"
+        "<th colspan=3>Bikes in</th>"
+        "<th colspan=3>Bikes out</th>"
+        "<th rowspan=2>Total<br>parked</th>"
+        "<th rowspan=2>Most<br>bikes</th>"
+        "</tr>"
+    )
+    print(
+        "<tr>"
+        "<th>Reglr</th>"
+        "<th>Ovrsz</th>"
+        "<th>Total</th>"
+        "<th>Reglr</th>"
+        "<th>Ovrsz</th>"
+        "<th>Total</th>"
+        "</tr>"
+    )
+
+    for block_start in block_range:
+        block_end = block_start + ut.BLOCK_DURATION
+        in_block = in_counts[block_start]
+        out_block = out_counts[block_start]
+
+        rg_in = in_block["R"]
+        ov_in = in_block["O"]
+        all_in = rg_in + ov_in
+        cumulative_total_in += all_in
+
+        rg_out = out_block["R"]
+        ov_out = out_block["O"]
+        all_out = rg_out + ov_out
+
+        block_max = current_occupancy
+        while event_index < len(events) and events[event_index][0] < block_end:
+            _, delta = events[event_index]
+            current_occupancy += delta
+            block_max = max(block_max, current_occupancy)
+            event_index += 1
+
+        block_max = max(block_max, 0)
+        time_label = VTime(block_start).tidy
+
+        add_boundary = False
+        if (
+            open_block is not None
+            and not open_boundary_marked
+            and block_start >= open_block
+        ):
+            add_boundary = True
+            open_boundary_marked = True
+
+        if (
+            close_block is not None
+            and not closed_boundary_marked
+            and rows_to_render
+            and block_start >= close_block
+        ):
+            add_boundary = True
+            closed_boundary_marked = True
+
+        rows_to_render.append(
+            {
+                "time_label": time_label,
+                "rg_in": rg_in,
+                "ov_in": ov_in,
+                "all_in": all_in,
+                "rg_out": rg_out,
+                "ov_out": ov_out,
+                "all_out": all_out,
+                "total_in": cumulative_total_in,
+                "block_max": block_max,
+                "border_top": add_boundary,
+            }
+        )
+
+    max_block_peak = max([row["block_max"] for row in rows_to_render] or [0])
+    max_total_parked = max([row["total_in"] for row in rows_to_render] or [0])
+    max_in_value = max(
+        [max(row["rg_in"], row["ov_in"], row["all_in"]) for row in rows_to_render]
+        or [0]
+    )
+    max_out_value = max(
+        [max(row["rg_out"], row["ov_out"], row["all_out"]) for row in rows_to_render]
+        or [0]
+    )
+
+    day_total_bikes_colors = dc.Dimension(
+        interpolation_exponent=1.5, label="Bikes parked this day"
+    )
+    day_total_bikes_colors.add_config(0, "white")
+    total_color_max = max(
+        max_total_parked,
+        getattr(day_data, "num_parked_combined", 0) if day_data else 0,
+    )
+    if total_color_max > 0:
+        day_total_bikes_colors.add_config(total_color_max, "green")
+
+    day_full_colors = dc.Dimension(
+        interpolation_exponent=1.5, label="Most bikes this day"
+    )
+    day_full_colors.add_config(0, "white")
+    full_color_max = max(
+        max_block_peak,
+        getattr(day_data, "num_fullest_combined", 0) if day_data else 0,
+    )
+    if full_color_max > 0:
+        day_full_colors.add_config(full_color_max, "teal")
+
+    XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
+    X_TOP_COLOR = "red"
+    Y_TOP_COLOR = "royalblue"
+
+    bikes_in_colors = dc.Dimension(interpolation_exponent=0.82, label="Bikes in")
+    bikes_in_colors.add_config(0, XY_BOTTOM_COLOR)
+    if max_in_value > 0:
+        bikes_in_colors.add_config(max_in_value, X_TOP_COLOR)
+
+    bikes_out_colors = dc.Dimension(interpolation_exponent=0.82, label="Bikes out")
+    bikes_out_colors.add_config(0, XY_BOTTOM_COLOR)
+    if max_out_value > 0:
+        bikes_out_colors.add_config(max_out_value, Y_TOP_COLOR)
+
+    def mix_styles(*parts) -> str:
+        pieces = [p.strip().rstrip(";") for p in parts if p]
+        return (";".join(pieces) + ";") if pieces else ""
+
+    for row in rows_to_render:
+        row_border = "border-top:3px solid black;" if row["border_top"] else ""
+        base_style = mix_styles("text-align:right", row_border)
+        in_style = lambda val: mix_styles(
+            "text-align:right",
+            row_border,
+            bikes_in_colors.css_bg_fg(val),
+        )
+        out_style = lambda val: mix_styles(
+            "text-align:right",
+            row_border,
+            bikes_out_colors.css_bg_fg(val),
+        )
+        total_style = mix_styles(
+            "text-align:right",
+            row_border,
+            day_total_bikes_colors.css_bg_fg(row["total_in"]),
+        )
+        most_parts = [
+            "text-align:right",
+            row_border,
+            day_full_colors.css_bg_fg(row["block_max"]),
+        ]
+        if row["block_max"] == max_block_peak and max_block_peak:
+            most_parts.extend(["border:3px solid black", "font-weight:bold"])
+        most_style = mix_styles(*most_parts)
+
+        print(
+            "<tr>"
+            f"<td style='{base_style}'>{row['time_label']}</td>"
+            f"<td style='{in_style(row['rg_in'])}'>{row['rg_in']}</td>"
+            f"<td style='{in_style(row['ov_in'])}'>{row['ov_in']}</td>"
+            f"<td style='{in_style(row['all_in'])}'>{row['all_in']}</td>"
+            f"<td style='{out_style(row['rg_out'])}'>{row['rg_out']}</td>"
+            f"<td style='{out_style(row['ov_out'])}'>{row['ov_out']}</td>"
+            f"<td style='{out_style(row['all_out'])}'>{row['all_out']}</td>"
+            f"<td style='{total_style}'>{row['total_in']}</td>"
+            f"<td style='{most_style}'>{row['block_max']}</td>"
+            "</tr>"
+        )
+
+    print("</table><br>")
 
 
 def visits_table(
