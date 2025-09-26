@@ -429,7 +429,7 @@ def block_activity_table(
     earliest_event = min(event_minutes) if event_minutes else None
     latest_event = max(event_minutes) if event_minutes else None
 
-    now_minute: Optional[int] = None
+    now_minute: Optional[int] = to_minutes("now") if is_today else None
 
     start_candidates = [c for c in (open_minutes, earliest_event) if c is not None]
     if not start_candidates:
@@ -461,6 +461,12 @@ def block_activity_table(
     current_occupancy = 0
     cumulative_total_in = 0
 
+    close_block = block_start_minute(close_minutes) if close_minutes is not None else None
+    open_block = block_start_minute(open_minutes) if open_minutes is not None else None
+    rows_to_render = []
+    closed_boundary_marked = False
+    open_boundary_marked = False
+
     print("<table class=general_table style='text-align:right'>")
     print(
         "<tr><th colspan=9 style='text-align:center'>Half-hour activity"
@@ -468,15 +474,21 @@ def block_activity_table(
     )
     print(
         "<tr>"
-        "<th style='text-align:left'>Time</th>"
-        "<th>Rg_in</th>"
-        "<th>Ov_in</th>"
-        "<th>All_in</th>"
-        "<th>Rg_out</th>"
-        "<th>Ov_out</th>"
-        "<th>All_out</th>"
-        "<th>Total<br>parked</th>"
-        "<th>Most<br>bikes</th>"
+        "<th rowspan=2>Time</th>"
+        "<th colspan=3>Bikes in</th>"
+        "<th colspan=3>Bikes out</th>"
+        "<th rowspan=2>Total<br>parked</th>"
+        "<th rowspan=2>Most<br>bikes</th>"
+        "</tr>"
+    )
+    print(
+        "<tr>"
+        "<th>Reglr</th>"
+        "<th>Ovrsz</th>"
+        "<th>All</th>"
+        "<th>Reglr</th>"
+        "<th>Ovrsz</th>"
+        "<th>All</th>"
         "</tr>"
     )
 
@@ -504,17 +516,60 @@ def block_activity_table(
         block_max = max(block_max, 0)
         time_label = VTime(block_start).tidy
 
+        add_boundary = False
+        if (
+            open_block is not None
+            and not open_boundary_marked
+            and block_start >= open_block
+        ):
+            add_boundary = True
+            open_boundary_marked = True
+
+        if (
+            close_block is not None
+            and not closed_boundary_marked
+            and rows_to_render
+            and block_start >= close_block
+        ):
+            add_boundary = True
+            closed_boundary_marked = True
+
+        rows_to_render.append(
+            {
+                "time_label": time_label,
+                "rg_in": rg_in,
+                "ov_in": ov_in,
+                "all_in": all_in,
+                "rg_out": rg_out,
+                "ov_out": ov_out,
+                "all_out": all_out,
+                "total_in": cumulative_total_in,
+                "block_max": block_max,
+                "border_top": add_boundary,
+            }
+        )
+
+    max_block_peak = max([row["block_max"] for row in rows_to_render] or [0])
+
+    for row in rows_to_render:
+        row_border = "border-top:3px solid black;" if row["border_top"] else ""
+        time_style = f"text-align:right;{row_border}"
+        cell_style = f"text-align:right;{row_border}"
+        most_style = f"text-align:right;{row_border}"
+        if row["block_max"] == max_block_peak:
+            most_style += "border:3px solid black;font-weight:bold;"
+
         print(
             "<tr>"
-            f"<td style='text-align:left'>{time_label}</td>"
-            f"<td>{rg_in}</td>"
-            f"<td>{ov_in}</td>"
-            f"<td>{all_in}</td>"
-            f"<td>{rg_out}</td>"
-            f"<td>{ov_out}</td>"
-            f"<td>{all_out}</td>"
-            f"<td>{cumulative_total_in}</td>"
-            f"<td>{block_max}</td>"
+            f"<td style='{time_style}'>{row['time_label']}</td>"
+            f"<td style='{cell_style}'>{row['rg_in']}</td>"
+            f"<td style='{cell_style}'>{row['ov_in']}</td>"
+            f"<td style='{cell_style}'>{row['all_in']}</td>"
+            f"<td style='{cell_style}'>{row['rg_out']}</td>"
+            f"<td style='{cell_style}'>{row['ov_out']}</td>"
+            f"<td style='{cell_style}'>{row['all_out']}</td>"
+            f"<td style='{cell_style}'>{row['total_in']}</td>"
+            f"<td style='{most_style}'>{row['block_max']}</td>"
             "</tr>"
         )
 
