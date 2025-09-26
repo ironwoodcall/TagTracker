@@ -198,11 +198,11 @@ def print_the_html(
         """Make a thicker vertical cell border to mark off sets of blocks."""
         return "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
 
-    title = f"{page_title_prefix}Daily activity detail"
+    title = f"{page_title_prefix}Time block summaries"
     if date_range_label:
         title = f"{title} ({date_range_label})"
     print(f"<h1>{title}</h1>")
-    print(f"{cc.main_and_back_buttons(pages_back)}<br>")
+    print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
     if date_filter_html:
         print(date_filter_html)
     print("<br><br>")
@@ -370,11 +370,11 @@ def blocks_report(
     range_label = f"{start_date} to {end_date}" if start_date or end_date else ""
 
     if not dayrows:
-        heading = f"{title_bit}Daily activity detail"
+        heading = f"{title_bit}Time block summaries"
         if range_label:
             heading = f"{heading} ({range_label})"
         print(f"<h1>{heading}</h1>")
-        print(f"{cc.main_and_back_buttons(pages_back)}<br>")
+        print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
         print(date_filter_html)
         print("<br><br>")
         print("<p>No data found for the selected date range.</p>")

@@ -400,15 +400,7 @@ def season_summary(ttdb: sqlite3.Connection):
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Today's<br>Visits</b></button>
-        &nbsp;&nbsp;
-        """
-    )
-    print(
-        f"""
-        <button onclick="window.location.href='{blocks_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Daily<br>Activity</b></button>
+          <b>Today<br>Detail</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -416,7 +408,7 @@ def season_summary(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Daily<br>Summaries</b></button>
+          <b>Day<br>Summaries</b></button>
         &nbsp;&nbsp;
           """
     )
@@ -430,9 +422,18 @@ def season_summary(ttdb: sqlite3.Connection):
     )
     print(
         f"""
+        <button onclick="window.location.href='{blocks_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Time Block<br>Summaries</b></button>
+        &nbsp;&nbsp;
+        """
+    )
+
+    print(
+        f"""
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
-          <b>Visits<br>Graphs</b></button>
+          <b>Activity<br>Graphs</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -444,18 +445,32 @@ def season_summary(ttdb: sqlite3.Connection):
         &nbsp;&nbsp;
           """
     )
+    # print(
+    #     f"""
+    #     <button onclick="window.location.href='{download_csv_link}'"
+    #         style="padding: 10px; display: inline-block;">
+    #       <b>Download<br>CSV</b></button>
+    #     &nbsp;&nbsp;
+    #     <button onclick="window.location.href='{download_db_link}'"
+    #         style="padding: 10px; display: inline-block;">
+    #       <b>Download<br>Database</b></button>
+    #     <br><br>
+    #       """
+    # )
+    print("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
     print(
-        f"""
-        <button onclick="window.location.href='{download_csv_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Download<br>CSV</b></button>
-        &nbsp;&nbsp;
-        <button onclick="window.location.href='{download_db_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Download<br>Database</b></button>
-        <br><br>
-          """
-    )
+    f"""
+    <button onclick="window.location.href='{download_csv_link}'"
+        style="padding: 10px; display: inline-block; background-color: #ddd; border: 1px solid #aaa;">
+      <b>Download<br>CSV</b></button>
+    &nbsp;&nbsp;
+    <button onclick="window.location.href='{download_db_link}'"
+        style="padding: 10px; display: inline-block; background-color: #ddd; border: 1px solid #aaa;">
+      <b>Download<br>Database</b></button>
+    <br><br>
+      """
+)
+
 
 
 def season_detail(
@@ -555,7 +570,7 @@ def season_detail(
     else:
         all_days = sorted(all_days, key=lambda x: x.tag)
         sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
-    sort_msg = f"Detail, sorted by {sort_msg} "
+    sort_msg = f"Day Summaries, sorted by {sort_msg} "
 
     # Set up colour maps for shading cell backgrounds
     max_parked_colour = dc.Dimension(interpolation_exponent=2)
@@ -580,8 +595,9 @@ def season_detail(
     if days_totals.max_precipitation not in (None, 0):
         max_precip_colour.add_config(days_totals.max_precipitation, "azure")
 
-    print(f"<h1>{cc.titleize(': Detail')}</h1>")
+    print(f"<h1>{cc.titleize(': Day Summaries')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
+    print("<br>")
     print(
         generate_date_filter_form(
             self_url,

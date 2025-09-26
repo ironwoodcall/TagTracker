@@ -107,7 +107,7 @@ def tags_report(conn: sqlite3.Connection):
 
     max_tag = max(prefixes.values())
 
-    print("<h1>Index of all tags</h1>")
+    print("<h1>Inventory of tags</h1>")
     print(f"{cc.main_and_back_buttons(1)}<br><br>")
 
     print(
