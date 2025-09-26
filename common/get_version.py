@@ -34,6 +34,23 @@ CACHE_FILENAME = ".tagtracker_version_info"
 _REPORTED_ERRORS: set[str] = set()
 
 
+def _git_env(git_root: str):
+    """Return an environment dict that marks git_root as a safe directory."""
+
+    env = os.environ.copy()
+    try:
+        count = int(env.get("GIT_CONFIG_COUNT", "0"))
+    except ValueError:
+        count = 0
+
+    key_prefix = f"GIT_CONFIG_KEY_{count}"
+    value_prefix = f"GIT_CONFIG_VALUE_{count}"
+    env[key_prefix] = "safe.directory"
+    env[value_prefix] = git_root
+    env["GIT_CONFIG_COUNT"] = str(count + 1)
+    return env
+
+
 def _get_git_root(start_dir: Optional[str] = None):
     """Return the git repo root, using start_dir as the search base."""
 
@@ -44,12 +61,28 @@ def _get_git_root(start_dir: Optional[str] = None):
     else:
         start_dir = os.path.abspath(start_dir)
 
+    # First, walk up the tree looking for a .git directory/file. This avoids
+    # triggering git's "dubious ownership" safety check when run by a different
+    # OS user (common for CGI environments).
+    current_dir = start_dir
+    while True:
+        git_dir = os.path.join(current_dir, ".git")
+        if os.path.isdir(git_dir) or os.path.isfile(git_dir):
+            return current_dir
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir == current_dir:
+            break
+        current_dir = parent_dir
+
+    # Fallback to asking git directly if the marker directory could not be
+    # located. Use the wildcard safe.directory to maximise compatibility.
     try:
         git_root = (
             subprocess.check_output(
                 ["git", "-c", "safe.directory=*", "rev-parse", "--show-toplevel"],
                 stderr=subprocess.STDOUT,
                 cwd=start_dir,
+                env=_git_env(start_dir),
             )
             .strip()
             .decode("utf-8")
@@ -60,18 +93,6 @@ def _get_git_root(start_dir: Optional[str] = None):
         if msg and msg not in _REPORTED_ERRORS:
             print("get_version: git root discovery failed –", msg, file=sys.stderr)
             _REPORTED_ERRORS.add(msg)
-        pass
-
-    # Fallback: walk up the directory tree looking for a .git directory/file.
-    current_dir = start_dir
-    while True:
-        git_dir = os.path.join(current_dir, ".git")
-        if os.path.isdir(git_dir) or os.path.isfile(git_dir):
-            return current_dir
-        parent_dir = os.path.dirname(current_dir)
-        if parent_dir == current_dir:
-            break
-        current_dir = parent_dir
 
     return None
 
@@ -96,6 +117,7 @@ def _get_git_info(git_root: Optional[str]):
                     "HEAD",
                 ],
                 cwd=git_root,
+                env=_git_env(git_root),
             )
             .strip()
             .decode("utf-8")
@@ -112,6 +134,7 @@ def _get_git_info(git_root: Optional[str]):
                     "HEAD",
                 ],
                 cwd=git_root,
+                env=_git_env(git_root),
             )
             .strip()
             .decode("utf-8")[-7:]
@@ -130,6 +153,7 @@ def _get_git_info(git_root: Optional[str]):
                     "--date=iso",
                 ],
                 cwd=git_root,
+                env=_git_env(git_root),
             )
             .strip()
             .decode("utf-8")
