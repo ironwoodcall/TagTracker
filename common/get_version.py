@@ -2,24 +2,9 @@
 
 Return a string describing the version/date for the codebase.
 
-Attempts so far to surface git metadata in both the CLI (runs as the repo
-owner) and the CGI/web context (runs as the Apache user) have included:
-
-* letting git discover the repository via ``rev-parse`` while explicitly
-  setting ``safe.directory=*``;
-* manually enumerating candidate safe directories by injecting
-  ``safe.directory=<path>`` into the environment for every call;
-* caching the computed version string on disk so a privileged user could
-  populate it for the web process to read.
-
-Caching worked in development (where CLI and web reports run in same
-folder) but not in production, where
-Apache continues to report "detected dubious ownership" when running git, even
-with the explicit safe-directory overrides. The most likely explanation is
-that the server's git install ignores or forbids those overrides for that OS
-user, leaving the CGI fallback path (latest file timestamp) as the only option
-until the repository can be marked safe in the Apache user's git config by an
-administrator.
+For this to work in the CGI environment (we reporting), the tagtracker
+repo folder must be set as a safe.directory at the system level.
+Edit /etc/gitconfig or sudo git config --system --add safe.directory /...<path-to-repo>
 
 Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 
