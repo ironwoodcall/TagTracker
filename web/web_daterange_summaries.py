@@ -177,7 +177,7 @@ def daterange_summary(
         print("<br><br><br>")
 
 def _daterange_summary_pagetop(start_date,end_date,pages_back: int = 1):
-    print(f"<h1>{cc.titleize(f'<br>Summaries from {start_date} to {end_date}')}</h1>")
+    print(f"<h1>{cc.titleize(f'<br>Period summaries from {start_date} to {end_date}')}</h1>")
     # print(f"<h2>Summary of data from {start_date} to {end_date}</h2>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
 
