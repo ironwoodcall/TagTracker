@@ -475,42 +475,29 @@ def dump_data_command(today: TrackerDay, args: list):
 
     on entry:
         today is TrackerDay object of this day's data
-        args[0] if present might be the string 'full'
+        args[0] if present might be the string 'verbose'
     """
 
-    if args and args[0] not in ["full", "f", "detailed", "detail"]:
-        pr.iprint(f"Unknown parameter '{args[0]}'\nDUMP [full]")
-        return
-    detailed = bool(args)
+    verbose = False
+
+    if args:
+        choice = str(args[0]).strip().lower()
+        if choice not in {"verbose", "v"}:
+            pr.iprint(f"Unknown parameter '{args[0]}'\nDUMP [verbose]")
+            return
+        verbose = True
 
     pr.iprint()
-    pr.iprint("TrackerDay:", num_indents=0, style=k.ERROR_STYLE)
-    info = today.dump(detailed=detailed)
-    for l in info:
-        pr.iprint(l)
+    summary_lines = today.dump(detailed=verbose)
+    for idx, line in enumerate(summary_lines):
+        style = k.ERROR_STYLE if idx == 0 else k.NORMAL_STYLE
+        pr.iprint(line, style=style)
 
-    pr.iprint()
-    pr.iprint("DaySummary:", num_indents=0, style=k.ERROR_STYLE)
-    print(DaySummary(today))
-
-    pr.iprint()
-    pr.iprint("Config:", num_indents=0, style=k.ERROR_STYLE)
-    for var in vars(cfg):
-        if var[0] == "_":
-            continue
-        value = vars(cfg)[var]
-        if isinstance(value, (str, dict, list, set, float, int)):
-            pr.iprint(f"{var} {type(value)}:  ", style=k.ANSWER_STYLE, end="")
-            pr.iprint(value)
-    pr.iprint()
-    pr.iprint("    main module   ", num_indents=0, style=k.ERROR_STYLE)
-    for var in globals():
-        if var[0] == "_":
-            continue
-        value = globals()[var]
-        if isinstance(value, (str, dict, list, frozenset, set, float, int)):
-            pr.iprint(f"{var} {type(value)}:  ", style=k.ANSWER_STYLE, end="")
-            pr.iprint(value)
+    if verbose:
+        pr.iprint()
+        pr.iprint("DaySummary (verbose):", num_indents=0, style=k.ERROR_STYLE)
+        for line in str(DaySummary(today)).splitlines():
+            pr.iprint(line)
 
 
 def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:

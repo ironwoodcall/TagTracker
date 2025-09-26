@@ -900,38 +900,11 @@ class TrackerDay:
         return max_bikes, max_time
 
     def dump(self, detailed: bool = False) -> list[str]:
-        """Get info about this object."""
+        """Return a compact textual summary of this object."""
 
-        info = [f"TrackerDay for '{self.date}','{self.time_open}'-'{self.time_closed}'"]
-        info.append(f"    BikeVisits: {len(self.all_visits())}")
-        info.append(f"    BikeTags: {len(self.biketags)}")
+        from tt_dump import build_dump  # Lazy import to avoid circular dependency
 
-        statuses = [b.status for b in self.biketags.values()]
-        status_counts = {}
-        for status in (BikeTag.UNUSED, BikeTag.IN_USE, BikeTag.DONE, BikeTag.RETIRED):
-            status_counts[status] = len([s for s in statuses if s == status])
-        info.append(
-            "        Statuses: "
-            + ", ".join(
-                [f"{count} {status}" for status, count in status_counts.items()]
-            )
-        )
-
-        types = [b.bike_type for b in self.biketags.values()]
-        type_counts = {}
-        for t in set(types):
-            type_counts[t] = len([k for k in types if k == t])
-        info.append(
-            "        Bike types: "
-            + ", ".join([f"{count} {typ}" for typ, count in type_counts.items()])
-        )
-
-        if detailed:
-            info.append(
-                "Detailed info for TrackerDay object not yet implemented... FIXME:"
-            )
-
-        return info
+        return build_dump(today=self, detailed=detailed)
 
 
 # def new_to_old(new: TrackerDay) -> OldTrackerDay:
