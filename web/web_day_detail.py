@@ -485,10 +485,10 @@ def block_activity_table(
         "<tr>"
         "<th>Reglr</th>"
         "<th>Ovrsz</th>"
-        "<th>All</th>"
+        "<th>Total</th>"
         "<th>Reglr</th>"
         "<th>Ovrsz</th>"
-        "<th>All</th>"
+        "<th>Total</th>"
         "</tr>"
     )
 
