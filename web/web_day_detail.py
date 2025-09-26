@@ -270,7 +270,6 @@ def one_day_tags_report(
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
 
     summary_table(day_data, stats, tag_reuses, tag_reuse_pct, highlights, is_today)
-    legend_table(daylight, duration_colors)
     print("</div>")
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##print("</div><div>")
@@ -278,11 +277,12 @@ def one_day_tags_report(
     mini_freq_tables(ttdb, thisday)
     print("</div>")
     print("</div>")
-    print("<br>")
+    # print("<br>")
     ##print("</div></div>")
 
     block_activity_table(thisday, day_data, visits, is_today)
-
+    # print("<br>")
+    # legend_table(daylight, duration_colors)
     visits_table(
         thisday,
         is_today,
@@ -439,7 +439,9 @@ def block_activity_table(
     if is_today:
         end_candidates = [c for c in (start_minute, to_minutes("now")) if c is not None]
     else:
-        end_candidates = [c for c in (close_minutes, latest_event, start_minute) if c is not None]
+        end_candidates = [
+            c for c in (close_minutes, latest_event, start_minute) if c is not None
+        ]
 
     end_minute = max(end_candidates)
 
@@ -461,7 +463,9 @@ def block_activity_table(
     current_occupancy = 0
     cumulative_total_in = 0
 
-    close_block = block_start_minute(close_minutes) if close_minutes is not None else None
+    close_block = (
+        block_start_minute(close_minutes) if close_minutes is not None else None
+    )
     open_block = block_start_minute(open_minutes) if open_minutes is not None else None
     rows_to_render = []
     closed_boundary_marked = False
@@ -469,7 +473,7 @@ def block_activity_table(
 
     print("<table class=general_table style='text-align:right'>")
     print(
-        "<tr><th colspan=9 style='text-align:center'>Half-hourly Activity"
+        "<tr><th colspan=9 style='text-align:center'>Half-hourly activity"
         f" for {thisday}</th></tr>"
     )
     print(
@@ -552,17 +556,11 @@ def block_activity_table(
     max_block_peak = max([row["block_max"] for row in rows_to_render] or [0])
     max_total_parked = max([row["total_in"] for row in rows_to_render] or [0])
     max_in_value = max(
-        [
-            max(row["rg_in"], row["ov_in"], row["all_in"])
-            for row in rows_to_render
-        ]
+        [max(row["rg_in"], row["ov_in"], row["all_in"]) for row in rows_to_render]
         or [0]
     )
     max_out_value = max(
-        [
-            max(row["rg_out"], row["ov_out"], row["all_out"])
-            for row in rows_to_render
-        ]
+        [max(row["rg_out"], row["ov_out"], row["all_out"]) for row in rows_to_render]
         or [0]
     )
 
