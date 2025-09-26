@@ -478,6 +478,8 @@ def fetch_day_blocks(
         b.time_fullest[k.OVERSIZE] = VTime(row[14])
         b.time_fullest[k.COMBINED] = VTime(row[15])
 
+        blocks[t] = b
+
     return blocks
 
 
