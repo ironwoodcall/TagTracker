@@ -2,6 +2,10 @@
 
 Return a string describing the version/date for the codebase.
 
+For this to work in the CGI environment (we reporting), the tagtracker
+repo folder must be set as a safe.directory at the system level.
+Edit /etc/gitconfig or sudo git config --system --add safe.directory /...<path-to-repo>
+
 Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 
     Notwithstanding the licensing information below, this code may not
@@ -25,13 +29,49 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 import subprocess
 import os
 import sys
-import tempfile
 from datetime import datetime
 from typing import Optional
 
 
-CACHE_FILENAME = ".tagtracker_version_info"
 _REPORTED_ERRORS: set[str] = set()
+
+
+def _git_env(*paths: str):
+    """Return an environment dict that marks the provided paths as safe."""
+
+    paths = [os.path.realpath(p) for p in paths if p]
+    if not paths:
+        return None
+
+    env = os.environ.copy()
+    try:
+        count = int(env.get("GIT_CONFIG_COUNT", "0"))
+    except ValueError:
+        count = 0
+
+    for path in paths:
+        key = f"GIT_CONFIG_KEY_{count}"
+        value = f"GIT_CONFIG_VALUE_{count}"
+        env[key] = "safe.directory"
+        env[value] = path
+        count += 1
+
+    env["GIT_CONFIG_COUNT"] = str(count)
+    return env
+
+
+def _ancestors(path: str):
+    """Yield path and its parent directories up to filesystem root."""
+
+    current = os.path.realpath(path)
+    seen = set()
+    while current and current not in seen:
+        yield current
+        seen.add(current)
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
 
 
 def _get_git_root(start_dir: Optional[str] = None):
@@ -44,12 +84,29 @@ def _get_git_root(start_dir: Optional[str] = None):
     else:
         start_dir = os.path.abspath(start_dir)
 
+    # First, walk up the tree looking for a .git directory/file. This avoids
+    # triggering git's "dubious ownership" safety check when run by a different
+    # OS user (common for CGI environments).
+    current_dir = start_dir
+    while True:
+        git_dir = os.path.join(current_dir, ".git")
+        if os.path.isdir(git_dir) or os.path.isfile(git_dir):
+            return current_dir
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir == current_dir:
+            break
+        current_dir = parent_dir
+
+    # Fallback to asking git directly if the marker directory could not be
+    # located. This uses a safe-directory override for every ancestor of the
+    # starting directory so git trusts the tree even under another OS user.
     try:
         git_root = (
             subprocess.check_output(
-                ["git", "-c", "safe.directory=*", "rev-parse", "--show-toplevel"],
+                ["git", "rev-parse", "--show-toplevel"],
                 stderr=subprocess.STDOUT,
                 cwd=start_dir,
+                env=_git_env(*_ancestors(start_dir)),
             )
             .strip()
             .decode("utf-8")
@@ -60,18 +117,6 @@ def _get_git_root(start_dir: Optional[str] = None):
         if msg and msg not in _REPORTED_ERRORS:
             print("get_version: git root discovery failed –", msg, file=sys.stderr)
             _REPORTED_ERRORS.add(msg)
-        pass
-
-    # Fallback: walk up the directory tree looking for a .git directory/file.
-    current_dir = start_dir
-    while True:
-        git_dir = os.path.join(current_dir, ".git")
-        if os.path.isdir(git_dir) or os.path.isfile(git_dir):
-            return current_dir
-        parent_dir = os.path.dirname(current_dir)
-        if parent_dir == current_dir:
-            break
-        current_dir = parent_dir
 
     return None
 
@@ -85,17 +130,14 @@ def _get_git_info(git_root: Optional[str]):
         # Get the current branch name
         git_safe_arg = f"safe.directory={git_root}"
 
+        env = _git_env(git_root)
+
         branch = (
             subprocess.check_output(
-                [
-                    "git",
-                    "-c",
-                    git_safe_arg,
-                    "rev-parse",
-                    "--abbrev-ref",
-                    "HEAD",
-                ],
+                ["git", "-c", git_safe_arg, "rev-parse", "--abbrev-ref", "HEAD"],
+                stderr=subprocess.STDOUT,
                 cwd=git_root,
+                env=env,
             )
             .strip()
             .decode("utf-8")
@@ -104,14 +146,10 @@ def _get_git_info(git_root: Optional[str]):
         # Get the latest commit hash (last 7 characters)
         commit_hash = (
             subprocess.check_output(
-                [
-                    "git",
-                    "-c",
-                    git_safe_arg,
-                    "rev-parse",
-                    "HEAD",
-                ],
+                ["git", "-c", git_safe_arg, "rev-parse", "HEAD"],
+                stderr=subprocess.STDOUT,
                 cwd=git_root,
+                env=env,
             )
             .strip()
             .decode("utf-8")[-7:]
@@ -120,16 +158,10 @@ def _get_git_info(git_root: Optional[str]):
         # Get the latest commit date and format it manually
         commit_date_raw = (
             subprocess.check_output(
-                [
-                    "git",
-                    "-c",
-                    git_safe_arg,
-                    "log",
-                    "-1",
-                    "--format=%cd",
-                    "--date=iso",
-                ],
+                ["git", "-c", git_safe_arg, "log", "-1", "--format=%cd", "--date=iso"],
+                stderr=subprocess.STDOUT,
                 cwd=git_root,
+                env=env,
             )
             .strip()
             .decode("utf-8")
@@ -139,7 +171,6 @@ def _get_git_info(git_root: Optional[str]):
         ).strftime("%Y-%m-%d %H:%M")
 
         s = f"{branch} ({commit_hash}: {commit_date})"
-        _write_version_cache(git_root, s)
         return s
     except subprocess.CalledProcessError as err:
         msg = err.output.decode("utf-8", errors="ignore").strip()
@@ -179,46 +210,6 @@ def _get_latest_file_date(start_dir: Optional[str] = None):
     return latest_date.strftime("%Y-%m-%d %H:%M") if latest_date else "Unknown"
 
 
-def _cache_path(git_root: str) -> str:
-    return os.path.join(git_root, CACHE_FILENAME)
-
-
-def _read_cached_version(git_root: str) -> Optional[str]:
-    cache_path = _cache_path(git_root)
-    try:
-        with open(cache_path, "r", encoding="utf-8") as handle:
-            cached = handle.readline().strip()
-            return cached or None
-    except FileNotFoundError:
-        return None
-    except OSError:
-        return None
-
-
-def _write_version_cache(git_root: str, version_info: str) -> None:
-    cache_path = _cache_path(git_root)
-    try:
-        existing = None
-        if os.path.exists(cache_path):
-            with open(cache_path, "r", encoding="utf-8") as handle:
-                existing = handle.readline().strip()
-            if existing == version_info:
-                return
-
-        fd, tmp_path = tempfile.mkstemp(prefix=".tt_version_", dir=git_root)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                handle.write(version_info)
-                handle.write("\n")
-            os.replace(tmp_path, cache_path)
-            os.chmod(cache_path, 0o664)
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-    except OSError:
-        pass
-
-
 def get_version_info(base_dir: Optional[str] = None):
     git_root = _get_git_root(base_dir)
     if git_root:
@@ -226,11 +217,6 @@ def get_version_info(base_dir: Optional[str] = None):
     git_info = _get_git_info(git_root)
     if git_info:
         return git_info
-
-    if git_root:
-        cached = _read_cached_version(git_root)
-        if cached:
-            return cached
 
     latest_file_date = _get_latest_file_date(base_dir or git_root)
     return f"has latest file date {latest_file_date}"
