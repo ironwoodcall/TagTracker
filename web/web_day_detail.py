@@ -23,9 +23,7 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 """
 
 import sqlite3
-from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional
 
 import common.tt_dbutil as db
 from common.tt_tag import TagID
@@ -33,6 +31,7 @@ from common.tt_time import VTime
 import common.tt_util as ut
 from common.tt_daysummary import DayTotals
 from common.tt_statistics import VisitStats
+import common.tt_constants as k
 import web_common as cc
 import datacolors as dc
 import web.web_estimator as web_estimator
@@ -187,6 +186,11 @@ def one_day_tags_report(
     """
     rows = cursor.execute(sql).fetchall()
 
+    try:
+        blocks = db.fetch_day_blocks(cursor=cursor, day_id=day_id)
+    except k.TagTrackerError:
+        blocks = None
+
     if not rows:
         cursor.close()
         return
@@ -280,7 +284,7 @@ def one_day_tags_report(
     # print("<br>")
     ##print("</div></div>")
 
-    block_activity_table(thisday, day_data, visits, is_today)
+    block_activity_table(thisday, day_data, blocks, is_today)
     # print("<br>")
     # legend_table(daylight, duration_colors)
     visits_table(
@@ -376,100 +380,36 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
 
 
 def block_activity_table(
-    thisday: str, day_data: DayTotals, visits, is_today: bool
+    thisday: str, day_data: DayTotals, blocks, is_today: bool
 ) -> None:
-    """Render a half-hour activity summary for the requested day."""
+    """Render a half-hour activity summary using stored block data."""
 
-    if not visits:
+    if not blocks:
+        print(
+            "<p>Block activity summary not available for this day.</p>"
+        )
         return
 
-    def to_minutes(maybe_time) -> Optional[int]:
-        if not maybe_time:
-            return None
-        vtime = maybe_time if isinstance(maybe_time, VTime) else VTime(maybe_time)
-        if not vtime or vtime.num is None:
-            return None
-        minute = vtime.num
-        return minute if minute < 24 * 60 else 24 * 60 - 1
-
-    def block_start_minute(minute: Optional[int]) -> Optional[int]:
-        if minute is None:
-            return None
-        return (minute // ut.BLOCK_DURATION) * ut.BLOCK_DURATION
-
-    in_counts = defaultdict(lambda: {"R": 0, "O": 0})
-    out_counts = defaultdict(lambda: {"R": 0, "O": 0})
-    events: list[tuple[int, int]] = []
-    event_minutes: list[int] = []
-
-    for visit in visits:
-        bike_type = (visit.bike_type or "").upper()
-        if bike_type not in {"R", "O"}:
-            bike_type = "R"
-
-        time_in_min = to_minutes(visit.time_in)
-        if time_in_min is not None:
-            block = block_start_minute(time_in_min)
-            if block is not None:
-                in_counts[block][bike_type] += 1
-                event_minutes.append(time_in_min)
-                events.append((time_in_min, 1))
-
-        time_out_min = to_minutes(visit.time_out)
-        if time_out_min is not None:
-            block = block_start_minute(time_out_min)
-            if block is not None:
-                out_counts[block][bike_type] += 1
-                event_minutes.append(time_out_min)
-                events.append((time_out_min, -1))
-
-    open_minutes = to_minutes(day_data.time_open) if day_data else None
-    close_minutes = to_minutes(day_data.time_closed) if day_data else None
-
-    earliest_event = min(event_minutes) if event_minutes else None
-    latest_event = max(event_minutes) if event_minutes else None
-
-    now_minute: Optional[int] = to_minutes("now") if is_today else None
-
-    start_candidates = [c for c in (open_minutes, earliest_event) if c is not None]
-    if not start_candidates:
-        return
-    start_minute = min(start_candidates)
-
-    if is_today:
-        end_candidates = [c for c in (start_minute, to_minutes("now")) if c is not None]
-    else:
-        end_candidates = [
-            c for c in (close_minutes, latest_event, start_minute) if c is not None
-        ]
-
-    end_minute = max(end_candidates)
-
-    start_block = block_start_minute(start_minute)
-    end_block = block_start_minute(end_minute)
-
-    if start_block is None or end_block is None:
-        return
-    if end_block < start_block:
-        end_block = start_block
-
-    stop = end_block + ut.BLOCK_DURATION
-    if is_today and now_minute is not None:
-        stop = end_block + 1
-    block_range = range(start_block, stop, ut.BLOCK_DURATION)
-
-    events.sort(key=lambda item: (item[0], 0 if item[1] > 0 else 1))
-    event_index = 0
-    current_occupancy = 0
-    cumulative_total_in = 0
-
-    close_block = (
-        block_start_minute(close_minutes) if close_minutes is not None else None
+    block_items = sorted(
+        blocks.items(), key=lambda item: item[0].num if hasattr(item[0], "num") else VTime(item[0]).num
     )
-    open_block = block_start_minute(open_minutes) if open_minutes is not None else None
+    if not block_items:
+        print(
+            "<p>Block activity summary not available for this day.</p>"
+        )
+        return
+
+    open_block = (
+        ut.block_start(day_data.time_open) if day_data and day_data.time_open else None
+    )
+    close_block = (
+        ut.block_start(day_data.time_closed) if day_data and day_data.time_closed else None
+    )
+
     rows_to_render = []
-    closed_boundary_marked = False
+    cumulative_total_in = 0
     open_boundary_marked = False
+    closed_boundary_marked = False
 
     print("<table class=general_table style='text-align:right'>")
     print(
@@ -496,44 +436,36 @@ def block_activity_table(
         "</tr>"
     )
 
-    for block_start in block_range:
-        block_end = block_start + ut.BLOCK_DURATION
-        in_block = in_counts[block_start]
-        out_block = out_counts[block_start]
+    for block_start_time, block in block_items:
+        block_start_vtime = block_start_time if isinstance(block_start_time, VTime) else VTime(block_start_time)
+        block_start_num = block_start_vtime.num
 
-        rg_in = in_block["R"]
-        ov_in = in_block["O"]
-        all_in = rg_in + ov_in
+        rg_in = block.num_incoming[k.REGULAR]
+        ov_in = block.num_incoming[k.OVERSIZE]
+        all_in = block.num_incoming[k.COMBINED]
         cumulative_total_in += all_in
 
-        rg_out = out_block["R"]
-        ov_out = out_block["O"]
-        all_out = rg_out + ov_out
+        rg_out = block.num_outgoing[k.REGULAR]
+        ov_out = block.num_outgoing[k.OVERSIZE]
+        all_out = block.num_outgoing[k.COMBINED]
 
-        block_max = current_occupancy
-        while event_index < len(events) and events[event_index][0] < block_end:
-            _, delta = events[event_index]
-            current_occupancy += delta
-            block_max = max(block_max, current_occupancy)
-            event_index += 1
-
-        block_max = max(block_max, 0)
-        time_label = VTime(block_start).tidy
+        block_max = block.num_fullest[k.COMBINED]
+        time_label = block_start_vtime.tidy
 
         add_boundary = False
         if (
-            open_block is not None
+            open_block
             and not open_boundary_marked
-            and block_start >= open_block
+            and block_start_num >= open_block.num
         ):
             add_boundary = True
             open_boundary_marked = True
 
         if (
-            close_block is not None
+            close_block
             and not closed_boundary_marked
             and rows_to_render
-            and block_start >= close_block
+            and block_start_num >= close_block.num
         ):
             add_boundary = True
             closed_boundary_marked = True
