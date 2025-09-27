@@ -42,6 +42,7 @@ from web_estimator_calibration import (
     load_calibration as _calib_load,
     bin_label as _calib_bin_label,
     residual_band as _calib_residual_band,
+    probability_lookup as _calib_probability,
 )
 from web_estimator_selection import dispatch_select as _select_dispatch
 import os
@@ -74,7 +75,7 @@ ERROR = "error"  # the model is unusable, in an error state
 
 # New estimator that provides a concise estimation table
 class Estimator:
-    """New estimator producing a compact table of key metrics and confidence.
+    """New estimator producing a compact table of key metrics and probabilities.
 
     Outputs four items:
       - Further bikes today (remainder)
@@ -106,8 +107,8 @@ class Estimator:
     MEAS_MAX = "Most bikes onsite"
 
     # Table headers (centralized)
-    HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Confidence", "Model"]
-    HEADER_FULL = ["Measure", "Value", "Error", "Range (90%)", "Confidence", ""]
+    HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Probability", "Model"]
+    HEADER_FULL = ["Measure", "Value", "Range (90%)", "Probability", ""]
 
     def _activity_label(self, t_end: VTime) -> str:
         return self.MEAS_ACTIVITY_TEMPLATE.format(end_time=t_end.tidy)
@@ -549,15 +550,15 @@ class Estimator:
         spread: float | None,
         denom: float | None,
         n_ref: int = 12,
-    ) -> str:
-        """Compute a smooth % confidence reflecting time, sample size, and variation.
+    ) -> float:
+        """Compute the heuristic confidence score (0-100).
 
         - Time-of-day factor pf grows linearly from 0.3 at open to 1.0 at close.
         - Sample-size factor nf grows with sqrt(n/n_ref), clipped to [0,1].
         - Variation factor vf = 1 - clamp(spread/denom), where denom is a
           scale for the measure (e.g., median or day span). If spread/denom
           is small, vf is near 1 (high confidence); if large, vf is near 0.
-        Returns a percentage string like '82%'.
+        Returns a score in [0, 100].
         """
         # Time-of-day
         pf = 0.30 + 0.70 * self._clamp01(frac_elapsed)
@@ -575,7 +576,7 @@ class Estimator:
         # Blend
         score = 100.0 * (0.40 * pf + 0.30 * nf + 0.30 * vf)
         score = max(0.0, min(100.0, score))
-        return f"{int(round(score))}%"
+        return score
 
     def guess(self) -> None:
         """Top-level coordinator for estimate generation."""
@@ -741,7 +742,7 @@ class Estimator:
             self.tables.append(
                 (
                     f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_SM]} Model",
-                    [("No estimates available", "", "", "", "")],
+                    [("No estimates available", "", "", "--")],
                     None,
                 )
             )
@@ -757,7 +758,7 @@ class Estimator:
             self.tables.append(
                 (
                     f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_LR]} Model",
-                    [("No estimates available", "", "", "", "")],
+                    [("No estimates available", "", "", "--")],
                     None,
                 )
             )
@@ -773,7 +774,7 @@ class Estimator:
             self.tables.append(
                 (
                     f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_REC]} Model",
-                    [("No estimates available", "", "", "", "")],
+                    [("No estimates available", "", "", "--")],
                     None,
                 )
             )
@@ -790,7 +791,7 @@ class Estimator:
                 self.tables.append(
                     (
                         f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
-                        [("Random Forest unavailable", "", "", "", "")],
+                        [("Random Forest unavailable", "", "", "--")],
                         None,
                     )
                 )
@@ -947,6 +948,45 @@ class Estimator:
     def _smooth_conf_wrapper(self, n: int, frac_elapsed: float, spread, scale):
         return self._smooth_conf(n, frac_elapsed, spread, scale)
 
+    def _probability_from_score(
+        self,
+        model_code: str,
+        measure_code: str,
+        frac_elapsed: float,
+        score: float | None,
+    ) -> float | None:
+        if score is None:
+            return None
+        try:
+            score_val = max(0.0, min(100.0, float(score)))
+        except Exception:
+            return None
+        prob = _calib_probability(
+            self._calib,
+            self._calib_bins,
+            model_code,
+            measure_code,
+            frac_elapsed,
+            score_val,
+        )
+        if prob is None:
+            prob = score_val / 100.0
+        return max(0.0, min(1.0, float(prob)))
+
+    def _probability_label(
+        self,
+        model_code: str,
+        measure_code: str,
+        frac_elapsed: float,
+        score: float | None,
+    ) -> str:
+        prob = self._probability_from_score(model_code, measure_code, frac_elapsed, score)
+        if prob is None:
+            return "--"
+        pct = int(round(max(0.0, min(1.0, prob)) * 100.0))
+        pct = max(0, min(100, pct))
+        return f"{pct}%"
+
     def _simple_confidences(
         self,
         remainder: int,
@@ -1036,7 +1076,7 @@ class Estimator:
         rem_bounds,
         pk_bounds,
         ptime_bounds,
-        confs: tuple[str, str, str, str],
+        scores: tuple[float | None, float | None, float | None, float | None],
         frac_elapsed: float,
     ):
         act_band, rem_band, peak_band, ptime_band = bands
@@ -1044,7 +1084,7 @@ class Estimator:
         rem_lo, rem_hi = rem_bounds
         pk_lo, pk_hi = pk_bounds
         ptime_lo, ptime_hi = ptime_bounds
-        conf_act, conf_rem, conf_pt, conf_pk = confs
+        score_act, score_rem, score_pt, score_pk = scores
 
         sm_act_rng, sm_act_band = self._apply_calib(
             self.MODEL_SM, "act", int(nxh_activity), act_band, frac_elapsed
@@ -1060,30 +1100,34 @@ class Estimator:
             (
                 self._activity_label(t_end),
                 f"{int(nxh_activity)}",
-                f"+/- {sm_act_band} events",
                 sm_act_rng or self._rng_str(act_lo, act_hi, False),
-                conf_act,
+                self._probability_label(
+                    self.MODEL_SM, "act", frac_elapsed, score_act
+                ),
             ),
             (
                 self.MEAS_FURTHER,
                 f"{int(remainder)}",
-                f"+/- {sm_fut_band} bikes",
                 sm_fut_rng or self._rng_str(rem_lo, rem_hi, False),
-                conf_rem,
+                self._probability_label(
+                    self.MODEL_SM, "fut", frac_elapsed, score_rem
+                ),
             ),
             (
                 self.MEAS_TIME_MAX,
                 f"{peak_time.short}",
-                f"+/- {ptime_band} minutes",
                 self._rng_str(ptime_lo, ptime_hi, True),
-                conf_pt,
+                self._probability_label(
+                    self.MODEL_SM, "ptime", frac_elapsed, score_pt
+                ),
             ),
             (
                 self.MEAS_MAX,
                 f"{int(peak_val)}",
-                f"+/- {sm_pk_band} bikes",
                 sm_pk_rng or self._rng_str(pk_lo, pk_hi, False),
-                conf_pk,
+                self._probability_label(
+                    self.MODEL_SM, "peak", frac_elapsed, score_pk
+                ),
             ),
         ]
         return rows
@@ -1263,30 +1307,34 @@ class Estimator:
             (
                 self._activity_label(t_end),
                 f"{lr_act_val}",
-                f"+/- {act_band_lr} events",
                 lr_act_rng or self._rng_from_res(lr_act_val, act_lo_res, act_hi_res),
-                conf_act_lr,
+                self._probability_label(
+                    self.MODEL_LR, "act", frac_elapsed, conf_act_lr
+                ),
             ),
             (
                 self.MEAS_FURTHER,
                 f"{lr_remainder}",
-                f"+/- {rem_band_lr} bikes",
                 lr_rem_rng or self._rng_from_res(lr_remainder, rem_lo_res, rem_hi_res),
-                conf_rem_lr,
+                self._probability_label(
+                    self.MODEL_LR, "fut", frac_elapsed, conf_rem_lr
+                ),
             ),
             (
                 self.MEAS_TIME_MAX,
                 f"{peak_time.short}",
-                f"+/- {pt_band_lr} minutes",
                 self._rng_str(ptime_lo, ptime_hi, True),
-                conf_pt_lr,
+                self._probability_label(
+                    self.MODEL_LR, "ptime", frac_elapsed, conf_pt_lr
+                ),
             ),
             (
                 self.MEAS_MAX,
                 f"{lr_peak_val}",
-                f"+/- {pk_band_lr} bikes",
                 lr_pk_rng or self._rng_from_res(lr_peak_val, pk_lo_res, pk_hi_res),
-                conf_pk_lr,
+                self._probability_label(
+                    self.MODEL_LR, "peak", frac_elapsed, conf_pk_lr
+                ),
             ),
         ]
         return rows
@@ -1429,30 +1477,34 @@ class Estimator:
             (
                 self._activity_label(t_end),
                 f"{rec_act_val}",
-                f"+/- {act_band_rec} events",
                 rec_act_rng or self._rng_str(r_act_lo, r_act_hi, False),
-                conf_act_rec,
+                self._probability_label(
+                    self.MODEL_REC, "act", frac_elapsed, conf_act_rec
+                ),
             ),
             (
                 self.MEAS_FURTHER,
                 f"{rec_rem_val}",
-                f"+/- {rem_band_rec} bikes",
                 rec_rem_rng or self._rng_str(r_rem_lo, r_rem_hi, False),
-                conf_rem_rec,
+                self._probability_label(
+                    self.MODEL_REC, "fut", frac_elapsed, conf_rem_rec
+                ),
             ),
             (
                 self.MEAS_TIME_MAX,
                 f"{rec_ptime_val.short}",
-                f"+/- {pt_band_rec} minutes",
                 self._rng_str(r_pt_lo, r_pt_hi, True),
-                conf_pt_rec,
+                self._probability_label(
+                    self.MODEL_REC, "ptime", frac_elapsed, conf_pt_rec
+                ),
             ),
             (
                 self.MEAS_MAX,
                 f"{rec_peak_val}",
-                f"+/- {pk_band_rec} bikes",
                 rec_pk_rng or self._rng_str(r_pk_lo, r_pk_hi, False),
-                conf_pk_rec,
+                self._probability_label(
+                    self.MODEL_REC, "peak", frac_elapsed, conf_pk_rec
+                ),
             ),
         ]
         return rows
@@ -1573,35 +1625,39 @@ class Estimator:
             (
                 self._activity_label(t_end),
                 f"{rf_act_val}",
-                f"+/- {act_band_rf} events",
                 rf_act_rng or self._rng_str(act_lo, act_hi, False),
-                conf_act_rf,
+                self._probability_label(
+                    self.MODEL_RF, "act", frac_elapsed, conf_act_rf
+                ),
             ),
             (
                 self.MEAS_FURTHER,
                 f"{rf_remainder}",
-                f"+/- {rem_band_rf} bikes",
                 rf_rem_rng or self._rng_str(rem_lo, rem_hi, False),
-                conf_rem_rf,
+                self._probability_label(
+                    self.MODEL_RF, "fut", frac_elapsed, conf_rem_rf
+                ),
             ),
             (
                 self.MEAS_TIME_MAX,
                 f"{peak_time.short}",
-                f"+/- {ptime_band} minutes",
                 self._rng_str(ptime_lo, ptime_hi, True),
-                conf_pt,
+                self._probability_label(
+                    self.MODEL_RF, "ptime", frac_elapsed, conf_pt
+                ),
             ),
             (
                 self.MEAS_MAX,
                 f"{rf_peak_val}",
-                f"+/- {pk_band_rf} bikes",
                 rf_pk_rng or self._rng_str(pk_lo, pk_hi, False),
-                conf_pk_rf,
+                self._probability_label(
+                    self.MODEL_RF, "peak", frac_elapsed, conf_pk_rf
+                ),
             ),
         ]
         return rows
 
-    def _parse_conf(self, pct: str) -> int:
+    def _parse_prob(self, pct: str) -> int:
         try:
             return int(str(pct).strip().strip("%"))
         except Exception:
@@ -1623,11 +1679,21 @@ class Estimator:
             return 10**9
 
     def _measure_key_by_index(self, i: int) -> str | None:
-        # 0=activity, 1=further, 2=peaktime, 3=peak
-        return "act" if i == 0 else ("fut" if i == 1 else ("peak" if i == 3 else None))
+        mapping = {0: "act", 1: "fut", 2: "ptime", 3: "peak"}
+        return mapping.get(i)
 
-    def _select_by_narrowest_then_conf(self, cands: list[tuple[int, int, str, tuple]]):
-        cands.sort()  # width asc, then -conf asc
+    def _select_by_probability_then_width(
+        self, cands: list[tuple[int, int, str, tuple]]
+    ):
+        # Sort by highest probability first (stored as negative), then by range width
+        cands.sort(key=lambda item: (item[1], item[0]))
+        return cands[0]
+
+    def _select_by_width_then_probability(
+        self, cands: list[tuple[int, int, str, tuple]]
+    ):
+        # Sort by narrowest range width, then highest probability
+        cands.sort(key=lambda item: (item[0], item[1]))
         return cands[0]
 
     def _best_candidate_accuracy_first(self, i: int, cands, frac: float, cohort_n: int):
@@ -1654,19 +1720,21 @@ class Estimator:
                 for cand in cands:
                     if cand[2] == target:
                         return cand, f"guardrail: n={cohort_n}; prefer {target}"
-        # Fallback: narrowest then conf
-        best = self._select_by_narrowest_then_conf(cands)
-        width, neg_conf, mdl, _row = best
-        return best, f"narrowest range width {width}; conf {abs(neg_conf)}%"
+        # Fallback: highest probability, then narrowest range
+        best = self._select_by_probability_then_width(cands)
+        width, neg_prob, mdl, _row = best
+        prob_pct = -neg_prob
+        return best, f"probability-first: prob {prob_pct}%; width {width}"
 
     def _select_dispatch(self, mode: str, i: int, cands, frac: float, cohort_n: int):
         mode = str(mode or "accuracy_first").strip().lower()
         if mode == "range_first":
-            best = self._select_by_narrowest_then_conf(cands)
-            width, neg_conf, mdl, _row = best
+            best = self._select_by_width_then_probability(cands)
+            width, neg_prob, mdl, _row = best
+            prob_pct = -neg_prob
             return (
                 best,
-                f"range-first: narrowest range width {width}; conf {abs(neg_conf)}%",
+                f"range-first: width {width}; prob {prob_pct}%",
             )
         return self._best_candidate_accuracy_first(i, cands, frac, cohort_n)
 
@@ -1679,7 +1747,7 @@ class Estimator:
             self.MEAS_TIME_MAX,  # index 2
             self.MEAS_MAX,  # index 3
         ]
-        mixed_rows: list[tuple[str, str, str, str, str]] = []
+        mixed_rows: list[tuple[str, str, str, str]] = []
         mixed_models: list[str] = []
         selected_by_model: dict[str, set[int]] = {
             self.MODEL_SM: set(),
@@ -1695,12 +1763,12 @@ class Estimator:
             for mdl_code, rows in tables_by_model.items():
                 if idx >= len(rows):
                     continue
-                r = rows[idx]  # (measure, value, margin, range, conf)
-                rng = r[3]
+                r = rows[idx]  # (measure, value, range, probability)
+                rng = r[2]
                 is_time = idx == 2
                 width = self._range_width(rng, is_time)
-                confv = self._parse_conf(r[4])
-                candidates.append((width, -confv, mdl_code, r))
+                probv = self._parse_prob(r[3])
+                candidates.append((width, -probv, mdl_code, r))
             if not candidates:
                 continue
 

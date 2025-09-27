@@ -83,6 +83,8 @@ try:  # pragma: no cover
 except Exception:  # pragma: no cover
     HAVE_RF = False
 
+PROB_BIN_SIZE = 10
+
 # Lightweight time helper compatible with HH:MM strings
 class VTime:
     def __init__(self, val: Optional[object] = None):
@@ -239,6 +241,80 @@ def percentiles(vals: List[float], plo=0.05, phi=0.95) -> Tuple[float, float]:
     return q(plo), q(phi)
 
 
+def clamp01(x: float) -> float:
+    return 0.0 if x < 0.0 else 1.0 if x > 1.0 else x
+
+
+def smooth_conf_score(
+    n: int,
+    frac_elapsed: float,
+    spread: Optional[float],
+    denom: Optional[float],
+    n_ref: int = 12,
+) -> float:
+    pf = 0.30 + 0.70 * clamp01(float(frac_elapsed))
+    try:
+        nf = (max(0, int(n)) / max(1, int(n_ref))) ** 0.5
+    except Exception:
+        nf = 0.0
+    nf = clamp01(nf)
+    if spread is None or denom is None or denom <= 0:
+        vf = 0.5
+    else:
+        vf = 1.0 - clamp01(float(spread) / float(denom))
+    score = 100.0 * (0.40 * pf + 0.30 * nf + 0.30 * vf)
+    return max(0.0, min(100.0, score))
+
+
+def record_prob_sample(
+    store: Dict[Tuple[str, str, str], List[Tuple[float, int]]],
+    key: Tuple[str, str, str],
+    score: Optional[float],
+    lo: Optional[float],
+    hi: Optional[float],
+    truth: Optional[float],
+) -> None:
+    if (
+        score is None
+        or lo is None
+        or hi is None
+        or truth is None
+    ):
+        return
+    lo_f = float(lo)
+    hi_f = float(hi)
+    if hi_f < lo_f:
+        lo_f, hi_f = hi_f, lo_f
+    hit = 1 if lo_f <= float(truth) <= hi_f else 0
+    store.setdefault(key, []).append((float(score), hit))
+
+
+def build_probability_bins(
+    samples: List[Tuple[float, int]],
+    bin_size: int = 10,
+) -> List[Dict[str, float]]:
+    if not samples:
+        return []
+    buckets: List[Dict[str, float]] = []
+    for start in range(0, 100, bin_size):
+        end = 100 if start + bin_size >= 100 else start + bin_size
+        hits: List[int] = [
+            hit for score, hit in samples if (score >= start and (score < end or (start == 90 and score <= 100)))
+        ]
+        if not hits:
+            continue
+        prob = sum(hits) / len(hits)
+        buckets.append(
+            {
+                "min": float(start),
+                "max": float(end),
+                "prob": round(prob, 4),
+                "count": len(hits),
+            }
+        )
+    return buckets
+
+
 def parse_bins(spec: str) -> List[Tuple[float, float, str]]:
     out: List[Tuple[float, float, str]] = []
     for part in (s.strip() for s in spec.split(",") if s.strip()):
@@ -362,6 +438,8 @@ def main():
     resids: Dict[Tuple[str, str, str], List[float]] = {}
     # Also MAEs per model/measure/bin
     abserrs: Dict[Tuple[str, str, str], List[float]] = {}
+    # Probability calibration samples: (score, hit) per key
+    prob_samples: Dict[Tuple[str, str, str], List[Tuple[float, int]]] = {}
 
     # Optional per-sample writer
     sample_writer = None
@@ -415,77 +493,422 @@ def main():
                 peaks.append(int(p))
                 ptimes.append(int(pt.num))
 
+            def percentile_bounds_int(values: List[int]) -> Tuple[Optional[int], Optional[int]]:
+                if not values:
+                    return None, None
+                lo, hi = percentiles(values, 0.05, 0.95)
+                if lo is None or hi is None:
+                    return None, None
+                return int(round(lo)), int(round(hi))
+
+            rem_lo_sm, rem_hi_sm = percentile_bounds_int(afters)
+            act_lo_sm, act_hi_sm = percentile_bounds_int(acts)
+            peak_lo_sm, peak_hi_sm = percentile_bounds_int(peaks)
+            pt_lo_sm, pt_hi_sm = percentile_bounds_int(ptimes)
+
             # Model 1: Similar-Days Median (with matching on |before - x| <= variance)
             def match_idxs(x: int) -> List[int]:
                 return [i for i, b in enumerate(befores) if abs(int(b) - int(x)) <= int(args.variance)]
+
             midx = match_idxs(before)
+
             def med_at(idxs: List[int], arr: List[int]) -> Optional[int]:
-                if not idxs: return None
+                if not idxs:
+                    return None
                 vals = [arr[i] for i in idxs]
                 return int(statistics.median(vals))
+
             pred_fut_sm = med_at(midx, afters)
             pred_act_sm = med_at(midx, acts)
             pred_peak_sm = med_at(midx, peaks)
             pred_ptime_sm = med_at(midx, ptimes)
-            # Fallback to global median among sims if empty
-            if pred_fut_sm is None and afters: pred_fut_sm = int(statistics.median(afters))
-            if pred_act_sm is None and acts: pred_act_sm = int(statistics.median(acts))
-            if pred_peak_sm is None and peaks: pred_peak_sm = int(statistics.median(peaks))
-            if pred_ptime_sm is None and ptimes: pred_ptime_sm = int(statistics.median(ptimes))
+            if pred_fut_sm is None and afters:
+                pred_fut_sm = int(statistics.median(afters))
+            if pred_act_sm is None and acts:
+                pred_act_sm = int(statistics.median(acts))
+            if pred_peak_sm is None and peaks:
+                pred_peak_sm = int(statistics.median(peaks))
+            if pred_ptime_sm is None and ptimes:
+                pred_ptime_sm = int(statistics.median(ptimes))
 
             # Model 2: Linear Regression on sims
-            def lr_pred(xs: List[int], ys: List[int], x0: int) -> Optional[int]:
-                ab = linreg([float(x) for x in xs], [float(y) for y in ys])
-                if not ab: return None
-                a, b = ab
-                return int(round(a * float(x0) + b))
-            pred_fut_lr = lr_pred(befores, afters, before)
-            pred_act_lr = lr_pred(befores, acts, before)
-            pred_peak_lr = lr_pred(befores, peaks, before)
-            pred_ptime_lr = pred_ptime_sm  # reuse median-of-ptimes for simplicity
+            fut_coeff_lr = linreg([float(x) for x in befores], [float(y) for y in afters])
+            pred_fut_lr = None
+            fut_res_lr: List[int] = []
+            if fut_coeff_lr:
+                a, b = fut_coeff_lr
+                pred_fut_lr = int(round(a * float(before) + b))
+                fut_res_lr = [int(round(float(truth) - (a * float(x) + b))) for x, truth in zip(befores, afters)]
+
+            act_coeff_lr = linreg([float(x) for x in befores], [float(y) for y in acts])
+            pred_act_lr = None
+            act_res_lr: List[int] = []
+            if act_coeff_lr:
+                a_act, b_act = act_coeff_lr
+                pred_act_lr = int(round(a_act * float(before) + b_act))
+                act_res_lr = [int(round(float(truth) - (a_act * float(x) + b_act))) for x, truth in zip(befores, acts)]
+
+            peak_coeff_lr = linreg([float(x) for x in befores], [float(y) for y in peaks])
+            pred_peak_lr = None
+            peak_res_lr: List[int] = []
+            if peak_coeff_lr:
+                a_pk, b_pk = peak_coeff_lr
+                pred_peak_lr = int(round(a_pk * float(before) + b_pk))
+                peak_res_lr = [int(round(float(truth) - (a_pk * float(x) + b_pk))) for x, truth in zip(befores, peaks)]
+
+            pred_ptime_lr = pred_ptime_sm
 
             # Model 3: Schedule-Only Recent (ignores before)
-            rec = sims[-args.recent_days :] if len(sims) > args.recent_days else sims[:]
+            rec_days = sims[-args.recent_days :] if len(sims) > args.recent_days else sims[:]
+
+            rec_afters_vals: List[int] = []
+            rec_acts_vals: List[int] = []
+            rec_peaks_vals: List[int] = []
+            rec_ptimes_vals: List[int] = []
+            for d in rec_days:
+                v = visits_by_day.get(d.id, [])
+                _b_r, a_r, _o_r, ins_r, out_r = counts_for_time(v, t)
+                rec_afters_vals.append(int(a_r))
+                rec_acts_vals.append(int(ins_r + out_r))
+                p_r, pt_r = peak_all_day(v)
+                rec_peaks_vals.append(int(p_r))
+                rec_ptimes_vals.append(int(pt_r.num))
+
             def med_recent(arr: List[int]) -> Optional[int]:
                 return int(statistics.median(arr)) if arr else None
-            pred_fut_rec = med_recent(afters)
-            pred_act_rec = med_recent(acts)
-            pred_peak_rec = med_recent(peaks)
-            pred_ptime_rec = med_recent(ptimes)
+
+            pred_fut_rec = med_recent(rec_afters_vals)
+            pred_act_rec = med_recent(rec_acts_vals)
+            pred_peak_rec = med_recent(rec_peaks_vals)
+            pred_ptime_rec = med_recent(rec_ptimes_vals)
+
+            if pred_ptime_rec is None and rec_ptimes_vals:
+                pred_ptime_rec = int(statistics.median(rec_ptimes_vals))
+
+            if pred_fut_rec is None and pred_fut_sm is not None:
+                pred_fut_rec = pred_fut_sm
+            if pred_act_rec is None and pred_act_sm is not None:
+                pred_act_rec = pred_act_sm
+            if pred_peak_rec is None and pred_peak_sm is not None:
+                pred_peak_rec = pred_peak_sm
+            if pred_ptime_rec is None and pred_ptime_sm is not None:
+                pred_ptime_rec = pred_ptime_sm
 
             # Model 4: Random Forest (if available and sufficient data)
-            def rf_pred(xs: List[int], ys: List[int], x0: int) -> Optional[int]:
+            def rf_pred_with_res(xs: List[int], ys: List[int], x0: int) -> Tuple[Optional[int], List[int]]:
                 if not HAVE_RF or len(xs) < 2:
-                    return None
+                    return None, []
                 try:
-                    X = (np.array(xs, dtype=float).reshape(-1, 1) if HAVE_NP
-                         else [[float(x)] for x in xs])
-                    y = (np.array(ys, dtype=float) if HAVE_NP else [float(v) for v in ys])
-                    model = RandomForestRegressor(n_estimators=100, random_state=0, n_jobs=-1)
+                    X = (
+                        np.array(xs, dtype=float).reshape(-1, 1)
+                        if HAVE_NP
+                        else [[float(x)] for x in xs]
+                    )
+                    y = (
+                        np.array(ys, dtype=float)
+                        if HAVE_NP
+                        else [float(v) for v in ys]
+                    )
+                    model = RandomForestRegressor(
+                        n_estimators=100,
+                        random_state=0,
+                        n_jobs=-1,
+                    )
                     model.fit(X, y)
-                    x0_arr = (np.array([[float(x0)]], dtype=float) if HAVE_NP else [[float(x0)]])
+                    x0_arr = (
+                        np.array([[float(x0)]], dtype=float)
+                        if HAVE_NP
+                        else [[float(x0)]]
+                    )
                     pred = model.predict(x0_arr)[0]
-                    return int(round(float(pred)))
+                    preds_train = model.predict(X)
+                    residuals = [
+                        int(round(float(truth) - float(pred_hat)))
+                        for truth, pred_hat in zip(ys, preds_train)
+                    ]
+                    return int(round(float(pred))), residuals
                 except Exception:
-                    return None
+                    return None, []
 
-            pred_fut_rf = rf_pred(befores, afters, before)
-            pred_act_rf = rf_pred(befores, acts, before)
-            pred_peak_rf = rf_pred(befores, peaks, before)
+            pred_fut_rf, fut_res_rf = rf_pred_with_res(befores, afters, before)
+            pred_act_rf, act_res_rf = rf_pred_with_res(befores, acts, before)
+            pred_peak_rf, peak_res_rf = rf_pred_with_res(befores, peaks, before)
 
-            # Collect residuals per model/measure
-            def push(model: str, measure: str, pred: Optional[int], truth: int):
-                if pred is None: return
+            # Utility for residual-based ranges
+            def residual_bounds(residuals: List[int]) -> Tuple[Optional[int], Optional[int]]:
+                if not residuals:
+                    return None, None
+                lo, hi = percentiles(residuals, 0.05, 0.95)
+                if lo is None or hi is None:
+                    return None, None
+                return int(round(lo)), int(round(hi))
+
+            rem_lo_lr, rem_hi_lr = residual_bounds(fut_res_lr)
+            act_lo_lr, act_hi_lr = residual_bounds(act_res_lr)
+            peak_lo_lr, peak_hi_lr = residual_bounds(peak_res_lr)
+
+            rem_lo_rf, rem_hi_rf = residual_bounds(fut_res_rf)
+            act_lo_rf, act_hi_rf = residual_bounds(act_res_rf)
+            peak_lo_rf, peak_hi_rf = residual_bounds(peak_res_rf)
+
+            # Collect residuals per model/measure and probability samples
+            def push(model: str, measure: str, pred: Optional[int], truth: int) -> None:
+                if pred is None:
+                    return
                 key = (model, measure, bin_lbl)
-                resids.setdefault(key, []).append(float(pred - truth))
-                abserrs.setdefault(key, []).append(float(abs(pred - truth)))
+                resid = float(pred - truth)
+                resids.setdefault(key, []).append(resid)
+                abserrs.setdefault(key, []).append(abs(resid))
                 if sample_writer:
-                    sample_writer.writerow([tgt.date, str(t), f"{frac:.3f}", model, measure, pred, truth, pred - truth, abs(pred - truth)])
+                    sample_writer.writerow(
+                        [
+                            tgt.date,
+                            str(t),
+                            f"{frac:.3f}",
+                            model,
+                            measure,
+                            pred,
+                            truth,
+                            resid,
+                            abs(resid),
+                        ]
+                    )
+
+            # SM probability samples
+            sm_n = len(sims)
+            record_prob_sample(
+                prob_samples,
+                ("SM", "fut", bin_lbl),
+                smooth_conf_score(
+                    sm_n,
+                    frac,
+                    (rem_hi_sm - rem_lo_sm) if (rem_hi_sm is not None and rem_lo_sm is not None) else None,
+                    max(
+                        1.0,
+                        float(pred_fut_sm if pred_fut_sm is not None else rem_hi_sm or 0),
+                    )
+                    if rem_hi_sm is not None and rem_lo_sm is not None
+                    else None,
+                ),
+                rem_lo_sm,
+                rem_hi_sm,
+                int(after_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("SM", "act", bin_lbl),
+                smooth_conf_score(
+                    sm_n,
+                    frac,
+                    (act_hi_sm - act_lo_sm) if (act_hi_sm is not None and act_lo_sm is not None) else None,
+                    max(
+                        1.0,
+                        float(pred_act_sm if pred_act_sm is not None else act_hi_sm or 0),
+                    )
+                    if act_hi_sm is not None and act_lo_sm is not None
+                    else None,
+                ),
+                act_lo_sm,
+                act_hi_sm,
+                int(act_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("SM", "peak", bin_lbl),
+                smooth_conf_score(
+                    sm_n,
+                    frac,
+                    (peak_hi_sm - peak_lo_sm) if (peak_hi_sm is not None and peak_lo_sm is not None) else None,
+                    max(
+                        1.0,
+                        float(pred_peak_sm if pred_peak_sm is not None else peak_hi_sm or 0),
+                    )
+                    if peak_hi_sm is not None and peak_lo_sm is not None
+                    else None,
+                ),
+                peak_lo_sm,
+                peak_hi_sm,
+                int(peak_true),
+            )
+
+            ptime_true_min = int(ptime_true.num) if ptime_true else None
+            record_prob_sample(
+                prob_samples,
+                ("SM", "ptime", bin_lbl),
+                smooth_conf_score(
+                    sm_n,
+                    frac,
+                    (pt_hi_sm - pt_lo_sm) if (pt_hi_sm is not None and pt_lo_sm is not None) else None,
+                    float(span) if (pt_hi_sm is not None and pt_lo_sm is not None) else None,
+                ),
+                pt_lo_sm,
+                pt_hi_sm,
+                ptime_true_min,
+            )
+
+            # LR probability samples
+            lr_n = len(befores)
+            record_prob_sample(
+                prob_samples,
+                ("LR", "fut", bin_lbl),
+                smooth_conf_score(
+                    lr_n,
+                    frac,
+                    (rem_hi_lr - rem_lo_lr) if (rem_hi_lr is not None and rem_lo_lr is not None) else None,
+                    max(1.0, float(pred_fut_lr)) if pred_fut_lr is not None else None,
+                ),
+                (pred_fut_lr + rem_lo_lr) if (pred_fut_lr is not None and rem_lo_lr is not None) else None,
+                (pred_fut_lr + rem_hi_lr) if (pred_fut_lr is not None and rem_hi_lr is not None) else None,
+                int(after_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("LR", "act", bin_lbl),
+                smooth_conf_score(
+                    lr_n,
+                    frac,
+                    (act_hi_lr - act_lo_lr) if (act_hi_lr is not None and act_lo_lr is not None) else None,
+                    max(1.0, float(pred_act_lr)) if pred_act_lr is not None else None,
+                ),
+                (pred_act_lr + act_lo_lr) if (pred_act_lr is not None and act_lo_lr is not None) else None,
+                (pred_act_lr + act_hi_lr) if (pred_act_lr is not None and act_hi_lr is not None) else None,
+                int(act_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("LR", "peak", bin_lbl),
+                smooth_conf_score(
+                    lr_n,
+                    frac,
+                    (peak_hi_lr - peak_lo_lr) if (peak_hi_lr is not None and peak_lo_lr is not None) else None,
+                    max(1.0, float(pred_peak_lr)) if pred_peak_lr is not None else None,
+                ),
+                (pred_peak_lr + peak_lo_lr) if (pred_peak_lr is not None and peak_lo_lr is not None) else None,
+                (pred_peak_lr + peak_hi_lr) if (pred_peak_lr is not None and peak_hi_lr is not None) else None,
+                int(peak_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("LR", "ptime", bin_lbl),
+                smooth_conf_score(lr_n, frac, None, None),
+                pt_lo_sm,
+                pt_hi_sm,
+                ptime_true_min,
+            )
+
+            # REC probability samples
+            rec_n = len(rec_days)
+            r_act_lo, r_act_hi = percentile_bounds_int(rec_acts_vals)
+            r_rem_lo, r_rem_hi = percentile_bounds_int(rec_afters_vals)
+            r_peak_lo, r_peak_hi = percentile_bounds_int(rec_peaks_vals)
+            r_pt_lo, r_pt_hi = percentile_bounds_int(rec_ptimes_vals)
+
+            record_prob_sample(
+                prob_samples,
+                ("REC", "fut", bin_lbl),
+                smooth_conf_score(
+                    rec_n,
+                    frac,
+                    (r_rem_hi - r_rem_lo) if (r_rem_hi is not None and r_rem_lo is not None) else None,
+                    max(1.0, float(pred_fut_rec)) if pred_fut_rec is not None else None,
+                ),
+                r_rem_lo,
+                r_rem_hi,
+                int(after_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("REC", "act", bin_lbl),
+                smooth_conf_score(
+                    rec_n,
+                    frac,
+                    (r_act_hi - r_act_lo) if (r_act_hi is not None and r_act_lo is not None) else None,
+                    max(1.0, float(pred_act_rec)) if pred_act_rec is not None else None,
+                ),
+                r_act_lo,
+                r_act_hi,
+                int(act_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("REC", "peak", bin_lbl),
+                smooth_conf_score(
+                    rec_n,
+                    frac,
+                    (r_peak_hi - r_peak_lo) if (r_peak_hi is not None and r_peak_lo is not None) else None,
+                    max(1.0, float(pred_peak_rec)) if pred_peak_rec is not None else None,
+                ),
+                r_peak_lo,
+                r_peak_hi,
+                int(peak_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("REC", "ptime", bin_lbl),
+                smooth_conf_score(
+                    rec_n,
+                    frac,
+                    (r_pt_hi - r_pt_lo) if (r_pt_hi is not None and r_pt_lo is not None) else None,
+                    float(span) if (r_pt_hi is not None and r_pt_lo is not None) else None,
+                ),
+                r_pt_lo,
+                r_pt_hi,
+                ptime_true_min,
+            )
+
+            # RF probability samples
+            rf_n = len(befores)
+            record_prob_sample(
+                prob_samples,
+                ("RF", "fut", bin_lbl),
+                smooth_conf_score(
+                    rf_n,
+                    frac,
+                    (rem_hi_rf - rem_lo_rf) if (rem_hi_rf is not None and rem_lo_rf is not None) else None,
+                    max(1.0, float(pred_fut_rf)) if pred_fut_rf is not None else None,
+                ),
+                (pred_fut_rf + rem_lo_rf) if (pred_fut_rf is not None and rem_lo_rf is not None) else None,
+                (pred_fut_rf + rem_hi_rf) if (pred_fut_rf is not None and rem_hi_rf is not None) else None,
+                int(after_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("RF", "act", bin_lbl),
+                smooth_conf_score(
+                    rf_n,
+                    frac,
+                    (act_hi_rf - act_lo_rf) if (act_hi_rf is not None and act_lo_rf is not None) else None,
+                    max(1.0, float(pred_act_rf)) if pred_act_rf is not None else None,
+                ),
+                (pred_act_rf + act_lo_rf) if (pred_act_rf is not None and act_lo_rf is not None) else None,
+                (pred_act_rf + act_hi_rf) if (pred_act_rf is not None and act_hi_rf is not None) else None,
+                int(act_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("RF", "peak", bin_lbl),
+                smooth_conf_score(
+                    rf_n,
+                    frac,
+                    (peak_hi_rf - peak_lo_rf) if (peak_hi_rf is not None and peak_lo_rf is not None) else None,
+                    max(1.0, float(pred_peak_rf)) if pred_peak_rf is not None else None,
+                ),
+                (pred_peak_rf + peak_lo_rf) if (pred_peak_rf is not None and peak_lo_rf is not None) else None,
+                (pred_peak_rf + peak_hi_rf) if (pred_peak_rf is not None and peak_hi_rf is not None) else None,
+                int(peak_true),
+            )
+            record_prob_sample(
+                prob_samples,
+                ("RF", "ptime", bin_lbl),
+                smooth_conf_score(rf_n, frac, None, None),
+                pt_lo_sm,
+                pt_hi_sm,
+                ptime_true_min,
+            )
 
             push("SM", "fut", pred_fut_sm, int(after_true))
             push("SM", "act", pred_act_sm, int(act_true))
             push("SM", "peak", pred_peak_sm, int(peak_true))
-            # Do not backtest peaktime as residual in minutes by default
 
             push("LR", "fut", pred_fut_lr, int(after_true))
             push("LR", "act", pred_act_lr, int(act_true))
@@ -494,6 +917,7 @@ def main():
             push("REC", "fut", pred_fut_rec, int(after_true))
             push("REC", "act", pred_act_rec, int(act_true))
             push("REC", "peak", pred_peak_rec, int(peak_true))
+
             push("RF", "fut", pred_fut_rf, int(after_true))
             push("RF", "act", pred_act_rf, int(act_true))
             push("RF", "peak", pred_peak_rf, int(peak_true))
@@ -635,6 +1059,8 @@ def main():
             "models": ["SM","LR","REC","RF"],
             "residual_bands": {},
             "best_model": {"fut": {}, "act": {}, "peak": {}},
+            "probability_map": {},
+            "probability_meta": {"bin_size": PROB_BIN_SIZE, "version": 1},
             "creation_date": datetime.now().isoformat(timespec='seconds'),
             "comment": f"helpers/estimator_calibrate_models.py args: {_argv}",
             "db_path": args.db,
@@ -670,6 +1096,17 @@ def main():
                     if mae < best_mae:
                         best_mae = mae; best = mdl
                 reco["best_model"][meas][lbl] = best
+
+        prob_measures = ["fut", "act", "peak", "ptime"]
+        for mdl in ["SM", "LR", "REC", "RF"]:
+            reco["probability_map"][mdl] = {}
+            for meas in prob_measures:
+                reco["probability_map"][mdl][meas] = {}
+                for _lo, _hi, lbl in bins:
+                    samples = prob_samples.get((mdl, meas, lbl), [])
+                    buckets = build_probability_bins(samples, bin_size=PROB_BIN_SIZE)
+                    if buckets:
+                        reco["probability_map"][mdl][meas][lbl] = buckets
 
         # Emit JSON: to file if --output given; else to stdout (unless --quiet)
         try:

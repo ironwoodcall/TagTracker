@@ -124,3 +124,65 @@ def residual_band(calib: Optional[dict], bins: Optional[List[Tuple[float, float,
     except Exception:  # pylint:disable=broad-except
         return None
 
+
+def probability_lookup(
+    calib: Optional[dict],
+    bins: Optional[List[Tuple[float, float, str]]],
+    model: str,
+    measure: str,
+    frac_elapsed: float,
+    score: float,
+) -> Optional[float]:
+    if not calib:
+        return None
+    lbl = bin_label(bins, frac_elapsed)
+    if not lbl:
+        return None
+    try:
+        entries = (
+            calib
+            .get("probability_map", {})
+            .get(model, {})
+            .get(measure, {})
+            .get(lbl, [])
+        )
+    except Exception:  # pylint:disable=broad-except
+        return None
+    if not entries:
+        return None
+    try:
+        s_val = max(0.0, min(100.0, float(score)))
+    except Exception:
+        return None
+
+    for bucket in entries:
+        try:
+            b_min = float(bucket.get("min"))
+            b_max = float(bucket.get("max"))
+        except Exception:
+            continue
+        if b_min <= s_val < b_max or (s_val >= b_max and b_max >= 100.0):
+            try:
+                return max(0.0, min(1.0, float(bucket.get("prob"))))
+            except Exception:
+                continue
+
+    closest = None
+    best_dist = float("inf")
+    for bucket in entries:
+        try:
+            b_min = float(bucket.get("min"))
+            b_max = float(bucket.get("max"))
+            center = (b_min + b_max) / 2.0
+            dist = abs(center - s_val)
+        except Exception:
+            continue
+        if dist < best_dist:
+            best_dist = dist
+            closest = bucket
+    if closest is None:
+        return None
+    try:
+        return max(0.0, min(1.0, float(closest.get("prob"))))
+    except Exception:
+        return None
