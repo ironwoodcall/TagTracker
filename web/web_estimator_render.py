@@ -51,7 +51,7 @@ def _fmt_row(r: List[str], widths: List[int]) -> str:
 def render_tables(
     as_of_when: VTime,
     verbose: bool,
-    tables: List[Tuple[str, List[Tuple[str, str, str, str, str]], Optional[str]]],
+    tables: List[Tuple[str, List[Tuple[str, str, str, str]], Optional[str]]],
     header_mixed: List[str],
     header_full: List[str],
     mixed_models: Optional[List[str]] = None,
@@ -71,7 +71,7 @@ def render_tables(
         mixed_rows_disp: List[List[str]] = []
         for i, r in enumerate(rows):
             model = (mixed_models[i] if mixed_models and i < len(mixed_models) else "")
-            mixed_rows_disp.append([r[0], r[1], r[3], r[4], model])
+            mixed_rows_disp.append([r[0], r[1], r[2], r[3], model])
         header = list(header_mixed)
         width_rows = [header] + mixed_rows_disp
         widths = _col_widths(width_rows)
@@ -94,7 +94,7 @@ def render_tables(
         # Build preview rows including far-right mark column
         header = list(header_full)
         preview_rows: List[List[str]] = []
-        for idx, (m, v, c, r90, pc) in enumerate(rows):
+        for idx, (m, v, r90, prob) in enumerate(rows):
             mark = ""
             if model_code and selected_by_model:
                 try:
@@ -102,7 +102,7 @@ def render_tables(
                         mark = "<--BEST"
                 except Exception:
                     mark = ""
-            preview_rows.append([m, v, c, r90, pc, mark])
+            preview_rows.append([m, v, r90, prob, mark])
 
         width_rows = [header] + preview_rows
         widths = _col_widths(width_rows)
@@ -142,4 +142,3 @@ def render_tables(
         for msg in calib_debug:
             lines.append(f"  {msg}")
     return lines
-

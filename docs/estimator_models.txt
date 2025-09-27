@@ -10,7 +10,7 @@ The estimator combines several simple models to predict:
   - Max bikes onsite (count)
 
 Each model yields a point estimate, a 90% prediction range, and a
-confidence score. The default (STANDARD) output shows a “best guess” row
+calibrated probability. The default (STANDARD) output shows a “best guess” row
 for each measure, selected from the models below. The FULL view shows all
 models and additional details.
 
@@ -77,11 +77,19 @@ Structure (keys):
       measures are "fut" (further bikes), "act" (activity), "peak" (max).
   - best_model         : per‑measure, per‑bin winning model code by MAE
       best_model[measure][bin] -> "SM"|"LR"|"REC"|"RF"
+  - probability_map    : per‑model, per‑measure, per‑bin reliability tables
+      probability_map[model][measure][bin] -> 
+        [ {"min": float, "max": float, "prob": float, "count": int}, ... ]
+        measures include "fut", "act", "peak", and "ptime".
+  - probability_meta   : metadata for interpreting probability_map bins
   - creation_date      : ISO timestamp of calibration file creation
   - comment            : arbitrary string (backtester name, notes, etc.)
 
 When present, calibrated residual bands replace on‑the‑fly ranges for SM,
-LR, REC, and RF, improving cross‑model comparability.
+LR, REC, and RF, improving cross‑model comparability. The probability_map
+is derived from the nightly backtest by pairing the heuristic confidence
+score with observed coverage outcomes, allowing the UI to display
+empirically calibrated probabilities instead of raw heuristic scores.
 
 
 Best‑Guess Selection (STANDARD)
@@ -90,17 +98,17 @@ For each measure (row), the estimator chooses a model using these rules:
   1) Prefer the calibration best_model for the current time bin
      (lowest MAE in backtests for that measure/bin), if available.
   2) Otherwise choose the narrowest 90% range (numeric ranges clamp to 0).
-  3) If still tied, choose the higher Confidence.
+  3) If still tied, choose the higher Probability.
 
-The chosen model is shown in the Model column. Confidence is a smooth score
-based on time‑of‑day progress, matched sample size, and the model’s spread
-for that measure.
+The chosen model is shown in the Model column. The Probability column
+reports the empirically calibrated hit rate corresponding to the
+underlying heuristic score for that model/measure/bin.
 
 
 Alternate (legacy) selection
 ----------------------------
 An older selection heuristic (kept internally for reference) preferred:
-  - Narrowest 90% range first, then higher Confidence, then calibration
+  - Narrowest 90% range first, then higher Probability, then calibration
     suggestion. It is no longer used for STANDARD, but remains in the
     codebase for comparison/testing.
 
