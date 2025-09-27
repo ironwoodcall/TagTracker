@@ -43,7 +43,8 @@ NORMAL_MARKER = chr(0x25A0)  # chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
 HIGHLIGHT_MARKER = chr(0x2B24)  # chr(0x25cf) #chr(0x25AE)  # chr(0x25a0)#chr(0x25cf)
 
 
-# FIXME: This block report could read blocks data from db instead of recalculating it
+# Uses precomputed block summaries stored in the BLOCK table rather than
+# rebuilding them from raw visit rows.
 
 class _OneBlock:
     """Data about a single timeblock."""
@@ -95,16 +96,18 @@ def _process_iso_dow(
     return title_bit, day_where_clause
 
 
-def _fetch_visit_data(ttdb: sqlite3.Connection, day_filter: str, in_or_out: str) -> list[db.DBRow]:
+def _fetch_block_rows(ttdb: sqlite3.Connection, day_filter: str) -> list[db.DBRow]:
     sel = (
         "select "
         "    day.date,"
-        f"    round(2*(julianday(visit.time_{in_or_out})-julianday('00:15'))*24,0)/2 block, "
-        f"    count(visit.time_{in_or_out}) num_bikes "
+        "    block.time_start,"
+        "    block.num_incoming_combined,"
+        "    block.num_outgoing_combined,"
+        "    block.num_on_hand_combined "
         "from day "
-        "JOIN visit ON visit.day_id = day.id"
+        "JOIN block ON block.day_id = day.id"
         f"    {day_filter} "
-        "group by date,block;"
+        "order by day.date, block.time_start"
     )
     return db.db_fetch(ttdb, sel)
 
@@ -139,46 +142,43 @@ def process_day_data(dayrows: list) -> tuple[dict[str:_OneDay], _OneDay]:
 
 
 def process_blocks_data(
-    tabledata: dict, visitrows_in: list, visitrows_out: list
+    tabledata: dict, blockrows: list[db.DBRow]
 ) -> tuple[dict[VTime:_OneBlock], _OneBlock]:
-    """Process data about timeblocks from visits table data.
+    """Populate time-block data from BLOCK table rows."""
 
-    Changes the contents of tabledata and returns blocks_max."""
+    rows_by_date = defaultdict(dict)
+    for row in blockrows:
+        block_time = VTime(row.time_start)
+        if not block_time:
+            continue
+        rows_by_date[row.date][block_time] = row
 
-    def process_visitrows(visitrows):
-        result_dict = defaultdict(dict)
-        for visitrow in visitrows:
-            this_date = visitrow.date
-            if not this_date or not visitrow.block or visitrow.num_bikes is None:
-                continue
-            block_time = VTime(visitrow.block * 60)
-            result_dict[this_date][block_time] = visitrow.num_bikes
-        return result_dict
-
-    ins = process_visitrows(visitrows_in)
-    outs = process_visitrows(visitrows_out)
-
-    for date in sorted(ins.keys()):
-        full_today = 0
+    for date, day_summary in tabledata.items():
+        blocks_for_day = rows_by_date.get(date, {})
+        if not blocks_for_day:
+            continue
         so_far_today = 0
-        date_outs = outs.get(date, {})
-        for block_key in sorted(tabledata[date].blocks.keys()):
-            thisblock: _OneBlock = tabledata[date].blocks[block_key]
-            thisblock.num_in = ins[date].get(block_key, 0)
-            thisblock.num_out = date_outs.get(block_key, 0)
-            so_far_today += thisblock.num_in
+        for block_key in sorted(day_summary.blocks.keys()):
+            block_row = blocks_for_day.get(block_key)
+            if not block_row:
+                continue
+            thisblock: _OneBlock = day_summary.blocks[block_key]
+            num_in = block_row.num_incoming_combined or 0
+            num_out = block_row.num_outgoing_combined or 0
+            so_far_today += num_in
+            thisblock.num_in = num_in
+            thisblock.num_out = num_out
             thisblock.so_far = so_far_today
-            full_today += thisblock.num_in - thisblock.num_out
-            thisblock.full = full_today
+            thisblock.full = block_row.num_on_hand_combined or 0
 
     # Find overall maximum values
     block_maxes = _OneBlock()
     all_blocks = [b for t in tabledata.values() for b in t.blocks.values()]
-
-    block_maxes.num_in = max(b.num_in for b in all_blocks)
-    block_maxes.num_out = max(b.num_out for b in all_blocks)
-    block_maxes.full = max(b.full for b in all_blocks)
-    block_maxes.so_far = max(b.so_far for b in all_blocks)
+    if all_blocks:
+        block_maxes.num_in = max(b.num_in for b in all_blocks)
+        block_maxes.num_out = max(b.num_out for b in all_blocks)
+        block_maxes.full = max(b.full for b in all_blocks)
+        block_maxes.so_far = max(b.so_far for b in all_blocks)
 
     return tabledata, block_maxes
 
@@ -364,8 +364,7 @@ def blocks_report(
     )
 
     dayrows:list[db.DBRow] = _fetch_day_data(ttdb, day_where_clause)
-    visitrows_in:list[db.DBRow] = _fetch_visit_data(ttdb, day_where_clause, "in")
-    visitrows_out:list[db.DBRow] = _fetch_visit_data(ttdb, day_where_clause, "out")
+    blockrows:list[db.DBRow] = _fetch_block_rows(ttdb, day_where_clause)
 
     range_label = f"{start_date} to {end_date}" if start_date or end_date else ""
 
@@ -380,9 +379,20 @@ def blocks_report(
         print("<p>No data found for the selected date range.</p>")
         return
 
+    if not blockrows:
+        heading = f"{title_bit}Time block summaries"
+        if range_label:
+            heading = f"{heading} ({range_label})"
+        print(f"<h1>{heading}</h1>")
+        print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
+        print(date_filter_html)
+        print("<br><br>")
+        print("<p>Block activity data not available for the selected date range.</p>")
+        return
+
     # Create structures for the html tables
     tabledata, day_maxes = process_day_data(dayrows)
-    tabledata, block_maxes = process_blocks_data(tabledata, visitrows_in, visitrows_out)
+    tabledata, block_maxes = process_blocks_data(tabledata, blockrows)
 
     # Set up color maps
     (
