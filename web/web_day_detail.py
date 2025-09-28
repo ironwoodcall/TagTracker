@@ -254,22 +254,6 @@ def one_day_tags_report(
         print(f"No information in database for {thisday}")
         return
 
-    # Get overall stats for the day FIXME: got these above as a DayTotals obj
-
-    # day_data: db.MultiDayTotals = db.MultiDayTotals.fetch_from_db(
-    #     ttdb, orgsite_id=orgsite_id, start_date=thisday, end_date=thisday
-    # )
-
-    # day_data.max_stay = VTime(max(durations)).tidy
-    # day_data.mean_stay = VTime(mean(durations)).tidy
-    # day_data.median_stay = VTime(median(durations)).tidy
-
-    # day_data.modes_stay, day_data.modes_occurences = ut.calculate_visit_modes(
-    #     durations, 30
-    # )
-
-    ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
-    ##print("<div style='display:flex;'><div style='margin-right: 20px;'>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
 
@@ -364,12 +348,12 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     for parameters in table_vars:
         column, title, color = parameters
         graph_link = cc.selfref(
-                what=cc.WHAT_SUMMARY_FREQUENCIES,
-                start_date=today,
-                end_date=today,
-                pages_back=1,
-                text_note="one day"
-            )
+            what=cc.WHAT_SUMMARY_FREQUENCIES,
+            start_date=today,
+            end_date=today,
+            pages_back=1,
+            text_note="one day",
+        )
         title = f"<a href='{graph_link}'>{title}</a>"
         print(
             web_histogram.times_hist_table(
@@ -392,9 +376,7 @@ def block_activity_table(
     """Render a half-hour activity summary using stored block data."""
 
     if not blocks:
-        print(
-            "<p>Block activity summary not available for this day.</p>"
-        )
+        print("<p>Block activity summary not available for this day.</p>")
         return
 
     def _as_vtime(value):
@@ -402,19 +384,21 @@ def block_activity_table(
 
     block_items = sorted(
         ((_as_vtime(start), block) for start, block in blocks.items()),
-        key=lambda item: item[0].num if getattr(item[0], "num", None) is not None else 0,
+        key=lambda item: (
+            item[0].num if getattr(item[0], "num", None) is not None else 0
+        ),
     )
     if not block_items:
-        print(
-            "<p>Block activity summary not available for this day.</p>"
-        )
+        print("<p>Block activity summary not available for this day.</p>")
         return
 
     open_block = (
         ut.block_start(day_data.time_open) if day_data and day_data.time_open else None
     )
     close_block = (
-        ut.block_start(day_data.time_closed) if day_data and day_data.time_closed else None
+        ut.block_start(day_data.time_closed)
+        if day_data and day_data.time_closed
+        else None
     )
 
     if block_items and close_block and not is_today:
@@ -434,15 +418,23 @@ def block_activity_table(
                         continue
                     filler = PeriodDetail(time_start=current_start)
                     for bike_type in (k.REGULAR, k.OVERSIZE, k.COMBINED):
-                        filler.num_on_hand[bike_type] = previous_block.num_on_hand[bike_type]
-                        filler.num_fullest[bike_type] = previous_block.num_fullest[bike_type]
-                        filler.time_fullest[bike_type] = previous_block.time_fullest[bike_type]
+                        filler.num_on_hand[bike_type] = previous_block.num_on_hand[
+                            bike_type
+                        ]
+                        filler.num_fullest[bike_type] = previous_block.num_fullest[
+                            bike_type
+                        ]
+                        filler.time_fullest[bike_type] = previous_block.time_fullest[
+                            bike_type
+                        ]
                     blocks_by_start[current_start] = filler
                     previous_block = filler
 
                 block_items = sorted(
                     blocks_by_start.items(),
-                    key=lambda item: item[0].num if getattr(item[0], "num", None) is not None else 0,
+                    key=lambda item: (
+                        item[0].num if getattr(item[0], "num", None) is not None else 0
+                    ),
                 )
 
     rows_to_render = []
@@ -539,7 +531,7 @@ def block_activity_table(
     )
     day_total_bikes_colors.add_config(0, "white")
     total_color_max = max(
-        max_total_parked*1.5,
+        max_total_parked * 1.5,
         getattr(day_data, "num_parked_combined", 0) if day_data else 0,
     )
     if total_color_max > 0:
@@ -821,16 +813,6 @@ def summary_table(
             <td>{day_data.bikes_registered}</td></tr>
         """
     )
-    if is_today and est is not None and est.state != web_estimator.ERROR:
-        detail_link = cc.selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
-        print( "<tr>"
-            f"""
-        <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
-        <a href="{detail_link}">
-        Detailed estimates</a></td></tr>
-            """
-        )
-
     if not is_today:
         print(
             f"""
@@ -851,24 +833,19 @@ def summary_table(
                 <td>{fmt_none(day_data.precipitation)}</td></tr>
     """
         )
-    # if not is_today and suspicious:
-    #     print(
-    #         f"""
-    #         <tr><td colspan=2>Bikes possibly never checked in:</td>
-    #         <td style='text-align:right;
-    #             {highlights.css_bg_fg(int(suspicious>0)*HIGHLIGHT_ERROR)}'>
-    #             {suspicious}</td></tr>
-    #     """
-    #     )
-    # de_link = cc.selfref(what=cc.WHAT_DATA_ENTRY, qdate=day_data.date)
-    # df_link = cc.selfref(what=cc.WHAT_DATAFILE, qdate=day_data.date)
-    # print(
-    #     f"""
-    #     <tr><td colspan=3><a href='{de_link}'>Data entry reports</a></td></tr>
-    #     <tr><td colspan=3><a href='{df_link}'>Reconstructed datafile</a></td></tr>
-    #     """
-    # )
     print("</table><p></p>")
+    if is_today and est is not None and est.state != web_estimator.ERROR:
+        detail_link = cc.selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
+        print(
+            # "<table>"
+            # "<tr>"
+            f"""
+            <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
+            <button type="button" style="padding: 10px; display: inline-block;"
+            onclick="window.location.href='{detail_link}';"><b>Detailed<br>Estimation<br>Rationale</b></button>
+            """
+            # """<a href="{detail_link}"><b>Detailed estimates</b></a></td></tr>"""
+        )
 
 
 def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):
