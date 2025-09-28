@@ -27,6 +27,8 @@ import sys
 import os
 import urllib.parse
 import time
+import html
+from pathlib import Path
 
 sys.path.append("../")
 sys.path.append("./")
@@ -248,11 +250,18 @@ def web_est_wrapper() -> None:
     est.guess()
     for line in est.result_msg(as_html=True):
         print(line)
-    print(
-        "<p>A further "
-        "<a href='https://raw.githubusercontent.com/ironwoodcall/TagTracker/refs/heads/main/docs/estimator_models.txt'>"
-        "discussion of the estimation models</a> is available.</p>"
-    )
+    # print(
+    #     "<p>A further "
+    #     "<a href='https://raw.githubusercontent.com/ironwoodcall/TagTracker/refs/heads/main/docs/estimator_models.txt'>"
+    #     "discussion of the estimation models</a> is available.</p>"
+    # )
+
+    models_path = Path(__file__).resolve().parent.parent / "docs" / "estimator_models.txt"
+    if models_path.is_file():
+        print("<h3>Background on the models</h3><pre>")
+        with models_path.open(encoding="utf-8") as models_file:
+            print(html.escape(models_file.read()))
+        print("</pre><hr>")
 
 
 # =================================================================
