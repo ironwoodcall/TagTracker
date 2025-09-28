@@ -59,15 +59,54 @@ def render_tables(
     selection_info: Optional[List[str]] = None,
     calib: Optional[dict] = None,
     calib_debug: Optional[List[str]] = None,
+    *,
+    as_html: bool = False,
+) -> List[str]:
+    if as_html:
+        return _render_tables_html(
+            as_of_when,
+            verbose,
+            tables,
+            header_mixed,
+            header_full,
+            mixed_models,
+            selected_by_model,
+            selection_info,
+            calib,
+            calib_debug,
+        )
+    return _render_tables_text(
+        as_of_when,
+        verbose,
+        tables,
+        header_mixed,
+        header_full,
+        mixed_models,
+        selected_by_model,
+        selection_info,
+        calib,
+        calib_debug,
+    )
+
+
+def _render_tables_text(
+    as_of_when: VTime,
+    verbose: bool,
+    tables: List[Tuple[str, List[Tuple[str, str, str, str]], Optional[str]]],
+    header_mixed: List[str],
+    header_full: List[str],
+    mixed_models: Optional[List[str]],
+    selected_by_model: Optional[dict],
+    selection_info: Optional[List[str]],
+    calib: Optional[dict],
+    calib_debug: Optional[List[str]],
 ) -> List[str]:
     lines: List[str] = []
     if not tables:
         return ["No estimates available"]
 
     if not verbose:
-        # STANDARD: only mixed table with model column
         title_base, rows, _mc = tables[0]
-        # Build rows including Model column from mixed_models list
         mixed_rows_disp: List[List[str]] = []
         for i, r in enumerate(rows):
             model = (mixed_models[i] if mixed_models and i < len(mixed_models) else "")
@@ -78,20 +117,17 @@ def render_tables(
         title = f"{title_base} (as of {as_of_when.short})"
         lines.append(title)
         lines.append(_fmt_row(header, widths))
-        # Underline row with dashes across all columns
         dash_row = ["-" * w for w in widths]
         lines.append(_fmt_row(dash_row, widths))
         for r in mixed_rows_disp:
             lines.append(_fmt_row(r, widths))
         return lines
 
-    # FULL: page-level title then all model tables (skip mixed at index 0)
     lines.append("Detailed Estimation Information")
     lines.append("")
     for t_index, (title_base, rows, model_code) in enumerate(tables):
         if t_index == 0:
             continue
-        # Build preview rows including far-right mark column
         header = list(header_full)
         preview_rows: List[List[str]] = []
         for idx, (m, v, r90, prob) in enumerate(rows):
@@ -111,13 +147,11 @@ def render_tables(
             lines.append("")
         lines.append(title)
         lines.append(_fmt_row(header, widths))
-        # Build underline row, omitting dashes for empty header cells
         dash_row = [("-" * widths[i]) if header[i] else "" for i in range(len(header))]
         lines.append(_fmt_row(dash_row, widths))
         for row6 in preview_rows:
             lines.append(_fmt_row(row6, widths))
 
-    # Details
     lines.append("")
     lines.append("Details")
     lines.append("-------")
@@ -125,7 +159,6 @@ def render_tables(
         lines.append("Selection rationale:")
         for info in selection_info:
             lines.append(f"  {info}")
-    # Calibration usage and metadata
     calib_msg = "Calibration JSON: used" if calib else "Calibration JSON: not used"
     lines.append(calib_msg)
     if calib:
@@ -141,4 +174,112 @@ def render_tables(
     if calib_debug:
         for msg in calib_debug:
             lines.append(f"  {msg}")
+    return lines
+
+
+def _render_tables_html(
+    as_of_when: VTime,
+    verbose: bool,
+    tables: List[Tuple[str, List[Tuple[str, str, str, str]], Optional[str]]],
+    header_mixed: List[str],
+    header_full: List[str],
+    mixed_models: Optional[List[str]],
+    selected_by_model: Optional[dict],
+    selection_info: Optional[List[str]],
+    calib: Optional[dict],
+    calib_debug: Optional[List[str]],
+) -> List[str]:
+    import html as _html
+
+    if not tables:
+        return ["<p>No estimates available</p>"]
+
+    def _table_html(
+        title: str,
+        header: List[str],
+        rows: List[List[str]],
+    ) -> List[str]:
+        out: List[str] = []
+        colcount = len(header)
+        out.append("<table class=\"general_table estimator_table\">")
+        if title:
+            out.append(
+                f"<tr><th colspan={colcount}>{_html.escape(title)}</th></tr>"
+            )
+        if header:
+            out.append("<tr>")
+            for h in header:
+                s = _html.escape(h) if h else "Best<br>Choice?"
+                out.append(f"<th>{s}</th>")
+            out.append("</tr>")
+        for row in rows:
+            out.append("<tr>")
+            for cell in row:
+                out.append(f"<td>{_html.escape(cell)}</td>")
+            out.append("</tr>")
+        out.append("</table><br>")
+        return out
+
+    lines: List[str] = []
+
+    if not verbose:
+        title_base, rows, _mc = tables[0]
+        mixed_rows_disp: List[List[str]] = []
+        for i, r in enumerate(rows):
+            model = (mixed_models[i] if mixed_models and i < len(mixed_models) else "")
+            mixed_rows_disp.append([r[0], r[1], r[2], r[3], model])
+        title = f"{title_base} (as of {as_of_when.short})"
+        lines.extend(_table_html(title, header_mixed, mixed_rows_disp))
+        return lines
+
+    # Verbose: include best-guess per model tables and details
+    for t_index, (title_base, rows, model_code) in enumerate(tables):
+        if t_index == 0:
+            continue
+        header = list(header_full)
+        preview_rows: List[List[str]] = []
+        for idx, (m, v, r90, prob) in enumerate(rows):
+            mark = ""
+            if model_code and selected_by_model:
+                try:
+                    if idx in selected_by_model.get(model_code, set()):
+                        mark = "<--BEST"
+                except Exception:
+                    mark = ""
+            preview_rows.append([m, v, r90, prob, mark])
+        title = f"{title_base} (as of {as_of_when.short})"
+        lines.extend(_table_html(title, header, preview_rows))
+
+    detail_rows: List[str] = []
+    detail_rows.append("<table class=\"general_table estimator_table\">")
+    detail_rows.append("<h3>Details</h3>")
+    if selection_info:
+        detail_rows.append("<h4>Selection rationale</h4>")
+        for info in selection_info:
+            detail_rows.append(f"<li>{_html.escape(info)}")
+    calib_msg = "Calibration JSON: used" if calib else "Calibration JSON: not used"
+    detail_rows.append(
+        f"<h4>Calibration</h4>{_html.escape(calib_msg)}"
+    )
+    if calib:
+        try:
+            cdate = calib.get("creation_date")
+            ccomment = calib.get("comment")
+            if cdate:
+                detail_rows.append(
+                    f"<li>Created: {_html.escape(str(cdate))}"
+                )
+            if ccomment:
+                detail_rows.append(
+                    f"<li>{_html.escape(str(ccomment))}"
+                )
+        except Exception:
+            pass
+    if calib_debug:
+        for msg in calib_debug:
+            detail_rows.append(
+                f"<li>{_html.escape(msg)}"
+            )
+    detail_rows.append("<br>")
+    lines.extend(detail_rows)
     return lines

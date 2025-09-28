@@ -29,7 +29,7 @@ import common.tt_dbutil as db
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
-from common.tt_daysummary import DayTotals
+from common.tt_daysummary import DayTotals, PeriodDetail
 from common.tt_statistics import VisitStats
 import common.tt_constants as k
 import web_common as cc
@@ -363,7 +363,14 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     orgsite_id = 1  # FIXME hardcoded orgsite_id
     for parameters in table_vars:
         column, title, color = parameters
-        title = f"<a href='{cc.selfref(cc.WHAT_ONE_DAY_FREQUENCIES,qdate=today)}'>{title}</a>"
+        graph_link = cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                start_date=today,
+                end_date=today,
+                pages_back=1,
+                text_note="one day"
+            )
+        title = f"<a href='{graph_link}'>{title}</a>"
         print(
             web_histogram.times_hist_table(
                 ttdb,
@@ -390,8 +397,12 @@ def block_activity_table(
         )
         return
 
+    def _as_vtime(value):
+        return value if isinstance(value, VTime) else VTime(value)
+
     block_items = sorted(
-        blocks.items(), key=lambda item: item[0].num if hasattr(item[0], "num") else VTime(item[0]).num
+        ((_as_vtime(start), block) for start, block in blocks.items()),
+        key=lambda item: item[0].num if getattr(item[0], "num", None) is not None else 0,
     )
     if not block_items:
         print(
@@ -405,6 +416,34 @@ def block_activity_table(
     close_block = (
         ut.block_start(day_data.time_closed) if day_data and day_data.time_closed else None
     )
+
+    if block_items and close_block and not is_today:
+        close_num = getattr(close_block, "num", None)
+        if close_num is not None:
+            blocks_by_start = {start: block for start, block in block_items}
+            last_start = block_items[-1][0]
+            last_num = getattr(last_start, "num", None)
+            if last_num is not None and last_num < close_num:
+                previous_block = block_items[-1][1]
+                current_num = last_num
+                while current_num < close_num:
+                    current_num += k.BLOCK_DURATION
+                    current_start = VTime(current_num)
+                    if current_start in blocks_by_start:
+                        previous_block = blocks_by_start[current_start]
+                        continue
+                    filler = PeriodDetail(time_start=current_start)
+                    for bike_type in (k.REGULAR, k.OVERSIZE, k.COMBINED):
+                        filler.num_on_hand[bike_type] = previous_block.num_on_hand[bike_type]
+                        filler.num_fullest[bike_type] = previous_block.num_fullest[bike_type]
+                        filler.time_fullest[bike_type] = previous_block.time_fullest[bike_type]
+                    blocks_by_start[current_start] = filler
+                    previous_block = filler
+
+                block_items = sorted(
+                    blocks_by_start.items(),
+                    key=lambda item: item[0].num if getattr(item[0], "num", None) is not None else 0,
+                )
 
     rows_to_render = []
     cumulative_total_in = 0
@@ -436,8 +475,7 @@ def block_activity_table(
         "</tr>"
     )
 
-    for block_start_time, block in block_items:
-        block_start_vtime = block_start_time if isinstance(block_start_time, VTime) else VTime(block_start_time)
+    for block_start_vtime, block in block_items:
         block_start_num = block_start_vtime.num
 
         rg_in = block.num_incoming[k.REGULAR]
@@ -501,7 +539,7 @@ def block_activity_table(
     )
     day_total_bikes_colors.add_config(0, "white")
     total_color_max = max(
-        max_total_parked,
+        max_total_parked*1.5,
         getattr(day_data, "num_parked_combined", 0) if day_data else 0,
     )
     if total_color_max > 0:
@@ -522,15 +560,16 @@ def block_activity_table(
     X_TOP_COLOR = "red"
     Y_TOP_COLOR = "royalblue"
 
+    max_activity_value = max(max_in_value, max_out_value)
     bikes_in_colors = dc.Dimension(interpolation_exponent=0.82, label="Bikes in")
     bikes_in_colors.add_config(0, XY_BOTTOM_COLOR)
-    if max_in_value > 0:
-        bikes_in_colors.add_config(max_in_value, X_TOP_COLOR)
+    if max_activity_value > 0:
+        bikes_in_colors.add_config(max_activity_value, X_TOP_COLOR)
 
     bikes_out_colors = dc.Dimension(interpolation_exponent=0.82, label="Bikes out")
     bikes_out_colors.add_config(0, XY_BOTTOM_COLOR)
-    if max_out_value > 0:
-        bikes_out_colors.add_config(max_out_value, Y_TOP_COLOR)
+    if max_activity_value > 0:
+        bikes_out_colors.add_config(max_activity_value, Y_TOP_COLOR)
 
     def mix_styles(*parts) -> str:
         pieces = [p.strip().rstrip(";") for p in parts if p]
@@ -749,7 +788,9 @@ def summary_table(
             )
 
     print(
-        "<table class=general_table><style>.general_table td {text-align:right}</style>"
+        "<table class=general_table summary_table><style>"
+        ".summary_table td {text-align:right;}"
+        "</style>"
     )
     print(
         f"""
@@ -781,12 +822,12 @@ def summary_table(
         """
     )
     if is_today and est is not None and est.state != web_estimator.ERROR:
-        detail_link = cc.make_url("tt_estimator", what="verbose")
-        print(
+        detail_link = cc.selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
+        print( "<tr>"
             f"""
-        <tr><td colspan=3><pre>{"<br>".join(est.result_msg())}</pre>
+        <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
         <a href="{detail_link}" target="_blank">
-        Detailed estimates (opens in new tab/window)</a></td></tr>
+        Detailed estimates</a></td></tr>
             """
         )
 

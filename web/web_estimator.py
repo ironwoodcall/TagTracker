@@ -55,6 +55,7 @@ sys.path.append("./")
 
 # pylint: disable=wrong-import-position
 import web_base_config as wcfg
+import web_common as cc
 import common.tt_util as ut
 from common.tt_time import VTime
 import common.tt_dbutil as db
@@ -785,14 +786,6 @@ class Estimator:
                         f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
                         rf_rows,
                         self.MODEL_RF,
-                    )
-                )
-            else:
-                self.tables.append(
-                    (
-                        f"Estimation - {self.MODEL_LONG_NAMES[self.MODEL_RF]} Model",
-                        [("Random Forest unavailable", "", "", "--")],
-                        None,
                     )
                 )
 
@@ -1788,8 +1781,14 @@ class Estimator:
 
         return mixed_rows, mixed_models, selected_by_model, selection_info
 
-    def result_msg(self) -> list[str]:
+    def result_msg(self, as_html: bool = False) -> list[str]:
         if self.state == ERROR:
+            if as_html:
+                import html as _html
+
+                return [
+                    f"<p>Can't estimate because: {_html.escape(str(self.error))}</p>"
+                ]
             return [f"Can't estimate because: {self.error}"]
         lines = _render_tables(
             as_of_when=self.as_of_when,
@@ -1802,13 +1801,11 @@ class Estimator:
             selection_info=getattr(self, "_selection_info", None),
             calib=getattr(self, "_calib", None),
             calib_debug=getattr(self, "_calib_debug", None),
+            as_html=as_html,
         )
         # Append extended details that were present before refactor
         if self.verbose:
             try:
-                lines.append("")
-                lines.append(f"Bikes so far: {self.bikes_so_far}")
-                lines.append(f"Open/Close: {self.time_open} - {self.time_closed}")
                 open_num = (
                     self.time_open.num
                     if self.time_open and self.time_open.num is not None
@@ -1823,32 +1820,13 @@ class Estimator:
                 frac_elapsed = max(
                     0.0, min(1.0, (self.as_of_when.num - open_num) / span)
                 )
-                lines.append(
-                    f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)"
-                )
-                lines.append(
-                    f"Similar-day rows: {len(getattr(self, 'similar_dates', []) or [])} ({getattr(self, '_match_note', '')})"
-                )
-                lines.append(
-                    f"Match tolerance (VARIANCE): {getattr(self, 'VARIANCE', '')}"
-                )
-                lines.append(f"Outlier Z cutoff: {getattr(self, 'Z_CUTOFF', '')}")
+                similar_count = len(getattr(self, "similar_dates", []) or [])
+                match_note = getattr(self, "_match_note", "")
+                variance = getattr(self, "VARIANCE", "")
+                zcut = getattr(self, "Z_CUTOFF", "")
                 sm = getattr(self, "simple_model", None)
-                if sm and getattr(sm, "state", None) == OK:
-                    lines.append("")
-                    lines.append("Simple model (similar days)")
-                    lines.append(f"  Points matched: {getattr(sm, 'num_points', '')}")
-                    lines.append(
-                        f"  Discarded as outliers: {getattr(sm, 'num_discarded', '')}"
-                    )
-                    lines.append(
-                        f"  Min/Median/Mean/Max: {sm.min}/{sm.median}/{sm.mean}/{sm.max}"
-                    )
-                # Confidence overview
                 matched = self._matched_dates()
                 level = self._confidence_level(len(matched), frac_elapsed)
-                lines.append("")
-                lines.append(f"Confidence level: {level}")
                 rb = self._band(level, "remainder")
                 ab = self._band(level, "activity")
                 pb = self._band(level, "peak")
@@ -1857,10 +1835,86 @@ class Estimator:
                 abs_ = self._band_scaled(ab, len(matched), frac_elapsed, "activity")
                 pbs = self._band_scaled(pb, len(matched), frac_elapsed, "peak")
                 tbs = self._band_scaled(tb, len(matched), frac_elapsed, "peaktime")
-                lines.append(
-                    f"Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}"
-                )
-                lines.append(f"Base bands (before scaling): {rb}/{ab}/{pb}/{tb}")
+
+                if as_html:
+                    import html as _html
+
+                    lines.append("<div class=\"estimator-extra\">")
+                    lines.append("<h4>Inputs</h4>")
+                    lines.append(
+                        f"<li>Bikes so far: {_html.escape(str(self.bikes_so_far))}<br>"
+                    )
+                    lines.append(
+                        f"<li>Open/Close: {_html.escape(str(self.time_open))} - {_html.escape(str(self.time_closed))}<br>"
+                    )
+                    lines.append(
+                        f"<li>Day progress: {int(frac_elapsed*100)}% (span {span} minutes)<br>"
+                    )
+                    lines.append(
+                        f"<li>Similar-day rows: {similar_count} {_html.escape(f'({match_note})' if match_note else '')}<br>"
+                    )
+                    lines.append(
+                        f"<li>Match tolerance (VARIANCE): {_html.escape(str(variance))}<br>"
+                    )
+                    lines.append(
+                        f"<li>Outlier Z cutoff: {_html.escape(str(zcut))}<br>"
+                    )
+                    if sm and getattr(sm, "state", None) == OK:
+                        lines.append("<div class=\"estimator-simple-model\">")
+                        lines.append("<h4>Simple model (similar days)</h4>")
+                        lines.append(
+                            f"<li>Points matched: {_html.escape(str(getattr(sm, 'num_points', '')))}<br>"
+                        )
+                        lines.append(
+                            f"<li>Discarded as outliers: {_html.escape(str(getattr(sm, 'num_discarded', '')))}<br>"
+                        )
+                        lines.append(
+                            f"<li>Min/Median/Mean/Max: {_html.escape(str(sm.min))}/"
+                            f"{_html.escape(str(sm.median))}/{_html.escape(str(sm.mean))}/"
+                            f"{_html.escape(str(sm.max))}<br>"
+                        )
+                        lines.append("</div>")
+                    lines.append(
+                        f"<li>Confidence level: {_html.escape(level)}<br>"
+                    )
+                    lines.append(
+                        f"<li>Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}<br>"
+                    )
+                    lines.append(
+                        f"<li>Base bands (before scaling): {rb}/{ab}/{pb}/{tb}<br>"
+                    )
+                    lines.append("</div>")
+                else:
+                    lines.append("")
+                    lines.append(f"Bikes so far: {self.bikes_so_far}")
+                    lines.append(f"Open/Close: {self.time_open} - {self.time_closed}")
+                    lines.append(
+                        f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)"
+                    )
+                    lines.append(
+                        f"Similar-day rows: {similar_count} ({match_note})"
+                    )
+                    lines.append(
+                        f"Match tolerance (VARIANCE): {variance}"
+                    )
+                    lines.append(f"Outlier Z cutoff: {zcut}")
+                    if sm and getattr(sm, "state", None) == OK:
+                        lines.append("")
+                        lines.append("Simple model (similar days)")
+                        lines.append(f"  Points matched: {getattr(sm, 'num_points', '')}")
+                        lines.append(
+                            f"  Discarded as outliers: {getattr(sm, 'num_discarded', '')}"
+                        )
+                        lines.append(
+                            f"  Min/Median/Mean/Max: {sm.min}/{sm.median}/{sm.mean}/{sm.max}"
+                        )
+                    lines.append(f"Confidence level: {level}")
+                    lines.append(
+                        f"Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}"
+                    )
+                    lines.append(
+                        f"Base bands (before scaling): {rb}/{ab}/{pb}/{tb}"
+                    )
             except Exception:
                 # Do not fail rendering on details
                 pass
@@ -1870,7 +1924,7 @@ class Estimator:
 if __name__ == "__main__":
     try:
         # Parse CGI inputs for the estimator
-        def _init_from_cgi() -> Estimator:
+        def _init_from_cgi() -> tuple[Estimator, str]:
             query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
             query_parms = urllib.parse.parse_qs(query_str)
             bikes_so_far = query_parms.get("bikes_so_far", [""])[0]
@@ -1883,19 +1937,29 @@ if __name__ == "__main__":
                 estimation_type = (
                     (query_parms.get("what", [""])[0] or "").strip().lower()
                 )
-            return Estimator(
+            render_format = (
+                (query_parms.get("format", ["plain"])[0] or "plain").strip().lower()
+            )
+            est = Estimator(
                 bikes_so_far=bikes_so_far,
                 opening_time=opening_time,
                 closing_time=closing_time,
                 estimation_type=estimation_type,
             )
+            return est, render_format
 
         start_time = time.perf_counter()
         estimate_any = None
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
+        render_format = "plain"
+        render_html = False
         if is_cgi:
-            print("Content-type: text/plain\n")
-            estimate_any = _init_from_cgi()
+            estimate_any, render_format = _init_from_cgi()
+            render_html = render_format == "html"
+            mime = "text/html" if render_html else "text/plain"
+            print(f"Content-type: {mime}\n")
+            if render_html:
+                print(cc.style())
         else:
             print("Must use CGI interface")
             exit()
@@ -1903,19 +1967,42 @@ if __name__ == "__main__":
         if estimate_any.state != ERROR:
             estimate_any.guess()
 
-        for line in estimate_any.result_msg():
+        output_lines = estimate_any.result_msg(as_html=render_html)
+        for line in output_lines:
             print(line)
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
-        print(f"\n\nQuery took {elapsed_time:.1f} seconds.")
+        if render_html:
+            print(f"<p class=\"estimator-query-time\">Query took {elapsed_time:.1f} seconds.</p>")
+        else:
+            print(f"\n\nQuery took {elapsed_time:.1f} seconds.")
     except Exception as e:  # pylint:disable=broad-except
         # Always emit something helpful rather than a blank page
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
+        try:
+            render_html
+        except NameError:
+            render_html = False
         if is_cgi:
             try:
-                print("Content-type: text/plain\n")
+                mime = "text/html" if render_html else "text/plain"
+                print(f"Content-type: {mime}\n")
             except Exception:  # pylint:disable=broad-except
                 pass
+        if render_html:
+            import html as _html
+
+            print(f"<p>Estimator error: {_html.escape(str(e))}</p>")
+            try:
+                tb_html = "<br>".join(
+                    _html.escape(line.rstrip("\n"))
+                    for line in _tb.format_exception(type(e), e, e.__traceback__)
+                )
+                print(f"<pre>{tb_html}</pre>")
+            except Exception:  # pylint:disable=broad-except
+                pass
+            raise SystemExit(1)
+
         print(f"Estimator error: {e}")
         try:
             print("\n".join(_tb.format_exception(type(e), e, e.__traceback__)))
