@@ -70,7 +70,7 @@ from typing import Dict, List, Optional, Tuple
 
 # Optional acceleration / numeric helpers
 try:  # pragma: no cover
-    import numpy as np  # type: ignore
+    import numpy as np  # type: ignore # pylint:disable=import-error
 
     HAVE_NP = True
 except Exception:  # pragma: no cover
@@ -78,7 +78,7 @@ except Exception:  # pragma: no cover
 
 # Optional RandomForest
 try:  # pragma: no cover
-    from sklearn.ensemble import RandomForestRegressor  # type: ignore
+    from sklearn.ensemble import RandomForestRegressor  # type: ignore # pylint:disable=import-error
 
     HAVE_RF = True
 except Exception:  # pragma: no cover
