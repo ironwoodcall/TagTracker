@@ -529,15 +529,16 @@ def block_activity_table(
     X_TOP_COLOR = "red"
     Y_TOP_COLOR = "royalblue"
 
+    max_activity_value = max(max_in_value, max_out_value)
     bikes_in_colors = dc.Dimension(interpolation_exponent=0.82, label="Bikes in")
     bikes_in_colors.add_config(0, XY_BOTTOM_COLOR)
-    if max_in_value > 0:
-        bikes_in_colors.add_config(max_in_value, X_TOP_COLOR)
+    if max_activity_value > 0:
+        bikes_in_colors.add_config(max_activity_value, X_TOP_COLOR)
 
     bikes_out_colors = dc.Dimension(interpolation_exponent=0.82, label="Bikes out")
     bikes_out_colors.add_config(0, XY_BOTTOM_COLOR)
-    if max_out_value > 0:
-        bikes_out_colors.add_config(max_out_value, Y_TOP_COLOR)
+    if max_activity_value > 0:
+        bikes_out_colors.add_config(max_activity_value, Y_TOP_COLOR)
 
     def mix_styles(*parts) -> str:
         pieces = [p.strip().rstrip(";") for p in parts if p]
