@@ -826,7 +826,7 @@ def summary_table(
         print( "<tr>"
             f"""
         <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
-        <a href="{detail_link}" target="_blank">
+        <a href="{detail_link}">
         Detailed estimates</a></td></tr>
             """
         )
