@@ -32,6 +32,7 @@ from datetime import datetime, timedelta
 
 
 from web.web_base_config import SITE_NAME
+import web.web_base_config as wcfg
 
 # from tt_conf import SITE_NAME
 from common.tt_time import VTime
@@ -39,6 +40,7 @@ from common.tt_tag import TagID
 import common.tt_dbutil as db
 import common.tt_util as ut
 from common.tt_daysummary import DayTotals
+from common.get_version import get_version_info
 
 # from common.tt_trackerday import TrackerDay
 # from common.tt_daysummary import DaySummary, PeriodDetail, MomentDetail, DayTotals
@@ -72,6 +74,7 @@ WHAT_DATERANGE_QUARTER = "pQ"
 WHAT_DATERANGE_MONTH = "pM"
 WHAT_DATERANGE_WEEK = "pW"
 WHAT_DATERANGE_CUSTOM = "pC"
+WHAT_ESTIMATE_VERBOSE="EstV"
 
 # These constants are used to manage how report columns are sorted.
 SORT_TAG = "tag"
@@ -815,3 +818,45 @@ def get_blocks_summary(days: list[SingleDay]) -> BlocksSummary:
             summ.max_activity = max(summ.max_activity, block_activity)
 
     return summ
+
+def html_head(
+    title: str = "TagTracker",
+):
+    print(
+        f"""
+        <html><head>
+        <title>{title}</title>
+        <meta charset='UTF-8'>
+        {style()}
+        <script>
+          // (this fn courtesy of chatgpt)
+          function goBack(pagesToGoBack = 1) {{
+            window.history.go(-pagesToGoBack);
+          }}
+        </script>
+        </head>"""
+    )
+    ##print(cc.style())
+    print("<body>")
+
+
+def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
+    """Prints the footer for each webpage"""
+
+    print("<pre>")
+
+    if wcfg.DATA_OWNER:
+        data_note = (
+            wcfg.DATA_OWNER if isinstance(wcfg.DATA_OWNER, list) else [wcfg.DATA_OWNER]
+        )
+        for line in data_note:
+            print(line)
+        print()
+
+    print( f"Elapsed time for query: {elapsed_time:.1f} seconds.")
+
+    print(db.db_latest(ttdb))
+
+    print(f"TagTracker version {get_version_info()}")
+
+

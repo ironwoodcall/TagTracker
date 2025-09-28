@@ -363,7 +363,14 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     orgsite_id = 1  # FIXME hardcoded orgsite_id
     for parameters in table_vars:
         column, title, color = parameters
-        title = f"<a href='{cc.selfref(cc.WHAT_ONE_DAY_FREQUENCIES,qdate=today)}'>{title}</a>"
+        graph_link = cc.selfref(
+                what=cc.WHAT_SUMMARY_FREQUENCIES,
+                start_date=today,
+                end_date=today,
+                pages_back=1,
+                text_note="one day"
+            )
+        title = f"<a href='{graph_link}'>{title}</a>"
         print(
             web_histogram.times_hist_table(
                 ttdb,
@@ -501,7 +508,7 @@ def block_activity_table(
     )
     day_total_bikes_colors.add_config(0, "white")
     total_color_max = max(
-        max_total_parked,
+        max_total_parked*1.5,
         getattr(day_data, "num_parked_combined", 0) if day_data else 0,
     )
     if total_color_max > 0:
@@ -749,7 +756,9 @@ def summary_table(
             )
 
     print(
-        "<table class=general_table><style>.general_table td {text-align:right}</style>"
+        "<table class=general_table summary_table><style>"
+        ".summary_table td {text-align:right;}"
+        "</style>"
     )
     print(
         f"""
@@ -781,12 +790,12 @@ def summary_table(
         """
     )
     if is_today and est is not None and est.state != web_estimator.ERROR:
-        detail_link = cc.make_url("tt_estimator", what="verbose")
-        print(
+        detail_link = cc.selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
+        print( "<tr>"
             f"""
-        <tr><td colspan=3><pre>{"<br>".join(est.result_msg())}</pre>
+        <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
         <a href="{detail_link}" target="_blank">
-        Detailed estimates (opens in new tab/window)</a></td></tr>
+        Detailed estimates</a></td></tr>
             """
         )
 

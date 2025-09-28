@@ -49,6 +49,7 @@ import tt_reports as rep
 import tt_audit_report as aud
 import tt_tag_inv
 import tt_printer as pr
+from web_estimator import Estimator
 
 # pylint:enable=wrong-import-position
 
@@ -137,7 +138,7 @@ def web_audit_report(
     print("<h2>Notices</h2>")
 
 
-def one_day_data_enry_reports(ttdb: sqlite3.Connection, date: str):
+def one_day_data_entry_reports(ttdb: sqlite3.Connection, date: str):
     """One-day chart."""
     thisday = ut.date_str(date)
     if not thisday:
@@ -193,7 +194,7 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
     print("</pre>")
 
 
-def html_head(
+def DELETEME_html_head(
     title: str = "TagTracker",
 ):
     print(
@@ -214,7 +215,7 @@ def html_head(
     print("<body>")
 
 
-def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
+def DELETEME_webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
     """Prints the footer for each webpage"""
 
     print("<pre>")
@@ -232,6 +233,21 @@ def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
     print(db.db_latest(ttdb))
 
     print(f"TagTracker version {get_version_info()}")
+
+#-----------------
+def web_est_wrapper() -> None:
+    """The estimation (verbose) page guts.
+
+    Maybe move this to web_estimator.py
+    """
+    print("<h1>Detailed Estimation</h1>")
+    print(f"{cc.main_and_back_buttons(1)}<br><br>")
+
+    est = Estimator(estimation_type="verbose")
+    est.guess()
+    for line in est.result_msg(as_html=True):
+        print(line)
+
 
 
 # =================================================================
@@ -295,7 +311,7 @@ else:
 if not qtime:
     cc.error_out(f"Bad time: '{ut.untaint(maybetime)}")
 
-html_head()
+cc.html_head()
 
 if not what:
     sys.exit()
@@ -363,7 +379,7 @@ elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
 # elif what == cc.WHAT_DATAFILE:
 #     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:
-    one_day_data_enry_reports(database, qdate)
+    one_day_data_entry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
     web_audit_report(
         database, orgsite_id=1, date="today", whattime=VTime("now")
@@ -379,9 +395,12 @@ elif what in [
     web_daterange_summaries.daterange_summary(
         database, what, start_date=date_start, end_date=date_end,pages_back=pages_back
     )
+elif what == cc.WHAT_ESTIMATE_VERBOSE:
+    web_est_wrapper()
+
 else:
     cc.error_out(f"Unknown request: {ut.untaint(what)}")
     sys.exit(1)
 
 
-webpage_footer(database, time.perf_counter() - start_time)
+cc.webpage_footer(database, time.perf_counter() - start_time)
