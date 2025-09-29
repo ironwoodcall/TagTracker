@@ -197,12 +197,24 @@ def back_button(pages_back: int) -> str:
 
 
 def main_and_back_buttons(pages_back: int) -> str:
-    """Make a button that is either the main_page_button() and back_button()."""
-    if called_by_self() and pages_back:
+    """Make a button that is  the main_page_button(), back_button(), or nothing."""
+    if pages_back == NAV_MAIN_BUTTON:
+        return main_page_button()
+    if pages_back == NAV_NO_BUTTON:
+        return ""
+    if called_by_self() and pages_back > 0:
         return back_button(pages_back)
     else:
         return main_page_button()
 
+def increment_pages_back(pages_back:int) -> int:
+    """Increments pages_back but without altering any
+    of the pages_back magic values
+    """
+    if pages_back in (NAV_MAIN_BUTTON,NAV_NO_BUTTON):
+        return pages_back
+    else:
+        return pages_back + 1
 
 def resolve_date_range(
     ttdb: sqlite3.Connection,

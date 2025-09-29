@@ -94,7 +94,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
         link = cc.selfref(
             what=cc.WHAT_ONE_DAY,
             qdate=target,
-            pages_back=pages_back + 1,
+            pages_back=cc.increment_pages_back(pages_back),
         )
         return f"""
             <button type="button"
@@ -112,7 +112,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
         link = cc.selfref(
             what=cc.WHAT_ONE_DAY,
             qdate=target,
-            pages_back=pages_back + 1,
+            pages_back=cc.increment_pages_back(pages_back),
         )
         return f"""
             <button type="button"
@@ -162,6 +162,9 @@ def one_day_tags_report(
     h1 = cc.titleize(f"<br>{thisday} ({day_str}) Detail")
     html = f"<h1>{h1}</h1>"
     print(html)
+
+    if not cc.called_by_self():
+        pages_back = cc.NAV_MAIN_BUTTON
 
     print(_nav_buttons(ttdb, orgsite_id, thisday, pages_back))
     print("<br><br>")
@@ -598,25 +601,25 @@ def visits_table(
         what=cc.WHAT_ONE_DAY,
         qdate=thisday,
         qsort=cc.SORT_TIME_IN,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     link_sort_time_out = cc.selfref(
         what=cc.WHAT_ONE_DAY,
         qdate=thisday,
         qsort=cc.SORT_TIME_OUT,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     link_sort_tag = cc.selfref(
         what=cc.WHAT_ONE_DAY,
         qdate=thisday,
         qsort=cc.SORT_TAG,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     link_sort_duration = cc.selfref(
         what=cc.WHAT_ONE_DAY,
         qdate=thisday,
         qsort=cc.SORT_DURATION,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
 
     # Earliest and latest event are for the bar graph

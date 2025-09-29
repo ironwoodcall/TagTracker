@@ -309,7 +309,7 @@ dow_parameter = query_params.get("dow", [""])[0]
 sort_by = query_params.get("sort", [""])[0]
 sort_direction = query_params.get("dir", [""])[0]
 pages_back: str = query_params.get("back", "1")[0]
-pages_back: int = int(pages_back) if pages_back.isdigit() else 0
+pages_back: int = int(pages_back) if ut.is_int(pages_back) else 0
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)

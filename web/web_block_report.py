@@ -355,7 +355,7 @@ def blocks_report(
         qdow=iso_dow if iso_dow else None,
         start_date=start_date,
         end_date=end_date,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     date_filter_html = generate_date_filter_form(
         self_url,
