@@ -36,7 +36,7 @@ sys.path.append("./")
 # pylint:disable=wrong-import-position
 import web_common as cc
 import web_block_report
-from web_day_detail import one_day_tags_report, day_frequencies_report
+from web_day_detail import one_day_tags_report
 import web_season_report
 import web_tags_report
 import web_daterange_summaries
@@ -244,7 +244,7 @@ def web_est_wrapper() -> None:
 
     Maybe move this to web_estimator.py
     """
-    print("<h1>Detailed Estimation Rationale</h1>")
+    print(f"<h1>Estimation Details for {ut.date_str('today')}</h1>")
     print(f"{cc.main_and_back_buttons(1)}<br><br>")
 
     est = Estimator(estimation_type="verbose")
@@ -388,7 +388,14 @@ elif what == cc.WHAT_ONE_DAY:
         pages_back=pages_back,
     )
 elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
-    day_frequencies_report(database, whatday=qdate)
+    web_season_report.season_frequencies_report(
+        database,
+        pages_back=pages_back,
+        start_date=date_start,
+        end_date=date_end,
+        restrict_to_single_day=True,
+    )
+
 # elif what == cc.WHAT_DATAFILE:
 #     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:

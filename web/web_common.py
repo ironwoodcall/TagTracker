@@ -94,6 +94,10 @@ SORT_PRECIPITATAION = "precipitation"
 ORDER_FORWARD = "forward"
 ORDER_REVERSE = "reverse"
 
+# Special values related to 'pages_back' handling
+NAV_NO_BUTTON = -1
+NAV_MAIN_BUTTON = -2
+
 
 class WebAuth:
     """Manage aspects of web/data authorization.

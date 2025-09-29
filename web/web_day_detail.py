@@ -283,61 +283,6 @@ def one_day_tags_report(
     )
 
 
-def day_frequencies_report(
-    ttdb: sqlite3.Connection,
-    whatday: str = "",
-):
-    today = ut.date_str(whatday)
-    if not today:
-        print(f"Not a valid date: {whatday}")
-        return
-
-    orgsite_id = 1  # FIXME orgsize_id hardcoded
-
-    table_vars = (
-        (
-            "duration",
-            "Length of visits",
-            "Frequency distribution of lengths of visits",
-            "teal",
-        ),
-        (
-            "time_in",
-            "When bikes arrived",
-            "Frequency distribution of arrival times",
-            "crimson",
-        ),
-        (
-            "time_out",
-            "When bikes departed",
-            "Frequency distribution of departure times",
-            "royalblue",
-        ),
-    )
-    back_button = f"{cc.main_and_back_buttons(1)}<p></p>"
-
-    print(f"<h1>Distribution of visits on {today}</h1>")
-    print(f"{back_button}")
-
-    for parameters in table_vars:
-        column, title, subtitle, color = parameters
-        title = f"<h2>{title}</h2>"
-        print(
-            web_histogram.times_hist_table(
-                ttdb,
-                orgsite_id=orgsite_id,
-                query_column=column,
-                start_date=today,
-                end_date=today,
-                color=color,
-                title=title,
-                subtitle=subtitle,
-            )
-        )
-        print("<br><br>")
-    print(back_button)
-
-
 def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     table_vars = (
         ("duration", "Visit length", "teal"),
@@ -348,7 +293,7 @@ def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
     for parameters in table_vars:
         column, title, color = parameters
         graph_link = cc.selfref(
-            what=cc.WHAT_SUMMARY_FREQUENCIES,
+            what=cc.WHAT_ONE_DAY_FREQUENCIES,
             start_date=today,
             end_date=today,
             pages_back=1,
@@ -842,7 +787,7 @@ def summary_table(
             f"""
             <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
             <button type="button" style="padding: 10px; display: inline-block;"
-            onclick="window.location.href='{detail_link}';"><b>Detailed<br>Estimation<br>Rationale</b></button>
+            onclick="window.location.href='{detail_link}';"><b>Estimation<br>Details</b></button>
             """
             # """<a href="{detail_link}"><b>Detailed estimates</b></a></td></tr>"""
         )
