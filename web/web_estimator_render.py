@@ -123,11 +123,28 @@ def _render_tables_text(
             lines.append(_fmt_row(r, widths))
         return lines
 
+    # Show the aggregate Best Guess table first when in verbose mode.
+    title_base, rows, _mc = tables[0]
+    mixed_rows_disp: List[List[str]] = []
+    for i, r in enumerate(rows):
+        model = (mixed_models[i] if mixed_models and i < len(mixed_models) else "")
+        mixed_rows_disp.append([r[0], r[1], r[2], r[3], model])
+    header = list(header_mixed)
+    width_rows = [header] + mixed_rows_disp
+    widths = _col_widths(width_rows)
+    title = f"{title_base} (as of {as_of_when.short})"
+    lines.append(title)
+    lines.append(_fmt_row(header, widths))
+    dash_row = ["-" * w for w in widths]
+    lines.append(_fmt_row(dash_row, widths))
+    for r in mixed_rows_disp:
+        lines.append(_fmt_row(r, widths))
+    lines.append("")
+    lines.append("")
+
     lines.append("Detailed Estimation Information")
     lines.append("")
-    for t_index, (title_base, rows, model_code) in enumerate(tables):
-        if t_index == 0:
-            continue
+    for t_index, (title_base, rows, model_code) in enumerate(tables[1:], start=1):
         header = list(header_full)
         preview_rows: List[List[str]] = []
         for idx, (m, v, r90, prob) in enumerate(rows):
@@ -232,10 +249,18 @@ def _render_tables_html(
         lines.extend(_table_html(title, header_mixed, mixed_rows_disp))
         return lines
 
-    # Verbose: include best-guess per model tables and details
-    for t_index, (title_base, rows, model_code) in enumerate(tables):
-        if t_index == 0:
-            continue
+    # Verbose: start with the aggregate Best Guess table before per-model tables
+    title_base, rows, _mc = tables[0]
+    mixed_rows_disp: List[List[str]] = []
+    for i, r in enumerate(rows):
+        model = (mixed_models[i] if mixed_models and i < len(mixed_models) else "")
+        mixed_rows_disp.append([r[0], r[1], r[2], r[3], model])
+    title = f"{title_base} (as of {as_of_when.short})"
+    lines.extend(_table_html(title, header_mixed, mixed_rows_disp))
+    lines.append("<br>")
+
+    # Include best-guess per model tables and details
+    for t_index, (title_base, rows, model_code) in enumerate(tables[1:], start=1):
         header = list(header_full)
         preview_rows: List[List[str]] = []
         for idx, (m, v, r90, prob) in enumerate(rows):

@@ -456,3 +456,17 @@ def writable_dir(filepath: str) -> bool:
     else:
         return False
 
+def is_int(obj, *, strict=False) -> bool:
+    """Tests whether s represents a (positive or negative) integer.
+
+    If strict, then lead/trailing whitespace also means not-an-integer.
+    """
+
+    try:
+        int(obj)
+    except (ValueError, TypeError):
+        return False
+    else:
+        if strict and str(obj) != str(obj).strip():
+            return False
+        return True

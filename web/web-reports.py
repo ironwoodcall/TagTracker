@@ -27,6 +27,8 @@ import sys
 import os
 import urllib.parse
 import time
+import html
+from pathlib import Path
 
 sys.path.append("../")
 sys.path.append("./")
@@ -34,7 +36,7 @@ sys.path.append("./")
 # pylint:disable=wrong-import-position
 import web_common as cc
 import web_block_report
-from web_day_detail import one_day_tags_report, day_frequencies_report
+from web_day_detail import one_day_tags_report
 import web_season_report
 import web_tags_report
 import web_daterange_summaries
@@ -110,6 +112,7 @@ def web_audit_report(
 
     # Make this page have a black background
     print("<style>body {background-color:black;color:white}</style>")
+    print( """<meta name="format-detection" content="telephone=no"/>""")
     print(f"<h1>Parking attendant report {thisday}</h1>")
     print("<h2>Audit</h2>")
     print("<pre>")
@@ -228,26 +231,38 @@ def DELETEME_webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
             print(line)
         print()
 
-    print( f"Elapsed time for query: {elapsed_time:.1f} seconds.")
+    print(f"Elapsed time for query: {elapsed_time:.1f} seconds.")
 
     print(db.db_latest(ttdb))
 
     print(f"TagTracker version {get_version_info()}")
 
-#-----------------
+
+# -----------------
 def web_est_wrapper() -> None:
     """The estimation (verbose) page guts.
 
     Maybe move this to web_estimator.py
     """
-    print("<h1>Detailed Estimation</h1>")
+    print(f"<h1>Estimation Details for {ut.date_str('today')}</h1>")
     print(f"{cc.main_and_back_buttons(1)}<br><br>")
 
     est = Estimator(estimation_type="verbose")
     est.guess()
     for line in est.result_msg(as_html=True):
         print(line)
+    # print(
+    #     "<p>A further "
+    #     "<a href='https://raw.githubusercontent.com/ironwoodcall/TagTracker/refs/heads/main/docs/estimator_models.txt'>"
+    #     "discussion of the estimation models</a> is available.</p>"
+    # )
 
+    models_path = Path(__file__).resolve().parent.parent / "docs" / "estimator_models.txt"
+    if models_path.is_file():
+        print("<h3>Background on the models</h3><pre>")
+        with models_path.open(encoding="utf-8") as models_file:
+            print(html.escape(models_file.read()))
+        print("</pre><hr>")
 
 
 # =================================================================
@@ -275,9 +290,7 @@ k.set_html_style()
 # Parse query parameters from the URL if present
 QUERY_STRING = ut.untaint(os.environ.get("QUERY_STRING", ""))
 if os.getenv("TAGTRACKER_DEBUG"):
-    print(
-        "<pre style='color:red'>\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n" "</pre>"
-    )
+    print("<pre style='color:red'>\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n" "</pre>")
 query_params = urllib.parse.parse_qs(QUERY_STRING)
 what = query_params.get("what", [""])[0]
 what = what if what else cc.WHAT_SUMMARY
@@ -296,7 +309,7 @@ dow_parameter = query_params.get("dow", [""])[0]
 sort_by = query_params.get("sort", [""])[0]
 sort_direction = query_params.get("dir", [""])[0]
 pages_back: str = query_params.get("back", "1")[0]
-pages_back: int = int(pages_back) if pages_back.isdigit() else 0
+pages_back: int = int(pages_back) if ut.is_int(pages_back) else 0
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)
@@ -375,7 +388,14 @@ elif what == cc.WHAT_ONE_DAY:
         pages_back=pages_back,
     )
 elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
-    day_frequencies_report(database, whatday=qdate)
+    web_season_report.season_frequencies_report(
+        database,
+        pages_back=pages_back,
+        start_date=date_start,
+        end_date=date_end,
+        restrict_to_single_day=True,
+    )
+
 # elif what == cc.WHAT_DATAFILE:
 #     datafile(database, qdate)
 elif what == cc.WHAT_DATA_ENTRY:
@@ -393,7 +413,7 @@ elif what in [
     cc.WHAT_DATERANGE_CUSTOM,
 ]:
     web_daterange_summaries.daterange_summary(
-        database, what, start_date=date_start, end_date=date_end,pages_back=pages_back
+        database, what, start_date=date_start, end_date=date_end, pages_back=pages_back
     )
 elif what == cc.WHAT_ESTIMATE_VERBOSE:
     web_est_wrapper()

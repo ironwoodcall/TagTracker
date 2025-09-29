@@ -54,7 +54,7 @@ def _freq_nav_buttons(pages_back, start_date: str = "", end_date: str = "") -> s
                 what=cc.WHAT_SUMMARY_FREQUENCIES,
                 start_date=start_date,
                 end_date=end_date,
-                pages_back=pages_back + 1,
+                pages_back=cc.increment_pages_back(pages_back),
                 text_note=""
             )
             }';">All days</button>
@@ -68,7 +68,7 @@ def _freq_nav_buttons(pages_back, start_date: str = "", end_date: str = "") -> s
                 start_date=start_date,
                 end_date=end_date,
                 qdow="1,2,3,4,5",
-                pages_back=pages_back + 1,
+                pages_back=cc.increment_pages_back(pages_back),
                 text_note="weekdays"
             )
             }';">Weekdays</button>
@@ -81,7 +81,7 @@ def _freq_nav_buttons(pages_back, start_date: str = "", end_date: str = "") -> s
                 start_date=start_date,
                 end_date=end_date,
                 qdow="6,7",
-                pages_back=pages_back + 1,
+                pages_back=cc.increment_pages_back(pages_back),
                 text_note="weekends"
             )
             }';">Weekends</button>
@@ -94,7 +94,7 @@ def _freq_nav_buttons(pages_back, start_date: str = "", end_date: str = "") -> s
             start_date=start_date,
             end_date=end_date,
             qdow=d,
-            pages_back=pages_back + 1,
+            pages_back=cc.increment_pages_back(pages_back),
             text_note=ut.dow_str(d, 10) + "s",
         )
         label = ut.dow_str(d, 3)
@@ -115,8 +115,13 @@ def season_frequencies_report(
     pages_back: int = 0,
     start_date: str = "",
     end_date: str = "",
+    restrict_to_single_day:bool = False,
 ):
-    """Web page showing histograms of visit frequency distributions."""
+    """Web page showing histograms of visit frequency distributions.
+
+    If restrict_to_single_day is set True, then this shows a single day
+    without option to change the day, filter parameters, etc.
+    """
 
     orgsite_id = 1  # FIXME: orgsite_id hardcoded
 
@@ -139,8 +144,11 @@ def season_frequencies_report(
         end_date=requested_end,
         db_limits=(db_start_date, db_end_date),
     )
-
-    title_bit = title_bit if title_bit else "all days of the week"
+    if restrict_to_single_day:
+        end_date = start_date
+        title_bit = ""
+    else:
+        title_bit = title_bit if title_bit else "all days of the week"
     table_vars = (
         (
             "duration",
@@ -163,22 +171,28 @@ def season_frequencies_report(
     )
     back_button = f"{cc.main_and_back_buttons(pages_back)}<p></p>"
 
-    h1 = f"Distribution of visits {start_date} to {end_date}"
-    h1 = f"{h1} for {title_bit}" if title_bit else h1
+    if restrict_to_single_day:
+        h1 = f"Distribution of visits {start_date}"
+    else:
+        h1 = f"Distribution of visits {start_date} to {end_date}"
+        h1 = f"{h1} for {title_bit}" if title_bit else h1
     print(f"<h1>{h1}</h1>")
-    print(_freq_nav_buttons(pages_back, start_date=start_date, end_date=end_date))
-    self_url = cc.selfref(
-        what=cc.WHAT_SUMMARY_FREQUENCIES,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=pages_back + 1,
-    )
-    print(
-        generate_date_filter_form(
-            self_url, default_start_date=start_date, default_end_date=end_date
+    if restrict_to_single_day:
+        print(back_button)
+    else:
+        print(_freq_nav_buttons(pages_back, start_date=start_date, end_date=end_date))
+        self_url = cc.selfref(
+            what=cc.WHAT_SUMMARY_FREQUENCIES,
+            qdow=dow_parameter,
+            start_date=start_date,
+            end_date=end_date,
+            pages_back=cc.increment_pages_back(pages_back),
         )
-    )
+        print(
+            generate_date_filter_form(
+                self_url, default_start_date=start_date, default_end_date=end_date
+            )
+        )
 
     for parameters in table_vars:
         column, title, subtitle, color = parameters
@@ -518,7 +532,7 @@ def season_detail(
         qdir=sort_direction,
         start_date=start_date,
         end_date=end_date,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     if sort_direction == cc.ORDER_FORWARD:
         other_direction = cc.ORDER_REVERSE
@@ -612,43 +626,43 @@ def season_detail(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DATE,
         qdir=other_direction,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     sort_day_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DAY,
         qdir=other_direction,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     sort_parked_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_PARKED,
         qdir=other_direction,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     sort_fullness_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_FULLNESS,
         qdir=other_direction,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     sort_leftovers_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_LEFTOVERS,
         qdir=other_direction,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     sort_precipitation_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_PRECIPITATAION,
         qdir=other_direction,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     sort_temperature_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_TEMPERATURE,
         qdir=other_direction,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     # mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
 
