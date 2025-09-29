@@ -102,7 +102,7 @@ class Estimator:
     }
 
     # Measure label strings (edit here to change table text)
-    MEAS_ACTIVITY_TEMPLATE = "Activity, now to {end_time}"
+    MEAS_ACTIVITY_TEMPLATE = "Ins+Outs, now to {end_time}"
     MEAS_FURTHER = "Further bikes"
     MEAS_TIME_MAX = "Time most bikes onsite"
     MEAS_MAX = "Most bikes onsite"
