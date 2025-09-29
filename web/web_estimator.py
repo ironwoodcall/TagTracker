@@ -103,7 +103,7 @@ class Estimator:
 
     # Measure label strings (edit here to change table text)
     MEAS_ACTIVITY_TEMPLATE = "Activity, now to {end_time}"
-    MEAS_FURTHER = "Further bikes expected"
+    MEAS_FURTHER = "Further bikes"
     MEAS_TIME_MAX = "Time most bikes onsite"
     MEAS_MAX = "Most bikes onsite"
 
@@ -113,6 +113,18 @@ class Estimator:
 
     def _activity_label(self, t_end: VTime) -> str:
         return self.MEAS_ACTIVITY_TEMPLATE.format(end_time=t_end.tidy)
+
+    def _further_measure_label(self, further_val: int | float | str) -> str:
+        """Return the dynamic label for the 'further bikes' measure."""
+        total = int(self.bikes_so_far)
+        try:
+            addl = int(round(float(str(further_val))))
+            total += addl
+        except Exception:
+            # Keep current bikes-only total if parsing fails.
+            pass
+        base = getattr(self, "MEAS_FURTHER", "Further bikes")
+        return f"{base} (for day total {total})"
 
     # Static cache for calibration JSON
     _CALIB_CACHE = None
@@ -1099,7 +1111,7 @@ class Estimator:
                 ),
             ),
             (
-                self.MEAS_FURTHER,
+                self._further_measure_label(remainder),
                 f"{int(remainder)}",
                 sm_fut_rng or self._rng_str(rem_lo, rem_hi, False),
                 self._probability_label(
@@ -1306,7 +1318,7 @@ class Estimator:
                 ),
             ),
             (
-                self.MEAS_FURTHER,
+                self._further_measure_label(lr_remainder),
                 f"{lr_remainder}",
                 lr_rem_rng or self._rng_from_res(lr_remainder, rem_lo_res, rem_hi_res),
                 self._probability_label(
@@ -1476,7 +1488,7 @@ class Estimator:
                 ),
             ),
             (
-                self.MEAS_FURTHER,
+                self._further_measure_label(rec_rem_val),
                 f"{rec_rem_val}",
                 rec_rem_rng or self._rng_str(r_rem_lo, r_rem_hi, False),
                 self._probability_label(
@@ -1624,7 +1636,7 @@ class Estimator:
                 ),
             ),
             (
-                self.MEAS_FURTHER,
+                self._further_measure_label(rf_remainder),
                 f"{rf_remainder}",
                 rf_rem_rng or self._rng_str(rem_lo, rem_hi, False),
                 self._probability_label(
@@ -1734,12 +1746,6 @@ class Estimator:
     def _select_rows(
         self, t_end: "VTime", tables_by_model: dict, frac_elapsed: float, cohort_n: int
     ):
-        measures = [
-            self._activity_label(t_end),  # index 0
-            self.MEAS_FURTHER,  # index 1
-            self.MEAS_TIME_MAX,  # index 2
-            self.MEAS_MAX,  # index 3
-        ]
         mixed_rows: list[tuple[str, str, str, str]] = []
         mixed_models: list[str] = []
         selected_by_model: dict[str, set[int]] = {
@@ -1750,7 +1756,8 @@ class Estimator:
         }
         selection_info: list[str] = []
 
-        for idx, title_txt in enumerate(measures):
+        measure_count = 4
+        for idx in range(measure_count):
             # Gather candidates across models
             candidates = []
             for mdl_code, rows in tables_by_model.items():
@@ -1777,7 +1784,10 @@ class Estimator:
             mixed_models.append(best[2])
             if best[2] in selected_by_model:
                 selected_by_model[best[2]].add(idx)
-            selection_info.append(f"Chosen: {best[2]} for '{title_txt}' ({why})")
+            label_txt = best[3][0]
+            selection_info.append(
+                f"Chosen: {best[2]} for '{label_txt}' ({why})"
+            )
 
         return mixed_rows, mixed_models, selected_by_model, selection_info
 
