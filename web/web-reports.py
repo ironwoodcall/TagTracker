@@ -112,6 +112,7 @@ def web_audit_report(
 
     # Make this page have a black background
     print("<style>body {background-color:black;color:white}</style>")
+    print( """<meta name="format-detection" content="telephone=no">""")
     print(f"<h1>Parking attendant report {thisday}</h1>")
     print("<h2>Audit</h2>")
     print("<pre>")

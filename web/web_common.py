@@ -826,8 +826,8 @@ def html_head(
         f"""
         <html><head>
         <title>{title}</title>
-        <meta charset='UTF-8'>
         <meta name="format-detection" content="telephone=no">
+        <meta charset='UTF-8'>
         {style()}
         <script>
           // (this fn courtesy of chatgpt)
