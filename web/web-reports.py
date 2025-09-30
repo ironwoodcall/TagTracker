@@ -44,7 +44,6 @@ import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
-from common.get_version import get_version_info
 import common.tt_constants as k
 import common.tt_dbutil as db
 import tt_reports as rep
@@ -53,49 +52,10 @@ import tt_tag_inv
 import tt_printer as pr
 from web_estimator import Estimator
 
-# pylint:enable=wrong-import-position
-
-
-# def datafile(ttdb: sqlite3.Connection, date: str = ""):
-#     """Print a reconstructed datafile for the given date."""
-#     thisday = ut.date_str(date)
-#     if not thisday:
-#         cc.bad_date(date)
-
-#     print(f"<h1>Reconstructed datafile for {ut.date_str(thisday)}</h1>")
-#     print(f"{cc.main_and_back_buttons(1)}<br>")
-
-#     print("<pre>")
-
-#     day = db.db2day(ttdb, thisday)
-#     print(f"# TagTracker datafile for {thisday}")
-#     print(f"# Reconstructed on {ut.date_str('today')} at {VTime('now')}")
-#     print(f"{df.HEADER_DATE} {day.date}")
-#     print(f"{df.HEADER_OPENS} {day.time_open}")
-#     print(f"{df.HEADER_CLOSES} {day.time_closed}")
-#     print(f"{df.HEADER_BIKES_IN}")
-#     sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
-#     for this_tag, atime in sorted_bikes:
-#         formatted_tag = f"{this_tag.lower()},   "[:6]
-#         print(f"  {formatted_tag}{atime}")
-#     print(f"{df.HEADER_BIKES_OUT}")
-#     sorted_bikes = sorted(day.bikes_out.items(), key=lambda x: x[1])
-#     for this_tag, atime in sorted_bikes:
-#         formatted_tag = f"{this_tag.lower()},   "[:6]
-#         print(f"  {formatted_tag}{atime}")
-#     print(f"{df.HEADER_REGULAR}")
-#     ut.line_wrapper(" ".join(sorted(day.regular)), print_handler=pr.iprint)
-#     print(f"{df.HEADER_OVERSIZE}")
-#     ut.line_wrapper(" ".join(sorted(day.oversize)), print_handler=pr.iprint)
-#     print(f"{df.HEADER_RETIRED}")
-#     ut.line_wrapper(" ".join(sorted(day.retired)), print_handler=pr.iprint)
-#     print(f"{df.HEADER_COLOURS}")
-
 
 def web_audit_report(
     ttdb: sqlite3.Connection,
     orgsite_id: int,
-
 ):
     """Print web audit report."""
 
@@ -108,9 +68,13 @@ def web_audit_report(
     cursor.close()
 
     # Make this page have a black background
-    # print("<style>body {background-color:black;color:white}</style>")
     print("""<meta name="format-detection" content="telephone=no"/>""")
     print(f"<h1>Audit report {as_of_time.tidy} {thisday}</h1>")
+
+    # Only put a "Back" button if this was called from itself
+    if cc.called_by_self():
+        print(f"{cc.back_button(1)}<br><br>")
+        # print(f"{cc.main_and_back_buttons(pages_back=pages_back)}<br><br>")
 
     day = db.db2day(ttdb=ttdb, day_id=day_id)
     if not day:
@@ -429,7 +393,7 @@ elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_entry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
     web_audit_report(
-        database, orgsite_id=1
+        database, orgsite_id=1,
     )  # FIXME: orgsite_id
 elif what in [
     cc.WHAT_DATERANGE,
