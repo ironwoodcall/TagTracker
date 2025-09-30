@@ -44,7 +44,6 @@ import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
-from common.get_version import get_version_info
 import common.tt_constants as k
 import common.tt_dbutil as db
 import tt_reports as rep
@@ -53,57 +52,15 @@ import tt_tag_inv
 import tt_printer as pr
 from web_estimator import Estimator
 
-# pylint:enable=wrong-import-position
-
-
-# def datafile(ttdb: sqlite3.Connection, date: str = ""):
-#     """Print a reconstructed datafile for the given date."""
-#     thisday = ut.date_str(date)
-#     if not thisday:
-#         cc.bad_date(date)
-
-#     print(f"<h1>Reconstructed datafile for {ut.date_str(thisday)}</h1>")
-#     print(f"{cc.main_and_back_buttons(1)}<br>")
-
-#     print("<pre>")
-
-#     day = db.db2day(ttdb, thisday)
-#     print(f"# TagTracker datafile for {thisday}")
-#     print(f"# Reconstructed on {ut.date_str('today')} at {VTime('now')}")
-#     print(f"{df.HEADER_DATE} {day.date}")
-#     print(f"{df.HEADER_OPENS} {day.time_open}")
-#     print(f"{df.HEADER_CLOSES} {day.time_closed}")
-#     print(f"{df.HEADER_BIKES_IN}")
-#     sorted_bikes = sorted(day.bikes_in.items(), key=lambda x: x[1])
-#     for this_tag, atime in sorted_bikes:
-#         formatted_tag = f"{this_tag.lower()},   "[:6]
-#         print(f"  {formatted_tag}{atime}")
-#     print(f"{df.HEADER_BIKES_OUT}")
-#     sorted_bikes = sorted(day.bikes_out.items(), key=lambda x: x[1])
-#     for this_tag, atime in sorted_bikes:
-#         formatted_tag = f"{this_tag.lower()},   "[:6]
-#         print(f"  {formatted_tag}{atime}")
-#     print(f"{df.HEADER_REGULAR}")
-#     ut.line_wrapper(" ".join(sorted(day.regular)), print_handler=pr.iprint)
-#     print(f"{df.HEADER_OVERSIZE}")
-#     ut.line_wrapper(" ".join(sorted(day.oversize)), print_handler=pr.iprint)
-#     print(f"{df.HEADER_RETIRED}")
-#     ut.line_wrapper(" ".join(sorted(day.retired)), print_handler=pr.iprint)
-#     print(f"{df.HEADER_COLOURS}")
-
 
 def web_audit_report(
     ttdb: sqlite3.Connection,
     orgsite_id: int,
-    date: str,
-    whattime: VTime,
 ):
     """Print web audit report."""
 
-    whattime = VTime(whattime)
-    thisday = ut.date_str(date)
-    if not thisday:
-        cc.bad_date(thisday)
+    as_of_time = VTime("now")
+    thisday = ut.date_str("today")
 
     # Find this day's day_id
     cursor = ttdb.cursor()
@@ -111,32 +68,105 @@ def web_audit_report(
     cursor.close()
 
     # Make this page have a black background
-    print("<style>body {background-color:black;color:white}</style>")
-    print( """<meta name="format-detection" content="telephone=no"/>""")
-    print(f"<h1>Parking attendant report {thisday}</h1>")
-    print("<h2>Audit</h2>")
-    print("<pre>")
+    print("""<meta name="format-detection" content="telephone=no"/>""")
+    print(f"<h1>Audit report {as_of_time.tidy} {thisday}</h1>")
+
+    # Only put a "Back" button if this was called from itself
+    if cc.called_by_self():
+        print(f"{cc.back_button(1)}<br><br>")
+        # print(f"{cc.main_and_back_buttons(pages_back=pages_back)}<br><br>")
 
     day = db.db2day(ttdb=ttdb, day_id=day_id)
     if not day:
         print("<b>no information for this day</b><br>")
         return
-    aud.audit_report(day, [whattime], include_notes=False, include_returns=True)
-    print("\n</pre>")
 
-    print("<h2>Bike registrations</h2>")
-    print(f"<p>&nbsp;&nbsp;Registrations today: {day.registrations}\n</p>")
+    tags_in_use = day.tags_in_use(as_of_when=as_of_time)
+    regular_onsite = 0
+    oversize_onsite = 0
+    for tag_id in tags_in_use:
+        bike = day.biketags.get(tag_id)
+        if not bike:
+            continue
+        if bike.bike_type == k.OVERSIZE:
+            oversize_onsite += 1
+        else:
+            regular_onsite += 1
+    total_onsite = regular_onsite + oversize_onsite
 
-    # print("<h2>Busyness</h2>")
-    # print("<pre>")
-    # rep.busyness_report(day, [qtime])
-    # print("\n</pre>")
+    print(
+        "<table class='general_table' "
+        "style='max-width:22rem;margin-bottom:1.5rem;'>"
+    )
+    print("<tr><th colspan='2'>Bikes currently onsite</th></tr>")
+    print(
+        f"<tr><td>Regular bikes</td><td style='text-align:right;'>{regular_onsite}</td></tr>"
+    )
+    print(
+        f"<tr><td>Oversize bikes</td><td style='text-align:right;'>{oversize_onsite}</td></tr>"
+    )
+    print(
+        "<tr><td><b>Total bikes</b></td><td style='text-align:right;'>"
+        f"<b>{total_onsite}</b></td></tr>"
+    )
+    print("</table>")
 
-    print("<h2>Tag inventory</h2>")
-    print("<pre>")
-    tt_tag_inv.tags_config_report(day, [whattime], include_empty_groups=True)
-    print("</pre>")
-    print("<br><br>")
+    table_style = (
+        "style='border-collapse:collapse;margin-bottom:1.5rem;"
+        "border:1px solid #666;font-family:monospace;font-size:1.5em;'"
+    )
+    cell_style = (
+        "style='border:0;padding:4px 6px;white-space:nowrap;"
+        "text-align:center;'"
+    )
+    retired_marker = html.escape(aud.DEFAULT_RETIRED_TAG_STR.strip()) or "&bullet;"
+
+    tags_done = day.tags_done(as_of_when=as_of_time)
+    combined_tags = list(tags_in_use) + list(tags_done)
+    max_sequence = max((tag.number for tag in combined_tags), default=0)
+
+    def render_tag_matrix(title: str, tags: list[TagID], max_seq: int) -> None:
+        prefixes = ut.tagnums_by_prefix(tags)
+        print(f"<h3>{title}</h3>")
+        print(f"<table {table_style}>")
+        total_columns = max_seq + 3
+        rows_rendered = 0
+        previous_colour = None
+        for prefix in sorted(prefixes.keys()):
+            numbers = set(prefixes[prefix])
+            colour_code = prefix[0] if prefix else ""
+            if rows_rendered and colour_code != previous_colour:
+                print(
+                    f"<tr><td colspan='{total_columns}' style='border:0;padding:4px 0;'>"
+                    "<hr style=\"border:0;border-top:1px solid #999;margin:0;\"></td></tr>"
+                )
+            cells = [f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>"]
+            for i in range(max_seq + 1):
+                tag_id = TagID(f"{prefix}{i}")
+                if i in numbers:
+                    cell_value = f"{i:02d}"
+                elif tag_id in day.retired_tagids:
+                    cell_value = retired_marker
+                else:
+                    cell_value = "&nbsp;&nbsp;"
+                cells.append(f"<td {cell_style}>{cell_value}</td>")
+            cells.append(f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>")
+            row_bg_colour = "#f4f4f4" if rows_rendered % 2 else "#ffffff"
+            row_style = f" style='background-color:{row_bg_colour};'" if row_bg_colour else ""
+            print(f"<tr{row_style}>" + "".join(cells) + "</tr>")
+            rows_rendered += 1
+            previous_colour = colour_code
+        if rows_rendered == 0:
+            print(
+                f"<tr><td colspan='{total_columns}' style='padding:4px;text-align:center;'>"
+                "-no bikes-</td></tr>"
+            )
+        print("</table>")
+
+    render_tag_matrix("Tags in use", tags_in_use, max_sequence)
+    render_tag_matrix("Tags potentially available for re-use", tags_done, max_sequence)
+
+    # print("<br><br>")
 
     print("<h2>Notices</h2>")
 
@@ -197,45 +227,6 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
     print("</pre>")
 
 
-def DELETEME_html_head(
-    title: str = "TagTracker",
-):
-    print(
-        f"""
-        <html><head>
-        <title>{title}</title>
-        <meta charset='UTF-8'>
-        {cc.style()}
-        <script>
-          // (this fn courtesy of chatgpt)
-          function goBack(pagesToGoBack = 1) {{
-            window.history.go(-pagesToGoBack);
-          }}
-        </script>
-        </head>"""
-    )
-    ##print(cc.style())
-    print("<body>")
-
-
-def DELETEME_webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
-    """Prints the footer for each webpage"""
-
-    print("<pre>")
-
-    if wcfg.DATA_OWNER:
-        data_note = (
-            wcfg.DATA_OWNER if isinstance(wcfg.DATA_OWNER, list) else [wcfg.DATA_OWNER]
-        )
-        for line in data_note:
-            print(line)
-        print()
-
-    print(f"Elapsed time for query: {elapsed_time:.1f} seconds.")
-
-    print(db.db_latest(ttdb))
-
-    print(f"TagTracker version {get_version_info()}")
 
 
 # -----------------
@@ -402,7 +393,7 @@ elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_entry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
     web_audit_report(
-        database, orgsite_id=1, date="today", whattime=VTime("now")
+        database, orgsite_id=1,
     )  # FIXME: orgsite_id
 elif what in [
     cc.WHAT_DATERANGE,

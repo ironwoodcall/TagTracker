@@ -784,13 +784,19 @@ def summary_table(
     print("</table><p></p>")
     if is_today and est is not None and est.state != web_estimator.ERROR:
         detail_link = cc.selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
+        audit_link = cc.selfref(what=cc.WHAT_AUDIT)
         print(
             # "<table>"
             # "<tr>"
             f"""
             <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             <button type="button" style="padding: 10px; display: inline-block;"
             onclick="window.location.href='{detail_link}';"><b>Estimation<br>Details</b></button>
+            &nbsp;&nbsp;&nbsp;&nbsp;
+            <button type="button" style="padding: 10px; display: inline-block;"
+            onclick="window.location.href='{audit_link}';"><b>Audit<br>Report</b></button>
+            <br><br>
             """
             # """<a href="{detail_link}"><b>Detailed estimates</b></a></td></tr>"""
         )
