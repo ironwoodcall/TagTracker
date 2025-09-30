@@ -95,15 +95,12 @@ from web_estimator import Estimator
 def web_audit_report(
     ttdb: sqlite3.Connection,
     orgsite_id: int,
-    date: str,
-    whattime: VTime,
+
 ):
     """Print web audit report."""
 
-    whattime = VTime(whattime)
-    thisday = ut.date_str(date)
-    if not thisday:
-        cc.bad_date(thisday)
+    as_of_time = VTime("now")
+    thisday = ut.date_str("today")
 
     # Find this day's day_id
     cursor = ttdb.cursor()
@@ -111,31 +108,70 @@ def web_audit_report(
     cursor.close()
 
     # Make this page have a black background
-    print("<style>body {background-color:black;color:white}</style>")
-    print( """<meta name="format-detection" content="telephone=no"/>""")
-    print(f"<h1>Parking attendant report {thisday}</h1>")
-    print("<h2>Audit</h2>")
-    print("<pre>")
+    # print("<style>body {background-color:black;color:white}</style>")
+    print("""<meta name="format-detection" content="telephone=no"/>""")
+    print(f"<h1>Audit report {as_of_time.tidy} {thisday}</h1>")
 
     day = db.db2day(ttdb=ttdb, day_id=day_id)
     if not day:
         print("<b>no information for this day</b><br>")
         return
-    aud.audit_report(day, [whattime], include_notes=False, include_returns=True)
-    print("\n</pre>")
 
-    print("<h2>Bike registrations</h2>")
-    print(f"<p>&nbsp;&nbsp;Registrations today: {day.registrations}\n</p>")
+    table_style = (
+        "style='border-collapse:collapse;margin-bottom:1.5rem;"
+        "border:0;font-family:monospace;font-size:1.5em;'"
+    )
+    cell_style = (
+        "style='border:0;padding:4px 6px;white-space:nowrap;"
+        "text-align:center;'"
+    )
+    retired_marker = html.escape(aud.DEFAULT_RETIRED_TAG_STR.strip()) or "&bullet;"
 
-    # print("<h2>Busyness</h2>")
-    # print("<pre>")
-    # rep.busyness_report(day, [qtime])
-    # print("\n</pre>")
+    def render_tag_matrix(title: str, tags: list[TagID]) -> None:
+        prefixes = ut.tagnums_by_prefix(tags)
+        print(f"<h3>{title}</h3>")
+        print(f"<table {table_style}>")
+        rows_rendered = 0
+        previous_colour = None
+        last_colspan = 0
+        for prefix in sorted(prefixes.keys()):
+            greatest = ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids)
+            if greatest is None:
+                continue
+            colour_code = prefix[0] if prefix else ""
+            if rows_rendered and colour_code != previous_colour:
+                gap_cols = last_colspan if last_colspan else 1
+                if gap_cols <= 1:
+                    print(
+                        "<tr><td style='border:0;padding:0;height:0.4em'>&nbsp;</td></tr>"
+                    )
+                else:
+                    print(
+                        "<tr><td style='border:0;padding:0;height:0.4em'>&nbsp;</td>"
+                        "<td style='border:0;padding:0;height:0.4em' "
+                        f"colspan='{gap_cols - 1}'></td></tr>"
+                    )
+            rows_rendered += 1
+            numbers = set(prefixes[prefix])
+            cells = [f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>"]
+            for i in range(greatest + 1):
+                if i in numbers:
+                    cell_value = f"{i:02d}"
+                elif TagID(f"{prefix}{i}") in day.retired_tagids:
+                    cell_value = retired_marker
+                else:
+                    cell_value = "&nbsp;&nbsp;"
+                cells.append(f"<td {cell_style}>{cell_value}</td>")
+            print("<tr>" + "".join(cells) + "</tr>")
+            previous_colour = colour_code
+            last_colspan = len(cells)
+        if rows_rendered == 0:
+            print(f"<tr><td {cell_style}>-no bikes-</td></tr>")
+        print("</table>")
 
-    print("<h2>Tag inventory</h2>")
-    print("<pre>")
-    tt_tag_inv.tags_config_report(day, [whattime], include_empty_groups=True)
-    print("</pre>")
+    render_tag_matrix(f"Tags in use", day.tags_in_use(as_of_when=as_of_time))
+    render_tag_matrix("Tags potentially available for re-use", day.tags_done(as_of_when=as_of_time))
+
     print("<br><br>")
 
     print("<h2>Notices</h2>")
@@ -197,45 +233,6 @@ def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
     print("</pre>")
 
 
-def DELETEME_html_head(
-    title: str = "TagTracker",
-):
-    print(
-        f"""
-        <html><head>
-        <title>{title}</title>
-        <meta charset='UTF-8'>
-        {cc.style()}
-        <script>
-          // (this fn courtesy of chatgpt)
-          function goBack(pagesToGoBack = 1) {{
-            window.history.go(-pagesToGoBack);
-          }}
-        </script>
-        </head>"""
-    )
-    ##print(cc.style())
-    print("<body>")
-
-
-def DELETEME_webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
-    """Prints the footer for each webpage"""
-
-    print("<pre>")
-
-    if wcfg.DATA_OWNER:
-        data_note = (
-            wcfg.DATA_OWNER if isinstance(wcfg.DATA_OWNER, list) else [wcfg.DATA_OWNER]
-        )
-        for line in data_note:
-            print(line)
-        print()
-
-    print(f"Elapsed time for query: {elapsed_time:.1f} seconds.")
-
-    print(db.db_latest(ttdb))
-
-    print(f"TagTracker version {get_version_info()}")
 
 
 # -----------------
@@ -402,7 +399,7 @@ elif what == cc.WHAT_DATA_ENTRY:
     one_day_data_entry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
     web_audit_report(
-        database, orgsite_id=1, date="today", whattime=VTime("now")
+        database, orgsite_id=1
     )  # FIXME: orgsite_id
 elif what in [
     cc.WHAT_DATERANGE,
