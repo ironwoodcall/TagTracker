@@ -117,6 +117,36 @@ def web_audit_report(
         print("<b>no information for this day</b><br>")
         return
 
+    tags_in_use = day.tags_in_use(as_of_when=as_of_time)
+    regular_onsite = 0
+    oversize_onsite = 0
+    for tag_id in tags_in_use:
+        bike = day.biketags.get(tag_id)
+        if not bike:
+            continue
+        if bike.bike_type == k.OVERSIZE:
+            oversize_onsite += 1
+        else:
+            regular_onsite += 1
+    total_onsite = regular_onsite + oversize_onsite
+
+    print(
+        "<table class='general_table' "
+        "style='max-width:22rem;margin-bottom:1.5rem;'>"
+    )
+    print("<tr><th colspan='2'>Bikes currently onsite</th></tr>")
+    print(
+        f"<tr><td>Regular bikes</td><td style='text-align:right;'>{regular_onsite}</td></tr>"
+    )
+    print(
+        f"<tr><td>Oversize bikes</td><td style='text-align:right;'>{oversize_onsite}</td></tr>"
+    )
+    print(
+        "<tr><td><b>Total bikes</b></td><td style='text-align:right;'>"
+        f"<b>{total_onsite}</b></td></tr>"
+    )
+    print("</table>")
+
     table_style = (
         "style='border-collapse:collapse;margin-bottom:1.5rem;"
         "border:1px solid #666;font-family:monospace;font-size:1.5em;'"
@@ -127,54 +157,52 @@ def web_audit_report(
     )
     retired_marker = html.escape(aud.DEFAULT_RETIRED_TAG_STR.strip()) or "&bullet;"
 
-    def render_tag_matrix(title: str, tags: list[TagID]) -> None:
+    tags_done = day.tags_done(as_of_when=as_of_time)
+    combined_tags = list(tags_in_use) + list(tags_done)
+    max_sequence = max((tag.number for tag in combined_tags), default=0)
+
+    def render_tag_matrix(title: str, tags: list[TagID], max_seq: int) -> None:
         prefixes = ut.tagnums_by_prefix(tags)
         print(f"<h3>{title}</h3>")
         print(f"<table {table_style}>")
+        total_columns = max_seq + 3
         rows_rendered = 0
         previous_colour = None
-        last_colspan = 0
         for prefix in sorted(prefixes.keys()):
-            greatest = ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids)
-            if greatest is None:
-                continue
+            numbers = set(prefixes[prefix])
             colour_code = prefix[0] if prefix else ""
             if rows_rendered and colour_code != previous_colour:
-                gap_cols = last_colspan if last_colspan else 1
-                if gap_cols <= 1:
-                    print(
-                        "<tr><td style='border:0;padding:0;height:0.4em'>&nbsp;</td></tr>"
-                    )
-                else:
-                    print(
-                        "<tr><td style='border:0;padding:0;height:0.4em'>&nbsp;</td>"
-                        "<td style='border:0;padding:0;height:0.4em' "
-                        f"colspan='{gap_cols - 1}'></td></tr>"
-                    )
-            numbers = set(prefixes[prefix])
+                print(
+                    f"<tr><td colspan='{total_columns}' style='border:0;padding:4px 0;'>"
+                    "<hr style=\"border:0;border-top:1px solid #999;margin:0;\"></td></tr>"
+                )
             cells = [f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>"]
-            for i in range(greatest + 1):
+            for i in range(max_seq + 1):
+                tag_id = TagID(f"{prefix}{i}")
                 if i in numbers:
                     cell_value = f"{i:02d}"
-                elif TagID(f"{prefix}{i}") in day.retired_tagids:
+                elif tag_id in day.retired_tagids:
                     cell_value = retired_marker
                 else:
                     cell_value = "&nbsp;&nbsp;"
                 cells.append(f"<td {cell_style}>{cell_value}</td>")
+            cells.append(f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>")
             row_bg_colour = "#f4f4f4" if rows_rendered % 2 else "#ffffff"
             row_style = f" style='background-color:{row_bg_colour};'" if row_bg_colour else ""
             print(f"<tr{row_style}>" + "".join(cells) + "</tr>")
             rows_rendered += 1
             previous_colour = colour_code
-            last_colspan = len(cells)
         if rows_rendered == 0:
-            print(f"<tr><td {cell_style}>-no bikes-</td></tr>")
+            print(
+                f"<tr><td colspan='{total_columns}' style='padding:4px;text-align:center;'>"
+                "-no bikes-</td></tr>"
+            )
         print("</table>")
 
-    render_tag_matrix(f"Tags in use", day.tags_in_use(as_of_when=as_of_time))
-    render_tag_matrix("Tags potentially available for re-use", day.tags_done(as_of_when=as_of_time))
+    render_tag_matrix("Tags in use", tags_in_use, max_sequence)
+    render_tag_matrix("Tags potentially available for re-use", tags_done, max_sequence)
 
-    print("<br><br>")
+    # print("<br><br>")
 
     print("<h2>Notices</h2>")
 
