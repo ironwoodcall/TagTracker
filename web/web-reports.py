@@ -119,7 +119,7 @@ def web_audit_report(
 
     table_style = (
         "style='border-collapse:collapse;margin-bottom:1.5rem;"
-        "border:0;font-family:monospace;font-size:1.5em;'"
+        "border:1px solid #666;font-family:monospace;font-size:1.5em;'"
     )
     cell_style = (
         "style='border:0;padding:4px 6px;white-space:nowrap;"
@@ -151,7 +151,6 @@ def web_audit_report(
                         "<td style='border:0;padding:0;height:0.4em' "
                         f"colspan='{gap_cols - 1}'></td></tr>"
                     )
-            rows_rendered += 1
             numbers = set(prefixes[prefix])
             cells = [f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>"]
             for i in range(greatest + 1):
@@ -162,7 +161,10 @@ def web_audit_report(
                 else:
                     cell_value = "&nbsp;&nbsp;"
                 cells.append(f"<td {cell_style}>{cell_value}</td>")
-            print("<tr>" + "".join(cells) + "</tr>")
+            row_bg_colour = "#f4f4f4" if rows_rendered % 2 else "#ffffff"
+            row_style = f" style='background-color:{row_bg_colour};'" if row_bg_colour else ""
+            print(f"<tr{row_style}>" + "".join(cells) + "</tr>")
+            rows_rendered += 1
             previous_colour = colour_code
             last_colspan = len(cells)
         if rows_rendered == 0:
