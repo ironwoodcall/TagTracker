@@ -62,24 +62,25 @@ def web_audit_report(
     as_of_time = VTime("now")
     thisday = ut.date_str("today")
 
-    # Find this day's day_id
-    cursor = ttdb.cursor()
-    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=orgsite_id)
-    cursor.close()
 
-    # Make this page have a black background
     print("""<meta name="format-detection" content="telephone=no"/>""")
     print(f"<h1>Audit report {as_of_time.tidy} {thisday}</h1>")
-
     # Only put a "Back" button if this was called from itself
     if cc.called_by_self():
         print(f"{cc.back_button(1)}<br><br>")
         # print(f"{cc.main_and_back_buttons(pages_back=pages_back)}<br><br>")
 
-    day = db.db2day(ttdb=ttdb, day_id=day_id)
-    if not day:
-        print("<b>no information for this day</b><br>")
+    # Find this day's day_id
+    cursor = ttdb.cursor()
+    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=orgsite_id)
+    cursor.close()
+
+    if not day_id:
+        print("<br><b>No bike information in the database for this day.</b><br><br>")
         return
+
+    day = db.db2day(ttdb=ttdb, day_id=day_id)
+
 
     tags_in_use = day.tags_in_use(as_of_when=as_of_time)
     regular_onsite = 0
