@@ -37,6 +37,7 @@ import web_common as cc
 import datacolors as dc
 import web.web_estimator as web_estimator
 import web_histogram
+from web.web_base_config import EST_TYPE_FOR_ONEDAY_SUMMARY
 
 
 HIGHLIGHT_NONE = 0
@@ -723,7 +724,7 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = web_estimator.Estimator(estimation_type="STANDARD")
+        est = web_estimator.Estimator(estimation_type=EST_TYPE_FOR_ONEDAY_SUMMARY)
         est.guess()
         if est.state != web_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
