@@ -46,10 +46,10 @@ from common.tt_time import VTime
 import common.tt_util as ut
 import common.tt_constants as k
 import common.tt_dbutil as db
-import tt_reports as rep
-import tt_audit_report as aud
-import tt_tag_inv
-import tt_printer as pr
+# import tt_reports as rep
+# import tt_audit_report as aud
+# import tt_tag_inv
+# import tt_printer as pr
 from web_estimator import Estimator
 
 
@@ -120,7 +120,7 @@ def web_audit_report(
         "style='border:0;padding:4px 6px;white-space:nowrap;"
         "text-align:center;'"
     )
-    retired_marker = html.escape(aud.DEFAULT_RETIRED_TAG_STR.strip()) or "&bullet;"
+    retired_marker = "&bullet;"
 
     tags_done = day.tags_done(as_of_when=as_of_time)
     combined_tags = list(tags_in_use) + list(tags_done)
@@ -180,82 +180,19 @@ def web_audit_report(
     print("<h2>Notices</h2>")
 
 
-def one_day_data_entry_reports(ttdb: sqlite3.Connection, date: str):
-    """One-day chart."""
-    thisday = ut.date_str(date)
-    if not thisday:
-        cc.bad_date(date)
-    query_time = "now" if thisday == ut.date_str("today") else "24:00"
-    query_time = VTime(query_time)
-    print(f"<h1>Data Entry reports for {ut.date_str(thisday,long_date=True)}</h1>")
-    print(f"{cc.main_and_back_buttons(1)}<br>")
-    print("<pre>")
-    day = db.db2day(ttdb, thisday)
-    rep.summary_report(day, [qtime])
-    # print()
-    # rep.busyness_report(day, [qtime])
-    print()
-    aud.audit_report(day, [query_time], include_notes=False, include_returns=True)
-    print()
-    rep.full_chart(day, query_time)
-    print()
-    tt_tag_inv.tags_config_report(day, [query_time], True)
-    # print()
-    # rep.busy_graph(day, query_time)
-    # print()
-    # rep.fullness_graph(day, query_time)
-    print()
-
-
-def one_day_chart(ttdb: sqlite3.Connection, date: str):
-    """One-day chart."""
-    thisday = ut.date_str(date)
-    if not thisday:
-        cc.bad_date(date)
-    query_time = "now" if thisday == ut.date_str("today") else "24:00"
-    print(f"<h1>Data Entry reports for {ut.date_str(thisday,long_date=True)}</h1>")
-    print("<pre>")
-    rep.full_chart(db.db2day(ttdb, thisday), query_time)
-    # rep.busy_graph(db.db2day(ttdb, thisday), query_time)
-    # rep.fullness_graph(db.db2day(ttdb, thisday), query_time)
-
-
-def one_day_summary(ttdb: sqlite3.Connection, thisday: str, query_time: VTime):
-    """One-day busy report."""
-    if not thisday:
-        cc.bad_date(thisday)
-    day = db.db2day(ttdb, thisday)
-    print(f"<h1>Day-end report for {ut.date_str(thisday,long_date=True)}</h1>")
-    print(f"{cc.main_and_back_buttons(1)}<br>")
-
-    print(f"Hours: {day.time_open} - {day.time_closed}</p>")
-    print("<pre>")
-    rep.summary_report(day, [query_time])
-    # print()
-    # rep.busyness_report(day, [query_time])
-    print("</pre>")
-
-
-
-
 # -----------------
 def web_est_wrapper() -> None:
     """The estimation (verbose) page guts.
 
     Maybe move this to web_estimator.py
     """
-    print(f"<h1>Estimation Details for {ut.date_str('today')}</h1>")
+    print(f"<h1>Detailed prediction for {ut.date_str('today')}</h1>")
     print(f"{cc.main_and_back_buttons(1)}<br><br>")
 
     est = Estimator(estimation_type="verbose")
     est.guess()
     for line in est.result_msg(as_html=True):
         print(line)
-    # print(
-    #     "<p>A further "
-    #     "<a href='https://raw.githubusercontent.com/ironwoodcall/TagTracker/refs/heads/main/docs/estimator_models.txt'>"
-    #     "discussion of the estimation models</a> is available.</p>"
-    # )
 
     models_path = Path(__file__).resolve().parent.parent / "docs" / "estimator_models.txt"
     if models_path.is_file():
@@ -284,7 +221,7 @@ if not database:
     sys.exit()
 
 # Set text colours off (for the text-based reports)
-pr.COLOUR_ACTIVE = True
+# pr.COLOUR_ACTIVE = True
 k.set_html_style()
 
 # Parse query parameters from the URL if present
@@ -398,8 +335,8 @@ elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
 
 # elif what == cc.WHAT_DATAFILE:
 #     datafile(database, qdate)
-elif what == cc.WHAT_DATA_ENTRY:
-    one_day_data_entry_reports(database, qdate)
+# elif what == cc.WHAT_DATA_ENTRY:
+#     one_day_data_entry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
     web_audit_report(
         database, orgsite_id=1,
