@@ -737,11 +737,11 @@ class Estimator:
         # --- Final table packaging (Mixed first) ---
         if self.estimation_type == "quick":
             self.tables = [
-                ("Quick Best Guess Estimates", mixed_rows, None),
+                ("Quick Best Guess Predictions", mixed_rows, None),
             ]
         else:
             self.tables = [
-                ("Best Guess Estimates", mixed_rows, None),
+                ("Best Guess Predictions", mixed_rows, None),
             ]
         if simple_rows:
             self.tables.append(

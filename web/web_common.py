@@ -59,7 +59,7 @@ WHAT_OVERVIEW_DOW = "OvD"
 WHAT_BLOCKS_DOW = "BlkD"
 WHAT_ONE_DAY = "1D"
 WHAT_ONE_DAY_FREQUENCIES = "1Q"
-WHAT_DATA_ENTRY = "DE"
+# WHAT_DATA_ENTRY = "DE"
 WHAT_DATAFILE = "DF"
 WHAT_TAGS_LOST = "TL"
 WHAT_TAG_HISTORY = "TH"
@@ -125,8 +125,6 @@ class WebAuth:
 
         self.org_info: dict = None
         self.orgsite_info: dict = None
-
-        pass
 
     def owner_org(self):
         pass

@@ -22,6 +22,7 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
 """
 
+import html
 import sqlite3
 from dataclasses import dataclass
 
@@ -36,6 +37,7 @@ import web_common as cc
 import datacolors as dc
 import web.web_estimator as web_estimator
 import web_histogram
+from web.web_base_config import EST_TYPE_FOR_ONEDAY_SUMMARY
 
 
 HIGHLIGHT_NONE = 0
@@ -366,15 +368,10 @@ def block_activity_table(
                         continue
                     filler = PeriodDetail(time_start=current_start)
                     for bike_type in (k.REGULAR, k.OVERSIZE, k.COMBINED):
-                        filler.num_on_hand[bike_type] = previous_block.num_on_hand[
-                            bike_type
-                        ]
-                        filler.num_fullest[bike_type] = previous_block.num_fullest[
-                            bike_type
-                        ]
-                        filler.time_fullest[bike_type] = previous_block.time_fullest[
-                            bike_type
-                        ]
+                        last_on_hand = previous_block.num_on_hand[bike_type]
+                        filler.num_on_hand[bike_type] = last_on_hand
+                        filler.num_fullest[bike_type] = last_on_hand
+                        filler.time_fullest[bike_type] = current_start
                     blocks_by_start[current_start] = filler
                     previous_block = filler
 
@@ -428,6 +425,8 @@ def block_activity_table(
         all_out = block.num_outgoing[k.COMBINED]
 
         block_max = block.num_fullest[k.COMBINED]
+        end_on_hand = block.num_on_hand[k.COMBINED]
+        start_on_hand = max(end_on_hand - all_in + all_out, 0)
         time_label = block_start_vtime.tidy
 
         add_boundary = False
@@ -459,6 +458,8 @@ def block_activity_table(
                 "all_out": all_out,
                 "total_in": cumulative_total_in,
                 "block_max": block_max,
+                "start_on_hand": start_on_hand,
+                "end_on_hand": end_on_hand,
                 "border_top": add_boundary,
             }
         )
@@ -541,18 +542,23 @@ def block_activity_table(
         if row["block_max"] == max_block_peak and max_block_peak:
             most_parts.extend(["border:3px solid black", "font-weight:bold"])
         most_style = mix_styles(*most_parts)
+        hover_detail = (
+            f"Bikes at start: {row['start_on_hand']}\n"
+            f"Bikes at end: {row['end_on_hand']}"
+        )
+        hover_attr = html.escape(hover_detail)
 
         print(
             "<tr>"
-            f"<td style='{base_style}'>{row['time_label']}</td>"
+            f"<td style='{base_style}' title=\"{hover_attr}\">{row['time_label']}</td>"
             f"<td style='{in_style(row['rg_in'])}'>{row['rg_in']}</td>"
             f"<td style='{in_style(row['ov_in'])}'>{row['ov_in']}</td>"
             f"<td style='{in_style(row['all_in'])}'>{row['all_in']}</td>"
             f"<td style='{out_style(row['rg_out'])}'>{row['rg_out']}</td>"
             f"<td style='{out_style(row['ov_out'])}'>{row['ov_out']}</td>"
             f"<td style='{out_style(row['all_out'])}'>{row['all_out']}</td>"
-            f"<td style='{total_style}'>{row['total_in']}</td>"
-            f"<td style='{most_style}'>{row['block_max']}</td>"
+            f"<td style='{total_style}' title=\"{hover_attr}\">{row['total_in']}</td>"
+            f"<td style='{most_style}' title=\"{hover_attr}\">{row['block_max']}</td>"
             "</tr>"
         )
 
@@ -718,7 +724,7 @@ def summary_table(
 
     the_estimate = None
     if is_today:
-        est = web_estimator.Estimator(estimation_type="STANDARD")
+        est = web_estimator.Estimator(estimation_type=EST_TYPE_FOR_ONEDAY_SUMMARY)
         est.guess()
         if est.state != web_estimator.ERROR and est.time_closed > VTime("now"):
             est_min = est.bikes_so_far + est.min
@@ -792,7 +798,7 @@ def summary_table(
             <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             <button type="button" style="padding: 10px; display: inline-block;"
-            onclick="window.location.href='{detail_link}';"><b>Estimation<br>Details</b></button>
+            onclick="window.location.href='{detail_link}';"><b>Detailed<br>Prediction</b></button>
             &nbsp;&nbsp;&nbsp;&nbsp;
             <button type="button" style="padding: 10px; display: inline-block;"
             onclick="window.location.href='{audit_link}';"><b>Audit<br>Report</b></button>

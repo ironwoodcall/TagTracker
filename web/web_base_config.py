@@ -55,6 +55,11 @@ EST_CONF_THRESHOLDS = {
     "Medium": {"min_n": 8, "min_frac": 0.2},
 }
 
+# The Day Detail page calls estimator (if it's 'today').
+# Using a STANDARD estimation type for this can be slow. QUICK speeds it up
+# by leaving out the random forest model
+EST_TYPE_FOR_ONEDAY_SUMMARY = "STANDARD"   # QUICK or STANDARD
+
 # Confidence bands (display ranges) per measure.
 # Measures: remainder (further bikes), activity (next-hour ins+outs),
 # peak (max bikes today), peaktime (time of max, minutes).
