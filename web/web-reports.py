@@ -112,9 +112,9 @@ def web_audit_report(
     )
     print("</table>")
 
-    table_style = (
-        "style='border-collapse:collapse;margin-bottom:1.5rem;"
-        "border:1px solid #666;font-family:monospace;font-size:1.5em;'"
+    base_table_style = (
+        "border-collapse:collapse;margin-bottom:1.5rem;"
+        "border:1px solid #666;font-family:monospace;font-size:1.5em;"
     )
     cell_style = (
         "style='border:0;padding:4px 6px;white-space:nowrap;"
@@ -126,9 +126,12 @@ def web_audit_report(
     combined_tags = list(tags_in_use) + list(tags_done)
     max_sequence = max((tag.number for tag in combined_tags), default=0)
 
-    def render_tag_matrix(title: str, tags: list[TagID], max_seq: int) -> None:
+    def render_tag_matrix(
+        title: str, tags: list[TagID], max_seq: int, text_colour: str
+    ) -> None:
         prefixes = ut.tagnums_by_prefix(tags)
         print(f"<h3>{title}</h3>")
+        table_style = f"style='{base_table_style}color:{text_colour};'"
         print(f"<table {table_style}>")
         total_columns = max_seq + 3
         rows_rendered = 0
@@ -164,8 +167,13 @@ def web_audit_report(
             )
         print("</table>")
 
-    render_tag_matrix("Tags in use", tags_in_use, max_sequence)
-    render_tag_matrix("Tags potentially available for re-use", tags_done, max_sequence)
+    render_tag_matrix("Tags in use", tags_in_use, max_sequence, text_colour="#7b0b54")
+    render_tag_matrix(
+        "Tags potentially available for re-use",
+        tags_done,
+        max_sequence,
+        text_colour="#1c7f7a",
+    )
 
     # print("<br><br>")
 
