@@ -22,6 +22,7 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
 """
 
+import html
 import sqlite3
 from dataclasses import dataclass
 
@@ -423,6 +424,8 @@ def block_activity_table(
         all_out = block.num_outgoing[k.COMBINED]
 
         block_max = block.num_fullest[k.COMBINED]
+        end_on_hand = block.num_on_hand[k.COMBINED]
+        start_on_hand = max(end_on_hand - all_in + all_out, 0)
         time_label = block_start_vtime.tidy
 
         add_boundary = False
@@ -454,6 +457,8 @@ def block_activity_table(
                 "all_out": all_out,
                 "total_in": cumulative_total_in,
                 "block_max": block_max,
+                "start_on_hand": start_on_hand,
+                "end_on_hand": end_on_hand,
                 "border_top": add_boundary,
             }
         )
@@ -536,18 +541,23 @@ def block_activity_table(
         if row["block_max"] == max_block_peak and max_block_peak:
             most_parts.extend(["border:3px solid black", "font-weight:bold"])
         most_style = mix_styles(*most_parts)
+        hover_detail = (
+            f"Bikes at start: {row['start_on_hand']}\n"
+            f"Bikes at end: {row['end_on_hand']}"
+        )
+        hover_attr = html.escape(hover_detail)
 
         print(
             "<tr>"
-            f"<td style='{base_style}'>{row['time_label']}</td>"
+            f"<td style='{base_style}' title=\"{hover_attr}\">{row['time_label']}</td>"
             f"<td style='{in_style(row['rg_in'])}'>{row['rg_in']}</td>"
             f"<td style='{in_style(row['ov_in'])}'>{row['ov_in']}</td>"
             f"<td style='{in_style(row['all_in'])}'>{row['all_in']}</td>"
             f"<td style='{out_style(row['rg_out'])}'>{row['rg_out']}</td>"
             f"<td style='{out_style(row['ov_out'])}'>{row['ov_out']}</td>"
             f"<td style='{out_style(row['all_out'])}'>{row['all_out']}</td>"
-            f"<td style='{total_style}'>{row['total_in']}</td>"
-            f"<td style='{most_style}'>{row['block_max']}</td>"
+            f"<td style='{total_style}' title=\"{hover_attr}\">{row['total_in']}</td>"
+            f"<td style='{most_style}' title=\"{hover_attr}\">{row['block_max']}</td>"
             "</tr>"
         )
 
