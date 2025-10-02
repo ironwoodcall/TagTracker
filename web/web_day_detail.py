@@ -366,15 +366,10 @@ def block_activity_table(
                         continue
                     filler = PeriodDetail(time_start=current_start)
                     for bike_type in (k.REGULAR, k.OVERSIZE, k.COMBINED):
-                        filler.num_on_hand[bike_type] = previous_block.num_on_hand[
-                            bike_type
-                        ]
-                        filler.num_fullest[bike_type] = previous_block.num_fullest[
-                            bike_type
-                        ]
-                        filler.time_fullest[bike_type] = previous_block.time_fullest[
-                            bike_type
-                        ]
+                        last_on_hand = previous_block.num_on_hand[bike_type]
+                        filler.num_on_hand[bike_type] = last_on_hand
+                        filler.num_fullest[bike_type] = last_on_hand
+                        filler.time_fullest[bike_type] = current_start
                     blocks_by_start[current_start] = filler
                     previous_block = filler
 
