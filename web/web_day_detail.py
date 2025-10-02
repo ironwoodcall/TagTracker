@@ -798,7 +798,7 @@ def summary_table(
             <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             <button type="button" style="padding: 10px; display: inline-block;"
-            onclick="window.location.href='{detail_link}';"><b>Detailed<br>Estimation</b></button>
+            onclick="window.location.href='{detail_link}';"><b>Detailed<br>Prediction</b></button>
             &nbsp;&nbsp;&nbsp;&nbsp;
             <button type="button" style="padding: 10px; display: inline-block;"
             onclick="window.location.href='{audit_link}';"><b>Audit<br>Report</b></button>
