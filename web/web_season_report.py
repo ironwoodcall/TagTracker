@@ -24,6 +24,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 """
 
 import sqlite3
+from datetime import date, timedelta
 import common.tt_util as ut
 import web_common as cc
 import datacolors as dc
@@ -253,20 +254,62 @@ def totals_table(conn: sqlite3.Connection):
         else:
             return "-"
 
-    # Function to generate HTML row
-    def html_row(label, ytd_value, *day_values):
-        """Print a single row of data."""
-        row_html = (
-            f"<tr><td style='text-align:left'>{label}</td>"
-            f"<td style='text-align:right;border-right: 2px solid gray;'>{_p(ytd_value)}</td>"
+    def _display_default(val):
+        return "" if val is None else val
+
+    def _display_hours_open(hours_open):
+        if hours_open:
+            return VTime(hours_open * 60, allow_large=True)
+        return ""
+
+    def _display_average(val):
+        if val is None:
+            return ""
+        return round(val)
+
+    def format_percent_change(current, previous) -> str:
+        """Return formatted percent change, or '-' if not computable."""
+        if current is None or previous is None:
+            return "-"
+        if not isinstance(current, (int, float)) or not isinstance(previous, (int, float)):
+            return "-"
+        if abs(previous) < 1e-9:
+            return "0.0%" if abs(current) < 1e-9 else "-"
+        change = (current - previous) / previous * 100
+        change = round(change, 1)
+        if change == 0:
+            return "0.0%"
+        return f"{change:+.1f}%"
+
+    def subtract_year_safe(day: date) -> date:
+        """Return the same calendar day in the prior year, clamping as needed."""
+        target_year = day.year - 1
+        day_num = day.day
+        month_num = day.month
+        while day_num > 0:
+            try:
+                return date(target_year, month_num, day_num)
+            except ValueError:
+                day_num -= 1
+        return date(target_year, month_num, 1)
+
+    def fetch_totals(start_day: date, end_day: date) -> db.MultiDayTotals:
+        if start_day > end_day:
+            start_day = end_day
+        return db.MultiDayTotals.fetch_from_db(
+            conn=conn,
+            orgsite_id=1,
+            start_date=start_day.isoformat(),
+            end_date=end_day.isoformat(),
         )
-        for day_value in day_values:
-            row_html += f"<td style='text-align:right'>{_p(day_value)}</td>"
-        row_html += "</tr>\n"
-        return row_html
+
+    def totals_attr(name: str):
+        return lambda totals, attr=name: getattr(totals, attr, None)
 
     today = ut.date_str("today")
-    selected_year = today[:4]
+    today_date = date.fromisoformat(today)
+    selected_year = today_date.year
+    selected_year_str = str(selected_year)
     day_totals = {}
 
     # Fetching day totals for each day
@@ -276,10 +319,29 @@ def totals_table(conn: sqlite3.Connection):
             conn=conn, orgsite_id=1, start_date=d, end_date=d
         )
 
+    day_keys = list(day_totals.keys())
+
+    start_of_year = date(selected_year, 1, 1)
+
     # Fetch data for YTD
-    ytd_totals = db.MultiDayTotals.fetch_from_db(
-        conn=conn, orgsite_id=1, start_date=f"{selected_year}-01-01", end_date=today
-    )
+    ytd_totals = fetch_totals(start_of_year, today_date)
+
+    one_year_ago = subtract_year_safe(today_date)
+    prior_year_start = date(selected_year - 1, 1, 1)
+    if prior_year_start > one_year_ago:
+        prior_year_start = one_year_ago
+    prior_ytd_totals = fetch_totals(prior_year_start, one_year_ago)
+
+    current_12mo_start = one_year_ago + timedelta(days=1)
+    if current_12mo_start > today_date:
+        current_12mo_start = today_date
+    current_12mo_totals = fetch_totals(current_12mo_start, today_date)
+
+    prev_12mo_end = one_year_ago
+    prev_12mo_start = subtract_year_safe(current_12mo_start)
+    if prev_12mo_start > prev_12mo_end:
+        prev_12mo_start = prev_12mo_end
+    prev_12mo_totals = fetch_totals(prev_12mo_start, prev_12mo_end)
 
     most_parked_link = cc.selfref(
         what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_parked_combined_date
@@ -288,86 +350,110 @@ def totals_table(conn: sqlite3.Connection):
         what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_fullest_combined_date
     )
 
-    rows = [
-        (
-            "Total bikes parked (visits)",
-            ytd_totals.total_parked_combined,
-            *[day_totals[day].total_parked_combined for day in day_totals.keys()],
-        ),
-        (
-            "&nbsp;&nbsp;&nbsp;Regular bikes parked",
-            ytd_totals.total_parked_regular,
-            *[day_totals[day].total_parked_regular for day in day_totals.keys()],
-        ),
-        (
-            "&nbsp;&nbsp;&nbsp;Oversize bikes parked",
-            ytd_totals.total_parked_oversize,
-            *[day_totals[day].total_parked_oversize for day in day_totals.keys()],
-        ),
-        (
-            "Average bikes / day",
-            round(ytd_totals.total_parked_combined /
-                  ytd_totals.total_days_open),
-            *["-" for day in day_totals.keys()],
-        ),
-        (
-            "Total bike registrations",
-            ytd_totals.total_bikes_registered,
-            *[day_totals[day].total_bikes_registered for day in day_totals.keys()],
-        ),
-        (
-            "Total days open",
-            ytd_totals.total_days_open,
-            *[day_totals[day].total_days_open for day in day_totals.keys()],
-        ),
-        (
-            "Total hours open",
-            VTime(ytd_totals.total_hours_open * 60, allow_large=True),
-            *[
-                (
-                    VTime(day_totals[day].total_hours_open *
-                          60, allow_large=True)
-                    if day_totals[day].total_hours_open
-                    else ""
-                )
-                for day in day_totals.keys()
-            ],
-        ),
-        (
-            "Bikes left",
-            ytd_totals.total_remaining_combined,
-            *[day_totals[day].total_remaining_combined for day in day_totals.keys()],
-        ),
-        (
-            f"Most bikes parked (<a href='{most_parked_link}'>"
-            f"{ytd_totals.max_parked_combined_date}</a>)",
-            ytd_totals.max_parked_combined,
-            *["-" for day in day_totals.keys()],
-        ),
-        (
-            f"Most bikes at once (<a href='{fullest_link}'>"
-            f"{ytd_totals.max_fullest_combined_date}</a>)",
-            ytd_totals.max_fullest_combined,
-            *[day_totals[day].max_fullest_combined for day in day_totals.keys()],
-        ),
-        (
-            "Total precipitation",
-            ytd_totals.total_precipitation,
-            *[day_totals[day].total_precipitation for day in day_totals.keys()],
-        ),
-        (
-            "Max temperature",
-            ytd_totals.max_max_temperature,
-            *[day_totals[day].max_max_temperature for day in day_totals.keys()],
-        ),
+    row_defs = [
+        {
+            "label": "Total bikes parked (visits)",
+            "value_fn": totals_attr("total_parked_combined"),
+            "day_value_fn": totals_attr("total_parked_combined"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": "&nbsp;&nbsp;&nbsp;Regular bikes parked",
+            "value_fn": totals_attr("total_parked_regular"),
+            "day_value_fn": totals_attr("total_parked_regular"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": "&nbsp;&nbsp;&nbsp;Oversize bikes parked",
+            "value_fn": totals_attr("total_parked_oversize"),
+            "day_value_fn": totals_attr("total_parked_oversize"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": "Average bikes / day",
+            "value_fn": lambda totals: (
+                totals.total_parked_combined / totals.total_days_open
+                if totals.total_days_open
+                else None
+            ),
+            "display_fn": _display_average,
+            "percent": True,
+        },
+        {
+            "label": "Total bike registrations",
+            "value_fn": totals_attr("total_bikes_registered"),
+            "day_value_fn": totals_attr("total_bikes_registered"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": "Total days open",
+            "value_fn": totals_attr("total_days_open"),
+            "day_value_fn": totals_attr("total_days_open"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": "Total hours open",
+            "value_fn": totals_attr("total_hours_open"),
+            "day_value_fn": totals_attr("total_hours_open"),
+            "display_fn": _display_hours_open,
+            "percent": True,
+        },
+        {
+            "label": "Bikes left",
+            "value_fn": totals_attr("total_remaining_combined"),
+            "day_value_fn": totals_attr("total_remaining_combined"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": (
+                f"Most bikes parked (<a href='{most_parked_link}'>{ytd_totals.max_parked_combined_date}</a>)"
+            ),
+            "value_fn": totals_attr("max_parked_combined"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": (
+                f"Most bikes at once (<a href='{fullest_link}'>{ytd_totals.max_fullest_combined_date}</a>)"
+            ),
+            "value_fn": totals_attr("max_fullest_combined"),
+            "day_value_fn": totals_attr("max_fullest_combined"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": "Total precipitation",
+            "value_fn": totals_attr("total_precipitation"),
+            "day_value_fn": totals_attr("total_precipitation"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": "Max temperature",
+            "value_fn": totals_attr("max_max_temperature"),
+            "day_value_fn": totals_attr("max_max_temperature"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
     ]
 
     print("")
     print("<table class='general_table'>")
 
     # Table header
-    header_html = f"  <tr><th>Summary</th><th style='border-right: 2px solid gray;'>YTD<br>{selected_year}</th>"
-    for day, _ in day_totals.items():
+    header_html = (
+        "  <tr><th>Summary</th>"
+        f"<th style='text-align:right'>YTD<br>{selected_year_str}</th>"
+        "<th style='text-align:right'>%Δ<br>YTD</th>"
+        "<th style='text-align:right;border-right: 2px solid gray;'>%Δ<br>12mo</th>"
+    )
+    for day in day_keys:
         daylabel = "Today" if day == today else day
         daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=day)
         header_html += (
@@ -377,8 +463,48 @@ def totals_table(conn: sqlite3.Connection):
     print(header_html)
 
     # Table rows
-    for label, ytd_value, *day_values in rows:
-        print(html_row(label, ytd_value, *day_values))
+    def html_row(label, ytd_value, pct_ytd, pct_12mo, day_values):
+        """Build HTML for a table row."""
+        row_html = (
+            f"<tr><td style='text-align:left'>{label}</td>"
+            f"<td style='text-align:right'>{_p(ytd_value)}</td>"
+            f"<td style='text-align:right'>{_p(pct_ytd)}</td>"
+            f"<td style='text-align:right;border-right: 2px solid gray;'>{_p(pct_12mo)}</td>"
+        )
+        for day_value in day_values:
+            row_html += f"<td style='text-align:right'>{_p(day_value)}</td>"
+        row_html += "</tr>\n"
+        return row_html
+
+    for spec in row_defs:
+        label = spec["label"](ytd_totals) if callable(spec["label"]) else spec["label"]
+        value_fn = spec["value_fn"]
+        display_fn = spec.get("display_fn", _display_default)
+        day_display_fn = spec.get("day_display_fn", display_fn)
+
+        ytd_raw = value_fn(ytd_totals)
+        ytd_display = display_fn(ytd_raw)
+
+        if spec.get("percent", True):
+            prior_raw = value_fn(prior_ytd_totals)
+            current_12_raw = value_fn(current_12mo_totals)
+            prev_12_raw = value_fn(prev_12mo_totals)
+            pct_ytd = format_percent_change(ytd_raw, prior_raw)
+            pct_12mo = format_percent_change(current_12_raw, prev_12_raw)
+        else:
+            pct_ytd = pct_12mo = "-"
+
+        if spec.get("day_value_fn"):
+            day_values = []
+            day_value_fn = spec["day_value_fn"]
+            for key in day_keys:
+                day_raw = day_value_fn(day_totals[key])
+                day_display = day_display_fn(day_raw)
+                day_values.append(day_display)
+        else:
+            day_values = ["-" for _ in day_keys]
+
+        print(html_row(label, ytd_display, pct_ytd, pct_12mo, day_values))
 
     print("</table>")
 
