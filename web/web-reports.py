@@ -160,7 +160,7 @@ def web_audit_report(
         if rows_rendered == 0:
             print(
                 f"<tr><td colspan='{total_columns}' style='padding:4px;text-align:center;'>"
-                "-no bikes-</td></tr>"
+                "-none-</td></tr>"
             )
         print("</table>")
 
