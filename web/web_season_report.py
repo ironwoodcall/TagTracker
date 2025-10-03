@@ -516,8 +516,8 @@ def totals_table(conn: sqlite3.Connection):
         "%Δ 12mo compares the 12 months prior to today, to the 12 months before that."
     )
     print(
-        f"<tr><td colspan='{total_columns}'>"
-        "<i>%Δ YTD compares this calendar year from Jan 1 through today, to the same period last year.</i></td></tr>"
+        #f"<tr><td colspan='{total_columns}'>"
+        #"<i>%Δ YTD compares this calendar year from Jan 1 through today, to the same period last year.</i></td></tr>"
         f"<tr><td colspan='{total_columns}'>"
         "<i>%Δ 12mo compares the 12 months prior to today, to the 12 months before that.</i></td></tr>"
     )
