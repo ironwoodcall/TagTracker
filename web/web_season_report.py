@@ -511,13 +511,9 @@ def totals_table(conn: sqlite3.Connection):
         print(html_row(label, ytd_display, pct_ytd, pct_12mo, day_values))
 
     total_columns = 4 + len(display_day_keys)
-    explanation_text = (
-        "%Δ YTD compares this year's totals from Jan 1 through today, to the equivalent period last calendar year.<br> "
-        "%Δ 12mo compares the 12 months from this date last year through today, to the twelve months before that."
-    )
     print(
-        f"<tr><td colspan='{total_columns}' style='text-align:center;font-style:italic;padding-top:6px;'>"
-        f"{explanation_text}</td></tr>"
+        f"<tr><td colspan='{total_columns}'>"
+        "<i>%ΔYTD compares YTD to same period last year; %Δ12mo compares most recent 12 months to 12 months before that.</i></td></tr>"
     )
 
     print("</table>")
