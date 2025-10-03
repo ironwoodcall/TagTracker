@@ -513,7 +513,7 @@ def totals_table(conn: sqlite3.Connection):
     total_columns = 4 + len(display_day_keys)
     print(
         f"<tr><td colspan='{total_columns}'>"
-        "<i>%ΔYTD compares YTD to same period last year; %Δ12mo compares most reent 12 months to 12 months before that.</i></td></tr>"
+        "<i>%ΔYTD compares YTD to same period last year; %Δ12mo compares most recent 12 months to 12 months before that.</i></td></tr>"
     )
 
     print("</table>")
