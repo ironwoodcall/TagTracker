@@ -322,6 +322,14 @@ def totals_table(conn: sqlite3.Connection):
     day_keys = list(day_totals.keys())
     display_day_keys = day_keys[2:] if len(day_keys) > 2 else day_keys
 
+    today_remaining_combined = 0
+    # Track bikes currently onsite today so "Bikes left" can exclude them from current-period totals.
+    today_totals = day_totals.get(today)
+    if today_totals:
+        today_remaining_value = getattr(today_totals, "total_remaining_combined", 0)
+        if today_remaining_value:
+            today_remaining_combined = today_remaining_value
+
     start_of_year = date(selected_year, 1, 1)
 
     # Fetch data for YTD
@@ -405,11 +413,12 @@ def totals_table(conn: sqlite3.Connection):
             "percent": True,
         },
         {
-            "label": "Bikes left",
+            "label": "Bikes left (excluding today)",
             "value_fn": totals_attr("total_remaining_combined"),
             "day_value_fn": totals_attr("total_remaining_combined"),
             "display_fn": _display_default,
             "percent": True,
+            "subtract_today_from_current": True,
         },
         {
             "label": (
@@ -477,22 +486,37 @@ def totals_table(conn: sqlite3.Connection):
         row_html += "</tr>\n"
         return row_html
 
+    def _subtract_today_from_current(value):
+        if value is None:
+            return None
+        adjusted_value = value - today_remaining_combined
+        return adjusted_value if adjusted_value > 0 else 0
+
     for spec in row_defs:
         label = spec["label"](ytd_totals) if callable(spec["label"]) else spec["label"]
         value_fn = spec["value_fn"]
         display_fn = spec.get("display_fn", _display_default)
         day_display_fn = spec.get("day_display_fn", display_fn)
+        subtract_today_flag = spec.get("subtract_today_from_current", False)
 
         ytd_raw = value_fn(ytd_totals)
-        ytd_display = display_fn(ytd_raw)
+        ytd_adjusted = (
+            _subtract_today_from_current(ytd_raw) if subtract_today_flag else ytd_raw
+        )
+        ytd_display = display_fn(ytd_adjusted)
 
         percent_setting = spec.get("percent", True)
         if percent_setting is True:
             prior_raw = value_fn(prior_ytd_totals)
             current_12_raw = value_fn(current_12mo_totals)
             prev_12_raw = value_fn(prev_12mo_totals)
-            pct_ytd = format_percent_change(ytd_raw, prior_raw)
-            pct_12mo = format_percent_change(current_12_raw, prev_12_raw)
+            current_12_adjusted = (
+                _subtract_today_from_current(current_12_raw)
+                if subtract_today_flag
+                else current_12_raw
+            )
+            pct_ytd = format_percent_change(ytd_adjusted, prior_raw)
+            pct_12mo = format_percent_change(current_12_adjusted, prev_12_raw)
         elif percent_setting is None:
             pct_ytd = pct_12mo = ""
         else:
