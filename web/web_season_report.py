@@ -320,6 +320,7 @@ def totals_table(conn: sqlite3.Connection):
         )
 
     day_keys = list(day_totals.keys())
+    display_day_keys = day_keys[2:] if len(day_keys) > 2 else day_keys
 
     start_of_year = date(selected_year, 1, 1)
 
@@ -416,7 +417,7 @@ def totals_table(conn: sqlite3.Connection):
             ),
             "value_fn": totals_attr("max_parked_combined"),
             "display_fn": _display_default,
-            "percent": True,
+            "percent": None,
         },
         {
             "label": (
@@ -425,7 +426,7 @@ def totals_table(conn: sqlite3.Connection):
             "value_fn": totals_attr("max_fullest_combined"),
             "day_value_fn": totals_attr("max_fullest_combined"),
             "display_fn": _display_default,
-            "percent": True,
+            "percent": None,
         },
         {
             "label": "Total precipitation",
@@ -435,11 +436,11 @@ def totals_table(conn: sqlite3.Connection):
             "percent": True,
         },
         {
-            "label": "Max temperature",
+            "label": "Max daily temperature",
             "value_fn": totals_attr("max_max_temperature"),
             "day_value_fn": totals_attr("max_max_temperature"),
             "display_fn": _display_default,
-            "percent": True,
+            "percent": None,
         },
     ]
 
@@ -448,12 +449,12 @@ def totals_table(conn: sqlite3.Connection):
 
     # Table header
     header_html = (
-        "  <tr><th>Summary</th>"
-        f"<th style='text-align:right'>YTD<br>{selected_year_str}</th>"
-        "<th style='text-align:right'>%Δ<br>YTD</th>"
-        "<th style='text-align:right;border-right: 2px solid gray;'>%Δ<br>12mo</th>"
+        f"  <tr><th>{selected_year_str} Summary</th>"
+        f"<th style='text-align:center;border-right: 2px solid gray;'>YTD<br>{selected_year_str}</th>"
+        "<th style='text-align:center'>%Δ<br>YTD</th>"
+        "<th style='text-align:center;border-right: 2px solid gray;'>%Δ<br>12mo</th>"
     )
-    for day in day_keys:
+    for day in display_day_keys:
         daylabel = "Today" if day == today else day
         daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=day)
         header_html += (
@@ -467,7 +468,7 @@ def totals_table(conn: sqlite3.Connection):
         """Build HTML for a table row."""
         row_html = (
             f"<tr><td style='text-align:left'>{label}</td>"
-            f"<td style='text-align:right'>{_p(ytd_value)}</td>"
+            f"<td style='text-align:right;border-right: 2px solid gray;'>{_p(ytd_value)}</td>"
             f"<td style='text-align:right'>{_p(pct_ytd)}</td>"
             f"<td style='text-align:right;border-right: 2px solid gray;'>{_p(pct_12mo)}</td>"
         )
@@ -485,26 +486,39 @@ def totals_table(conn: sqlite3.Connection):
         ytd_raw = value_fn(ytd_totals)
         ytd_display = display_fn(ytd_raw)
 
-        if spec.get("percent", True):
+        percent_setting = spec.get("percent", True)
+        if percent_setting is True:
             prior_raw = value_fn(prior_ytd_totals)
             current_12_raw = value_fn(current_12mo_totals)
             prev_12_raw = value_fn(prev_12mo_totals)
             pct_ytd = format_percent_change(ytd_raw, prior_raw)
             pct_12mo = format_percent_change(current_12_raw, prev_12_raw)
+        elif percent_setting is None:
+            pct_ytd = pct_12mo = ""
         else:
             pct_ytd = pct_12mo = "-"
 
         if spec.get("day_value_fn"):
             day_values = []
             day_value_fn = spec["day_value_fn"]
-            for key in day_keys:
+            for key in display_day_keys:
                 day_raw = day_value_fn(day_totals[key])
                 day_display = day_display_fn(day_raw)
                 day_values.append(day_display)
         else:
-            day_values = ["-" for _ in day_keys]
+            day_values = ["-" for _ in display_day_keys]
 
         print(html_row(label, ytd_display, pct_ytd, pct_12mo, day_values))
+
+    total_columns = 4 + len(display_day_keys)
+    explanation_text = (
+        "%Δ YTD compares this year's totals from Jan 1 through today, to the equivalent period last calendar year.<br> "
+        "%Δ 12mo compares the 12 months from this date last year through today, to the twelve months before that."
+    )
+    print(
+        f"<tr><td colspan='{total_columns}' style='text-align:center;font-style:italic;padding-top:6px;'>"
+        f"{explanation_text}</td></tr>"
+    )
 
     print("</table>")
 
