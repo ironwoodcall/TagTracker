@@ -7,6 +7,7 @@ import sqlite3
 import sys
 import tempfile
 import urllib.parse
+from pathlib import Path
 from typing import Optional
 import zipfile
 from datetime import datetime
@@ -19,6 +20,20 @@ DB_ARCHIVE_DB_NAME = "bikedata.db"
 TABLES = ["day", "visit"]
 DEBUG_ENV_FLAG = "TAGTRACKER_DEBUG"
 DEBUG_ENABLED = bool(os.environ.get(DEBUG_ENV_FLAG))
+
+
+def _resolve_db_path() -> Optional[Path]:
+    if not DB_FILENAME:
+        return None
+
+    db_path = Path(DB_FILENAME)
+    if not db_path.is_absolute():
+        db_path = (Path(__file__).resolve().parent / db_path).resolve()
+
+    return db_path
+
+
+DB_PATH = _resolve_db_path()
 
 
 def debug(message: str) -> None:
@@ -68,6 +83,12 @@ def write_readme(directory: str) -> None:
 
 
 def send_csv_archive() -> None:
+    if DB_PATH is None:
+        emit_error("Database path is not configured.")
+
+    if not DB_PATH.exists():
+        emit_error(f"Database file '{DB_PATH}' not found.")
+
     sys.stdout.write("Content-Type: application/zip\r\n")
     sys.stdout.write(
         f"Content-Disposition: attachment; filename={CSV_ARCHIVE_NAME}\r\n"
@@ -77,7 +98,7 @@ def send_csv_archive() -> None:
 
     with tempfile.TemporaryDirectory() as csv_dir:
         debug(f"creating CSV archive in temp dir '{csv_dir}'")
-        conn = sqlite3.connect(DB_FILENAME)
+        conn = sqlite3.connect(str(DB_PATH))
         conn.row_factory = sqlite3.Row
         try:
             for table in TABLES:
@@ -107,6 +128,12 @@ def send_csv_archive() -> None:
 
 
 def send_database() -> None:
+    if DB_PATH is None:
+        emit_error("Database path is not configured.")
+
+    if not DB_PATH.exists():
+        emit_error(f"Database file '{DB_PATH}' not found.")
+
     sys.stdout.write("Content-Type: application/zip\r\n")
     sys.stdout.write(f"Content-Disposition: attachment; filename={DB_ARCHIVE_NAME}\r\n")
     sys.stdout.write("\r\n")
@@ -114,10 +141,10 @@ def send_database() -> None:
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         debug(f"creating DB archive in temp dir '{tmp_dir}'")
-        db_exists = os.path.exists(DB_FILENAME)
-        db_size = os.path.getsize(DB_FILENAME) if db_exists else "missing"
-        debug(f"source database '{DB_FILENAME}' exists={db_exists} size={db_size}")
-        shutil.copyfile(DB_FILENAME, os.path.join(tmp_dir, DB_ARCHIVE_DB_NAME))
+        db_exists = DB_PATH.exists()
+        db_size = DB_PATH.stat().st_size if db_exists else "missing"
+        debug(f"source database '{str(DB_PATH)}' exists={db_exists} size={db_size}")
+        shutil.copyfile(str(DB_PATH), os.path.join(tmp_dir, DB_ARCHIVE_DB_NAME))
         debug(f"copied database to '{os.path.join(tmp_dir, DB_ARCHIVE_DB_NAME)}'")
         write_readme(tmp_dir)
         debug(f"readme written: {os.path.join(tmp_dir, 'README.TXT')}")
