@@ -34,11 +34,22 @@ from common.tt_biketag import BikeTag
 
 # Note status codes (moved here from tt_constants to localize concerns)
 NOTE_ACTIVE = "A"
-NOTE_DELETED = "D"
-NOTE_RECOVERED = "R"
-
-
-# from common.tt_bikevisit import BikeVisit
+NOTE_AUTO_DELETED = "-"
+NOTE_AUTO_RECOVERED = "+"
+NOTE_HAND_DELETED = "D"
+NOTE_HAND_RECOVERED = "R"
+# Groups of note status codes, for convenience
+NOTE_GROUP_ACTIVE = {NOTE_ACTIVE, NOTE_AUTO_RECOVERED, NOTE_HAND_RECOVERED}
+NOTE_GROUP_INACTIVE = {NOTE_AUTO_DELETED, NOTE_HAND_DELETED}
+NOTE_GROUP_HAND = {NOTE_HAND_DELETED, NOTE_HAND_RECOVERED}
+NOTE_GROUP_HAND = {NOTE_HAND_DELETED, NOTE_HAND_RECOVERED}
+NOTE_GROUP_ALL = {
+    NOTE_ACTIVE,
+    NOTE_AUTO_DELETED,
+    NOTE_AUTO_RECOVERED,
+    NOTE_HAND_DELETED,
+    NOTE_HAND_RECOVERED,
+}
 
 
 class Note:
@@ -49,13 +60,13 @@ class Note:
     _TIME_PATTERN = r"(?:[01][0-9]|2[0-3]):[0-5][0-9]"
     _PACKED_RE = re.compile(
         rf"^"
-        rf"(?P<status>[{NOTE_ACTIVE}{NOTE_DELETED}{NOTE_RECOVERED}])?\|"
+        rf"(?P<status>[{NOTE_ACTIVE}{NOTE_AUTO_DELETED}{NOTE_HAND_RECOVERED}])?\|"
         rf"(?P<time>{_TIME_PATTERN})?\|"
         rf"(?P<text>.*)$"
     )
     _LEGACY_RE = re.compile(rf"^(?P<time>{_TIME_PATTERN})\s+(?P<text>.*)$")
 
-    def __init__(self, init_str: str, biketags: dict[TagID, BikeTag]):
+    def __init__(self, init_str: str, oktags: list[TagID] = None):
         """Initialize a Note.
 
         On entry init_str is either the text to make into the note,
@@ -63,17 +74,20 @@ class Note:
         form of the note, which includes its timestamp only.
 
         init_str can be:
-        - Packed: "{status}|{time}|{note text}"  (status = A, D, R)
+        - Packed: "{status}|{time}|{note text}"  (status - see above)
         - Legacy: "{time} {note text}"
         - Plain text: any other string
+
+        oktags is an optional list of TagID objects that are usable today; if present
+        it is used as a filter on potential TagIDs found in the note text
         """
         self.status: str = ""
         self.created_at: tt_time.VTime = ""
         self.text: str = ""
-        self.tags: list[BikeTag] = []
+        self.tags: list[TagID] = []
 
         self.unpack(init_str)
-        self.tags = scan_for_tags(text=self.text, biketags=biketags)
+        self.tags = scan_for_tags(text=self.text, oktags=oktags)
 
     def unpack(self, packed: str) -> None:
         """Unpack a note string into object attributes."""
@@ -110,10 +124,10 @@ class Note:
         return f"{self.status}|{time_str}|{self.text}"
 
     def delete(self) -> None:
-        self.status = NOTE_DELETED
+        self.status = NOTE_AUTO_DELETED
 
     def recover(self) -> None:
-        self.status = NOTE_RECOVERED
+        self.status = NOTE_HAND_RECOVERED
 
     def pretty(self) -> str:
         pretty_text = f"{self.created_at} {self.text}"
@@ -121,43 +135,44 @@ class Note:
         #     pretty_text = f"{pretty_text}; {t.tagid} {t.status} {len(t.visits)} visits"
         return pretty_text
 
-    def can_auto_delete(self) -> bool:
-        """Returns True if ok to auto-delete this note.
-        Can delete if
-            note has >= 1 tag reference
-            each visit for that tag whose visit includes created_at is
-                    finished at least ~10 minutes in the past
-            note was not maunally undeleted
-        """
-        if self.status == NOTE_RECOVERED:
-            return False
-        if len(self.tags) < 1:
-            return False
-        now = tt_time.VTime("now").num
-        for tag in self.tags:
-            tag: BikeTag
-            end: tt_time.VTime
-            end = tag.visit_finished_at(self.created_at)
-            if not end:  # Visit is ongoing
-                return False
-            # If created eactly at checkout time, it's probably
-            # a note for a tag that was immediately reused.
-            if end.num == self.created_at:
-                return False
-            if (now - end.num) < cfg.NOTE_AUTODELETE_DELAY:
-                return False
-        return True
+    # def can_auto_delete(self) -> bool:
+    #     """Returns True if ok to auto-delete this note.
+    #     Can delete if
+    #         note has >= 1 tag reference
+    #         each visit for that tag whose visit includes created_at is
+    #                 finished at least ~10 minutes in the past
+    #         note was not maunally undeleted
+    #     """
+    #     if self.status == NOTE_HAND_RECOVERED:
+    #         return False
+    #     if len(self.tags) < 1:
+    #         return False
+    #     now = tt_time.VTime("now").num
+    #     for tag in self.tags:
+    #         tag: BikeTag
+    #         end: tt_time.VTime
+    #         end = tag.visit_finished_at(self.created_at)
+    #         if not end:  # Visit is ongoing
+    #             return False
+    #         # If created eactly at checkout time, it's probably
+    #         # a note for a tag that was immediately reused.
+    #         if end.num == self.created_at:
+    #             return False
+    #         if (now - end.num) < cfg.NOTE_AUTODELETE_DELAY:
+    #             return False
+    #     return True
 
 
-def scan_for_tags(text: str, biketags: dict[TagID, BikeTag]) -> list[BikeTag]:
-    """Scan 'text' for valid tags and return the corresponding BikeTag objects."""
-    tags: list[BikeTag] = []
-    seen: set[TagID] = set()
+def scan_for_tags(text: str, oktags: list[TagID] = None) -> list[TagID]:
+    """Scan 'text' for valid tags and return a list of TagIDs found.
+
+    If oktags is non-null, then only include tags that are in that list.
+    """
+    tags: list[TagID] = []
     for word in re.findall(r"\w+", text):
         tagid = TagID(word)
-        if tagid and tagid in biketags and tagid not in seen:
-            tags.append(biketags[tagid])
-            seen.add(tagid)
+        if tagid and (oktags and tagid in oktags) and tagid not in tags:
+            tags.append(tagid)
     return tags
 
 
@@ -190,25 +205,25 @@ class NotesManager:
         for one_note in notes_list:
             self.add(one_note)
 
-    def autodelete(self, give_message: bool = True) -> int:
-        """Tries to autodelete notes.
+    # def autodelete(self, give_message: bool = True) -> int:
+    #     """Tries to autodelete notes.
 
-        Returns number of notes deleted.
-        Optionally gives a message if any deleted.
-        """
-        deleted = 0
-        # Consider only active/recovered notes for auto-delete checks
-        for note in self.active_notes():
-            if note.status == NOTE_ACTIVE and note.can_auto_delete():
-                note.delete()
-                deleted += 1
-        if deleted and give_message:
-            pr.iprint()
-            pr.iprint(
-                f"Deleted {deleted} expired {ut.plural(deleted,'note')}.",
-                style=k.SUBTITLE_STYLE,
-            )
-        return deleted
+    #     Returns number of notes deleted.
+    #     Optionally gives a message if any deleted.
+    #     """
+    #     deleted = 0
+    #     # Consider only active/recovered notes for auto-delete checks
+    #     for note in self.active_notes():
+    #         if note.status == NOTE_ACTIVE and note.can_auto_delete():
+    #             note.delete()
+    #             deleted += 1
+    #     if deleted and give_message:
+    #         pr.iprint()
+    #         pr.iprint(
+    #             f"Deleted {deleted} expired {ut.plural(deleted,'note')}.",
+    #             style=k.SUBTITLE_STYLE,
+    #         )
+    #     return deleted
 
     def dump(self):
         """Print out the notes."""
@@ -222,13 +237,15 @@ class NotesManager:
 
     def active_notes(self) -> list:
         """Return sorted list of active/recovered notes."""
-        sublist = [n for n in self.notes if n.status in {NOTE_ACTIVE, NOTE_RECOVERED}]
+        sublist = [
+            n for n in self.notes if n.status in {NOTE_ACTIVE, NOTE_HAND_RECOVERED}
+        ]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
 
     def deleted_notes(self) -> list:
         """Return sorted list of deleted notes."""
-        sublist = [n for n in self.notes if n.status == NOTE_DELETED]
+        sublist = [n for n in self.notes if n.status == NOTE_AUTO_DELETED]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
 

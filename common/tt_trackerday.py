@@ -262,6 +262,25 @@ class TrackerDay:
                 self.biketags[t] = BikeTag(t, UNKNOWN)
             self.biketags[t].status = BikeTag.RETIRED
 
+    def harmonize_notes(self) -> int:
+        """
+        Deletes/recovers notes based on their tagids and on visits.
+        Returns count of note whose status has changed
+
+        for each note:
+            ignore if no tagids or if hand deleted/recovered
+            if is active/auto-recovered:
+                (ignore any tagid that is not a usable tagid for today?)
+                if all tagids are in closed visits or are not in any visit
+                    delete
+            if is auto-deleted:
+                (ignore any tagid that is not a usable tagid for today?)
+                if ANY tagid is in an open visit
+                    undelete
+        """
+        num_changed = 0
+        return num_changed
+
     def harmonize_biketags(self) -> list[str]:
         """
         Make tagid-types lists match any extant tags with visits.
