@@ -387,18 +387,24 @@ def time_distribution(
     category_width: int = 30,
 ) -> dict[str, int]:
     """Make frequency distribution for list of HH:MM strings."""
-    # make a list of categorized times_list
-    categorized = [
-        str(VTime((VTime(t).num // category_width) * category_width))
-        for t in times_list
-    ]
-    categorized = [t for t in categorized if t]  # remove any nulls
-    freq = dict(collections.Counter(categorized))
-    start_time = VTime(start_time) if start_time else VTime(min(freq))
-    end_time = VTime(end_time) if end_time else VTime(max(freq))
+    categorized: list[VTime] = []
+    for raw_time in times_list:
+        vt = VTime(raw_time)
+        if not vt:
+            continue
+        bucket_minutes = (vt.num // category_width) * category_width
+        bucket_time = VTime(bucket_minutes)
+        if bucket_time:
+            categorized.append(bucket_time)
+    if not categorized:
+        return {}
+    freq = collections.Counter(categorized)
+    start_time = VTime(start_time) if start_time else min(freq)
+    end_time = VTime(end_time) if end_time else max(freq)
     # make a target list of categories (maybe different from the natural list)
     categories = {
-        VTime(t): 0 for t in range(start_time.num, end_time.num + 1, category_width)
+        VTime(bucket_start): 0
+        for bucket_start in range(start_time.num, end_time.num + 1, category_width)
     }
     have_overs = have_unders = False
     for cat_start, cat_count in freq.items():
@@ -412,17 +418,14 @@ def time_distribution(
             have_overs = True
     # if there were items outside our target range, decorate the category names
     # i.e., "12:00" becomes "12:00+"; "01:00" becomes "01:00-"
-    categories = {str(VTime(key).tidy): value for key, value in categories.items()}
+    str_categories = {key.tidy: value for key, value in categories.items()}
     if have_unders:
-        categories[f"{VTime(start_time).tidy}-"] = categories.pop(
-            VTime(start_time).tidy
-        )
+        base_key = start_time.tidy
+        str_categories[f"{base_key}-"] = str_categories.pop(base_key, 0)
     if have_overs:
-        categories[f"{VTime(end_time).tidy}+"] = categories.pop(VTime(end_time).tidy)
-    ##categories = {str(key):value for key,value in categories.items()}
-    categories = {str(key): categories[key] for key in sorted(categories.keys())}
-
-    return categories
+        base_key = end_time.tidy
+        str_categories[f"{base_key}+"] = str_categories.pop(base_key, 0)
+    return {key: str_categories[key] for key in sorted(str_categories.keys())}
 
 
 def random_string(length):
