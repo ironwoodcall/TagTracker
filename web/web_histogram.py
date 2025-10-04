@@ -24,6 +24,7 @@ import sqlite3
 
 import common.tt_util as ut
 import common.tt_dbutil as db
+from common.tt_time import VTime
 import web_common as cc
 
 
@@ -197,12 +198,14 @@ def times_hist_table(
         raise ValueError(f"Bad value for query column, '{query_column}' ")
 
     time_column = query_column
+    time_column_lower = time_column.lower()
     orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
     filter_items: list[str] = []
-    if time_column.lower() == "duration":
+    if time_column_lower == "duration":
         filter_items.append("V.duration IS NOT NULL")
     else:
+        filter_items.append(f"V.{time_column} IS NOT NULL")
         filter_items.append(f"V.{time_column} != ''")
     filter_items.append(f"D.orgsite_id = {orgsite_filter}")
     if start_date:
@@ -218,41 +221,91 @@ def times_hist_table(
         )
     filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
 
-    sql_query = f"""
-SELECT
-    V.{time_column} AS time_value
-FROM
-    DAY D
-JOIN
-    VISIT V ON D.id = V.day_id
-WHERE {filter_clause};
-    """
-    db_rows = db.db_fetch(ttdb, sql_query, ["time_value"])
-    times_list = [row.time_value for row in db_rows]
+    if time_column_lower == "duration":
+        minutes_expression = "CASE WHEN V.duration IS NULL THEN NULL ELSE CAST(V.duration AS INTEGER) END"
+        start_time, end_time = ("00:00", "12:00")
+    else:
+        minutes_expression = (
+            "CASE\n"
+            f"            WHEN V.{time_column} IS NULL OR V.{time_column} = '' THEN NULL\n"
+            f"            WHEN length(V.{time_column}) < 5 THEN NULL\n"
+            f"            WHEN substr(V.{time_column},1,2) = '24' AND substr(V.{time_column},4,2) = '00' THEN 1440\n"
+            f"            ELSE CAST(substr(V.{time_column},1,2) AS INTEGER) * 60 + CAST(substr(V.{time_column},4,2) AS INTEGER)\n"
+            "        END"
+        )
+        start_time, end_time = ("07:00", "22:00")
 
-    day_count_query = f"""
-SELECT
-    COUNT(DISTINCT D.date) AS day_count
-FROM
-    DAY D
-JOIN
-    VISIT V ON D.id = V.day_id
-WHERE {filter_clause};
+    category_minutes = 30
+    base_cte = f"""
+WITH filtered_visits AS (
+    SELECT
+        D.date AS visit_date,
+        {minutes_expression} AS minutes_value
+    FROM
+        DAY D
+    JOIN
+        VISIT V ON D.id = V.day_id
+    WHERE {filter_clause}
+)
     """
+
+    day_count_query = base_cte + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
     day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
     day_count = day_rows[0].day_count if day_rows else 0
     if day_count is None:
         day_count = 0
     elif not isinstance(day_count, int):
         day_count = int(day_count)
-    if query_column == "duration":
-        start_time, end_time = ("00:00", "12:00")
-    else:
-        start_time, end_time = ("07:00", "22:00")
 
-    times_freq = ut.time_distribution(times_list, start_time, end_time, 30)
-    divisor = day_count if day_count else 1
-    averaged_freq = {key: value / divisor for key, value in times_freq.items()}
+    bucket_query = (
+        base_cte
+        + "SELECT\n"
+        f"    minutes_value - (minutes_value % {category_minutes}) AS bucket_start,\n"
+        "    COUNT(*) AS bucket_count\n"
+        "FROM filtered_visits\n"
+        "WHERE minutes_value IS NOT NULL\n"
+        "GROUP BY bucket_start\n"
+        "ORDER BY bucket_start;\n"
+    )
+    bucket_rows = db.db_fetch(ttdb, bucket_query, ["bucket_start", "bucket_count"])
+    bucket_counts: dict[int, int] = {}
+    for row in bucket_rows:
+        if row.bucket_start is None:
+            continue
+        bucket_counts[int(row.bucket_start)] = int(row.bucket_count)
+
+    if not bucket_counts:
+        averaged_freq = {}
+    else:
+        start_minutes = VTime(start_time).num if start_time else min(bucket_counts.keys())
+        end_minutes = VTime(end_time).num if end_time else max(bucket_counts.keys())
+        start_bucket = (start_minutes // category_minutes) * category_minutes
+        end_bucket = (end_minutes // category_minutes) * category_minutes
+        categories_by_minute: dict[int, int] = {
+            minute: 0
+            for minute in range(start_bucket, end_bucket + category_minutes, category_minutes)
+        }
+        have_unders = have_overs = False
+        for bucket_start, count in bucket_counts.items():
+            if bucket_start in categories_by_minute:
+                categories_by_minute[bucket_start] = count
+            elif bucket_start < start_bucket:
+                categories_by_minute[start_bucket] += count
+                have_unders = True
+            elif bucket_start > end_bucket:
+                categories_by_minute[end_bucket] += count
+                have_overs = True
+
+        categories_str = {VTime(minute).tidy: value for minute, value in categories_by_minute.items()}
+        if have_unders:
+            start_label = VTime(start_bucket).tidy
+            categories_str[f"{start_label}-"] = categories_str.pop(start_label, 0)
+        if have_overs:
+            end_label = VTime(end_bucket).tidy
+            categories_str[f"{end_label}+"] = categories_str.pop(end_label, 0)
+        averaged_freq = {
+            key: (value / (day_count or 1)) for key, value in sorted(categories_str.items())
+        }
     if mini:
         top_text = ""
         bottom_text = title
