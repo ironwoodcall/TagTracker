@@ -45,6 +45,9 @@ def html_histogram(
     to dynamically name the styles with random prefixes."""
     ##border_color = "black"
 
+    if not data:
+        return "<p>No data available.</p>"
+
     # Input validation
     if (
         not all(
@@ -64,10 +67,11 @@ def html_histogram(
     # Normalize data values to fit within the num of rows
     max_value = max(data.values(), default=0)
 
-    normalized_data = {
-        key: 0 if not max_value else int(value / max_value * num_data_rows)
-        for key, value in data.items()
-    }
+    normalized_data = {}
+    for key, raw_value in data.items():
+        normalized_data[key] = (
+            0 if not max_value else int((raw_value / max_value) * num_data_rows)
+        )
 
     # Sort data keys for consistent order
     sorted_keys = sorted(data.keys())
@@ -138,7 +142,7 @@ def html_histogram(
                 # Blue-colored cells for data
                 if i == num_data_rows - normalized_data[key]:
                     # Print the value in the highest cell with a {bar_color} background
-                    val = "" if mini else data[key]
+                    val = "" if mini else int(round(data.get(key, 0)))
                     html_table += f"""<td class='{prefix}-bar-cell
                         {prefix}-bar-top-cell'>{val}</td>"""
                 else:
@@ -147,7 +151,7 @@ def html_histogram(
             else:
                 if i == num_data_rows - 1:
                     # Bottom-most cell for a column with no colored blocks
-                    val = "" if mini else data[key]
+                    val = "" if mini else int(round(data.get(key, 0)))
                     html_table += (
                         f"<td class='{prefix}-zero-bar-cell'><b>{val}</b></td>"
                     )
@@ -192,64 +196,78 @@ def times_hist_table(
     if query_column.lower() not in ["time_in", "time_out", "duration"]:
         raise ValueError(f"Bad value for query column, '{query_column}' ")
 
-    def make_sql(
-        time_column: str,
-        start_date: str = None,
-        end_date: str = None,
-        days_of_week: list = None,
-    ) -> str:
-        """Make sql query to fetch the time values from one column."""
-        orgsite_id = 1  # FIXME: orgsite_id hardcoded
+    time_column = query_column
+    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
-        # convert days of week from ISO8601 to as-used by sqlite3
-        filter_items = [f"{time_column} != ''", f"D.orgsite_id = {orgsite_id}"]
-        if start_date:
-            filter_items.append(f"D.DATE >= '{start_date}'")
-        if end_date:
-            filter_items.append(f"D.DATE <= '{end_date}'")
-        if days_of_week:
-            cc.test_dow_parameter(days_of_week, list_ok=True)
-            dow_bits = [int(s) for s in days_of_week.split(",")]
-            zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
-            filter_items.append(
-                f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
-                # f"""strftime('%w',DATE) IN ('{days_of_week}')"""
-            )
-        sql = f"SELECT {time_column} FROM VISIT WHERE {' AND '.join(filter_items)};"
+    filter_items: list[str] = []
+    if time_column.lower() == "duration":
+        filter_items.append("V.duration IS NOT NULL")
+    else:
+        filter_items.append(f"V.{time_column} != ''")
+    filter_items.append(f"D.orgsite_id = {orgsite_filter}")
+    if start_date:
+        filter_items.append(f"D.DATE >= '{start_date}'")
+    if end_date:
+        filter_items.append(f"D.DATE <= '{end_date}'")
+    if days_of_week:
+        cc.test_dow_parameter(days_of_week, list_ok=True)
+        dow_bits = [int(s) for s in days_of_week.split(",")]
+        zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
+        filter_items.append(
+            f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
+        )
+    filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
 
-        sql = f"""
+    sql_query = f"""
 SELECT
-    V.{time_column}
+    V.{time_column} AS time_value
 FROM
     DAY D
 JOIN
     VISIT V ON D.id = V.day_id
-WHERE {' AND '.join(filter_items)};
-        """
-        # ut.squawk(f"{sql=}")
+WHERE {filter_clause};
+    """
+    db_rows = db.db_fetch(ttdb, sql_query, ["time_value"])
+    times_list = [row.time_value for row in db_rows]
 
-        return sql
-
-    sql_query = make_sql(query_column, start_date, end_date, days_of_week)
-    rows = db.db_fetch(ttdb, sql_query, ["time_column"])
-    # print(f"{sql_query=};{len(rows)=}; {query_column=}")
-    times_list = [r.time_column for r in rows]
+    day_count_query = f"""
+SELECT
+    COUNT(DISTINCT D.date) AS day_count
+FROM
+    DAY D
+JOIN
+    VISIT V ON D.id = V.day_id
+WHERE {filter_clause};
+    """
+    day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
+    day_count = day_rows[0].day_count if day_rows else 0
+    if day_count is None:
+        day_count = 0
+    elif not isinstance(day_count, int):
+        day_count = int(day_count)
     if query_column == "duration":
         start_time, end_time = ("00:00", "12:00")
     else:
         start_time, end_time = ("07:00", "22:00")
 
     times_freq = ut.time_distribution(times_list, start_time, end_time, 30)
+    divisor = day_count if day_count else 1
+    averaged_freq = {key: value / divisor for key, value in times_freq.items()}
     if mini:
         top_text = ""
         bottom_text = title
-        rows = 20
+        row_count = 20
     else:
         top_text = title
         bottom_text = subtitle
-        rows = 20
+        row_count = 20
     return html_histogram(
-        times_freq, rows, color, mini=mini, title=top_text, subtitle=bottom_text
+        averaged_freq,
+        row_count,
+        color,
+        mini=mini,
+        title=top_text,
+        subtitle=bottom_text,
     )
     # return chartjs_histogram(times_freq,400,400,bar_color=color,title=top_text,subtitle=bottom_text,)
 
