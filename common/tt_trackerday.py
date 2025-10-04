@@ -682,8 +682,8 @@ class TrackerDay:
                 {
                     TOKEN_TAGID: visit.tagid,
                     TOKEN_BIKE_SIZE: bike_size,
-                    TOKEN_TIME_IN: visit.time_in,
-                    TOKEN_TIME_OUT: visit.time_out,
+                    TOKEN_TIME_IN: visit.time_in.hms if visit.time_in else "",
+                    TOKEN_TIME_OUT: visit.time_out.hms if visit.time_out else "",
                 }
             )
 
