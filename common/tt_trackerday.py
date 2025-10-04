@@ -327,7 +327,7 @@ class TrackerDay:
 
         msg = ""
         if num_deleted or num_recovered:
-            msg = f"Notes adjusted: {num_deleted} deleted, {num_recovered} recovered."
+            msg = f"Notes adjusted: {num_deleted} deactivated, {num_recovered} reactivated."
         return msg
 
     def harmonize_biketags(self) -> list[str]:

@@ -136,7 +136,7 @@ def main_loop(today: TrackerDay):
             notes_changed_msg = today.harmonize_notes()
             if notes_changed_msg:
                 data_changed = True
-                pr.iprint()
+                # pr.iprint()
                 pr.iprint(notes_changed_msg,style=k.SUBTITLE_STYLE)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)

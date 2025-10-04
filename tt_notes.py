@@ -313,7 +313,7 @@ def show_all_notes(
     filtered_notes = notes_list.deleted_notes()
     if filtered_notes:
         show_notes_sublist(
-            filtered_notes, "Deleted notes:", num_indents=2, show_styled=False
+            filtered_notes, "Inactive notes:", num_indents=2, show_styled=False
         )
 
 
@@ -332,10 +332,10 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
 
     text = args[0].strip()  # .lower()
 
-    if text.lower() in {"delete", "del", "d"}:
+    if text.lower() in {"deactiavte", "de", "delete", "del", "d"}:
         return handle_delete_undelete_command(notes_list=notes_list, deleting=True)
 
-    if text.lower() in {"undelete", "undel", "u", "recover"}:
+    if text.lower() in {"recover", "reactivate", "re", "undelete", "undel", "u", "r"}:
         return handle_delete_undelete_command(notes_list=notes_list, deleting=False)
 
     # if text.lower() in {"auto", "autodelete", "ad"}:
@@ -356,10 +356,10 @@ def handle_delete_undelete_command(notes_list: NotesManager, deleting: bool) -> 
 
     if deleting:
         filtered_notes = notes_list.active_notes()
-        verb = "Delete"
+        verb = "Deactivate"
     else:  # recovering a deleted note
         filtered_notes = notes_list.deleted_notes()
-        verb = "Recover"
+        verb = "Reactivate"
 
     if not filtered_notes:
         pr.iprint(f"No notes to {verb}.", style=k.WARNING_STYLE)
