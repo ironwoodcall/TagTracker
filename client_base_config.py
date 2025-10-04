@@ -85,10 +85,6 @@ ESTIMATOR_URL_BASE = ""
 # Maximum length for Notes
 MAX_NOTE_LENGTH = 80
 
-# Notes may be automatically deleted if all tag references are
-# to visits that have been finished for this long
-NOTE_AUTODELETE_DELAY = 10
-
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 10  # mins
 

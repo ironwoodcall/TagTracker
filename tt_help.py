@@ -43,7 +43,7 @@ To enter and change tracking data
   Edit check in/out times      :  EDIT <tag(s)> <in|out> <time>
   Delete a check in/out        :  DELETE <tag(s)> <in|out> <yes>
   Change operating hours       :  HOURS
-  View/manage attendant notes  :  NOTE [DELETE|UNDELETE|note text]
+  View/manage attendant notes  :  NOTE [DEACTIVATE|REACTIVATE|note text]
   View/set bike registrations  :  REGISTER [+n|-n|=n]
   Retire or unretire tags      :  RETIRE | UNRETIRE <tag(s)>
 
@@ -105,7 +105,7 @@ Description:
 """,
 
     CmdKeys.CMD_NOTES: """
-Command: NOTE [note message|DELETE|UNDELETE]
+Command: NOTE [note message|DEACTIVATE|REACTIVATE]
 
 Can be invoked as:
   {}
@@ -119,14 +119,17 @@ Description:
 
     Call without arguments to list current notes.
 
-    The system will automatically delete notes that seem no longer relevant.
-    (E.g. in the examples above, after those bikes are checked back out, then
-    after a 15 minute delay, their corresponding notes will be automatically deleted.)
-    If a note was wrongly deleted, use the 'UNDELETE' command (below), and the
-    system will not auto-delete that note again.
+    The system will automatically deactivate notes that are about tags that
+    are not attached to (within the time span) of a visit.
+    This can be overriden by manually using the NOTE DEACTIVATE or NOTE REACTIVATE
+    commands.
 
-    Call with argument 'DELETE' (or 'DEL' or 'D'), to manually delete notes.
-    Call with argument 'UNDELETE' (or 'UNDEL' or 'U') to recover deleted notes.
+    What this mostly means is that you can trust that most of the time, notes
+    will only appear in the context of tags for which they are relevant.
+
+    Other forms of manual note management:
+        To deactivate: NOTE DEACTIVATE|DE|D|DELETE
+        To reactivate: NOTE REACTIVATE|RE|UNDELETE|UN
 
 """,
 

@@ -38,6 +38,7 @@ from common.tt_biketag import BikeTag
 from common.tt_constants import REGULAR, OVERSIZE, UNKNOWN, RETIRED
 from common.tt_bikevisit import BikeVisit
 from tt_registrations import Registrations
+import tt_notes as n
 
 # from tt_notes_manager import NotesManager
 
@@ -242,7 +243,7 @@ class TrackerDay:
         from tt_notes import NotesManager
 
         self.biketags: dict[TagID, BikeTag] = {}
-        self.notes = NotesManager(biketags=self.biketags)
+        self.notes = NotesManager()
         self.tagids_conform = None  # Are all tagids letter-letter-digits?
         self.filepath = filepath
         self.site_handle = site_handle or ""
@@ -261,6 +262,73 @@ class TrackerDay:
             if t not in self.biketags:
                 self.biketags[t] = BikeTag(t, UNKNOWN)
             self.biketags[t].status = BikeTag.RETIRED
+
+    def harmonize_notes(self) -> str:
+        """
+        Deletes/recovers notes based on their tagids and on visits.
+        Returns a message string about any changes.
+        If no changes, then the string will be empty.
+
+        for each note:
+            ignore if no tagids or if hand deleted/recovered
+            if is active/auto-recovered:
+                (ignore any tagid that is not a usable tagid for today?)
+                if all tagids are in closed visits or are not in any visit
+                    delete
+            if is auto-deleted:
+                (ignore any tagid that is not a usable tagid for today?)
+                if ANY tagid is in an open visit
+                    undelete
+        """
+        num_deleted = 0
+        num_recovered = 0
+        usable_tags = self.regular_tagids | self.oversize_tagids
+        now = VTime('now')
+
+        ut.squawk(f"entering harmonize_notes, {len(usable_tags)=}",cfg.DEBUG)
+        for note in self.notes.notes:
+            note: n.Note
+            ut.squawk(f"Note {note.status} {note.created_at} {note.tags}, {note.text}",cfg.DEBUG)
+            if not note.tags or note.status in n.NOTE_GROUP_HAND:
+                continue
+
+            # Only consider tags that are eligible for use today.
+            tags_to_check = [tag for tag in note.tags if tag in usable_tags]
+            if not tags_to_check:
+                ut.squawk("   No usable tags in list",cfg.DEBUG)
+                continue
+
+            # Determine whether any referenced tag is mid-visit when the note was created.
+            has_tag_in_open_visit = False
+            for tag in tags_to_check:
+                ut.squawk(f"   Tag {tag}",cfg.DEBUG)
+                biketag = self.biketags.get(tag)
+                if not biketag:
+                    continue
+                this_visit = biketag.find_visit(note.created_at)
+                if this_visit is None:
+                    continue
+                if not this_visit.time_out or this_visit.time_out > now:
+                    ut.squawk("      is within a visit",cfg.DEBUG)
+                    has_tag_in_open_visit = True
+                    break
+                ut.squawk("      is NOT within a visit",cfg.DEBUG)
+
+            if note.status in n.NOTE_GROUP_ACTIVE and not has_tag_in_open_visit:
+                ut.squawk("   can auto-delete",cfg.DEBUG)
+                # Active note with no ongoing visits: auto-delete.
+                note.delete(by_hand=False)
+                num_deleted += 1
+            elif note.status in n.NOTE_GROUP_INACTIVE and has_tag_in_open_visit:
+                ut.squawk("   can auto-recover",cfg.DEBUG)
+                # Inactive note tied to an active visit: auto-recover.
+                note.recover(by_hand=False)
+                num_recovered += 1
+
+        msg = ""
+        if num_deleted or num_recovered:
+            msg = f"Notes adjusted: {num_deleted} deactivated, {num_recovered} reactivated."
+        return msg
 
     def harmonize_biketags(self) -> list[str]:
         """

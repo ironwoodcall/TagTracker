@@ -132,10 +132,12 @@ def main_loop(today: TrackerDay):
             if tag_arg is not None:
                 for tag in cmd_bits.result_args[tag_arg]:
                     rep.print_tag_notes(today, tag)
-            # Now, try to autodelete stale notes and print summary LAST
-            deleted = today.notes.autodelete(give_message=True)
-            if deleted > 0:
+            # Now, try to autodelete/recover notes
+            notes_changed_msg = today.harmonize_notes()
+            if notes_changed_msg:
                 data_changed = True
+                # pr.iprint()
+                pr.iprint(notes_changed_msg,style=k.SUBTITLE_STYLE)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
         if data_changed and today.fix_2400_events():

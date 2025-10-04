@@ -10,7 +10,7 @@ import client_base_config as cfg
 import common.tt_constants as k
 from common.tt_biketag import BikeTag
 from common.tt_time import VTime
-from tt_notes import NOTE_ACTIVE, NOTE_DELETED, NOTE_RECOVERED
+from tt_notes import NOTE_ACTIVE, NOTE_AUTO_DELETED, NOTE_HAND_RECOVERED
 
 if TYPE_CHECKING:  # pragma: no cover - imported for typing only
     from common.tt_bikevisit import BikeVisit
@@ -132,8 +132,8 @@ def _notes_summary(today: "TrackerDay") -> str:
     status_bits = []
     for status, label in (
         (NOTE_ACTIVE, "A"),
-        (NOTE_RECOVERED, "R"),
-        (NOTE_DELETED, "D"),
+        (NOTE_HAND_RECOVERED, "R"),
+        (NOTE_AUTO_DELETED, "D"),
     ):
         count = counters.get(status, 0)
         if count:
