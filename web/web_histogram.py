@@ -201,12 +201,15 @@ def times_hist_table(
     time_column_lower = time_column.lower()
     orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
+    minutes_column_map = {
+        "time_in": "V.time_in_minutes",
+        "time_out": "V.time_out_minutes",
+        "duration": "V.duration",
+    }
+    minutes_column = minutes_column_map[time_column_lower]
+
     filter_items: list[str] = []
-    if time_column_lower == "duration":
-        filter_items.append("V.duration IS NOT NULL")
-    else:
-        filter_items.append(f"V.{time_column} IS NOT NULL")
-        filter_items.append(f"V.{time_column} != ''")
+    filter_items.append(f"{minutes_column} IS NOT NULL")
     filter_items.append(f"D.orgsite_id = {orgsite_filter}")
     if start_date:
         filter_items.append(f"D.DATE >= '{start_date}'")
@@ -222,17 +225,8 @@ def times_hist_table(
     filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
 
     if time_column_lower == "duration":
-        minutes_expression = "CASE WHEN V.duration IS NULL THEN NULL ELSE CAST(V.duration AS INTEGER) END"
         start_time, end_time = ("00:00", "12:00")
     else:
-        minutes_expression = (
-            "CASE\n"
-            f"            WHEN V.{time_column} IS NULL OR V.{time_column} = '' THEN NULL\n"
-            f"            WHEN length(V.{time_column}) < 5 THEN NULL\n"
-            f"            WHEN substr(V.{time_column},1,2) = '24' AND substr(V.{time_column},4,2) = '00' THEN 1440\n"
-            f"            ELSE CAST(substr(V.{time_column},1,2) AS INTEGER) * 60 + CAST(substr(V.{time_column},4,2) AS INTEGER)\n"
-            "        END"
-        )
         start_time, end_time = ("07:00", "22:00")
 
     category_minutes = 30
@@ -240,7 +234,7 @@ def times_hist_table(
 WITH filtered_visits AS (
     SELECT
         D.date AS visit_date,
-        {minutes_expression} AS minutes_value
+        {minutes_column} AS minutes_value
     FROM
         DAY D
     JOIN
