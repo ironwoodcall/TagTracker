@@ -487,6 +487,7 @@ class TrackerDay:
         changed = 0
         for visit in self.all_visits():
             visit: BikeVisit
+            ut.squawk(f"{visit.tagid}, {visit.time_in=}, {visit.time_out=}",cfg.DEBUG)
             if visit.time_in == "24:00":
                 visit.time_in = VTime("23:59")
                 changed += 1
