@@ -275,6 +275,16 @@ class BikeTag:
         # Not in use, so must be DONE
         return self.DONE
 
+    def find_visit(self,time:VTime) -> BikeVisit:
+        """Finds the visit (if any) that inludes 'time'."""
+        for v in self.visits:
+            if v.time_in <= time:
+                if not v.time_out:
+                    return v
+                if v.time_out > time:
+                    return v
+        return None
+
     def lint_check(self, allow_quick_checkout: bool = False) -> list[str]:
         """Check the BikeTag for errors. Return any errors as a list.
 

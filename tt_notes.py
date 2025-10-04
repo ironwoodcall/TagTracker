@@ -30,7 +30,8 @@ import tt_printer as pr
 
 # from common.tt_trackerday import TrackerDay
 from common.tt_tag import TagID
-from common.tt_biketag import BikeTag
+
+# from common.tt_biketag import BikeTag
 
 # Note status codes (moved here from tt_constants to localize concerns)
 NOTE_ACTIVE = "A"
@@ -41,7 +42,6 @@ NOTE_HAND_RECOVERED = "R"
 # Groups of note status codes, for convenience
 NOTE_GROUP_ACTIVE = {NOTE_ACTIVE, NOTE_AUTO_RECOVERED, NOTE_HAND_RECOVERED}
 NOTE_GROUP_INACTIVE = {NOTE_AUTO_DELETED, NOTE_HAND_DELETED}
-NOTE_GROUP_HAND = {NOTE_HAND_DELETED, NOTE_HAND_RECOVERED}
 NOTE_GROUP_HAND = {NOTE_HAND_DELETED, NOTE_HAND_RECOVERED}
 NOTE_GROUP_ALL = {
     NOTE_ACTIVE,
@@ -57,13 +57,17 @@ class Note:
 
     # Compiled regular expressions to recognize notes from datafile
     # in current or legacy format, or a straightforward new note from user
+    _STATUS_CHARS = "".join(re.escape(ch) for ch in NOTE_GROUP_ALL)
     _TIME_PATTERN = r"(?:[01][0-9]|2[0-3]):[0-5][0-9]"
     _PACKED_RE = re.compile(
-        rf"^"
-        rf"(?P<status>[{NOTE_ACTIVE}{NOTE_AUTO_DELETED}{NOTE_HAND_RECOVERED}])?\|"
-        rf"(?P<time>{_TIME_PATTERN})?\|"
-        rf"(?P<text>.*)$"
+        rf"^(?P<status>[{_STATUS_CHARS}])?\|(?P<time>{_TIME_PATTERN})?\|(?P<text>.*)$"
     )
+    # _PACKED_RE = re.compile(
+    #     rf"^"
+    #     rf"(?P<status>[{NOTE_GROUP_ALL}])?\|"
+    #     rf"(?P<time>{_TIME_PATTERN})?\|"
+    #     rf"(?P<text>.*)$"
+    # )
     _LEGACY_RE = re.compile(rf"^(?P<time>{_TIME_PATTERN})\s+(?P<text>.*)$")
 
     def __init__(self, init_str: str, oktags: list[TagID] = None):
@@ -88,6 +92,7 @@ class Note:
 
         self.unpack(init_str)
         self.tags = scan_for_tags(text=self.text, oktags=oktags)
+        ut.squawk(f"{','.join(self.tags)=}; '{self.status=}','{self.created_at}','{self.text}'",cfg.DEBUG)
 
     def unpack(self, packed: str) -> None:
         """Unpack a note string into object attributes."""
@@ -123,11 +128,17 @@ class Note:
         time_str = str(self.created_at)  # relies on VTime.__str__()
         return f"{self.status}|{time_str}|{self.text}"
 
-    def delete(self) -> None:
-        self.status = NOTE_AUTO_DELETED
+    def delete(self, by_hand:bool) -> None:
+        if by_hand:
+            self.status = NOTE_HAND_DELETED
+        else:
+            self.status = NOTE_AUTO_DELETED
 
-    def recover(self) -> None:
-        self.status = NOTE_HAND_RECOVERED
+    def recover(self, by_hand:bool) -> None:
+        if by_hand:
+            self.status = NOTE_HAND_RECOVERED
+        else:
+            self.status = NOTE_AUTO_RECOVERED
 
     def pretty(self) -> str:
         pretty_text = f"{self.created_at} {self.text}"
@@ -171,7 +182,7 @@ def scan_for_tags(text: str, oktags: list[TagID] = None) -> list[TagID]:
     tags: list[TagID] = []
     for word in re.findall(r"\w+", text):
         tagid = TagID(word)
-        if tagid and (oktags and tagid in oktags) and tagid not in tags:
+        if tagid and (oktags is None or tagid in oktags) and tagid not in tags:
             tags.append(tagid)
     return tags
 
@@ -179,10 +190,10 @@ def scan_for_tags(text: str, oktags: list[TagID] = None) -> list[TagID]:
 class NotesManager:
     """Look after the notes that the attendant makes through the day."""
 
-    def __init__(self, biketags: dict[TagID, BikeTag]) -> None:
+    def __init__(self) -> None:
         """The only thing we care about is the list of notes."""
         self.notes = []
-        self.biketags = biketags
+        # self.biketags = biketags
 
     def add(self, note_text: str) -> None:
         """Add a new note to the collection."""
@@ -192,7 +203,7 @@ class NotesManager:
         note_text = note_text[: cfg.MAX_NOTE_LENGTH]
         if not note_text:
             return
-        note = Note(note_text, self.biketags)
+        note = Note(note_text)
         self.notes.append(note)
 
     def clear(self) -> None:
@@ -238,14 +249,14 @@ class NotesManager:
     def active_notes(self) -> list:
         """Return sorted list of active/recovered notes."""
         sublist = [
-            n for n in self.notes if n.status in {NOTE_ACTIVE, NOTE_HAND_RECOVERED}
+            n for n in self.notes if n.status in NOTE_GROUP_ACTIVE
         ]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
 
     def deleted_notes(self) -> list:
         """Return sorted list of deleted notes."""
-        sublist = [n for n in self.notes if n.status == NOTE_AUTO_DELETED]
+        sublist = [n for n in self.notes if n.status in NOTE_GROUP_INACTIVE]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
 
@@ -309,7 +320,7 @@ def show_all_notes(
 def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
     """Handle 'notes' command. Returns True if data has changed.
 
-    args[0], if present, is either the keyword 'DELETE' or new note text.
+    args[0], if present, is either a keyword 'DELETE, UNDELETE,etc' or new note text.
     """
     data_changed = False
 
@@ -327,9 +338,9 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
     if text.lower() in {"undelete", "undel", "u", "recover"}:
         return handle_delete_undelete_command(notes_list=notes_list, deleting=False)
 
-    if text.lower() in {"auto", "autodelete", "ad"}:
-        changed = notes_list.autodelete()
-        return changed > 0
+    # if text.lower() in {"auto", "autodelete", "ad"}:
+    #     changed = notes_list.autodelete()
+    #     return changed > 0
 
     # notes_list.add(f"{NOTE_ACTIVE}|{tt_time.VTime('now')}|{args[0]}")
     notes_list.add(args[0])
@@ -339,7 +350,7 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
 
 
 def handle_delete_undelete_command(notes_list: NotesManager, deleting: bool) -> bool:
-    """Handle the delete note or undlete note command."""
+    """Handle the note delete/undelete command."""
     data_changed = False
     pr.iprint()
 
@@ -381,9 +392,9 @@ def handle_delete_undelete_command(notes_list: NotesManager, deleting: bool) -> 
 
     this_note: Note = filtered_notes[note_index - 1]
     if deleting:
-        this_note.delete()
+        this_note.delete(by_hand=True)
     else:
-        this_note.recover()
+        this_note.recover(by_hand=True)
     data_changed = True
     pr.iprint(f"{verb} successful.", style=k.SUBTITLE_STYLE)
     return data_changed

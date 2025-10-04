@@ -196,7 +196,7 @@ def print_tag_notes(day: TrackerDay, target_tag: str):
     """Print active/recovered notes for a given tag."""
     for note in day.notes.active_notes():
         for note_tag in note.tags:
-            if TagID(target_tag) == note_tag.tagid:
+            if TagID(target_tag) == note_tag:
                 pr.iprint(note.pretty(), style=k.WARNING_STYLE)
                 break
 
