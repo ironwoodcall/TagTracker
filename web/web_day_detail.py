@@ -259,17 +259,27 @@ def one_day_tags_report(
         print(f"No information in database for {thisday}")
         return
 
-    print("<div style='display:inline-block'>")
-    print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
+    print(
+        "<div style='display:flex; flex-wrap:wrap; align-items:flex-start;'>"
+    )
+    print("<div style='flex:0 1 auto; min-width:260px; margin-right:1.5em;'>")
+    summary_html, prediction_html = summary_table(
+        day_data,
+        stats,
+        tag_reuses,
+        tag_reuse_pct,
+        highlights,
+        is_today,
+    )
+    print(summary_html)
+    print("</div>")
 
-    summary_table(day_data, stats, tag_reuses, tag_reuse_pct, highlights, is_today)
-    print("</div>")
-    print("<div style='display:inline-block; vertical-align: top;'>")
-    ##print("</div><div>")
-
-    day_activity_histogram(ttdb, thisday)
+    print("<div style='flex:0 0 auto; min-width:260px; text-align:center;'>")
+    print(day_activity_histogram(ttdb, thisday))
     print("</div>")
     print("</div>")
+    if prediction_html:
+        print(prediction_html)
     # print("<br>")
     ##print("</div></div>")
 
@@ -288,8 +298,8 @@ def one_day_tags_report(
     )
 
 
-def day_activity_histogram(ttdb: sqlite3.Connection, today: str):
-    """Render a single mini activity histogram for the one day view."""
+def day_activity_histogram(ttdb: sqlite3.Connection, today: str) -> str:
+    """Return a mini activity histogram for the one day view."""
 
     orgsite_id = 1  # FIXME hardcoded orgsite_id
     graph_link = cc.selfref(
@@ -299,21 +309,17 @@ def day_activity_histogram(ttdb: sqlite3.Connection, today: str):
         pages_back=1,
         text_note="one day",
     )
-    print(
-        web_histogram.activity_hist_table(
-            ttdb,
-            orgsite_id=orgsite_id,
-            start_date=today,
-            end_date=today,
-            mini=True,
-            title=(
-                f"<a href='{graph_link}' "
-                "style='text-decoration:none; font-weight:bold;'>Graphs</a>"
-            ),
-            link_target=graph_link,
-        )
+    return web_histogram.activity_hist_table(
+        ttdb,
+        orgsite_id=orgsite_id,
+        start_date=today,
+        end_date=today,
+        mini=True,
+        title=(
+            f"<a href='{graph_link}' style='text-decoration:none; font-weight:bold;'>Graphs</a>"
+        ),
+        link_target=graph_link,
     )
-    print("<br>")
 
 
 def block_activity_table(
@@ -729,12 +735,13 @@ def summary_table(
                 str(est_min) if est_min == est_max else f"{est_min}-{est_max}"
             )
 
-    print(
+    table_bits: list[str] = []
+    table_bits.append(
         "<table class=general_table summary_table><style>"
         ".summary_table td {text-align:right;}"
         "</style>"
     )
-    print(
+    table_bits.append(
         f"""
         <tr><td colspan=3>Hours of operation:
             {day_data.time_open.tidy} - {day_data.time_closed.tidy}</td></tr>
@@ -743,13 +750,13 @@ def summary_table(
             """
     )
     if is_today and the_estimate is not None:
-        print(
+        table_bits.append(
             f"""
         <tr><td colspan=2>&nbsp;&nbsp;Predicted total bikes today:</td>
             <td>{the_estimate}</td></tr>
         """
         )
-    print(
+    table_bits.append(
         f"""
         <tr><td colspan=2>Most bikes at once (at {day_data.time_fullest_combined.tidy}):</td>
             <td>{day_data.num_fullest_combined}</td></tr>
@@ -764,7 +771,7 @@ def summary_table(
         """
     )
     if not is_today:
-        print(
+        table_bits.append(
             f"""
             <tr><td colspan=2>Shortest visit:</td>
                 <td>{stats.shortest}</td></tr>
@@ -783,25 +790,25 @@ def summary_table(
                 <td>{fmt_none(day_data.precipitation)}</td></tr>
     """
         )
-    print("</table><p></p>")
+    table_bits.append("</table><p></p>")
+    prediction_bits = ""
     if is_today and est is not None and est.state != web_estimator.ERROR:
         detail_link = cc.selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
         audit_link = cc.selfref(what=cc.WHAT_AUDIT)
-        print(
-            # "<table>"
-            # "<tr>"
-            f"""
-            <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            <button type="button" style="padding: 10px; display: inline-block;"
-            onclick="window.location.href='{detail_link}';"><b>Detailed<br>Prediction</b></button>
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            <button type="button" style="padding: 10px; display: inline-block;"
-            onclick="window.location.href='{audit_link}';"><b>Audit<br>Report</b></button>
-            <br><br>
-            """
-            # """<a href="{detail_link}"><b>Detailed estimates</b></a></td></tr>"""
+        result_html = "".join(est.result_msg(as_html=True))
+        prediction_bits = (
+            "<div style='margin-top:0.5em'>"
+            f"{result_html}"
+            "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+            f"<button type=\"button\" style=\"padding: 10px; display: inline-block;\" "
+            f"onclick=\"window.location.href='{detail_link}';\"><b>Detailed<br>Prediction</b></button>"
+            "&nbsp;&nbsp;&nbsp;&nbsp;"
+            f"<button type=\"button\" style=\"padding: 10px; display: inline-block;\" "
+            f"onclick=\"window.location.href='{audit_link}';\"><b>Audit<br>Report</b></button>"
+            "<br><br></div>"
         )
+
+    return "".join(table_bits), prediction_bits
 
 
 def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):
