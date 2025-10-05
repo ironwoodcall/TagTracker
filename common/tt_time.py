@@ -225,96 +225,96 @@ class HMS_VTime(str):
 
 
 
-class HM_VTime(str):
-    # Precompile regex pattern for valid formats with optional colon
-    _TIME_PATTERN_HM = re.compile(r"^(\d+):?(\d{2})$")
+# class HM_VTime(str):
+#     # Precompile regex pattern for valid formats with optional colon
+#     _TIME_PATTERN_HM = re.compile(r"^(\d+):?(\d{2})$")
 
-    def __new__(cls, maybe_time: str = "", allow_large=False):
-        time_str, time_int = cls._convert_time(maybe_time, allow_large)
-        this = super().__new__(cls, time_str)
-        this.num = time_int
-        this.tidy = (
-            time_str.replace("0", " ", 1) if time_str.startswith("0") else time_str
-        )
-        this.short = time_str[1:] if time_str.startswith("0") else time_str
-        this.original = str(maybe_time).strip()
-        return this
+#     def __new__(cls, maybe_time: str = "", allow_large=False):
+#         time_str, time_int = cls._convert_time(maybe_time, allow_large)
+#         this = super().__new__(cls, time_str)
+#         this.num = time_int
+#         this.tidy = (
+#             time_str.replace("0", " ", 1) if time_str.startswith("0") else time_str
+#         )
+#         this.short = time_str[1:] if time_str.startswith("0") else time_str
+#         this.original = str(maybe_time).strip()
+#         return this
 
-    @classmethod
-    def _convert_time(cls, maybe_time, allow_large=False) -> tuple[str, int]:
-        if isinstance(maybe_time, (int, float)):
-            # See if in range.
-            maybe_time = (
-                round(maybe_time) if isinstance(maybe_time, float) else maybe_time
-            )
-            if maybe_time < 0 or (not allow_large and maybe_time >= 1440):
-                return ("", None)
-            return cls._int_to_time(maybe_time), maybe_time
+#     @classmethod
+#     def _convert_time(cls, maybe_time, allow_large=False) -> tuple[str, int]:
+#         if isinstance(maybe_time, (int, float)):
+#             # See if in range.
+#             maybe_time = (
+#                 round(maybe_time) if isinstance(maybe_time, float) else maybe_time
+#             )
+#             if maybe_time < 0 or (not allow_large and maybe_time >= 1440):
+#                 return ("", None)
+#             return cls._int_to_time(maybe_time), maybe_time
 
-        elif isinstance(maybe_time, str):
-            maybe_time = maybe_time.strip()
-            # Special case: "now" means use current time
-            if maybe_time.lower() == "now":
-                now = datetime.now()
-                hours, minutes = now.hour, now.minute
-                return f"{hours:02}:{minutes:02}", hours * 60 + minutes
-            # Pattern match for HH:MM
-            match = cls._TIME_PATTERN_HM.match(maybe_time)
-            if match:
-                hours = int(match.group(1))
-                minutes = int(match.group(2))
-            else:
-                return "", None
-            if hours > 24 and not allow_large or minutes > 59:
-                return "", None
-            return f"{hours:02}:{minutes:02}", hours * 60 + minutes
-        return "", None
+#         elif isinstance(maybe_time, str):
+#             maybe_time = maybe_time.strip()
+#             # Special case: "now" means use current time
+#             if maybe_time.lower() == "now":
+#                 now = datetime.now()
+#                 hours, minutes = now.hour, now.minute
+#                 return f"{hours:02}:{minutes:02}", hours * 60 + minutes
+#             # Pattern match for HH:MM
+#             match = cls._TIME_PATTERN_HM.match(maybe_time)
+#             if match:
+#                 hours = int(match.group(1))
+#                 minutes = int(match.group(2))
+#             else:
+#                 return "", None
+#             if hours > 24 and not allow_large or minutes > 59:
+#                 return "", None
+#             return f"{hours:02}:{minutes:02}", hours * 60 + minutes
+#         return "", None
 
-    def __init__(
-        self, maybe_time: str = "", allow_large=False
-    ):  # pylint:disable=unused-argument
-        """This is here only so that IDE will know the structure of a VTime."""
-        if False:  # pylint: disable=using-constant-test
-            self.num: int = None
-            self.short: str = None
-            self.tidy: str = None
-            self.original: str = None
+#     def __init__(
+#         self, maybe_time: str = "", allow_large=False
+#     ):  # pylint:disable=unused-argument
+#         """This is here only so that IDE will know the structure of a VTime."""
+#         if False:  # pylint: disable=using-constant-test
+#             self.num: int = None
+#             self.short: str = None
+#             self.tidy: str = None
+#             self.original: str = None
 
-    @staticmethod
-    def _int_to_time(int_time) -> str:
-        hours = int_time // 60
-        minutes = int_time % 60
-        return f"{hours:02}:{minutes:02}"
+#     @staticmethod
+#     def _int_to_time(int_time) -> str:
+#         hours = int_time // 60
+#         minutes = int_time % 60
+#         return f"{hours:02}:{minutes:02}"
 
-    # Comparisons are between str representations of itself and other
-    def __eq__(self, other) -> bool:
-        """Define equality to mean represent same tag name."""
-        return bool(str(self) == str(HM_VTime(other)))
+#     # Comparisons are between str representations of itself and other
+#     def __eq__(self, other) -> bool:
+#         """Define equality to mean represent same tag name."""
+#         return bool(str(self) == str(HM_VTime(other)))
 
-    def __lt__(self, other) -> bool:
-        return bool(str(self) < str(HM_VTime(other)))
+#     def __lt__(self, other) -> bool:
+#         return bool(str(self) < str(HM_VTime(other)))
 
-    def __gt__(self, other) -> bool:
-        return bool(str(self) > str(HM_VTime(other)))
+#     def __gt__(self, other) -> bool:
+#         return bool(str(self) > str(HM_VTime(other)))
 
-    def __le__(self, other) -> bool:
-        return bool(str(self) <= str(HM_VTime(other)))
+#     def __le__(self, other) -> bool:
+#         return bool(str(self) <= str(HM_VTime(other)))
 
-    def __ge__(self, other) -> bool:
-        return bool(str(self) >= str(HM_VTime(other)))
+#     def __ge__(self, other) -> bool:
+#         return bool(str(self) >= str(HM_VTime(other)))
 
-    def __ne__(self, other) -> bool:
-        return bool(str(self) != str(HM_VTime(other)))
+#     def __ne__(self, other) -> bool:
+#         return bool(str(self) != str(HM_VTime(other)))
 
-    def __hash__(self):
-        """Make hash int for the object.
+#     def __hash__(self):
+#         """Make hash int for the object.
 
-        Not a simple object so not hashable (ie not usable as a dict key)
-        so must provide own hash method that can be used as a dict key.
-        For these, just hash the tag's string value. Case folding
-        not necessary since it will never contain alpha characters.
-        """
-        return hash(str(self))
+#         Not a simple object so not hashable (ie not usable as a dict key)
+#         so must provide own hash method that can be used as a dict key.
+#         For these, just hash the tag's string value. Case folding
+#         not necessary since it will never contain alpha characters.
+#         """
+#         return hash(str(self))
 
 
 VTime = HMS_VTime
