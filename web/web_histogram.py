@@ -37,17 +37,27 @@ def html_histogram(
     table_width: int = 40,
     border_color: str = "black",
     mini: bool = False,
+    stack_data=None,
+    stack_color: str = "",
+    link_target: str = "",
 ) -> str:
     """Create an html histogram from a dictionary.
+
+    When ``stack_data`` is provided the histogram renders stacked columns, using
+    ``bar_color`` for the base values and ``stack_color`` for the values stacked
+    above them.
 
     Note about css style names.  The css stylesheet is inline and
     its names could conflict with other styles -- including other
     calls to this function on the same html page.  Workaround is
     to dynamically name the styles with random prefixes."""
-    ##border_color = "black"
 
-    if not data:
+    stack_data = stack_data or {}
+    if not data and not stack_data:
         return "<p>No data available.</p>"
+
+    bar_color = bar_color or "blue"
+    stack_color = stack_color or "royalblue"
 
     # Input validation
     if (
@@ -62,26 +72,67 @@ def html_histogram(
     ):
         return "Invalid input."
 
+    all_keys = sorted(set(data.keys()) | set(stack_data.keys()))
+    num_columns = len(all_keys)
+    if num_columns == 0:
+        return "<p>No data available.</p>"
+
     # Each style sheet must be unique wrt its classes in case mult on one page
     prefix = ut.random_string(4)
 
     # Normalize data values to fit within the num of rows
-    max_value = max(data.values(), default=0)
+    totals: dict[str, float] = {}
+    base_values: dict[str, float] = {}
+    stack_values: dict[str, float] = {}
+    for key in all_keys:
+        base_values[key] = float(data.get(key, 0) or 0)
+        stack_values[key] = float(stack_data.get(key, 0) or 0)
+        totals[key] = base_values[key] + stack_values[key]
 
-    normalized_data = {}
-    for key, raw_value in data.items():
-        normalized_data[key] = (
-            0 if not max_value else int((raw_value / max_value) * num_data_rows)
-        )
+    max_value = max(totals.values(), default=0)
 
-    # Sort data keys for consistent order
-    sorted_keys = sorted(data.keys())
+    normalized_primary: dict[str, int] = {}
+    normalized_secondary: dict[str, int] = {}
+    normalized_totals: dict[str, int] = {}
+
+    for key in all_keys:
+        combined_value = totals[key]
+        if max_value:
+            total_height = int(round((combined_value / max_value) * num_data_rows))
+        else:
+            total_height = 0
+
+        if stack_values[key] and combined_value and total_height:
+            primary_height = int(round((base_values[key] / combined_value) * total_height))
+            secondary_height = total_height - primary_height
+        else:
+            primary_height = total_height
+            secondary_height = 0
+
+        normalized_primary[key] = max(primary_height, 0)
+        normalized_secondary[key] = max(secondary_height, 0)
+        normalized_totals[key] = max(total_height, 0)
 
     # Calculate cell width
-    cell_width = 100 / len(data)
+    cell_width = 100 / num_columns
     padding_value = max(
-        0.2, max([len(k) for k in sorted_keys]) * 0.2
+        0.2, max([len(k) for k in all_keys]) * 0.2
     )  # FIXME: may require adjustment
+
+    secondary_styles = ""
+    if any(normalized_secondary.values()):
+        secondary_styles = f"""
+        .{prefix}-bar-cell-secondary {{
+            background-color: {stack_color}; width: {cell_width}%;
+            border-left: 1px solid {border_color}; border-right: 1px solid {border_color};
+        }}
+        .{prefix}-bar-top-cell-secondary {{
+            text-align: center; font-size: 0.8em;
+            color: white; background-color: {stack_color};
+            border-left: 1px solid {border_color}; border-right: 1px solid {border_color};
+            border-top: 1px solid {border_color};
+        }}
+        """
 
     # Build the HTML table with inline CSS styles
     html_table = f"""
@@ -113,93 +164,110 @@ def html_histogram(
         }}
         .{prefix}-emptiness-cell {{ background-color: white; width: {cell_width}%; }}
         .{prefix}-titles {{ text-align: center; background-color: white; }}
+        {secondary_styles}
     </style>
     """
 
+    table_open = f"<table class='{prefix}-table'>"
+    table_close = "</table>"
+    if link_target:
+        table_open = (
+            f"<a href='{link_target}' style='text-decoration:none; color:inherit;'>"
+            f"{table_open}"
+        )
+        table_close = f"{table_close}</a>"
+
     html_table += f"""
-        <table class="{prefix}-table">
+        {table_open}
 
         """
     # Add the title in otherwise blank row at top
-    html_table += f"""<tr><td colspan='{len(data)}' class='{prefix}-titles'
+    html_table += f"""<tr><td colspan='{num_columns}' class='{prefix}-titles'
         >{title}</td></tr>"""
 
     # Add an empty row at the top
     html_table += "<tr>"
-    for key in sorted_keys:
-        html_table += "<td class='{prefix}-empty-cell'>&nbsp;</td>"
+    for key in all_keys:
+        html_table += f"<td class='{prefix}-empty-cell'>&nbsp;</td>"
     html_table += "</tr>"
 
     empty_text = "" if mini else "&nbsp;"
-    for i in range(num_data_rows + 1):
+    for row_index in range(num_data_rows):
         html_table += "<tr>"
+        for key in all_keys:
+            total_height = normalized_totals[key]
+            primary_height = normalized_primary[key]
+            secondary_height = normalized_secondary[key]
 
-        for key in sorted_keys:
-            if i == num_data_rows:
-                if not mini:
-                    # Category label at the bottom (rotated 90 degrees)
-                    html_table += f"<td class='{prefix}-category-label'>{key}</td>"
-            elif i >= num_data_rows - normalized_data[key]:
-                # Blue-colored cells for data
-                if i == num_data_rows - normalized_data[key]:
-                    # Print the value in the highest cell with a {bar_color} background
-                    val = "" if mini else int(round(data.get(key, 0)))
-                    html_table += f"""<td class='{prefix}-bar-cell
-                        {prefix}-bar-top-cell'>{val}</td>"""
-                else:
-                    # Other {bar_color} cells
-                    html_table += f"<td class='{prefix}-bar-cell'>{empty_text}</td>"
-            else:
-                if i == num_data_rows - 1:
-                    # Bottom-most cell for a column with no colored blocks
-                    val = "" if mini else int(round(data.get(key, 0)))
+            if total_height == 0:
+                if row_index == num_data_rows - 1:
+                    val = "" if mini else int(round(totals[key]))
                     html_table += (
                         f"<td class='{prefix}-zero-bar-cell'><b>{val}</b></td>"
                     )
                 else:
-                    # White background cells above the data
                     html_table += (
                         f"<td class='{prefix}-emptiness-cell'>{empty_text}</td>"
                     )
+                continue
 
+            row_from_bottom = num_data_rows - 1 - row_index
+            if row_from_bottom >= total_height:
+                html_table += (
+                    f"<td class='{prefix}-emptiness-cell'>{empty_text}</td>"
+                )
+                continue
+
+            is_top_cell = row_from_bottom == total_height - 1
+            in_primary = row_from_bottom < primary_height
+
+            if in_primary:
+                classes = f"{prefix}-bar-cell"
+                if is_top_cell and secondary_height == 0:
+                    classes += f" {prefix}-bar-top-cell"
+            else:
+                classes = f"{prefix}-bar-cell-secondary"
+                if is_top_cell:
+                    classes += f" {prefix}-bar-top-cell-secondary"
+
+            if is_top_cell:
+                display_val = "" if mini else int(round(totals[key]))
+            else:
+                display_val = empty_text
+
+            html_table += f"<td class='{classes}'>{display_val}</td>"
+
+        html_table += "</tr>\n"
+
+    if not mini:
+        html_table += "<tr>"
+        for key in all_keys:
+            html_table += f"<td class='{prefix}-category-label'>{key}</td>"
         html_table += "</tr>\n"
 
     # Add a caption below category labels
     if subtitle:
-        html_table += f"""<tr><td colspan='{len(data)}' class='{prefix}-titles'
+        html_table += f"""<tr><td colspan='{num_columns}' class='{prefix}-titles'
             style='font-size:0.85em'>{subtitle}</td></tr>"""
 
-    html_table += "</table>"
+    html_table += table_close
     return html_table
 
 
-def times_hist_table(
+def time_histogram_data(
     ttdb: sqlite3.Connection,
-    orgsite_id:int,
+    orgsite_id: int,
     query_column: str,
     start_date: str = None,
     end_date: str = None,
     days_of_week: str = None,
-    title: str = "",
-    subtitle: str = "",
-    color: str = None,
-    mini: bool = False,
-) -> str:
-    """Create one html histogram table on lengths of visit.
+    category_minutes: int = 30,
+) -> tuple[dict[str, float], int]:
+    """Return averaged histogram data for the requested time column."""
 
-    Parameters:
-        query_column: time_in, time_out or duration (VISIT table)
-        start_date, end_date: the date range as date_str() compatible strings.
-            If missing, uses earliest & latest date in database.
-        days_of_week: "" or "6" or "4,5,6" etc. ISO8601 integer days of week. If multiple
-            days of week are given, will include only those days of the week.
-    """
-    if query_column.lower() not in ["time_in", "time_out", "duration"]:
+    time_column_lower = query_column.lower()
+    if time_column_lower not in {"time_in", "time_out", "duration"}:
         raise ValueError(f"Bad value for query column, '{query_column}' ")
-
-    time_column = query_column
-    time_column_lower = time_column.lower()
-    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
     minutes_column_map = {
         "time_in": "V.time_in_minutes",
@@ -208,9 +276,9 @@ def times_hist_table(
     }
     minutes_column = minutes_column_map[time_column_lower]
 
-    filter_items: list[str] = []
-    filter_items.append(f"{minutes_column} IS NOT NULL")
-    filter_items.append(f"D.orgsite_id = {orgsite_filter}")
+    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
+
+    filter_items: list[str] = [f"{minutes_column} IS NOT NULL", f"D.orgsite_id = {orgsite_filter}"]
     if start_date:
         filter_items.append(f"D.DATE >= '{start_date}'")
     if end_date:
@@ -229,7 +297,6 @@ def times_hist_table(
     else:
         start_time, end_time = ("07:00", "22:00")
 
-    category_minutes = 30
     base_cte = f"""
 WITH filtered_visits AS (
     SELECT
@@ -243,7 +310,10 @@ WITH filtered_visits AS (
 )
     """
 
-    day_count_query = base_cte + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
+    day_count_query = (
+        base_cte
+        + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
+    )
     day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
     day_count = day_rows[0].day_count if day_rows else 0
     if day_count is None:
@@ -269,7 +339,7 @@ WITH filtered_visits AS (
         bucket_counts[int(row.bucket_start)] = int(row.bucket_count)
 
     if not bucket_counts:
-        averaged_freq = {}
+        averaged_freq: dict[str, float] = {}
     else:
         start_minutes = VTime(start_time).num if start_time else min(bucket_counts.keys())
         end_minutes = VTime(end_time).num if end_time else max(bucket_counts.keys())
@@ -290,7 +360,9 @@ WITH filtered_visits AS (
                 categories_by_minute[end_bucket] += count
                 have_overs = True
 
-        categories_str = {VTime(minute).tidy: value for minute, value in categories_by_minute.items()}
+        categories_str = {
+            VTime(minute).tidy: value for minute, value in categories_by_minute.items()
+        }
         if have_unders:
             start_label = VTime(start_bucket).tidy
             categories_str[f"{start_label}-"] = categories_str.pop(start_label, 0)
@@ -300,6 +372,33 @@ WITH filtered_visits AS (
         averaged_freq = {
             key: (value / (day_count or 1)) for key, value in sorted(categories_str.items())
         }
+
+    return averaged_freq, day_count
+
+
+def times_hist_table(
+    ttdb: sqlite3.Connection,
+    orgsite_id:int,
+    query_column: str,
+    start_date: str = None,
+    end_date: str = None,
+    days_of_week: str = None,
+    title: str = "",
+    subtitle: str = "",
+    color: str = None,
+    mini: bool = False,
+) -> str:
+    """Create one html histogram table on lengths of visit."""
+
+    averaged_freq, _ = time_histogram_data(
+        ttdb,
+        orgsite_id=orgsite_id,
+        query_column=query_column,
+        start_date=start_date,
+        end_date=end_date,
+        days_of_week=days_of_week,
+    )
+
     if mini:
         top_text = ""
         bottom_text = title
@@ -315,6 +414,60 @@ WITH filtered_visits AS (
         mini=mini,
         title=top_text,
         subtitle=bottom_text,
+    )
+
+
+def activity_hist_table(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    start_date: str = None,
+    end_date: str = None,
+    days_of_week: str = None,
+    title: str = "",
+    subtitle: str = "",
+    inbound_color: str = "lightcoral",
+    outbound_color: str = "lightskyblue",
+    mini: bool = False,
+    link_target: str = "",
+) -> str:
+    """Render a stacked histogram for arrivals (bottom) and departures (top)."""
+
+    arrivals, _ = time_histogram_data(
+        ttdb,
+        orgsite_id=orgsite_id,
+        query_column="time_in",
+        start_date=start_date,
+        end_date=end_date,
+        days_of_week=days_of_week,
+    )
+    departures, _ = time_histogram_data(
+        ttdb,
+        orgsite_id=orgsite_id,
+        query_column="time_out",
+        start_date=start_date,
+        end_date=end_date,
+        days_of_week=days_of_week,
+    )
+
+    if mini:
+        top_text = ""
+        bottom_text = title
+        row_count = 20
+    else:
+        top_text = title
+        bottom_text = subtitle
+        row_count = 20
+
+    return html_histogram(
+        arrivals,
+        row_count,
+        inbound_color,
+        mini=mini,
+        title=top_text,
+        subtitle=bottom_text,
+        stack_data=departures,
+        stack_color=outbound_color,
+        link_target=link_target,
     )
     # return chartjs_histogram(times_freq,400,400,bar_color=color,title=top_text,subtitle=bottom_text,)
 

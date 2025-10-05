@@ -155,19 +155,19 @@ def season_frequencies_report(
             "duration",
             "Length of visits",
             "Frequency distribution of lengths of visits",
-            "teal",
+            "mediumseagreen",
         ),
         (
             "time_in",
             "When bikes arrived",
             "Frequency distribution of arrival times",
-            "crimson",
+            "lightcoral",
         ),
         (
             "time_out",
             "When bikes departed",
             "Frequency distribution of departure times",
-            "royalblue",
+            "lightskyblue",
         ),
     )
     back_button = f"{cc.main_and_back_buttons(pages_back)}<p></p>"
@@ -194,6 +194,26 @@ def season_frequencies_report(
                 self_url, default_start_date=start_date, default_end_date=end_date
             )
         )
+
+    activity_title = "Activity"
+    if title_bit:
+        activity_title = f"{activity_title} ({title_bit})"
+    activity_title = f"<h2>{activity_title}</h2>"
+    activity_subtitle = (
+        "Average bikes per day by 30-minute interval (soft red=in, soft blue=out)"
+    )
+    print(
+        web_histogram.activity_hist_table(
+            ttdb,
+            orgsite_id=orgsite_id,
+            days_of_week=dow_parameter,
+            title=activity_title,
+            subtitle=activity_subtitle,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    )
+    print("<br><br>")
 
     for parameters in table_vars:
         column, title, subtitle, color = parameters

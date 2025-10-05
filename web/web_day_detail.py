@@ -267,7 +267,7 @@ def one_day_tags_report(
     print("<div style='display:inline-block; vertical-align: top;'>")
     ##print("</div><div>")
 
-    mini_freq_tables(ttdb, thisday)
+    day_activity_histogram(ttdb, thisday)
     print("</div>")
     print("</div>")
     # print("<br>")
@@ -288,36 +288,32 @@ def one_day_tags_report(
     )
 
 
-def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
-    table_vars = (
-        ("duration", "Visit length", "teal"),
-        ("time_in", "Time in", "crimson"),
-        ("time_out", "Time out", "royalblue"),
-    )
+def day_activity_histogram(ttdb: sqlite3.Connection, today: str):
+    """Render a single mini activity histogram for the one day view."""
+
     orgsite_id = 1  # FIXME hardcoded orgsite_id
-    for parameters in table_vars:
-        column, title, color = parameters
-        graph_link = cc.selfref(
-            what=cc.WHAT_ONE_DAY_FREQUENCIES,
+    graph_link = cc.selfref(
+        what=cc.WHAT_ONE_DAY_FREQUENCIES,
+        start_date=today,
+        end_date=today,
+        pages_back=1,
+        text_note="one day",
+    )
+    print(
+        web_histogram.activity_hist_table(
+            ttdb,
+            orgsite_id=orgsite_id,
             start_date=today,
             end_date=today,
-            pages_back=1,
-            text_note="one day",
+            mini=True,
+            title=(
+                f"<a href='{graph_link}' "
+                "style='text-decoration:none; font-weight:bold;'>Graphs</a>"
+            ),
+            link_target=graph_link,
         )
-        title = f"<a href='{graph_link}'>{title}</a>"
-        print(
-            web_histogram.times_hist_table(
-                ttdb,
-                orgsite_id=orgsite_id,
-                query_column=column,
-                start_date=today,
-                end_date=today,
-                mini=True,
-                color=color,
-                title=title,
-            )
-        )
-        print("<br>")
+    )
+    print("<br>")
 
 
 def block_activity_table(
