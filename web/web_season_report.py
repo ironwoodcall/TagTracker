@@ -29,6 +29,7 @@ import common.tt_util as ut
 import web_common as cc
 import datacolors as dc
 import web_histogram
+from web.web_base_config import HIST_FIXED_Y_AXIS_DURATION
 from web_daterange_selector import generate_date_filter_form
 import common.tt_dbutil as db
 from common.tt_time import VTime
@@ -215,10 +216,29 @@ def season_frequencies_report(
     )
     print("<br><br>")
 
+    fullness_title = "Parking fullness"
+    if title_bit:
+        fullness_title = f"{fullness_title} ({title_bit})"
+    fullness_title = f"<h2>{fullness_title}</h2>"
+    fullness_subtitle = "Average bikes on site by 30-minute interval"
+    print(
+        web_histogram.fullness_hist_table(
+            ttdb,
+            orgsite_id=orgsite_id,
+            days_of_week=dow_parameter,
+            title=fullness_title,
+            subtitle=fullness_subtitle,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    )
+    print("<br><br>")
+
     for parameters in table_vars:
         column, title, subtitle, color = parameters
         title = f"{title} ({title_bit})" if title_bit else title
         title = f"<h2>{title}</h2>"
+        fixed_max = HIST_FIXED_Y_AXIS_DURATION if column == "duration" else None
         print(
             web_histogram.times_hist_table(
                 ttdb,
@@ -230,6 +250,7 @@ def season_frequencies_report(
                 subtitle=subtitle,
                 start_date=start_date,
                 end_date=end_date,
+                max_value=fixed_max,
             )
         )
         print("<br><br>")

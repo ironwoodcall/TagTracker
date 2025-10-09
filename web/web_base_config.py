@@ -60,6 +60,11 @@ EST_CONF_THRESHOLDS = {
 # by leaving out the random forest model
 EST_TYPE_FOR_ONEDAY_SUMMARY = "STANDARD"   # QUICK or STANDARD
 
+# Fixed Y-axis maximums for web histograms (set to a positive number to enable)
+HIST_FIXED_Y_AXIS_ACTIVITY = None
+HIST_FIXED_Y_AXIS_FULLNESS = None
+HIST_FIXED_Y_AXIS_DURATION = None
+
 # Confidence bands (display ranges) per measure.
 # Measures: remainder (further bikes), activity (next-hour ins+outs),
 # peak (max bikes today), peaktime (time of max, minutes).

@@ -26,6 +26,11 @@ import common.tt_util as ut
 import common.tt_dbutil as db
 from common.tt_time import VTime
 import web_common as cc
+from web.web_base_config import (
+    HIST_FIXED_Y_AXIS_ACTIVITY,
+    HIST_FIXED_Y_AXIS_DURATION,
+    HIST_FIXED_Y_AXIS_FULLNESS,
+)
 
 
 def html_histogram(
@@ -40,6 +45,7 @@ def html_histogram(
     stack_data=None,
     stack_color: str = "",
     link_target: str = "",
+    max_value: float | None = None,
 ) -> str:
     """Create an html histogram from a dictionary.
 
@@ -89,7 +95,16 @@ def html_histogram(
         stack_values[key] = float(stack_data.get(key, 0) or 0)
         totals[key] = base_values[key] + stack_values[key]
 
-    max_value = max(totals.values(), default=0)
+    provided_max = None
+    if max_value is not None:
+        try:
+            provided_max = float(max_value)
+        except (TypeError, ValueError):
+            provided_max = None
+        if provided_max is not None and provided_max <= 0:
+            provided_max = None
+
+    reference_max = provided_max if provided_max is not None else max(totals.values(), default=0)
 
     normalized_primary: dict[str, int] = {}
     normalized_secondary: dict[str, int] = {}
@@ -97,13 +112,16 @@ def html_histogram(
 
     for key in all_keys:
         combined_value = totals[key]
-        if max_value:
-            total_height = int(round((combined_value / max_value) * num_data_rows))
+        if reference_max:
+            clamped_total = min(combined_value, reference_max) if provided_max else combined_value
+            total_height = int(round((clamped_total / reference_max) * num_data_rows))
         else:
             total_height = 0
 
         if stack_values[key] and combined_value and total_height:
-            primary_height = int(round((base_values[key] / combined_value) * total_height))
+            base_ratio = base_values[key] / combined_value if combined_value else 0
+            base_ratio = min(max(base_ratio, 0), 1)
+            primary_height = int(round(total_height * base_ratio))
             secondary_height = total_height - primary_height
         else:
             primary_height = total_height
@@ -114,7 +132,14 @@ def html_histogram(
         normalized_totals[key] = max(total_height, 0)
 
     # Calculate cell width
-    cell_width = 100 / num_columns
+    if mini:
+        cell_width = max(0.4, min(1.0, 6.0 / max(num_columns, 1)))
+        cell_width_style = f"{cell_width}em"
+        empty_width_style = cell_width_style
+    else:
+        cell_width = 100 / num_columns if num_columns else 0
+        cell_width_style = f"{cell_width}%" if num_columns else "auto"
+        empty_width_style = cell_width_style
     padding_value = max(
         0.2, max([len(k) for k in all_keys]) * 0.2
     )  # FIXME: may require adjustment
@@ -140,14 +165,15 @@ def html_histogram(
         .{prefix}-table {{ font-family: sans-serif;
                 border-collapse: collapse; border: 1px solid {border_color};
                 width: {table_width}%;}}
-        .{prefix}-empty-cell {{ background-color: white; width: {cell_width}%; }}
+        .{prefix}-empty-cell {{ background-color: white; width: {empty_width_style}; min-width: {empty_width_style}; max-width: {empty_width_style}; }}
         .{prefix}-category-label {{
             transform: rotate(-90deg); padding: {padding_value}em 0;
             border: 1px solid {border_color};border-top: 2px solid {bar_color};
             font-size: 0.85em; text-align: center;
         }}
         .{prefix}-bar-cell {{
-            background-color: {bar_color}; width: {cell_width}%;
+            background-color: {bar_color}; width: {cell_width_style};
+            min-width: {cell_width_style}; max-width: {cell_width_style};
             border-left: 1px solid {border_color}; border-right: 1px solid {border_color};
         }}
         .{prefix}-bar-top-cell {{
@@ -158,11 +184,11 @@ def html_histogram(
         }}
         .{prefix}-zero-bar-cell {{
             text-align: center; font-size: 0.8em;
-            color: {bar_color}; background-color: white; width: {cell_width}%;
+            color: {bar_color}; background-color: white; width: {cell_width_style};
             border-left: 1px solid {border_color}; border-right: 1px solid {border_color};
             border-bottom: 2px solid {bar_color}
         }}
-        .{prefix}-emptiness-cell {{ background-color: white; width: {cell_width}%; }}
+        .{prefix}-emptiness-cell {{ background-color: white; width: {empty_width_style}; min-width: {empty_width_style}; max-width: {empty_width_style}; }}
         .{prefix}-titles {{ text-align: center; background-color: white; }}
         {secondary_styles}
     </style>
@@ -182,14 +208,16 @@ def html_histogram(
 
         """
     # Add the title in otherwise blank row at top
-    html_table += f"""<tr><td colspan='{num_columns}' class='{prefix}-titles'
-        >{title}</td></tr>"""
+    if title and not mini:
+        html_table += f"""<tr><td colspan='{num_columns}' class='{prefix}-titles'
+            >{title}</td></tr>"""
 
-    # Add an empty row at the top
-    html_table += "<tr>"
-    for key in all_keys:
-        html_table += f"<td class='{prefix}-empty-cell'>&nbsp;</td>"
-    html_table += "</tr>"
+    if not mini:
+        # Add an empty row at the top to create spacing above the bars
+        html_table += "<tr>"
+        for key in all_keys:
+            html_table += f"<td class='{prefix}-empty-cell'>&nbsp;</td>"
+        html_table += "</tr>"
 
     empty_text = "" if mini else "&nbsp;"
     for row_index in range(num_data_rows):
@@ -279,6 +307,9 @@ def time_histogram_data(
     orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
     filter_items: list[str] = [f"{minutes_column} IS NOT NULL", f"D.orgsite_id = {orgsite_filter}"]
+    if time_column_lower == "duration":
+        filter_items.append("V.time_out IS NOT NULL")
+        filter_items.append("V.time_out <> ''")
     if start_date:
         filter_items.append(f"D.DATE >= '{start_date}'")
     if end_date:
@@ -376,6 +407,139 @@ WITH filtered_visits AS (
     return averaged_freq, day_count
 
 
+def fullness_histogram_data(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    start_date: str = None,
+    end_date: str = None,
+    days_of_week: str = None,
+    category_minutes: int = 30,
+) -> tuple[dict[str, float], int]:
+    """Return averaged fullness data (bikes on hand) for each time block."""
+
+    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
+
+    filter_items: list[str] = [
+        "B.num_on_hand_combined IS NOT NULL",
+        f"D.orgsite_id = {orgsite_filter}",
+    ]
+    if start_date:
+        filter_items.append(f"D.DATE >= '{start_date}'")
+    if end_date:
+        filter_items.append(f"D.DATE <= '{end_date}'")
+    if days_of_week:
+        cc.test_dow_parameter(days_of_week, list_ok=True)
+        dow_bits = [int(s) for s in days_of_week.split(",")]
+        zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
+        filter_items.append(
+            f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
+        )
+    filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
+
+    day_count_query = f"""
+        SELECT COUNT(DISTINCT D.DATE) AS day_count
+        FROM DAY D
+        JOIN BLOCK B ON B.day_id = D.id
+        WHERE {filter_clause}
+    """
+    day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
+    day_count = day_rows[0].day_count if day_rows else 0
+    if day_count is None:
+        day_count = 0
+    elif not isinstance(day_count, int):
+        day_count = int(day_count)
+
+    bucket_query = f"""
+        SELECT
+            B.time_start AS bucket_start,
+            AVG(B.num_on_hand_combined) AS avg_fullness,
+            COUNT(*) AS sample_count
+        FROM DAY D
+        JOIN BLOCK B ON B.day_id = D.id
+        WHERE {filter_clause}
+        GROUP BY B.time_start
+        ORDER BY B.time_start
+    """
+    bucket_rows = db.db_fetch(
+        ttdb, bucket_query, ["bucket_start", "avg_fullness", "sample_count"]
+    )
+
+    bucket_totals: dict[int, float] = {}
+    bucket_counts: dict[int, int] = {}
+    for row in bucket_rows:
+        bucket_time = VTime(row.bucket_start)
+        if not bucket_time or getattr(bucket_time, "num", None) is None:
+            continue
+        minute_value = int(bucket_time.num)
+        sample_count = int(row.sample_count or 0)
+        if sample_count <= 0:
+            continue
+        avg_fullness = float(row.avg_fullness or 0.0)
+        bucket_totals[minute_value] = bucket_totals.get(minute_value, 0.0) + (
+            avg_fullness * sample_count
+        )
+        bucket_counts[minute_value] = bucket_counts.get(minute_value, 0) + sample_count
+
+    if not bucket_totals:
+        return {}, day_count
+
+    start_minutes = VTime("07:00").num
+    end_minutes = VTime("22:00").num
+    if start_minutes is None or end_minutes is None:
+        return {}, day_count
+
+    start_bucket = (start_minutes // category_minutes) * category_minutes
+    end_bucket = (end_minutes // category_minutes) * category_minutes
+    bucket_range = range(start_bucket, end_bucket + category_minutes, category_minutes)
+
+    buckets_to_totals: dict[int, float] = {minute: 0.0 for minute in bucket_range}
+    buckets_to_counts: dict[int, int] = {minute: 0 for minute in bucket_range}
+    have_unders = have_overs = False
+
+    for minute_value, total_fullness in bucket_totals.items():
+        bucket_minute = (minute_value // category_minutes) * category_minutes
+        count = bucket_counts.get(minute_value, 0)
+        if count <= 0:
+            continue
+        if bucket_minute < start_bucket:
+            buckets_to_totals[start_bucket] += total_fullness
+            buckets_to_counts[start_bucket] += count
+            have_unders = True
+        elif bucket_minute > end_bucket:
+            buckets_to_totals[end_bucket] += total_fullness
+            buckets_to_counts[end_bucket] += count
+            have_overs = True
+        else:
+            buckets_to_totals.setdefault(bucket_minute, 0.0)
+            buckets_to_counts.setdefault(bucket_minute, 0)
+            buckets_to_totals[bucket_minute] += total_fullness
+            buckets_to_counts[bucket_minute] += count
+
+    ordered_pairs: list[tuple[str, float]] = []
+    for minute in bucket_range:
+        vt = VTime(minute)
+        if not vt:
+            continue
+        label = vt.tidy if hasattr(vt, "tidy") else str(vt)
+        total = buckets_to_totals.get(minute, 0.0)
+        count = buckets_to_counts.get(minute, 0)
+        avg_value = total / count if count else 0.0
+        ordered_pairs.append((label, avg_value))
+
+    if ordered_pairs and have_unders:
+        start_label, start_value = ordered_pairs[0]
+        ordered_pairs[0] = (f"{start_label}-", start_value)
+
+    if ordered_pairs and have_overs:
+        end_idx = len(ordered_pairs) - 1
+        end_label, end_value = ordered_pairs[end_idx]
+        ordered_pairs[end_idx] = (f"{end_label}+", end_value)
+
+    averaged_fullness = dict(ordered_pairs)
+
+    return averaged_fullness, day_count
+
+
 def times_hist_table(
     ttdb: sqlite3.Connection,
     orgsite_id:int,
@@ -387,6 +551,7 @@ def times_hist_table(
     subtitle: str = "",
     color: str = None,
     mini: bool = False,
+    max_value: float | None = None,
 ) -> str:
     """Create one html histogram table on lengths of visit."""
 
@@ -414,6 +579,57 @@ def times_hist_table(
         mini=mini,
         title=top_text,
         subtitle=bottom_text,
+        max_value=max_value,
+    )
+
+
+def fullness_hist_table(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    start_date: str = None,
+    end_date: str = None,
+    days_of_week: str = None,
+    title: str = "",
+    subtitle: str = "",
+    bar_color: str = "darkcyan",
+    mini: bool = False,
+    link_target: str = "",
+) -> str:
+    """Render a histogram of bikes on hand (fullness) by time block."""
+
+    averaged_fullness, day_count = fullness_histogram_data(
+        ttdb,
+        orgsite_id=orgsite_id,
+        start_date=start_date,
+        end_date=end_date,
+        days_of_week=days_of_week,
+    )
+
+    if not averaged_fullness:
+        return "<p>No data available.</p>"
+
+    if mini:
+        top_text = ""
+        bottom_text = title
+        row_count = 20
+    else:
+        top_text = title
+        extra = ""
+        if day_count:
+            plural = "day" if day_count == 1 else "days"
+            extra = f" (averaged across {day_count} {plural})"
+        bottom_text = f"{subtitle}{extra}" if subtitle else extra.strip()
+        row_count = 20
+
+    return html_histogram(
+        averaged_fullness,
+        row_count,
+        bar_color,
+        mini=mini,
+        title=top_text,
+        subtitle=bottom_text,
+        link_target=link_target,
+        max_value=HIST_FIXED_Y_AXIS_FULLNESS,
     )
 
 
@@ -468,6 +684,7 @@ def activity_hist_table(
         stack_data=departures,
         stack_color=outbound_color,
         link_target=link_target,
+        max_value=HIST_FIXED_Y_AXIS_ACTIVITY,
     )
     # return chartjs_histogram(times_freq,400,400,bar_color=color,title=top_text,subtitle=bottom_text,)
 
