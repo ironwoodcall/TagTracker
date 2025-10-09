@@ -201,7 +201,7 @@ def season_frequencies_report(
         activity_title = f"{activity_title} ({title_bit})"
     activity_title = f"<h2>{activity_title}</h2>"
     activity_subtitle = (
-        "Average bikes per day by 30-minute interval (soft red=in, soft blue=out)"
+        "Activity (averaged across {days} - red=bikes in, blue=bikes out)"
     )
     print(
         web_histogram.activity_hist_table(

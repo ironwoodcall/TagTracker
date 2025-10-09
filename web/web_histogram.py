@@ -555,7 +555,7 @@ def times_hist_table(
 ) -> str:
     """Create one html histogram table on lengths of visit."""
 
-    averaged_freq, _ = time_histogram_data(
+    averaged_freq, day_count = time_histogram_data(
         ttdb,
         orgsite_id=orgsite_id,
         query_column=query_column,
@@ -564,13 +564,45 @@ def times_hist_table(
         days_of_week=days_of_week,
     )
 
+    stats_summary = ""
+    if query_column.lower() == "duration" and averaged_freq:
+        expanded_values: list[float] = []
+        for label, freq in averaged_freq.items():
+            if freq is None:
+                continue
+            minutes = VTime(label).num
+            if minutes is None:
+                continue
+            expanded_values.extend([minutes] * int(round(freq)))
+        if expanded_values:
+            expanded_values.sort()
+            n = len(expanded_values)
+            mean_val = sum(expanded_values) / n
+            median_val = expanded_values[n // 2] if n % 2 == 1 else (
+                expanded_values[n // 2 - 1] + expanded_values[n // 2]
+            ) / 2
+            variance = sum((val - mean_val) ** 2 for val in expanded_values) / n
+            std_dev = variance ** 0.5
+            median_vt = VTime(median_val, allow_large=True)
+            mean_vt = VTime(mean_val, allow_large=True)
+            std_vt = VTime(std_dev, allow_large=True)
+            day_phrase = ""
+            if day_count:
+                plural = "day" if day_count == 1 else "days"
+                day_phrase = f", averaged across {day_count} {plural}"
+            stats_summary = (
+                "Lengths of visits "
+                f"(median {median_vt.tidy.strip()}, mean {mean_vt.tidy.strip()}, "
+                f"SD {std_vt.tidy.strip()}{day_phrase})"
+            )
+
     if mini:
         top_text = ""
-        bottom_text = title
+        bottom_text = stats_summary if stats_summary else title
         row_count = 20
     else:
         top_text = title
-        bottom_text = subtitle
+        bottom_text = stats_summary if stats_summary else subtitle
         row_count = 20
     return html_histogram(
         averaged_freq,
@@ -648,7 +680,7 @@ def activity_hist_table(
 ) -> str:
     """Render a stacked histogram for arrivals (bottom) and departures (top)."""
 
-    arrivals, _ = time_histogram_data(
+    arrivals, arrivals_day_count = time_histogram_data(
         ttdb,
         orgsite_id=orgsite_id,
         query_column="time_in",
@@ -656,7 +688,7 @@ def activity_hist_table(
         end_date=end_date,
         days_of_week=days_of_week,
     )
-    departures, _ = time_histogram_data(
+    departures, departures_day_count = time_histogram_data(
         ttdb,
         orgsite_id=orgsite_id,
         query_column="time_out",
@@ -664,6 +696,18 @@ def activity_hist_table(
         end_date=end_date,
         days_of_week=days_of_week,
     )
+
+    day_count = max(arrivals_day_count, departures_day_count)
+
+    if subtitle and "{" in subtitle:
+        plural = "day" if day_count == 1 else "days"
+        day_label = f"{day_count} {plural}"
+        if "{days}" in subtitle:
+            subtitle = subtitle.replace("{days}", day_label)
+        if "{day_count}" in subtitle:
+            subtitle = subtitle.replace("{day_count}", str(day_count))
+        if "{day_label}" in subtitle:
+            subtitle = subtitle.replace("{day_label}", day_label)
 
     if mini:
         top_text = ""
