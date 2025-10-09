@@ -104,8 +104,8 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
             """
 
     def today_button(label) -> str:
-        target = ut.date_str("today")
-        if target == thisday:
+        # target = ut.date_str("today")
+        if ut.date_str("today") == thisday:
             return f"""
                 <button type="button" disabled
                     style="opacity: 0.5; cursor: not-allowed;">
@@ -113,7 +113,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                 """
         link = cc.selfref(
             what=cc.WHAT_ONE_DAY,
-            qdate=target,
+            qdate='today',
             pages_back=cc.increment_pages_back(pages_back),
         )
         return f"""
