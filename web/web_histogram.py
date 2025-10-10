@@ -144,6 +144,10 @@ def html_histogram(
         0.2, max([len(k) for k in all_keys]) * 0.2
     )  # FIXME: may require adjustment
 
+    has_stack = bool(stack_data)
+    top_text_color = "#333333" if has_stack else "white"
+    zero_text_color = "#333333" if has_stack else bar_color
+
     secondary_styles = ""
     if any(normalized_secondary.values()):
         secondary_styles = f"""
@@ -153,7 +157,7 @@ def html_histogram(
         }}
         .{prefix}-bar-top-cell-secondary {{
             text-align: center; font-size: 0.8em;
-            color: white; background-color: {stack_color};
+            color: {top_text_color}; background-color: {stack_color};
             border-left: 1px solid {border_color}; border-right: 1px solid {border_color};
             border-top: 1px solid {border_color};
         }}
@@ -178,13 +182,13 @@ def html_histogram(
         }}
         .{prefix}-bar-top-cell {{
             text-align: center; font-size: 0.8em;
-            color: white; background-color: {bar_color};
+            color: {top_text_color}; background-color: {bar_color};
             border-left: 1px solid {border_color}; border-right: 1px solid {border_color};
             border-top: 1px solid {border_color};
         }}
         .{prefix}-zero-bar-cell {{
             text-align: center; font-size: 0.8em;
-            color: {bar_color}; background-color: white; width: {cell_width_style};
+            color: {zero_text_color}; background-color: white; width: {cell_width_style};
             border-left: 1px solid {border_color}; border-right: 1px solid {border_color};
             border-bottom: 2px solid {bar_color}
         }}
