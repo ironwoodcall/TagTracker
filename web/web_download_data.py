@@ -106,7 +106,24 @@ def send_csv_archive() -> None:
                 debug(f"writing table '{table}' to '{out_path}'")
                 with open(out_path, "w", newline="", encoding="utf-8") as f:
                     writer = csv.writer(f)
-                    cur = conn.execute(f"SELECT * FROM {table}")
+                    if table == "visit":
+                        # Include the date from the related day beside the foreign key.
+                        visit_columns = [
+                            row[1] for row in conn.execute("PRAGMA table_info(visit)")
+                        ]
+                        select_columns = []
+                        for column in visit_columns:
+                            select_columns.append(f"visit.{column}")
+                            if column == "day_id":
+                                select_columns.append("day.date AS day_date")
+                        select_sql = (
+                            "SELECT "
+                            + ", ".join(select_columns)
+                            + " FROM visit LEFT JOIN day ON day.id = visit.day_id"
+                        )
+                        cur = conn.execute(select_sql)
+                    else:
+                        cur = conn.execute(f"SELECT * FROM {table}")
                     headers = [col[0] for col in cur.description]
                     rows = cur.fetchall()
                     writer.writerow(headers)
