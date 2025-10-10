@@ -297,20 +297,31 @@ def time_histogram_data(
 ) -> tuple[dict[str, float], int]:
     """Return averaged histogram data for the requested time column."""
 
+    def minutes_expr(column_name: str) -> str:
+        return (
+            f"CASE WHEN {column_name} IS NULL OR {column_name} = '' THEN NULL "
+            f"WHEN length({column_name}) < 5 THEN NULL "
+            f"ELSE ((CAST(substr({column_name}, 1, 2) AS INTEGER) * 60) + "
+            f"CAST(substr({column_name}, 4, 2) AS INTEGER)) END"
+        )
+
     time_column_lower = query_column.lower()
     if time_column_lower not in {"time_in", "time_out", "duration"}:
         raise ValueError(f"Bad value for query column, '{query_column}' ")
 
     minutes_column_map = {
-        "time_in": "V.time_in_minutes",
-        "time_out": "V.time_out_minutes",
+        "time_in": minutes_expr("V.time_in"),
+        "time_out": minutes_expr("V.time_out"),
         "duration": "V.duration",
     }
     minutes_column = minutes_column_map[time_column_lower]
 
     orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
-    filter_items: list[str] = [f"{minutes_column} IS NOT NULL", f"D.orgsite_id = {orgsite_filter}"]
+    filter_items: list[str] = [
+        f"({minutes_column}) IS NOT NULL",
+        f"D.orgsite_id = {orgsite_filter}",
+    ]
     if time_column_lower == "duration":
         filter_items.append("V.time_out IS NOT NULL")
         filter_items.append("V.time_out <> ''")

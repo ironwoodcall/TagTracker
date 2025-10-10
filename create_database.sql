@@ -128,29 +128,19 @@ CREATE TABLE VISIT ( -- one bike visit for one org/site/date
     time_in TEXT --
         NOT NULL
         CHECK (
-            length(time_in) = 8
-            AND time_in GLOB '[0-2][0-9]:[0-5][0-9]:[0-5][0-9]'
-            AND time_in BETWEEN '00:00:00' AND '24:00:00'
-        ),
-    time_in_minutes INTEGER
-        CHECK (
-            time_in_minutes IS NULL
-            OR (time_in_minutes BETWEEN 0 AND 1440)
+            length(time_in) = 5
+            AND time_in GLOB '[0-2][0-9]:[0-5][0-9]'
+            AND time_in BETWEEN '00:00' AND '24:00'
         ),
     time_out TEXT
         CHECK (
             time_out IS NULL
             OR time_out = ''
             OR (
-                length(time_out) = 8
-                AND time_out GLOB '[0-2][0-9]:[0-5][0-9]:[0-5][0-9]'
-                AND time_out BETWEEN '00:00:00' AND '24:00:00'
+                length(time_out) = 5
+                AND time_out GLOB '[0-2][0-9]:[0-5][0-9]'
+                AND time_out BETWEEN '00:00' AND '24:00'
             )
-        ),
-    time_out_minutes INTEGER
-        CHECK (
-            time_out_minutes IS NULL
-            OR (time_out_minutes BETWEEN 0 AND 1440)
         ),
     duration INTEGER,
     bike_type TEXT
@@ -160,8 +150,7 @@ CREATE TABLE VISIT ( -- one bike visit for one org/site/date
 );
 
 CREATE INDEX visit_day_id_idx ON VISIT (day_id);
-CREATE INDEX visit_time_in_minutes_idx ON VISIT (time_in_minutes);
-CREATE INDEX visit_time_out_minutes_idx ON VISIT (time_out_minutes);
+-- Removed indexes on derived minute columns; minute values computed on demand.
 
 CREATE TABLE BLOCK ( -- activity in a given half hour for an org/site/date
     id INTEGER PRIMARY KEY AUTOINCREMENT,

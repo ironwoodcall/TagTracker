@@ -454,19 +454,6 @@ def delete_one_day_data(cursor: sqlite3.Connection.cursor, date: str, orgsite_id
         cursor.execute(f"DELETE FROM BLOCK WHERE day_id = {day_id}")
         cursor.execute(f"DELETE FROM DATALOADS WHERE day_id = {day_id}")
         cursor.execute(f"DELETE FROM DAY WHERE id = {day_id}")
-
-
-def _vtime_to_minutes(value) -> int | None:
-    """Convert a VTime (or convertible value) to minutes since midnight."""
-    if value is None:
-        return None
-    if isinstance(value, VTime):
-        minutes = value.as_minutes
-    else:
-        minutes = VTime(value).as_minutes
-    return minutes if minutes is not None and minutes >= 0 else None
-
-
 def insert_into_day(
     orgsite_id: int,
     td: TrackerDay,
@@ -633,10 +620,8 @@ def insert_into_visit(
             continue
         biketype = "R" if day.biketags[visit.tagid].bike_type == REGULAR else "O"
 
-        time_in_minutes = _vtime_to_minutes(visit.time_in)
-        time_out_minutes = _vtime_to_minutes(visit.time_out)
-        time_in_text = visit.time_in.hms if visit.time_in else "00:00:00"
-        time_out_text = visit.time_out.hms if visit.time_out else ""
+        time_in_text = str(visit.time_in) if visit.time_in else "00:00"
+        time_out_text = str(visit.time_out) if visit.time_out else ""
 
         # Save to VISIT table
         cursor.execute(
@@ -644,22 +629,18 @@ def insert_into_visit(
             INSERT INTO VISIT (
                 day_id,
                 time_in,
-                time_in_minutes,
                 time_out,
-                time_out_minutes,
                 duration,
                 bike_type,
                 bike_id
             )
 
-            VALUES (?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?)
         """,
             (
                 day_id,
                 time_in_text,
-                time_in_minutes,
                 time_out_text,
-                time_out_minutes,
                 visit.duration(day.time_closed, is_close_of_business=True),
                 biketype,
                 visit.tagid,
