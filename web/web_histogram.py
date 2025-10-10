@@ -165,10 +165,10 @@ def html_histogram(
     if marker_class_map:
         marker_css = f"""
         .{prefix}-marker-left {{
-            border-left: 1px solid {marker_color};
+            border-left: 1px dotted {marker_color};
         }}
         .{prefix}-marker-right {{
-            border-right: 1px solid {marker_color};
+            border-right: 1px dotted {marker_color};
         }}
         """
 
