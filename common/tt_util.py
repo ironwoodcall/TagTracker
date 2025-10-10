@@ -380,100 +380,100 @@ def line_wrapper(
 
 
 
-def time_distribution(
-    times_list: list[str],
-    start_time: str = None,
-    end_time: str = None,
-    category_width: int = 30,
-) -> dict[str, int]:
-    """Make frequency distribution for list of HH:MM strings."""
+# def time_distribution(
+#     times_list: list[str],
+#     start_time: str = None,
+#     end_time: str = None,
+#     category_width: int = 30,
+# ) -> dict[str, int]:
+#     """Make frequency distribution for list of HH:MM strings."""
 
-    def _to_minutes(raw_value):
-        if raw_value is None:
-            return None
-        if isinstance(raw_value, (int, float)):
-            minutes_val = int(raw_value)
-            return minutes_val if minutes_val >= 0 else None
-        raw_str = str(raw_value).strip()
-        if not raw_str:
-            return None
-        if raw_str.isdigit():
-            minutes_val = int(raw_str)
-            return minutes_val if minutes_val >= 0 else None
-        if ":" not in raw_str:
-            return None
-        parts = raw_str.split(":")
-        if len(parts) < 2:
-            return None
-        hours_str, minutes_str = parts[0], parts[1]
-        if not (hours_str.isdigit() and minutes_str.isdigit()):
-            return None
-        hours = int(hours_str)
-        minutes = int(minutes_str[:2])
-        if minutes > 59:
-            return None
-        total_minutes = hours * 60 + minutes
-        return total_minutes if total_minutes >= 0 else None
+#     def _to_minutes(raw_value):
+#         if raw_value is None:
+#             return None
+#         if isinstance(raw_value, (int, float)):
+#             minutes_val = int(raw_value)
+#             return minutes_val if minutes_val >= 0 else None
+#         raw_str = str(raw_value).strip()
+#         if not raw_str:
+#             return None
+#         if raw_str.isdigit():
+#             minutes_val = int(raw_str)
+#             return minutes_val if minutes_val >= 0 else None
+#         if ":" not in raw_str:
+#             return None
+#         parts = raw_str.split(":")
+#         if len(parts) < 2:
+#             return None
+#         hours_str, minutes_str = parts[0], parts[1]
+#         if not (hours_str.isdigit() and minutes_str.isdigit()):
+#             return None
+#         hours = int(hours_str)
+#         minutes = int(minutes_str[:2])
+#         if minutes > 59:
+#             return None
+#         total_minutes = hours * 60 + minutes
+#         return total_minutes if total_minutes >= 0 else None
 
-    minute_values = []
-    for raw_time in times_list:
-        minutes_val = _to_minutes(raw_time)
-        if minutes_val is None:
-            continue
-        minute_values.append(minutes_val)
+#     minute_values = []
+#     for raw_time in times_list:
+#         minutes_val = _to_minutes(raw_time)
+#         if minutes_val is None:
+#             continue
+#         minute_values.append(minutes_val)
 
-    if not minute_values:
-        return {}
+#     if not minute_values:
+#         return {}
 
-    freq = collections.Counter(
-        (minutes_val // category_width) * category_width for minutes_val in minute_values
-    )
+#     freq = collections.Counter(
+#         (minutes_val // category_width) * category_width for minutes_val in minute_values
+#     )
 
-    start_minutes = (
-        _to_minutes(start_time)
-        if start_time is not None
-        else min(minute_values)
-    )
-    end_minutes = (
-        _to_minutes(end_time)
-        if end_time is not None
-        else max(minute_values)
-    )
+#     start_minutes = (
+#         _to_minutes(start_time)
+#         if start_time is not None
+#         else min(minute_values)
+#     )
+#     end_minutes = (
+#         _to_minutes(end_time)
+#         if end_time is not None
+#         else max(minute_values)
+#     )
 
-    if start_minutes is None or end_minutes is None:
-        return {}
+#     if start_minutes is None or end_minutes is None:
+#         return {}
 
-    if end_minutes < start_minutes:
-        start_minutes, end_minutes = end_minutes, start_minutes
+#     if end_minutes < start_minutes:
+#         start_minutes, end_minutes = end_minutes, start_minutes
 
-    start_bucket = (start_minutes // category_width) * category_width
-    end_bucket = (end_minutes // category_width) * category_width
+#     start_bucket = (start_minutes // category_width) * category_width
+#     end_bucket = (end_minutes // category_width) * category_width
 
-    categories = {
-        bucket_start: 0
-        for bucket_start in range(start_bucket, end_bucket + category_width, category_width)
-    }
+#     categories = {
+#         bucket_start: 0
+#         for bucket_start in range(start_bucket, end_bucket + category_width, category_width)
+#     }
 
-    have_unders = have_overs = False
-    for bucket_start, bucket_count in freq.items():
-        if bucket_start in categories:
-            categories[bucket_start] = bucket_count
-        elif bucket_start < start_bucket:
-            categories[start_bucket] += bucket_count
-            have_unders = True
-        elif bucket_start > end_bucket:
-            categories[end_bucket] += bucket_count
-            have_overs = True
+#     have_unders = have_overs = False
+#     for bucket_start, bucket_count in freq.items():
+#         if bucket_start in categories:
+#             categories[bucket_start] = bucket_count
+#         elif bucket_start < start_bucket:
+#             categories[start_bucket] += bucket_count
+#             have_unders = True
+#         elif bucket_start > end_bucket:
+#             categories[end_bucket] += bucket_count
+#             have_overs = True
 
-    categories_str = {VTime(bucket_start).tidy: count for bucket_start, count in categories.items()}
-    if have_unders:
-        start_label = VTime(start_bucket).tidy
-        categories_str[f"{start_label}-"] = categories_str.pop(start_label, 0)
-    if have_overs:
-        end_label = VTime(end_bucket).tidy
-        categories_str[f"{end_label}+"] = categories_str.pop(end_label, 0)
+#     categories_str = {VTime(bucket_start).tidy: count for bucket_start, count in categories.items()}
+#     if have_unders:
+#         start_label = VTime(start_bucket).tidy
+#         categories_str[f"{start_label}-"] = categories_str.pop(start_label, 0)
+#     if have_overs:
+#         end_label = VTime(end_bucket).tidy
+#         categories_str[f"{end_label}+"] = categories_str.pop(end_label, 0)
 
-    return {key: categories_str[key] for key in sorted(categories_str.keys())}
+#     return {key: categories_str[key] for key in sorted(categories_str.keys())}
 
 
 def random_string(length):
