@@ -37,6 +37,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 # Arbitrary string to describe this location
 SITE_NAME = ""
 TAGS_UPPERCASE = True
+MAX_PAGES_BACK = 49
 
 # data owner -- If set, the program will display this data owner notice on
 # web pages and when tagtracker starts.
