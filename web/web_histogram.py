@@ -21,6 +21,7 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 """
 
 import sqlite3
+from dataclasses import dataclass
 
 import common.tt_util as ut
 import common.tt_dbutil as db
@@ -31,6 +32,53 @@ from web.web_base_config import (
     HIST_FIXED_Y_AXIS_DURATION,
     HIST_FIXED_Y_AXIS_FULLNESS,
 )
+
+
+@dataclass
+class HistogramResult:
+    """Structured histogram data plus operating hour metadata."""
+
+    values: dict[str, float]
+    day_count: int
+    open_bucket: int | None = None
+    close_bucket: int | None = None
+    category_minutes: int = 30
+
+
+def _build_day_filter_items(
+    orgsite_filter: int,
+    start_date: str | None,
+    end_date: str | None,
+    days_of_week: str | None,
+) -> list[str]:
+    """Return reusable WHERE-clause pieces that only reference the DAY table."""
+
+    items: list[str] = []
+    if orgsite_filter:
+        items.append(f"D.orgsite_id = {orgsite_filter}")
+    if start_date:
+        items.append(f"D.DATE >= '{start_date}'")
+    if end_date:
+        items.append(f"D.DATE <= '{end_date}'")
+    if days_of_week:
+        cc.test_dow_parameter(days_of_week, list_ok=True)
+        dow_bits = [int(s) for s in days_of_week.split(",")]
+        zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
+        items.append(
+            f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
+        )
+    return items
+
+
+def _bucket_label(bucket_minutes: int | None) -> str | None:
+    """Return tidy label text for a bucket start in minutes."""
+
+    if bucket_minutes is None:
+        return None
+    vt = VTime(bucket_minutes)
+    if not vt:
+        return None
+    return vt.tidy if hasattr(vt, "tidy") else str(vt)
 
 
 def html_histogram(
@@ -46,6 +94,9 @@ def html_histogram(
     stack_color: str = "",
     link_target: str = "",
     max_value: float | None = None,
+    open_marker_label: str | None = None,
+    close_marker_label: str | None = None,
+    marker_color: str | None = None,
 ) -> str:
     """Create an html histogram from a dictionary.
 
@@ -85,6 +136,41 @@ def html_histogram(
 
     # Each style sheet must be unique wrt its classes in case mult on one page
     prefix = ut.random_string(4)
+
+    marker_color = marker_color or "darkblue"
+    marker_class_map: dict[str, list[str]] = {}
+
+    if open_marker_label or close_marker_label:
+        def resolve_marker(label: str | None) -> str | None:
+            if not label:
+                return None
+            for key in all_keys:
+                if key.startswith(label):
+                    return key
+            return None
+
+        open_marker_key = resolve_marker(open_marker_label)
+        close_marker_key = resolve_marker(close_marker_label)
+
+        if open_marker_key:
+            marker_class_map.setdefault(open_marker_key, []).append(
+                f"{prefix}-marker-left"
+            )
+        if close_marker_key:
+            marker_class_map.setdefault(close_marker_key, []).append(
+                f"{prefix}-marker-right"
+            )
+
+    marker_css = ""
+    if marker_class_map:
+        marker_css = f"""
+        .{prefix}-marker-left {{
+            border-left: 1px solid {marker_color};
+        }}
+        .{prefix}-marker-right {{
+            border-right: 1px solid {marker_color};
+        }}
+        """
 
     # Normalize data values to fit within the num of rows
     totals: dict[str, float] = {}
@@ -195,6 +281,7 @@ def html_histogram(
         .{prefix}-emptiness-cell {{ background-color: white; width: {empty_width_style}; min-width: {empty_width_style}; max-width: {empty_width_style}; }}
         .{prefix}-titles {{ text-align: center; background-color: white; }}
         {secondary_styles}
+        {marker_css}
     </style>
     """
 
@@ -220,7 +307,11 @@ def html_histogram(
         # Add an empty row at the top to create spacing above the bars
         html_table += "<tr>"
         for key in all_keys:
-            html_table += f"<td class='{prefix}-empty-cell'>&nbsp;</td>"
+            cell_classes = [f"{prefix}-empty-cell"]
+            cell_classes.extend(marker_class_map.get(key, []))
+            html_table += (
+                f"<td class='{' '.join(cell_classes)}'>&nbsp;</td>"
+            )
         html_table += "</tr>"
 
     empty_text = "" if mini else "&nbsp;"
@@ -230,23 +321,30 @@ def html_histogram(
             total_height = normalized_totals[key]
             primary_height = normalized_primary[key]
             secondary_height = normalized_secondary[key]
+            marker_classes = marker_class_map.get(key, [])
 
             if total_height == 0:
                 if row_index == num_data_rows - 1:
                     val = "" if mini else int(round(totals[key]))
+                    cell_classes = [f"{prefix}-zero-bar-cell"]
+                    cell_classes.extend(marker_classes)
                     html_table += (
-                        f"<td class='{prefix}-zero-bar-cell'><b>{val}</b></td>"
+                        f"<td class='{' '.join(cell_classes)}'><b>{val}</b></td>"
                     )
                 else:
+                    cell_classes = [f"{prefix}-emptiness-cell"]
+                    cell_classes.extend(marker_classes)
                     html_table += (
-                        f"<td class='{prefix}-emptiness-cell'>{empty_text}</td>"
+                        f"<td class='{' '.join(cell_classes)}'>{empty_text}</td>"
                     )
                 continue
 
             row_from_bottom = num_data_rows - 1 - row_index
             if row_from_bottom >= total_height:
+                cell_classes = [f"{prefix}-emptiness-cell"]
+                cell_classes.extend(marker_classes)
                 html_table += (
-                    f"<td class='{prefix}-emptiness-cell'>{empty_text}</td>"
+                    f"<td class='{' '.join(cell_classes)}'>{empty_text}</td>"
                 )
                 continue
 
@@ -254,27 +352,32 @@ def html_histogram(
             in_primary = row_from_bottom < primary_height
 
             if in_primary:
-                classes = f"{prefix}-bar-cell"
+                classes = [f"{prefix}-bar-cell"]
                 if is_top_cell and secondary_height == 0:
-                    classes += f" {prefix}-bar-top-cell"
+                    classes.append(f"{prefix}-bar-top-cell")
             else:
-                classes = f"{prefix}-bar-cell-secondary"
+                classes = [f"{prefix}-bar-cell-secondary"]
                 if is_top_cell:
-                    classes += f" {prefix}-bar-top-cell-secondary"
+                    classes.append(f"{prefix}-bar-top-cell-secondary")
 
             if is_top_cell:
                 display_val = "" if mini else int(round(totals[key]))
             else:
                 display_val = empty_text
 
-            html_table += f"<td class='{classes}'>{display_val}</td>"
+            classes.extend(marker_classes)
+            html_table += f"<td class='{' '.join(classes)}'>{display_val}</td>"
 
         html_table += "</tr>\n"
 
     if not mini:
         html_table += "<tr>"
         for key in all_keys:
-            html_table += f"<td class='{prefix}-category-label'>{key}</td>"
+            cell_classes = [f"{prefix}-category-label"]
+            cell_classes.extend(marker_class_map.get(key, []))
+            html_table += (
+                f"<td class='{' '.join(cell_classes)}'>{key}</td>"
+            )
         html_table += "</tr>\n"
 
     # Add a caption below category labels
@@ -294,7 +397,7 @@ def time_histogram_data(
     end_date: str = None,
     days_of_week: str = None,
     category_minutes: int = 30,
-) -> tuple[dict[str, float], int]:
+) -> HistogramResult:
     """Return averaged histogram data for the requested time column."""
 
     def minutes_expr(column_name: str) -> str:
@@ -318,25 +421,18 @@ def time_histogram_data(
 
     orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
-    filter_items: list[str] = [
-        f"({minutes_column}) IS NOT NULL",
-        f"D.orgsite_id = {orgsite_filter}",
-    ]
+    day_filter_items = _build_day_filter_items(
+        orgsite_filter, start_date, end_date, days_of_week
+    )
+
+    filter_items: list[str] = [f"({minutes_column}) IS NOT NULL"] + day_filter_items
     if time_column_lower == "duration":
         filter_items.append("V.time_out IS NOT NULL")
         filter_items.append("V.time_out <> ''")
-    if start_date:
-        filter_items.append(f"D.DATE >= '{start_date}'")
-    if end_date:
-        filter_items.append(f"D.DATE <= '{end_date}'")
-    if days_of_week:
-        cc.test_dow_parameter(days_of_week, list_ok=True)
-        dow_bits = [int(s) for s in days_of_week.split(",")]
-        zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
-        filter_items.append(
-            f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
-        )
     filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
+    day_filter_clause = (
+        " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
+    )
 
     if time_column_lower == "duration":
         start_time, end_time = ("00:00", "12:00")
@@ -384,6 +480,26 @@ WITH filtered_visits AS (
             continue
         bucket_counts[int(row.bucket_start)] = int(row.bucket_count)
 
+    open_bucket = close_bucket = None
+    hours_query = f"""
+        SELECT
+            MIN(NULLIF(D.time_open, '')) AS min_open,
+            MAX(NULLIF(D.time_closed, '')) AS max_close
+        FROM DAY D
+        WHERE {day_filter_clause}
+    """
+    hours_rows = db.db_fetch(ttdb, hours_query, ["min_open", "max_close"])
+    if hours_rows:
+        open_val = getattr(hours_rows[0], "min_open", None)
+        close_val = getattr(hours_rows[0], "max_close", None)
+        open_minutes = VTime(open_val).num if open_val else None
+        close_minutes = VTime(close_val).num if close_val else None
+        if open_minutes is not None and category_minutes:
+            open_bucket = (open_minutes // category_minutes) * category_minutes
+        if close_minutes is not None and category_minutes:
+            close_effective = max(close_minutes - 1, 0)
+            close_bucket = (close_effective // category_minutes) * category_minutes
+
     if not bucket_counts:
         averaged_freq: dict[str, float] = {}
     else:
@@ -419,7 +535,13 @@ WITH filtered_visits AS (
             key: (value / (day_count or 1)) for key, value in sorted(categories_str.items())
         }
 
-    return averaged_freq, day_count
+    return HistogramResult(
+        values=averaged_freq,
+        day_count=day_count,
+        open_bucket=open_bucket,
+        close_bucket=close_bucket,
+        category_minutes=category_minutes,
+    )
 
 
 def fullness_histogram_data(
@@ -429,27 +551,20 @@ def fullness_histogram_data(
     end_date: str = None,
     days_of_week: str = None,
     category_minutes: int = 30,
-) -> tuple[dict[str, float], int]:
+) -> HistogramResult:
     """Return averaged fullness data (bikes on hand) for each time block."""
 
     orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
-    filter_items: list[str] = [
-        "B.num_on_hand_combined IS NOT NULL",
-        f"D.orgsite_id = {orgsite_filter}",
-    ]
-    if start_date:
-        filter_items.append(f"D.DATE >= '{start_date}'")
-    if end_date:
-        filter_items.append(f"D.DATE <= '{end_date}'")
-    if days_of_week:
-        cc.test_dow_parameter(days_of_week, list_ok=True)
-        dow_bits = [int(s) for s in days_of_week.split(",")]
-        zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
-        filter_items.append(
-            f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
-        )
+    day_filter_items = _build_day_filter_items(
+        orgsite_filter, start_date, end_date, days_of_week
+    )
+
+    filter_items: list[str] = ["B.num_on_hand_combined IS NOT NULL"] + day_filter_items
     filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
+    day_filter_clause = (
+        " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
+    )
 
     day_count_query = f"""
         SELECT COUNT(DISTINCT D.DATE) AS day_count
@@ -495,13 +610,45 @@ def fullness_histogram_data(
         )
         bucket_counts[minute_value] = bucket_counts.get(minute_value, 0) + sample_count
 
+    open_bucket = close_bucket = None
+    hours_query = f"""
+        SELECT
+            MIN(NULLIF(D.time_open, '')) AS min_open,
+            MAX(NULLIF(D.time_closed, '')) AS max_close
+        FROM DAY D
+        WHERE {day_filter_clause}
+    """
+    hours_rows = db.db_fetch(ttdb, hours_query, ["min_open", "max_close"])
+    if hours_rows:
+        open_val = getattr(hours_rows[0], "min_open", None)
+        close_val = getattr(hours_rows[0], "max_close", None)
+        open_minutes = VTime(open_val).num if open_val else None
+        close_minutes = VTime(close_val).num if close_val else None
+        if open_minutes is not None and category_minutes:
+            open_bucket = (open_minutes // category_minutes) * category_minutes
+        if close_minutes is not None and category_minutes:
+            close_effective = max(close_minutes - 1, 0)
+            close_bucket = (close_effective // category_minutes) * category_minutes
+
     if not bucket_totals:
-        return {}, day_count
+        return HistogramResult(
+            values={},
+            day_count=day_count,
+            open_bucket=open_bucket,
+            close_bucket=close_bucket,
+            category_minutes=category_minutes,
+        )
 
     start_minutes = VTime("07:00").num
     end_minutes = VTime("22:00").num
     if start_minutes is None or end_minutes is None:
-        return {}, day_count
+        return HistogramResult(
+            values={},
+            day_count=day_count,
+            open_bucket=open_bucket,
+            close_bucket=close_bucket,
+            category_minutes=category_minutes,
+        )
 
     start_bucket = (start_minutes // category_minutes) * category_minutes
     end_bucket = (end_minutes // category_minutes) * category_minutes
@@ -552,7 +699,13 @@ def fullness_histogram_data(
 
     averaged_fullness = dict(ordered_pairs)
 
-    return averaged_fullness, day_count
+    return HistogramResult(
+        values=averaged_fullness,
+        day_count=day_count,
+        open_bucket=open_bucket,
+        close_bucket=close_bucket,
+        category_minutes=category_minutes,
+    )
 
 
 def times_hist_table(
@@ -570,7 +723,7 @@ def times_hist_table(
 ) -> str:
     """Create one html histogram table on lengths of visit."""
 
-    averaged_freq, day_count = time_histogram_data(
+    result = time_histogram_data(
         ttdb,
         orgsite_id=orgsite_id,
         query_column=query_column,
@@ -578,6 +731,14 @@ def times_hist_table(
         end_date=end_date,
         days_of_week=days_of_week,
     )
+    averaged_freq = result.values
+    day_count = result.day_count
+    should_mark_hours = query_column.lower() in {"time_in", "time_out"}
+    open_marker_label = None
+    close_marker_label = None
+    if should_mark_hours and day_count == 1:
+        open_marker_label = _bucket_label(result.open_bucket)
+        close_marker_label = _bucket_label(result.close_bucket)
 
     stats_summary = ""
     if query_column.lower() == "duration" and averaged_freq:
@@ -627,6 +788,8 @@ def times_hist_table(
         title=top_text,
         subtitle=bottom_text,
         max_value=max_value,
+        open_marker_label=open_marker_label,
+        close_marker_label=close_marker_label,
     )
 
 
@@ -644,13 +807,20 @@ def fullness_hist_table(
 ) -> str:
     """Render a histogram of bikes on hand (fullness) by time block."""
 
-    averaged_fullness, day_count = fullness_histogram_data(
+    result = fullness_histogram_data(
         ttdb,
         orgsite_id=orgsite_id,
         start_date=start_date,
         end_date=end_date,
         days_of_week=days_of_week,
     )
+    averaged_fullness = result.values
+    day_count = result.day_count
+    open_marker_label = None
+    close_marker_label = None
+    if day_count == 1:
+        open_marker_label = _bucket_label(result.open_bucket)
+        close_marker_label = _bucket_label(result.close_bucket)
 
     if not averaged_fullness:
         return "<p>No data available.</p>"
@@ -677,6 +847,8 @@ def fullness_hist_table(
         subtitle=bottom_text,
         link_target=link_target,
         max_value=HIST_FIXED_Y_AXIS_FULLNESS,
+        open_marker_label=open_marker_label,
+        close_marker_label=close_marker_label,
     )
 
 
@@ -695,7 +867,7 @@ def activity_hist_table(
 ) -> str:
     """Render a stacked histogram for arrivals (bottom) and departures (top)."""
 
-    arrivals, arrivals_day_count = time_histogram_data(
+    arrivals_result = time_histogram_data(
         ttdb,
         orgsite_id=orgsite_id,
         query_column="time_in",
@@ -703,7 +875,7 @@ def activity_hist_table(
         end_date=end_date,
         days_of_week=days_of_week,
     )
-    departures, departures_day_count = time_histogram_data(
+    departures_result = time_histogram_data(
         ttdb,
         orgsite_id=orgsite_id,
         query_column="time_out",
@@ -712,7 +884,22 @@ def activity_hist_table(
         days_of_week=days_of_week,
     )
 
-    day_count = max(arrivals_day_count, departures_day_count)
+    arrivals = arrivals_result.values
+    departures = departures_result.values
+
+    day_count = max(arrivals_result.day_count, departures_result.day_count)
+
+    open_marker_label = None
+    close_marker_label = None
+    if arrivals_result.day_count == 1 and departures_result.day_count == 1:
+        open_bucket_candidates = [arrivals_result.open_bucket, departures_result.open_bucket]
+        close_bucket_candidates = [arrivals_result.close_bucket, departures_result.close_bucket]
+        open_bucket_candidates = [v for v in open_bucket_candidates if v is not None]
+        close_bucket_candidates = [v for v in close_bucket_candidates if v is not None]
+        if open_bucket_candidates:
+            open_marker_label = _bucket_label(min(open_bucket_candidates))
+        if close_bucket_candidates:
+            close_marker_label = _bucket_label(max(close_bucket_candidates))
 
     if subtitle and "{" in subtitle:
         plural = "day" if day_count == 1 else "days"
@@ -744,6 +931,8 @@ def activity_hist_table(
         stack_color=outbound_color,
         link_target=link_target,
         max_value=HIST_FIXED_Y_AXIS_ACTIVITY,
+        open_marker_label=open_marker_label,
+        close_marker_label=close_marker_label,
     )
     # return chartjs_histogram(times_freq,400,400,bar_color=color,title=top_text,subtitle=bottom_text,)
 

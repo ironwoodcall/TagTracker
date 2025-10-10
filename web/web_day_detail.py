@@ -422,6 +422,20 @@ def day_fullness_histogram(day_data: DayTotals, blocks) -> str:
             "</a>"
         )
 
+    open_marker_label = None
+    close_marker_label = None
+    if day_data:
+        open_time = getattr(day_data, "time_open", None)
+        close_time = getattr(day_data, "time_closed", None)
+        if open_time:
+            open_block = ut.block_start(open_time)
+            if getattr(open_block, "tidy", None):
+                open_marker_label = open_block.tidy
+        if close_time and getattr(close_time, "num", None) is not None:
+            close_block = ut.block_start(max(close_time.num - 1, 0))
+            if getattr(close_block, "tidy", None):
+                close_marker_label = close_block.tidy
+
     return web_histogram.html_histogram(
         histogram_data,
         mini=True,
@@ -430,6 +444,8 @@ def day_fullness_histogram(day_data: DayTotals, blocks) -> str:
         subtitle=footer_label,
         link_target=graph_link,
         max_value=HIST_FIXED_Y_AXIS_FULLNESS,
+        open_marker_label=open_marker_label,
+        close_marker_label=close_marker_label,
     )
 
 
