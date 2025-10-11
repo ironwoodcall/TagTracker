@@ -263,6 +263,27 @@ class TrackerDay:
                 self.biketags[t] = BikeTag(t, UNKNOWN)
             self.biketags[t].status = BikeTag.RETIRED
 
+    def rebuild_visit_notes_link(self):
+        """Clear BikeVisit attached_notes and rebuild from source of truth (notes)."""
+
+        # clear the existing Notes lists from the list of bike visits
+        for v in self.all_visits():
+            v.attached_notes = []
+
+        # For each note today, add a ref into any visits it applies to
+        for note in self.notes.notes:
+            ut.squawk(f"note {note.text=}",cfg.DEBUG)
+            note:n.Note
+            for tag in note.tags:
+                # Find Visit for this tag
+                biketag = self.biketags.get(tag)
+                if not biketag:
+                    continue
+                visit = biketag.find_visit(note.created_at)
+                ut.squawk(f"   {tag=},{visit=}",cfg.DEBUG)
+                if visit:
+                    visit.attached_notes.append(note)
+
     def harmonize_notes(self) -> str:
         """
         Deletes/recovers notes based on their tagids and on visits.
@@ -487,7 +508,7 @@ class TrackerDay:
         changed = 0
         for visit in self.all_visits():
             visit: BikeVisit
-            ut.squawk(f"{visit.tagid}, {visit.time_in=}, {visit.time_out=}",cfg.DEBUG)
+            # ut.squawk(f"{visit.tagid}, {visit.time_in=}, {visit.time_out=}",cfg.DEBUG)
             if visit.time_in == "24:00":
                 visit.time_in = VTime("23:59")
                 changed += 1
@@ -823,6 +844,9 @@ class TrackerDay:
         except json.decoder.JSONDecodeError as e:
             raise TrackerDayError(f"JSON error {e}") from e
         loaded_day.determine_tagids_conformity()
+        # Make sure the notes (and their visits) are linked
+        loaded_day.harmonize_biketags()
+        loaded_day.rebuild_visit_notes_link()
 
         return loaded_day
 

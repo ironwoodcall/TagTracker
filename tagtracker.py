@@ -44,7 +44,7 @@ if sys.version_info < (3, 10):
 # pylint: disable=wrong-import-position
 import common.tt_constants as k
 from common.tt_tag import TagID
-import tt_reports as rep
+# import tt_reports as rep
 
 # from tt_realtag import Stay
 from common.tt_time import VTime
@@ -59,7 +59,7 @@ import tt_publish as pub
 from tt_process_command import process_command, lint_report
 
 # from tt_cmdparse import CmdBits
-from tt_commands import CmdKeys, get_parsed_command, PARSED_OK, tags_arg
+from tt_commands import CmdKeys, get_parsed_command, PARSED_OK #, tags_arg
 from tt_sounds import NoiseMaker
 from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
@@ -127,17 +127,24 @@ def main_loop(today: TrackerDay):
             data_changed = process_command(
                 cmd_bits=cmd_bits, today=today, publishment=publishment
             )
-            # Print any notes particularly associated with tag(s) in this command.
-            tag_arg = tags_arg(cmd_bits.command)
-            if tag_arg is not None:
-                for tag in cmd_bits.result_args[tag_arg]:
-                    rep.print_tag_notes(today, tag)
-            # Now, try to autodelete/recover notes
+
+        # Keep notes and their linkages up to date
+        if data_changed:
             notes_changed_msg = today.harmonize_notes()
+            today.rebuild_visit_notes_link()
             if notes_changed_msg:
-                data_changed = True
-                # pr.iprint()
                 pr.iprint(notes_changed_msg,style=k.SUBTITLE_STYLE)
+            # # Print any notes particularly associated with tag(s) in this command.
+            # tag_arg = tags_arg(cmd_bits.command)
+            # if tag_arg is not None:
+            #     for tag in cmd_bits.result_args[tag_arg]:
+            #         rep.print_tag_notes(today, tag)
+            # # Now, try to autodelete/recover notes
+            # notes_changed_msg = today.harmonize_notes()
+            # if notes_changed_msg:
+            #     data_changed = True
+            #     # pr.iprint()
+            #     pr.iprint(notes_changed_msg,style=k.SUBTITLE_STYLE)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
         if data_changed and today.fix_2400_events():

@@ -24,7 +24,7 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
 from common.tt_tag import TagID
 from common.tt_time import VTime
-
+from tt_notes import Note
 
 class BikeVisit:
     # Class attributes
@@ -38,6 +38,7 @@ class BikeVisit:
         self.time_in = VTime(time_in)
         self.time_out = VTime(time_out) or VTime("")
         self.tagid = TagID(tagid)
+        self.attached_notes:list[Note] = []
         # Add the new instance to the all_visits dict
         # BikeVisit.all_visits[self.seq] = self
 

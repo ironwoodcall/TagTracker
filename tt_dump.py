@@ -195,6 +195,8 @@ def _detailed_lines(today: "TrackerDay") -> list[str]:
     if today.retired_tagids:
         lines.append(_tagset_detail("Retired", today.retired_tagids))
 
+    lines.extend(_note_detail_lines(today))
+
     return [line for line in lines if line]
 
 
@@ -227,6 +229,38 @@ def _tagset_detail(label: str, tags: Iterable[str]) -> str:
     if not tags_list:
         return ""
     return f"{label} tags {len(tags_list)} [{_join_limited(tags_list, limit=12)}]"
+
+
+def _note_detail_lines(today: "TrackerDay") -> list[str]:
+    notes = getattr(today.notes, "notes", [])
+    if not notes:
+        return ["Notes_detail none"]
+
+    lines = [f"Notes_detail total {len(notes)}"]
+    for note in notes:
+        status = note.status or "-"
+        created = _format_time(note.created_at)
+        tags_bit = _format_note_tags(today, note.tags)
+        text = note.text or ""
+        if text:
+            lines.append(f"Note {status} {created} tags[{tags_bit}] {text}")
+        else:
+            lines.append(f"Note {status} {created} tags[{tags_bit}]")
+
+    return lines
+
+
+def _format_note_tags(today: "TrackerDay", tags: Iterable[str]) -> str:
+    formatted: list[str] = []
+    for tag in tags:
+        display = str(tag)
+        bike = today.biketags.get(tag)
+        if bike and any(not visit.time_out for visit in bike.visits):
+            display += "*"
+        formatted.append(display)
+    if not formatted:
+        return "-"
+    return ", ".join(formatted)
 
 
 def _format_type_counts(
@@ -277,4 +311,3 @@ def _join_limited(values: Iterable[str], limit: int) -> str:
     shown = values[:limit]
     remaining = len(values) - limit
     return ", ".join(shown) + f", +{remaining} more"
-
