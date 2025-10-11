@@ -1,5 +1,37 @@
 """Class to manage Notes capability for TagTracker.
 
+Implementation notes
+--------------------
+
+Planned structural changes:
+• Move the `Note` data class and helper utilities into a domain-focused module
+  (e.g., `common/tt_note.py`) so other components can depend on the data model
+  without importing CLI concerns.
+• Keep a lean `NotesManager` beside the domain model while relocating the
+  command handler (`notes_command`) to a UI/controller module that simply
+  orchestrates domain operations.
+• Extend `TrackerDay` with reconciliation helpers that rebuild
+  `BikeVisit.attached_notes` from the authoritative note data after any note or
+  visit mutation, and call those helpers from all visit-manipulating commands.
+• Update visit-oriented outputs (`BIKE IN/OUT`, `EDIT`, `DELETE`, `RECENT`,
+  `QUERY`, `LEFTOVERS`) to rely on each visit's `attached_notes` instead of
+  rescan logic so note presentation stays consistent across commands.
+
+State and visibility guidance:
+• Treat the note's status codes as intent flags—manual overrides live here—while
+  attachments derive purely from `created_at` and the note's tag list.
+• When rebuilding attachments, leave the note's status untouched and show the
+  note alongside a visit only if its status is within the active group
+  (`A`, `+`, `R`).
+• Preserve attachments when a user manually deactivates a note; the inactive
+  status simply suppresses display. Reactivation reuses the existing
+  attachments.
+• Free-floating notes (no matched visit) remain governed solely by status and
+  continue to appear in NOTE listings based on active vs inactive grouping.
+• Auto-harmonization can still flip statuses for untouched notes; reporting code
+  should iterate visit attachments and filter by active status, keeping manual
+  overrides intact.
+
 
 Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
