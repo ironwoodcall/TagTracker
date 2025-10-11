@@ -93,7 +93,7 @@ def _default_control_file() -> str:
 
 DEFAULT_CONTROL_FILE = _default_control_file()
 
-DEBUG_MONITOR = True
+DEBUG_MONITOR = False
 
 
 def _debug(message: str):
