@@ -58,7 +58,7 @@ from tt_commands import (
 import tt_call_estimator
 from tt_sounds import NoiseMaker
 import tt_main_bits as bits
-
+from tt_internet_monitor import InternetMonitorController
 
 def print_tag_inout(tag: TagID, inout: str, when: VTime) -> None:
     """Pretty-print a check-in or check-out message.
@@ -592,6 +592,7 @@ def process_command(
         rep.full_chart(day=today)
     elif cmd == CmdKeys.CMD_DEBUG:
         cfg.DEBUG = args[0]
+        InternetMonitorController.set_debug(args[0])
         pr.iprint(f"DEBUG is now {cfg.DEBUG}")
     elif cmd == CmdKeys.CMD_DELETE:
         # Delete a check-in or check-out
@@ -618,6 +619,14 @@ def process_command(
         leftovers_query(today=today)
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
+    elif cmd == CmdKeys.CMD_MONITOR:
+        if args[0]: # True
+            InternetMonitorController.monitor_on()
+            pr.iprint(f"(Re)activating internet monitoring.")
+        else:
+            monitor_delay = 120
+            InternetMonitorController.monitor_off(monitor_delay)
+            pr.iprint(f"Suppressing internet monitoring for {monitor_delay} minutes.")
     elif cmd == CmdKeys.CMD_NOTES:
         data_changed = tt_notes.notes_command(notes_list=today.notes, args=args)
     elif cmd == CmdKeys.CMD_PUBLISH:

@@ -63,6 +63,7 @@ Other
   Set tags to UPPER/LOWER CASE :  UPPERCASE | UC | LOWERCASE | LC
   Display internal data dump   :  DUMP [VERBOSE|V]
   Emit debug breadcrumbs       :  DEBUG <ON|OFF>
+  Suppress internet alerts     :  MONITOR <OFF|ON>
   Exit                         :  EXIT | x
 
 Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
@@ -279,6 +280,42 @@ Description:
 
   Use the RETIRE command to reverse this operation.
   Use the TAGS command to see a list of retired tags.
+""",
+
+    CmdKeys.CMD_MONITOR: """
+Command: MONITOR <OFF|ON>
+
+Can be invoked as:
+  {}
+
+Description:
+  Pause or resume TagTracker's internet connectivity alerts. Use MONITOR OFF
+  to suppress notifications for 120 minutes.
+  Use MONITOR ON to resume monitoring immediately.
+
+  While suppressed, the monitor will suppress alerts until the suppression
+  window expires or you run MONITOR ON.
+
+Diagnostic codes (shown at the end of alert messages):
+  DNSFAIL01  : DNS lookup of the probe host failed.
+  DOHCONN01  : Could not reach the Google DNS-over-HTTPS endpoint.
+  DOHHTTPXYZ : DoH endpoint returned HTTP status XYZ.
+  DOHJSON010 : DoH response body could not be parsed as JSON.
+  DOHQUEST01 : DoH response did not echo the expected query name.
+  DOHSTATUSXX: DoH reported unexpected DNS status XX.
+  DOHTIMEOUT : DoH request timed out waiting for a reply.
+  DOHURL***  : DoH request failed with URLError (suffix shows reason).
+  HTMLMISS01 : HTTP succeeded but the echoed random token was missing.
+  HTTPBARGS01: httpbin JSON response lacked the expected `text` value.
+  HTTPBJSON01: httpbin response JSON could not be parsed.
+  HTTPFAILXYZ: HTTP response returned status code XYZ.
+  NETISSUE01 : Confirmation check failed without a specific diagnostic.
+  REMOTEDISC : Remote server closed the HTTP connection unexpectedly.
+  SOCKCONN01 : TCP connect to the probe host failed (likely offline).
+  SOCKREAD01 : Socket/transport error while reading the HTTP response.
+  TIMEOUT001 : HTTP request timed out awaiting the primary response.
+  TIMEOUT002 : HTTP request timed out inside urllib handling.
+  URL<REASON>: URLError raised (suffix abbreviates the underlying reason).
 """,
 }
 
