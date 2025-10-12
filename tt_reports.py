@@ -117,7 +117,7 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
 
         if 1 <= visit_index <= len(biketag.visits):
             visit = biketag.visits[visit_index - 1]
-            return bool(visit.attached_notes)
+            return bool(visit.includable_notes())
 
         return False
 

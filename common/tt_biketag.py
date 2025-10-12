@@ -285,6 +285,13 @@ class BikeTag:
                     return v
         return None
 
+    def note_strings_for_time(self, time: VTime) -> list[str]:
+        """Return pretty note strings for the visit that includes 'time'."""
+        visit = self.find_visit(time)
+        if not visit:
+            return []
+        return visit.active_note_strings()
+
     def lint_check(self, allow_quick_checkout: bool = False) -> list[str]:
         """Check the BikeTag for errors. Return any errors as a list.
 

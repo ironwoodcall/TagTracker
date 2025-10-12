@@ -84,8 +84,8 @@ def print_tag_inout(biketag: BikeTag, inout: str, when: VTime) -> None:
     # Print any note(s)
     # visit = biketag.find_visit(when)
     ut.squawk(f"{visit.tagid=},{visit.attached_notes=}",cfg.DEBUG)
-    for visit_note in visit.attached_notes:
-        pr.iprint(f"    {visit_note.pretty()}",style=k.WARNING_STYLE)
+    for note_str in visit.active_note_strings():
+        pr.iprint(f"    {note_str}", style=k.WARNING_STYLE)
     NoiseMaker.queue_add(inout)
 
 
@@ -233,8 +233,8 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                     data_changed = True
             # Add any applicable note(s)
             if data_changed:
-                for note in visit.attached_notes:
-                    pr.iprint(f"    {note.pretty()}",style=k.WARNING_STYLE)
+                for note_str in visit.active_note_strings():
+                    pr.iprint(f"    {note_str}", style=k.WARNING_STYLE)
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
             NoiseMaker.queue_add(k.ALERT)
@@ -429,8 +429,8 @@ def query_command(day: TrackerDay, targets: list[TagID]) -> None:
                     else:
                         msg += "still on-site."
                     msgs.append(msg)
-                    for note in visit.attached_notes:
-                        msgs.append(f"    {note.pretty()}")
+                    for note_str in visit.active_note_strings():
+                        msgs.append(f"    {note_str}")
 
         for msg in msgs:
             pr.iprint(msg, style=k.ANSWER_STYLE)
@@ -473,9 +473,9 @@ def leftovers_query(today: TrackerDay):
         pr.iprint(msgs[tagid], style=k.NORMAL_STYLE)
         bike = today.biketags[tagid]
         last_visit: BikeVisit = bike.visits[-1]
-        if not last_visit.time_out and last_visit.attached_notes:
-            for note in last_visit.attached_notes:
-                pr.iprint(note.pretty(), num_indents=4)
+        if not last_visit.time_out:
+            for note_str in last_visit.active_note_strings():
+                pr.iprint(note_str, num_indents=3, style=k.NORMAL_STYLE)
 
 
 def set_tag_case(want_uppercase: bool) -> None:

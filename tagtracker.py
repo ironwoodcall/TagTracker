@@ -134,17 +134,6 @@ def main_loop(today: TrackerDay):
             today.rebuild_visit_notes_link()
             if notes_changed_msg:
                 pr.iprint(notes_changed_msg,style=k.SUBTITLE_STYLE)
-            # # Print any notes particularly associated with tag(s) in this command.
-            # tag_arg = tags_arg(cmd_bits.command)
-            # if tag_arg is not None:
-            #     for tag in cmd_bits.result_args[tag_arg]:
-            #         rep.print_tag_notes(today, tag)
-            # # Now, try to autodelete/recover notes
-            # notes_changed_msg = today.harmonize_notes()
-            # if notes_changed_msg:
-            #     data_changed = True
-            #     # pr.iprint()
-            #     pr.iprint(notes_changed_msg,style=k.SUBTITLE_STYLE)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
         if data_changed and today.fix_2400_events():
