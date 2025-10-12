@@ -45,6 +45,7 @@ HIGHLIGHT_WARN = 1
 HIGHLIGHT_ERROR = 2
 HIGHLIGHT_MAYBE_ERROR = 3
 BAR_MARKERS = {"R": chr(0x25CF), "O": chr(0x25A0)}
+BAR_MARKER_FUTURE = chr(0x2011)
 BAR_COL_WIDTH = 80
 
 
@@ -838,7 +839,7 @@ def visits_table(
                 elapsed_len = bar_itself_len
             elapsed_len = max(0, min(bar_itself_len, elapsed_len))
             remaining_len = max(0, bar_itself_len - elapsed_len)
-            bar_itself = (bar_marker * elapsed_len) + ("-" * remaining_len)
+            bar_itself = (bar_marker * elapsed_len) + (BAR_MARKER_FUTURE * remaining_len)
         else:
             bar_itself = bar_marker * bar_itself_len
         c = "background:auto" if time_out else "background:khaki"  # "rgb(255, 230, 0)"
