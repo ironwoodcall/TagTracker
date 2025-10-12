@@ -24,7 +24,7 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
 from common.tt_tag import TagID
 from common.tt_time import VTime
-
+from tt_notes import Note, NOTE_HAND_DELETED
 
 class BikeVisit:
     # Class attributes
@@ -38,12 +38,21 @@ class BikeVisit:
         self.time_in = VTime(time_in)
         self.time_out = VTime(time_out) or VTime("")
         self.tagid = TagID(tagid)
+        self.attached_notes:list[Note] = []
         # Add the new instance to the all_visits dict
         # BikeVisit.all_visits[self.seq] = self
 
     # def delete_visit(self):
     #     if self.seq in BikeVisit.all_visits:
     #         del BikeVisit.all_visits[self.seq]
+
+    def includable_notes(self) -> list[Note]:
+        """Return attached notes, excluding only those manually deactivated."""
+        return [note for note in self.attached_notes if note.status != NOTE_HAND_DELETED]
+
+    def active_note_strings(self) -> list[str]:
+        """Return pretty-print strings for active attached notes."""
+        return [note.pretty() for note in self.includable_notes()]
 
     def duration(
         self, as_of_when: str = "now", is_close_of_business: bool = False

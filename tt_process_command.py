@@ -38,7 +38,7 @@ from common.tt_bikevisit import BikeVisit
 from common.tt_biketag import BikeTag, BikeTagError
 from common.tt_daysummary import DaySummary
 import client_base_config as cfg
-import tt_notes
+import tt_notes_command
 import tt_printer as pr
 import tt_publish as pub
 import tt_help
@@ -58,13 +58,16 @@ from tt_commands import (
 import tt_call_estimator
 from tt_sounds import NoiseMaker
 import tt_main_bits as bits
+from tt_internet_monitor import InternetMonitorController
 
 
-def print_tag_inout(tag: TagID, inout: str, when: VTime) -> None:
+def print_tag_inout(biketag: BikeTag, inout: str, when: VTime) -> None:
     """Pretty-print a check-in or check-out message.
 
     This makes a one-line message only about the most recent visit.
     """
+    tag = biketag.tagid
+    visit = biketag.latest_visit()
 
     when_msg = f"at {when.short}"  ##if when == VTime('now') else ""
     if inout == k.BIKE_IN:
@@ -78,6 +81,11 @@ def print_tag_inout(tag: TagID, inout: str, when: VTime) -> None:
         return
     # Print
     pr.iprint(finalmsg, style=k.ANSWER_STYLE)
+    # Print any note(s)
+    # visit = biketag.find_visit(when)
+    ut.squawk(f"{visit.tagid=},{visit.attached_notes=}",cfg.DEBUG)
+    for note_str in visit.active_note_strings():
+        pr.iprint(f"    {note_str}", style=k.WARNING_STYLE)
     NoiseMaker.queue_add(inout)
 
 
@@ -135,7 +143,7 @@ def edit_event(args: list, today: TrackerDay) -> bool:
                     continue
                 biketag.edit_in(bike_time)
                 data_changed = True
-                print_tag_inout(tagid, k.BIKE_IN, bike_time)
+                print_tag_inout(biketag, k.BIKE_IN, bike_time)
 
             elif which == "o":
                 if biketag.status != biketag.DONE:
@@ -147,7 +155,7 @@ def edit_event(args: list, today: TrackerDay) -> bool:
                     continue
                 biketag.edit_out(bike_time)
                 data_changed = True
-                print_tag_inout(tagid, k.BIKE_OUT, bike_time)
+                print_tag_inout(biketag, k.BIKE_OUT, bike_time)
 
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
@@ -223,6 +231,10 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                         style=k.ANSWER_STYLE,
                     )
                     data_changed = True
+            # Add any applicable note(s)
+            if data_changed:
+                for note_str in visit.active_note_strings():
+                    pr.iprint(f"    {note_str}", style=k.WARNING_STYLE)
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
             NoiseMaker.queue_add(k.ALERT)
@@ -239,7 +251,7 @@ def check_in(args: list, today: TrackerDay) -> bool:
         args[1] if present is a time to assign to the check-in
         today is the data for today
     On exit:
-        error messages will have een given
+        error messages will have been given
         bikes will have been (maybe) checked in
         return is True if the data has changed.
 
@@ -271,7 +283,7 @@ def check_in(args: list, today: TrackerDay) -> bool:
             # Check this bike out at this time
             biketag.check_in(bike_time)
             data_changed = True
-            print_tag_inout(tagid, k.BIKE_IN, bike_time)
+            print_tag_inout(biketag, k.BIKE_IN, bike_time)
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
             NoiseMaker.queue_add(k.ALERT)
@@ -321,7 +333,7 @@ def check_out(args: list, today: TrackerDay) -> bool:
             # Check this bike in at this time
             biketag.edit_out(bike_time)
             data_changed = True
-            print_tag_inout(tagid, k.BIKE_OUT, bike_time)
+            print_tag_inout(biketag, k.BIKE_OUT, bike_time)
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
             NoiseMaker.queue_add(k.ALERT)
@@ -417,6 +429,8 @@ def query_command(day: TrackerDay, targets: list[TagID]) -> None:
                     else:
                         msg += "still on-site."
                     msgs.append(msg)
+                    for note_str in visit.active_note_strings():
+                        msgs.append(f"    {note_str}")
 
         for msg in msgs:
             pr.iprint(msg, style=k.ANSWER_STYLE)
@@ -457,6 +471,11 @@ def leftovers_query(today: TrackerDay):
             f"{tagid.upper()}" + " " * (max_tagid_len - len(tagid)) + msgs[tagid]
         )
         pr.iprint(msgs[tagid], style=k.NORMAL_STYLE)
+        bike = today.biketags[tagid]
+        last_visit: BikeVisit = bike.visits[-1]
+        if not last_visit.time_out:
+            for note_str in last_visit.active_note_strings():
+                pr.iprint(note_str, num_indents=3, style=k.NORMAL_STYLE)
 
 
 def set_tag_case(want_uppercase: bool) -> None:
@@ -592,6 +611,7 @@ def process_command(
         rep.full_chart(day=today)
     elif cmd == CmdKeys.CMD_DEBUG:
         cfg.DEBUG = args[0]
+        InternetMonitorController.set_debug(args[0])
         pr.iprint(f"DEBUG is now {cfg.DEBUG}")
     elif cmd == CmdKeys.CMD_DELETE:
         # Delete a check-in or check-out
@@ -618,8 +638,16 @@ def process_command(
         leftovers_query(today=today)
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
+    elif cmd == CmdKeys.CMD_MONITOR:
+        if args[0]:  # True
+            InternetMonitorController.monitor_on()
+            pr.iprint("(Re)activating internet monitoring.")
+        else:
+            monitor_delay = 120
+            InternetMonitorController.monitor_off(monitor_delay)
+            pr.iprint(f"Suppressing internet monitoring for {monitor_delay} minutes.")
     elif cmd == CmdKeys.CMD_NOTES:
-        data_changed = tt_notes.notes_command(notes_list=today.notes, args=args)
+        data_changed = tt_notes_command.notes_command(notes_list=today.notes, args=args)
     elif cmd == CmdKeys.CMD_PUBLISH:
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
@@ -653,6 +681,7 @@ def process_command(
 
     NoiseMaker.queue_play()
     return data_changed
+
 
 def lint_report(
     today: TrackerDay, strict_datetimes: bool = True, chatty: bool = False

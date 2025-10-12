@@ -200,6 +200,8 @@ def main_and_back_buttons(pages_back: int) -> str:
         return main_page_button()
     if pages_back == NAV_NO_BUTTON:
         return ""
+    if isinstance(pages_back, int) and pages_back > wcfg.MAX_PAGES_BACK:
+        return main_page_button()
     if called_by_self() and pages_back > 0:
         return back_button(pages_back)
     else:
@@ -873,5 +875,4 @@ def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
     print(db.db_latest(ttdb))
 
     print(f"TagTracker version {get_version_info()}")
-
 

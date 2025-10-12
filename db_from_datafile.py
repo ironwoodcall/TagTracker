@@ -454,8 +454,6 @@ def delete_one_day_data(cursor: sqlite3.Connection.cursor, date: str, orgsite_id
         cursor.execute(f"DELETE FROM BLOCK WHERE day_id = {day_id}")
         cursor.execute(f"DELETE FROM DATALOADS WHERE day_id = {day_id}")
         cursor.execute(f"DELETE FROM DAY WHERE id = {day_id}")
-
-
 def insert_into_day(
     orgsite_id: int,
     td: TrackerDay,
@@ -618,7 +616,12 @@ def insert_into_visit(
 
     for visit in day.all_visits():
         visit: BikeVisit
+        if not visit.time_in:
+            continue
         biketype = "R" if day.biketags[visit.tagid].bike_type == REGULAR else "O"
+
+        time_in_text = str(visit.time_in) if visit.time_in else "00:00"
+        time_out_text = str(visit.time_out) if visit.time_out else ""
 
         # Save to VISIT table
         cursor.execute(
@@ -636,9 +639,9 @@ def insert_into_visit(
         """,
             (
                 day_id,
-                visit.time_in,
-                visit.time_out,
-                visit.duration(day.time_closed,is_close_of_business=True),
+                time_in_text,
+                time_out_text,
+                visit.duration(day.time_closed, is_close_of_business=True),
                 biketype,
                 visit.tagid,
             ),

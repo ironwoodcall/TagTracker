@@ -110,6 +110,7 @@ class CmdKeys:
     CMD_LEFTOVERS = "LEFTOVERS"
     CMD_LINT = "LINT"
     CMD_LOWERCASE = "LOWERCASE"
+    CMD_MONITOR = "MONITOR"
     CMD_NOTES = "NOTES"
     CMD_PUBLISH = "PUBLISH"
     CMD_QUERY = "QUERY"
@@ -255,6 +256,12 @@ COMMANDS = {
     CmdKeys.CMD_LINT: CmdConfig(invoke=["lint"]),
     CmdKeys.CMD_LEFTOVERS: CmdConfig(invoke=["leftovers", "leftover","left","l"]),
     CmdKeys.CMD_LOWERCASE: CmdConfig(invoke=["lc", "lowercase"]),
+    CmdKeys.CMD_MONITOR: CmdConfig(
+        invoke=["monitor", "mon"],
+        arg_configs=[
+            ArgConfig(ARG_ONOFF, optional=False, prompt="on or off? "),
+        ],
+    ),
     CmdKeys.CMD_NOTES: CmdConfig(
         invoke=["note", "notes", "n"],
         arg_configs=[ArgConfig(ARG_TEXT, optional=True, prompt="")],
@@ -381,8 +388,9 @@ def _chunkize_for_one_arg(
         return True
 
     if arg_conf.arg_type == ARG_INOUT:
-        if arg_parts[0].lower() in {"in", "out", "i", "o"}:
-            parsed.result_args.append(arg_parts[0][0])
+        lowered = arg_parts[0].lower()
+        if lowered in {"in", "out", "i", "o"}:
+            parsed.result_args.append(lowered[0])
             if arg_parts:
                 del arg_parts[0]
         else:
@@ -391,8 +399,9 @@ def _chunkize_for_one_arg(
                 f"Unrecognized parameter '{arg_parts[0]}' (must be 'in' or 'out')."
             )
     elif arg_conf.arg_type == ARG_YESNO:
-        if arg_parts[0].lower() in {"yes", "no", "y", "n"}:
-            parsed.result_args.append(arg_parts[0][0])
+        lowered = arg_parts[0].lower()
+        if lowered in {"yes", "no", "y", "n"}:
+            parsed.result_args.append(lowered[0])
             if arg_parts:
                 del arg_parts[0]
         else:

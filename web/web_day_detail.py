@@ -37,7 +37,7 @@ import web_common as cc
 import datacolors as dc
 import web.web_estimator as web_estimator
 import web_histogram
-from web.web_base_config import EST_TYPE_FOR_ONEDAY_SUMMARY
+from web.web_base_config import EST_TYPE_FOR_ONEDAY_SUMMARY, HIST_FIXED_Y_AXIS_FULLNESS
 
 
 HIGHLIGHT_NONE = 0
@@ -104,8 +104,8 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
             """
 
     def today_button(label) -> str:
-        target = ut.date_str("today")
-        if target == thisday:
+        # target = ut.date_str("today")
+        if ut.date_str("today") == thisday:
             return f"""
                 <button type="button" disabled
                     style="opacity: 0.5; cursor: not-allowed;">
@@ -113,7 +113,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                 """
         link = cc.selfref(
             what=cc.WHAT_ONE_DAY,
-            qdate=target,
+            qdate='today',
             pages_back=cc.increment_pages_back(pages_back),
         )
         return f"""
@@ -215,10 +215,7 @@ def one_day_tags_report(
         )
         visits.append(visit)
 
-    tag_reuses = len(visits) - len(set(v.tag for v in visits))
-    # Reuse % is proportion of returns that were then reused.
-    bikes_returned = len([v for v in visits if v.time_out and v.time_out > ""])
-    tag_reuse_pct = tag_reuses / bikes_returned if bikes_returned else 0
+    tags_used_count = len(set(v.tag for v in visits))
 
     # Process the rows
     stats = VisitStats([v.duration for v in visits])
@@ -259,17 +256,31 @@ def one_day_tags_report(
         print(f"No information in database for {thisday}")
         return
 
-    print("<div style='display:inline-block'>")
-    print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
+    print(
+        "<div style='display:flex; flex-wrap:wrap; align-items:flex-start;'>"
+    )
+    print("<div style='flex:0 1 auto; min-width:260px; margin-right:1.5em;'>")
+    summary_html, prediction_html = summary_table(
+        day_data,
+        stats,
+        tags_used_count,
+        highlights,
+        is_today,
+    )
+    print(summary_html)
+    print("</div>")
 
-    summary_table(day_data, stats, tag_reuses, tag_reuse_pct, highlights, is_today)
+    print("<div style='flex:0 0 auto; min-width:260px; text-align:center;'>")
+    print(day_activity_histogram(ttdb, thisday))
+    fullness_hist = day_fullness_histogram(day_data, blocks)
+    if fullness_hist:
+        print("<div style='margin-top:0.75em;'>")
+        print(fullness_hist)
+        print("</div>")
     print("</div>")
-    print("<div style='display:inline-block; vertical-align: top;'>")
-    ##print("</div><div>")
-
-    mini_freq_tables(ttdb, thisday)
     print("</div>")
-    print("</div>")
+    if prediction_html:
+        print(prediction_html)
     # print("<br>")
     ##print("</div></div>")
 
@@ -288,36 +299,154 @@ def one_day_tags_report(
     )
 
 
-def mini_freq_tables(ttdb: sqlite3.Connection, today: str):
-    table_vars = (
-        ("duration", "Visit length", "teal"),
-        ("time_in", "Time in", "crimson"),
-        ("time_out", "Time out", "royalblue"),
-    )
+def day_activity_histogram(ttdb: sqlite3.Connection, today: str) -> str:
+    """Return a mini activity histogram for the one day view."""
+
     orgsite_id = 1  # FIXME hardcoded orgsite_id
-    for parameters in table_vars:
-        column, title, color = parameters
-        graph_link = cc.selfref(
-            what=cc.WHAT_ONE_DAY_FREQUENCIES,
-            start_date=today,
-            end_date=today,
-            pages_back=1,
-            text_note="one day",
+    graph_link = cc.selfref(
+        what=cc.WHAT_ONE_DAY_FREQUENCIES,
+        start_date=today,
+        end_date=today,
+        pages_back=1,
+        text_note="one day",
+    )
+    return web_histogram.activity_hist_table(
+        ttdb,
+        orgsite_id=orgsite_id,
+        start_date=today,
+        end_date=today,
+        mini=True,
+        title=(
+            f"<a href='{graph_link}' style='text-decoration:none; font-weight:bold;'>Graph of Activity</a>"
+        ),
+        link_target=graph_link,
+    )
+
+
+def day_fullness_histogram(day_data: DayTotals, blocks) -> str:
+    """Render a mini histogram of bikes on hand during the day."""
+
+    if not blocks:
+        return ""
+
+    def _as_vtime(value):
+        return value if isinstance(value, VTime) else VTime(value)
+
+    occupancy_points: list[tuple[VTime, int]] = []
+    for block_start, block_detail in blocks.items():
+        if not block_detail:
+            continue
+        v_start = _as_vtime(block_start)
+        on_hand = getattr(block_detail, "num_on_hand", {})
+        combined_on_hand = int(on_hand.get(k.COMBINED, 0) or 0) if on_hand else 0
+        occupancy_points.append((v_start, max(combined_on_hand, 0)))
+
+    occupancy_points.sort(
+        key=lambda item: item[0].num if getattr(item[0], "num", None) is not None else 0
+    )
+
+    if not occupancy_points:
+        return ""
+
+    category_minutes = 30
+    start_minutes = VTime("07:00").num
+    end_minutes = VTime("22:00").num
+    if start_minutes is None or end_minutes is None:
+        return ""
+
+    start_bucket = (start_minutes // category_minutes) * category_minutes
+    end_bucket = (end_minutes // category_minutes) * category_minutes
+    bucket_range = range(start_bucket, end_bucket + category_minutes, category_minutes)
+
+    buckets_to_totals: dict[int, float] = {minute: 0.0 for minute in bucket_range}
+    buckets_to_counts: dict[int, int] = {minute: 0 for minute in bucket_range}
+    have_unders = have_overs = False
+
+    for v_start, combined_on_hand in occupancy_points:
+        minute_value = getattr(v_start, "num", None)
+        if minute_value is None:
+            continue
+        bucket_minute = (minute_value // category_minutes) * category_minutes
+        if bucket_minute < start_bucket:
+            buckets_to_totals[start_bucket] += combined_on_hand
+            buckets_to_counts[start_bucket] += 1
+            have_unders = True
+        elif bucket_minute > end_bucket:
+            buckets_to_totals[end_bucket] += combined_on_hand
+            buckets_to_counts[end_bucket] += 1
+            have_overs = True
+        else:
+            buckets_to_totals.setdefault(bucket_minute, 0.0)
+            buckets_to_counts.setdefault(bucket_minute, 0)
+            buckets_to_totals[bucket_minute] += combined_on_hand
+            buckets_to_counts[bucket_minute] += 1
+
+    ordered_pairs: list[tuple[str, float]] = []
+    for minute in bucket_range:
+        vt = VTime(minute)
+        if not vt:
+            continue
+        label = vt.tidy if hasattr(vt, "tidy") else str(vt)
+        total = buckets_to_totals.get(minute, 0.0)
+        count = buckets_to_counts.get(minute, 0)
+        avg_value = total / count if count else 0.0
+        ordered_pairs.append((label, avg_value))
+
+    if not ordered_pairs:
+        return ""
+
+    if have_unders:
+        start_label, start_value = ordered_pairs[0]
+        ordered_pairs[0] = (f"{start_label}-", start_value)
+
+    if have_overs:
+        end_idx = len(ordered_pairs) - 1
+        end_label, end_value = ordered_pairs[end_idx]
+        ordered_pairs[end_idx] = (f"{end_label}+", end_value)
+
+    histogram_data = dict(ordered_pairs)
+
+    graph_link = cc.selfref(
+        what=cc.WHAT_ONE_DAY_FREQUENCIES,
+        start_date=day_data.date if day_data else "",
+        end_date=day_data.date if day_data else "",
+        pages_back=1,
+        text_note="one day",
+    )
+
+    footer_label = "Graph of Bikes on Hand"
+    if graph_link:
+        footer_label = (
+            f"<a href='{graph_link}' style='text-decoration:none; font-weight:bold;'>"
+            f"Graph of Bikes on Hand"
+            "</a>"
         )
-        title = f"<a href='{graph_link}'>{title}</a>"
-        print(
-            web_histogram.times_hist_table(
-                ttdb,
-                orgsite_id=orgsite_id,
-                query_column=column,
-                start_date=today,
-                end_date=today,
-                mini=True,
-                color=color,
-                title=title,
-            )
-        )
-        print("<br>")
+
+    open_marker_label = None
+    close_marker_label = None
+    if day_data:
+        open_time = getattr(day_data, "time_open", None)
+        close_time = getattr(day_data, "time_closed", None)
+        if open_time:
+            open_block = ut.block_start(open_time)
+            if getattr(open_block, "tidy", None):
+                open_marker_label = open_block.tidy
+        if close_time and getattr(close_time, "num", None) is not None:
+            close_block = ut.block_start(max(close_time.num - 1, 0))
+            if getattr(close_block, "tidy", None):
+                close_marker_label = close_block.tidy
+
+    return web_histogram.html_histogram(
+        histogram_data,
+        mini=True,
+        bar_color="darkcyan",
+        title="",
+        subtitle=footer_label,
+        link_target=graph_link,
+        max_value=HIST_FIXED_Y_AXIS_FULLNESS,
+        open_marker_label=open_marker_label,
+        close_marker_label=close_marker_label,
+    )
 
 
 def block_activity_table(
@@ -637,6 +766,8 @@ def visits_table(
     bar_scaling_factor = BAR_COL_WIDTH / (max_visit)
     bar_offset = round(earliest_event * bar_scaling_factor)
 
+    now_minutes = VTime("now").num if is_today else None
+
     html = "<table style=text-align:right class=general_table>"
     html += (
         "<tr><th colspan=5 style='text-align:center'>"
@@ -688,9 +819,28 @@ def visits_table(
         bar_marker = BAR_MARKERS[v.bike_type.upper()]
         bar_before_len = round(((time_in.num) * bar_scaling_factor)) - bar_offset
         bar_before = bar_before_len * "&nbsp;" if bar_before_len else ""
-        bar_itself_len = round((duration.num * bar_scaling_factor))
+        duration_minutes = duration.num or 0
+        bar_itself_len = round((duration_minutes * bar_scaling_factor))
         bar_itself_len = bar_itself_len if bar_itself_len else 1
-        bar_itself = bar_itself_len * bar_marker
+
+        if (
+            is_today
+            and (v.time_out <= "" or not v.time_out)
+            and now_minutes is not None
+            and duration_minutes > 0
+        ):
+            elapsed_minutes = max(0, min(now_minutes - time_in.num, duration_minutes))
+            if duration_minutes:
+                elapsed_len = round(
+                    bar_itself_len * (elapsed_minutes / duration_minutes)
+                )
+            else:
+                elapsed_len = bar_itself_len
+            elapsed_len = max(0, min(bar_itself_len, elapsed_len))
+            remaining_len = max(0, bar_itself_len - elapsed_len)
+            bar_itself = (bar_marker * elapsed_len) + ("-" * remaining_len)
+        else:
+            bar_itself = bar_marker * bar_itself_len
         c = "background:auto" if time_out else "background:khaki"  # "rgb(255, 230, 0)"
         print(
             f"<td style='text-align:left;font-family: monospace;color:purple;{c}'>"
@@ -711,8 +861,7 @@ def visits_table(
 def summary_table(
     day_data: DayTotals,
     stats: VisitStats,
-    tag_reuses: int,
-    tag_reuse_pct: float,
+    tags_used_count: int,
     highlights: dc.Dimension,
     is_today: bool,
     # suspicious: int,
@@ -733,12 +882,13 @@ def summary_table(
                 str(est_min) if est_min == est_max else f"{est_min}-{est_max}"
             )
 
-    print(
+    table_bits: list[str] = []
+    table_bits.append(
         "<table class=general_table summary_table><style>"
         ".summary_table td {text-align:right;}"
         "</style>"
     )
-    print(
+    table_bits.append(
         f"""
         <tr><td colspan=3>Hours of operation:
             {day_data.time_open.tidy} - {day_data.time_closed.tidy}</td></tr>
@@ -747,28 +897,27 @@ def summary_table(
             """
     )
     if is_today and the_estimate is not None:
-        print(
+        table_bits.append(
             f"""
         <tr><td colspan=2>&nbsp;&nbsp;Predicted total bikes today:</td>
             <td>{the_estimate}</td></tr>
         """
         )
-    print(
+    table_bits.append(
         f"""
         <tr><td colspan=2>Most bikes at once (at {day_data.time_fullest_combined.tidy}):</td>
             <td>{day_data.num_fullest_combined}</td></tr>
         <tr><td colspan=2>Bikes remaining:</td>
             <td  width=40 style='{highlights.css_bg_fg(int(day_data.num_remaining_combined>0)*HIGHLIGHT_WARN)}'>
                 {day_data.num_remaining_combined}</td></tr>
-        <tr><td colspan=2>Reuse of returned tags: (n={tag_reuses})</td>
-            <td  width=40>
-                {tag_reuse_pct:.0%}</td></tr>
+        <tr><td colspan=2>Tags used this day:</td>
+            <td>{tags_used_count}</td></tr>
         <tr><td colspan=2>Bikes registered:</td>
             <td>{day_data.bikes_registered}</td></tr>
         """
     )
     if not is_today:
-        print(
+        table_bits.append(
             f"""
             <tr><td colspan=2>Shortest visit:</td>
                 <td>{stats.shortest}</td></tr>
@@ -787,25 +936,25 @@ def summary_table(
                 <td>{fmt_none(day_data.precipitation)}</td></tr>
     """
         )
-    print("</table><p></p>")
+    table_bits.append("</table><p></p>")
+    prediction_bits = ""
     if is_today and est is not None and est.state != web_estimator.ERROR:
         detail_link = cc.selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
         audit_link = cc.selfref(what=cc.WHAT_AUDIT)
-        print(
-            # "<table>"
-            # "<tr>"
-            f"""
-            <td colspan=3 style='text-align:left'>{"".join(est.result_msg(as_html=True))}
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            <button type="button" style="padding: 10px; display: inline-block;"
-            onclick="window.location.href='{detail_link}';"><b>Detailed<br>Prediction</b></button>
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            <button type="button" style="padding: 10px; display: inline-block;"
-            onclick="window.location.href='{audit_link}';"><b>Audit<br>Report</b></button>
-            <br><br>
-            """
-            # """<a href="{detail_link}"><b>Detailed estimates</b></a></td></tr>"""
+        result_html = "".join(est.result_msg(as_html=True))
+        prediction_bits = (
+            "<div style='margin-top:0.5em'>"
+            f"{result_html}"
+            "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+            f"<button type=\"button\" style=\"padding: 10px; display: inline-block;\" "
+            f"onclick=\"window.location.href='{detail_link}';\"><b>Detailed<br>Prediction</b></button>"
+            "&nbsp;&nbsp;&nbsp;&nbsp;"
+            f"<button type=\"button\" style=\"padding: 10px; display: inline-block;\" "
+            f"onclick=\"window.location.href='{audit_link}';\"><b>Audit<br>Report</b></button>"
+            "<br><br></div>"
         )
+
+    return "".join(table_bits), prediction_bits
 
 
 def legend_table(daylight: dc.Dimension, duration_colors: dc.Dimension):

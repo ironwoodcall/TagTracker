@@ -94,11 +94,32 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
         If both start_time and end_time ==> start, end
     """
 
-    def format_one(atime: VTime, tag: TagID, is_check_in: bool) -> str:
+    def format_one(
+        atime: VTime, tag: TagID, is_check_in: bool, has_notes: bool = False
+    ) -> str:
         """Format one line of output."""
-        in_tag = f"{tag}" if is_check_in else ""
-        out_tag = "" if is_check_in else f"{tag}"
+        note_marker = "*" if has_notes else ""
+        in_tag = f"{tag}{note_marker}" if is_check_in else ""
+        out_tag = "" if is_check_in else f"{tag}{note_marker}"
         return f"{atime.tidy}    {in_tag:<7s}  {out_tag:<7s}"
+
+    def visit_has_notes(tag_descriptor: str) -> bool:
+        """Check whether the referenced visit has any notes attached."""
+        try:
+            tag_str, visit_index_raw = tag_descriptor.split(":", maxsplit=1)
+            visit_index = int(visit_index_raw)
+        except (ValueError, TypeError):
+            return False
+
+        biketag = day.biketags.get(TagID(tag_str))
+        if not biketag:
+            return False
+
+        if 1 <= visit_index <= len(biketag.visits):
+            visit = biketag.visits[visit_index - 1]
+            return bool(visit.includable_notes())
+
+        return False
 
     (start_time, end_time) = (args + [None, None])[:2]
     now = VTime("now")
@@ -135,6 +156,10 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
         "tag's visits this event represents.",
         style=k.SUBTITLE_STYLE,
     )
+    pr.iprint(
+        "An asterisk (\"*\") means the visit has note(s).",
+        style=k.SUBTITLE_STYLE,
+    )
     pr.iprint()
     pr.iprint("Time     BikeIn   BikeOut", style=k.SUBTITLE_STYLE)
     # Collect & print any bike-in/bike-out events in the time period.
@@ -158,10 +183,24 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
             current_block_end = ut.block_end(moment_time)
 
         for tag_desc in moment.tag_descriptions_incoming:
-            pr.iprint(format_one(moment_time, tag_desc, True))
+            pr.iprint(
+                format_one(
+                    moment_time,
+                    tag_desc,
+                    True,
+                    has_notes=visit_has_notes(tag_desc),
+                )
+            )
             ins += 1
         for tag_desc in moment.tag_descriptions_outgoing:
-            pr.iprint(format_one(moment_time, tag_desc, False))
+            pr.iprint(
+                format_one(
+                    moment_time,
+                    tag_desc,
+                    False,
+                    has_notes=visit_has_notes(tag_desc),
+                )
+            )
             outs += 1
     pr.iprint()
     pr.iprint(f"Total   {ins:6} {outs:7}", style=k.SUBTITLE_STYLE)
