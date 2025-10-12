@@ -388,8 +388,9 @@ def _chunkize_for_one_arg(
         return True
 
     if arg_conf.arg_type == ARG_INOUT:
-        if arg_parts[0].lower() in {"in", "out", "i", "o"}:
-            parsed.result_args.append(arg_parts[0][0])
+        lowered = arg_parts[0].lower()
+        if lowered in {"in", "out", "i", "o"}:
+            parsed.result_args.append(lowered[0])
             if arg_parts:
                 del arg_parts[0]
         else:
@@ -398,8 +399,9 @@ def _chunkize_for_one_arg(
                 f"Unrecognized parameter '{arg_parts[0]}' (must be 'in' or 'out')."
             )
     elif arg_conf.arg_type == ARG_YESNO:
-        if arg_parts[0].lower() in {"yes", "no", "y", "n"}:
-            parsed.result_args.append(arg_parts[0][0])
+        lowered = arg_parts[0].lower()
+        if lowered in {"yes", "no", "y", "n"}:
+            parsed.result_args.append(lowered[0])
             if arg_parts:
                 del arg_parts[0]
         else:
