@@ -1,0 +1,99 @@
+TagTracker Mobile Access Discussion
+===================================
+
+Context
+-------
+TagTracker currently runs as a CLI on a laptop in environments with intermittent, low-bandwidth internet. Staff want a browser-based interface—initially for entering commands and viewing dashboards, eventually for richer touch interactions like dragging tag icons. The laptop must continue periodically forwarding data to the central reporting server when connectivity permits.
+
+
+High-Level Architecture
+-----------------------
+- Reuse existing CLI logic by wrapping it in a lightweight Python web service (Flask, FastAPI, or Quart) exposed on localhost. Apache running in WSL serves the single-page application (SPA) and proxies `/api` requests to the service.
+- Keep business rules on the server. The SPA becomes a thin client that issues intent-based actions (e.g., `check_in`, `issue_tag`) and renders dashboards based on JSON responses.
+- Include WebSocket or Server-Sent Events support early to stream command output back to the browser’s “command pane” and push live updates to dashboards.
+- Package all SPA assets locally (no CDN dependencies) so the interface works offline inside the site network.
+
+
+Network Deployment Model
+------------------------
+- Connect a small Wi-Fi router or access point to the laptop through its USB-to-ethernet adapter. Staff devices join this private TagTracker LAN; the laptop’s built-in Wi-Fi remains free to opportunistically connect to the internet for upstream sync.
+- Configure the router to provide DHCP/DNS within a dedicated subnet and to route traffic only to the laptop. The laptop’s firewall should allow HTTP/WebSocket access from that subnet and block other inbound ports.
+- Apache serves the SPA and proxies API requests to the Python backend. Ensure `mod_proxy`, `mod_proxy_http`, and (for WebSockets) `mod_proxy_wstunnel` are enabled. Run the backend via `gunicorn`/`uvicorn` or similar under a user-level systemd service so it survives reboots.
+- Optional enhancements: service worker caching of static assets, local DNS name (e.g., `tagtracker.local`), and captive portal bypass so devices stay connected even without upstream internet.
+
+
+Multi-User Concurrency
+----------------------
+- Multiple staff sessions will issue overlapping commands and updates. Migrate persistence from single-file storage to SQLite (bundled, ACID, WAL support) or another lightweight database. Expose it through a shared data access layer that both the CLI and the web service use.
+- Implement optimistic concurrency: include a `version` or timestamp with each read, and reject conflicting writes with clear feedback so clients can refresh and retry.
+- For high-contention actions (e.g., dragging the same tag simultaneously), consider short-lived server-side locks or business-rule guards and deliver near-real-time UI refreshes via WebSockets to minimize conflicts.
+
+SQLite Migration Path
+---------------------
+- **Phase 0 – Compatibility Layer**: Abstract existing JSON file reads/writes behind a repository module shared by CLI and web features. Add automated regression checks to ensure the abstraction behaves identically to today’s flows.
+- **Phase 1 – Dual-Write Pilot**: Introduce SQLite as an optional backend that mirrors JSON content on demand (e.g., nightly conversion). Continue treating JSON as the source of truth while validating schema design, indices, and performance on sample workloads.
+- **Phase 2 – Primary SQLite Store**: Flip the default so the laptop writes transactions directly to SQLite. Keep exporting JSON snapshots for legacy tooling or as a fallback. Enable SQLite Write-Ahead Logging to support concurrent readers while web sessions stay responsive.
+- **Phase 3 – Upstream Synchronization**: Package the entire TagTracker dataset into a laptop SQLite database. Implement a sync service that periodically diffs local changes (via change tables or triggers) and pushes them to the reporting server’s database—either as bulk SQL scripts or through an API endpoint. When connectivity is absent, the laptop simply queues new changes and retries opportunistically.
+- **Phase 4 – Bidirectional Coordination (Optional)**: If the reporting server can originate updates (e.g., approvals, fleet adjustments), add pull replication or changefeeds so the laptop reconciles remote mutations. Use last-write-wins or vector clocks to detect true conflicts and surface them to staff for resolution.
+- Maintain tooling for schema migrations (Alembic or simple migration scripts) so both laptop and server stay in lockstep. Document operational procedures: snapshot retention, recovery from corruption, and fallback to JSON when necessary.
+
+Laptop-Centric Sync Strategy
+----------------------------
+- With the full historical dataset resident on the laptop’s SQLite database, a lightweight delta-sync agent can attempt to forward changes to the reporting server every 1–2 minutes. The agent should detect connection availability cheaply (e.g., DNS ping) and retry with exponential backoff to avoid thrashing weak links.
+- If the data flow remains one-way (laptop → reporting server), the current-day records on the laptop are the authoritative source, while the reporting server holds an eventually consistent history. To accommodate retrospective fixes entered directly on the server, add a “frozen” flag per service day (or per visit) that instructs the laptop not to overwrite data for dates that have been post-processed centrally.
+- As an intermediate step, continue exporting daily JSON from the laptop’s SQLite DB and let the existing rsync-based pipeline deliver those files. That keeps the JSON artifacts as the canonical record for each day, while the reporting server aggregates them into its own database for analytics. In this model, the laptop’s SQLite instance is both the live working store (for today) and a read-only replica of historic JSON-derived snapshots.
+- This dual-path approach increases complexity: the team must manage SQLite ↔ JSON parity, frozen-day metadata, and the delta sync service simultaneously. However, it provides a gradual migration path that preserves current operational guarantees and allows incremental validation before promoting SQLite-to-SQLite replication as the primary channel.
+- Once confidence grows, retire the JSON exports and treat the laptop as the system of record for in-progress days and a replica for frozen history. Document the promotion/demotion workflow (e.g., how and when a day moves from “mutable” to “frozen”) and incorporate it into both CLI/web tooling and the synchronization agent.
+
+Sync Wiring Options
+-------------------
+- **Database-to-Database Delta Sync**
+  - *Mechanics*: Run a lightweight replication agent on the laptop that inspects SQLite change tables (or timestamped rows), packages row-level deltas, and pushes them to the reporting server through an authenticated API. The server applies those changes directly into its own SQLite instance (or upstream RDBMS), possibly within a transaction per batch.
+  - *Pros*: Near real-time visibility, fewer translation layers, easier to reason about transactional semantics, and no need to reconstruct history from JSON dumps. Fine-grained auditing is possible by logging each mutation. Also simplifies future bidirectional sync if required.
+  - *Cons*: Requires building and maintaining a custom replication layer (change capture, retry logic, versioning) and solid conflict resolution. Schema migrations must be carefully orchestrated on both sides. Troubleshooting corruption or divergence is trickier without human-readable artifacts.
+- **JSON Export & rsync**
+  - *Mechanics*: On a schedule (e.g., every few minutes), the laptop exports the current SQLite state for each active service day into JSON files matching today’s format, then uses the existing rsync job to ship them to the server. The server loads JSON into its database via the current ingestion pipeline.
+  - *Pros*: Reuses proven tooling, produces human-readable artifacts for debugging, and isolates the server schema from live writes. The JSON files double as durable checkpoints that can be archived or re-imported. Lower implementation risk since the workflow mirrors today’s operations.
+  - *Cons*: Higher latency—updates are only visible after export + rsync + ingestion. Exporting the same day repeatedly can be I/O heavy. Maintaining exact parity between SQLite and JSON adds complexity, and per-day full exports may become inefficient as data volume grows. Extending to bidirectional updates is awkward.
+- **Hybrid**: Use database-to-database sync for “hot” days and retain JSON exports as nightly snapshots or safety fallbacks. This offers lower-latency reporting while preserving debuggable artifacts and continuity with existing processes.
+
+
+Mobile Device Behavior
+----------------------
+- Tablets and phones will attach to the private Wi-Fi while optionally leaving cellular data enabled. Android and iOS may deprioritize Wi-Fi networks that lack internet access; mark the SSID as trusted/“stay connected” and respond quickly to local requests to avoid automatic fallbacks.
+- If possible, provide the OS with a positive connectivity check (captive portal acknowledgement or dummy HTTP response) so it continues to route TagTracker traffic over Wi-Fi. Managed-device profiles (MDM) can pin the TagTracker domain to Wi-Fi while leaving other apps free to use cellular.
+- Use fast local DNS resolution (`tagtracker.local`, mDNS, or static hosts file entries) to avoid unnecessary external lookups.
+
+
+Implementation Phasing
+----------------------
+1. **Service Layer Foundation**: Catalogue CLI entry points, wrap them with HTTP endpoints, and stand up Apache reverse proxying within WSL. Maintain log parity with the CLI to simplify debugging.
+2. **SPA Shell & Command Panel**: Build the browser-based command console (input + streamed output) and basic dashboard cards (active bikes, outstanding tasks). Ensure all assets are bundled locally and confirm offline behavior across devices.
+3. **Stateful Interactions & Concurrency Controls**: Introduce actionable UI widgets (buttons for common reports, basic forms). Transition persistence to SQLite or a similar transactional store, adding optimistic concurrency checks and WebSocket push updates.
+4. **Advanced Touch Workflows**: Implement drag-and-drop/tag icons and other touch-first features once the data model and concurrency guarantees are proven. Layer in service worker enhancements for resilience and prepare mobile UX polish.
+5. **Operational Hardening**: Document router/laptop setup, automate deployment (scripts or Ansible), add health monitoring, and schedule periodic sync tasks to the remote reporting server.
+
+CLI Entry Point Catalogue (Initial Pass)
+----------------------------------------
+- `tagtracker.py`: Primary CLI entry that dispatches to command handlers; identifies base command taxonomy and option parsing flow.
+- `tt_process_command.py`: Core command processor invoked by the CLI; establishes validation, state transitions, and logging semantics.
+- `tt_commands.py`: Defines individual command implementations (e.g., bike assignment, returns) and shared utilities required for web action parity.
+- `tt_notes_command.py` / `tt_notes.py`: Handles note-taking commands; important for exposing note CRUD endpoints.
+- `tt_reports.py`: Generates CLI reports; candidates for eventual web dashboard widgets or export endpoints.
+- `tt_biketag.py`, `tt_bikevisit.py`, `tt_trackerday.py`: Data model helpers that underpin business logic; map closely to future API representations.
+- Remaining scripts (`tt_audit_report.py`, `tt_publish.py`, etc.) may be legacy or ad hoc utilities—evaluate during cataloguing to decide web exposure priority and modernization needs.
+
+Minimal Pseudo-CLI Web Interface
+--------------------------------
+- **Backend wrapper**: Add a thin HTTP endpoint (e.g., `POST /cli/run`) that hands the submitted command string to the existing parser/dispatcher inside `tt_process_command.py`. Capture stdout/stderr via `io.StringIO` or subprocess pipes so the web tier mirrors terminal responses faithfully.
+- **Execution guardrails**: Sandbox each invocation (timeout, one-command-at-a-time per client) and ensure the TagTracker state files/config paths match the CLI defaults so behavior remains consistent regardless of entry point.
+- **Transport**: Start with simple request/response semantics—browser sends command, server returns aggregated output. Graduate to WebSocket streaming once the base flow is stable to mimic interactive text feedback.
+- **Front-end panel**: Serve a static HTML page with a command input box, history log, and keyboard shortcuts (Enter to run, ↑ for history). Use lightweight JS (vanilla or Alpine) to post commands and append results.
+- **Access control & logging**: Restrict the endpoint to the private LAN and require at least basic auth. Log each command with user/session metadata to match current CLI audit trails.
+- **Deployment**: Host the wrapper with Flask/FastAPI and proxy through Apache. No database or report UI changes are required for this minimal phase.
+
+Open Questions to Revisit
+-------------------------
+- Does existing CLI validation cover all web workflows, or do we need additional server-side guards?
+- What safeguards are required if the site adds more laptops or wants redundant servers?
+- How frequently should upstream sync run, and how are conflicts with the central server resolved?

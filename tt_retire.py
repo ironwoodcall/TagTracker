@@ -25,6 +25,7 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence, Optional
@@ -216,13 +217,38 @@ def _write_config_state(
             new_text = f"{base}\n\n{new_block}"
         else:
             new_text = new_block
-    temp_path = _CONFIG_FILE.with_suffix(".tmp")
+    backup_path = _CONFIG_FILE.with_suffix(".bak")
     try:
-        temp_path.write_text(new_text, encoding="utf-8")
-        temp_path.replace(_CONFIG_FILE)
+        if _CONFIG_FILE.exists():
+            shutil.copy2(_CONFIG_FILE, backup_path)
     except OSError as exc:
+        raise RuntimeError(
+            f"Unable to create backup for {_CONFIG_FILE.name}: {exc}"
+        ) from exc
+
+    try:
+        with _CONFIG_FILE.open("r+", encoding="utf-8") as handle:
+            handle.seek(0)
+            handle.write(new_text)
+            handle.truncate()
+    except FileNotFoundError:
+        try:
+            _CONFIG_FILE.write_text(new_text, encoding="utf-8")
+        except OSError as exc:
+            _restore_backup(backup_path)
+            raise RuntimeError(f"Unable to update {_CONFIG_FILE.name}: {exc}") from exc
+    except OSError as exc:
+        _restore_backup(backup_path)
         raise RuntimeError(f"Unable to update {_CONFIG_FILE.name}: {exc}") from exc
     cfg.RETIRED_TAGS = body
+
+
+def _restore_backup(backup_path: Path) -> None:
+    try:
+        if backup_path.exists():
+            shutil.copy2(backup_path, _CONFIG_FILE)
+    except OSError:
+        pass
 
 
 def _format_body(tags: Iterable[TagID]) -> str:
