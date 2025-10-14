@@ -272,8 +272,14 @@ class DaySummary:
 
             for moment_time in sorted(moments):  # yes moments need to be in order
                 moment: MomentDetail = moments[moment_time]
-                if block_start_time <= moment_time <= block_end_time:
-
+                moment_minute = (
+                    moment_time.num
+                    if hasattr(moment_time, "num")
+                    else VTime(moment_time).num
+                )
+                if block_start_time.num <= moment_minute <= block_end_time.num:
+                    # Use minute-based comparisons so HH:MM:SS timestamps
+                    # are still counted inside their containing block.
                     for bike_type in [k.REGULAR, k.OVERSIZE, k.COMBINED]:
                         block_ins[bike_type] += moment.num_incoming[bike_type]
                         block_outs[bike_type] += moment.num_outgoing[bike_type]
@@ -349,4 +355,3 @@ class DaySummary:
         whole_day.time_fullest_combined = time_fullest[k.COMBINED]
 
         return whole_day
-
