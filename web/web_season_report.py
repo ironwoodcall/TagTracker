@@ -402,7 +402,7 @@ def totals_table(conn: sqlite3.Connection):
 
     row_defs = [
         {
-            "label": "Total bikes parked (visits)",
+            "label": "Bikes parked",
             "value_fn": totals_attr("total_parked_combined"),
             "day_value_fn": totals_attr("total_parked_combined"),
             "display_fn": _display_default,
@@ -423,7 +423,7 @@ def totals_table(conn: sqlite3.Connection):
             "percent": True,
         },
         {
-            "label": "Average bikes / day",
+            "label": "Bikes per day",
             "value_fn": lambda totals: (
                 totals.total_parked_combined / totals.total_days_open
                 if totals.total_days_open
@@ -433,28 +433,28 @@ def totals_table(conn: sqlite3.Connection):
             "percent": True,
         },
         {
-            "label": "Total bike registrations",
+            "label": "Bike registrations",
             "value_fn": totals_attr("total_bikes_registered"),
             "day_value_fn": totals_attr("total_bikes_registered"),
             "display_fn": _display_default,
             "percent": True,
         },
         {
-            "label": "Total days open",
+            "label": "Days open",
             "value_fn": totals_attr("total_days_open"),
             "day_value_fn": totals_attr("total_days_open"),
             "display_fn": _display_default,
             "percent": True,
         },
         {
-            "label": "Total hours open",
+            "label": "Hours open",
             "value_fn": totals_attr("total_hours_open"),
             "day_value_fn": totals_attr("total_hours_open"),
             "display_fn": _display_hours_open,
             "percent": True,
         },
         {
-            "label": "Bikes left (excluding today)",
+            "label": "Bikes left on-site",
             "value_fn": totals_attr("total_remaining_combined"),
             "day_value_fn": totals_attr("total_remaining_combined"),
             "display_fn": _display_default,
@@ -463,7 +463,7 @@ def totals_table(conn: sqlite3.Connection):
         },
         {
             "label": (
-                f"Most bikes parked (<a href='{most_parked_link}'>{ytd_totals.max_parked_combined_date}</a>)"
+                f"Max bikes parked (<a href='{most_parked_link}'>{ytd_totals.max_parked_combined_date}</a>)"
             ),
             "value_fn": totals_attr("max_parked_combined"),
             "display_fn": _display_default,
@@ -471,7 +471,7 @@ def totals_table(conn: sqlite3.Connection):
         },
         {
             "label": (
-                f"Most bikes at once (<a href='{fullest_link}'>{ytd_totals.max_fullest_combined_date}</a>)"
+                f"Max bikes on-site (<a href='{fullest_link}'>{ytd_totals.max_fullest_combined_date}</a>)"
             ),
             "value_fn": totals_attr("max_fullest_combined"),
             "day_value_fn": totals_attr("max_fullest_combined"),
@@ -479,7 +479,7 @@ def totals_table(conn: sqlite3.Connection):
             "percent": None,
         },
         {
-            "label": "Total precipitation",
+            "label": "Precipitation",
             "value_fn": totals_attr("total_precipitation"),
             "day_value_fn": totals_attr("total_precipitation"),
             "display_fn": _display_default,
@@ -499,8 +499,11 @@ def totals_table(conn: sqlite3.Connection):
 
     # Table header
     header_html = (
-        f"  <tr><th>{selected_year_str} Summary</th>"
-        f"<th style='text-align:center;border-right: 2px solid gray;'>YTD<br>{selected_year_str}</th>"
+        "<tr><th rowspan=2 style='text-align:center;border-right: 2px solid gray;'>Summary</th>"
+        "<th colspan=3 style='text-align:center;border-right: 2px solid gray;'>This year</th>"
+        "<th colspan=5>Recent days</th></tr>"
+        #f"  <tr><th>{selected_year_str} Summary</th>"
+        f"<th style='text-align:center;'>YTD<br>{selected_year_str}</th>"
         "<th style='text-align:center'>%Δ<br>YTD</th>"
         "<th style='text-align:center;border-right: 2px solid gray;'>%Δ<br>12mo</th>"
     )
@@ -517,8 +520,8 @@ def totals_table(conn: sqlite3.Connection):
     def html_row(label, ytd_value, pct_ytd, pct_12mo, day_values):
         """Build HTML for a table row."""
         row_html = (
-            f"<tr><td style='text-align:left'>{label}</td>"
-            f"<td style='text-align:right;border-right: 2px solid gray;'>{_p(ytd_value)}</td>"
+            f"<tr><td style='text-align:left;border-right: 2px solid gray;'>{label}</td>"
+            f"<td style='text-align:right;'>{_p(ytd_value)}</td>"
             f"<td style='text-align:right'>{_p(pct_ytd)}</td>"
             f"<td style='text-align:right;border-right: 2px solid gray;'>{_p(pct_12mo)}</td>"
         )
@@ -596,7 +599,7 @@ def season_summary(ttdb: sqlite3.Connection):
     download_db_link = cc.make_url("tt_download", what="db")
 
     print(
-        f"<h1 style='display: inline;'>{cc.titleize('Quick Overview')}</h1><br><br>")
+        f"<h1 style='display: inline;'>{cc.titleize('')}</h1><br><br>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
 
