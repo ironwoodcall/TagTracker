@@ -603,10 +603,10 @@ def process_command(
     elif cmd == CmdKeys.CMD_BIKE_OUT:
         # Check a bike out. Hard to imagine anyone even using this command.
         data_changed = check_out(args=args, today=today)
-    elif cmd == CmdKeys.CMD_BUSY:
-        pr.iprint(
-            "'BUSY' command is now part of 'STATS' command.", style=k.WARNING_STYLE
-        )
+    # elif cmd == CmdKeys.CMD_BUSY:
+    #     pr.iprint(
+    #         "'BUSY' command is now part of 'STATS' command.", style=k.WARNING_STYLE
+    #     )
     elif cmd == CmdKeys.CMD_CHART:
         rep.full_chart(day=today)
     elif cmd == CmdKeys.CMD_DEBUG:

@@ -60,6 +60,7 @@ SOUND_ENABLED = True
 # This tells TT how often to check for an active internet connection (minutes).
 # If set to 0 (or anything else that evalues False), no monitoring is done.
 INTERNET_MONITORING_FREQUENCY = 10
+INTERNET_LOG_FOLDER = ""    # Folder for log of internet checks
 
 # Site name identifier goes into the datafile, used in aggregation
 SITE_NAME = "Default Site"
