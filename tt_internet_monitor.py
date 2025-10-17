@@ -70,7 +70,7 @@ import http.client
 from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple, Type
 
 import common.tt_constants as k
 import client_base_config as cfg
@@ -268,6 +268,7 @@ class InternetMonitorController:
         "Turn on monitoring (if it was off)."
         cls.start_monitor()
         cls.enabled = True
+        InternetMonitor._log_probe_result("SYS", "-", True, "On")
 
     @classmethod
     def disable(cls):
@@ -275,6 +276,7 @@ class InternetMonitorController:
         if cls.process:
             cls.kill_monitor()
         cls.enabled = False
+        InternetMonitor._log_probe_result("SYS", "-", True, "Off")
 
     @classmethod
     def monitor_off(cls, duration_minutes: float = 120):
@@ -286,10 +288,12 @@ class InternetMonitorController:
         if not cls.process:
             cls.start_monitor(initial_suppress_seconds=suppress_seconds)
             cls.enabled = True
+            InternetMonitor._log_probe_result("SYS", "-", True, "Off")
             return
         suppress_until = time.time() + suppress_seconds
         cls._write_control_state(suppress_until)
         cls._signal_monitor()
+        InternetMonitor._log_probe_result("SYS", "-", True, "Off")
 
     @classmethod
     def monitor_on(cls):
@@ -298,16 +302,29 @@ class InternetMonitorController:
         if not cls.process:
             cls.start_monitor(initial_suppress_seconds=0)
             cls.enabled = True
+            InternetMonitor._log_probe_result("SYS", "-", True, "On")
             return
         suppress_until = time.time() - RESUME_EPSILON_SECONDS
         cls._write_control_state(suppress_until)
         cls._signal_monitor()
+        InternetMonitor._log_probe_result("SYS", "-", True, "On")
 
 
 @dataclass
 class PendingAlert:
     timestamp: float
     diag: Optional[str]
+    probe_id: Optional[str]
+
+
+@dataclass(frozen=True)
+class Probe:
+    identifier: str
+    name: str
+    runner: Callable[[Type["InternetMonitor"]], Tuple[bool, Optional[str]]]
+
+    def execute(self, monitor_cls: Type["InternetMonitor"]) -> Tuple[bool, Optional[str]]:
+        return self.runner(monitor_cls)
 
 
 class InternetMonitor:
@@ -315,6 +332,10 @@ class InternetMonitor:
 
     control_file_path = DEFAULT_CONTROL_FILE
     HEARTBEAT_FILENAME = "internet_heartbeat.csv"
+    HTTPBIN_PROBE_ID = "HBIN"
+    GOOGLE_DOH_PROBE_ID = "GDOH"
+    GSTATIC_PROBE_ID = "G204"
+    CLOUDFLARE_DOH_PROBE_ID = "CDOH"
     _suppress_until: float = 0.0
     _last_control_token: Optional[str] = None
     _control_reload_requested: bool = True
@@ -324,6 +345,8 @@ class InternetMonitor:
     _check_interval: float = 0.0
     _alert_cooldown: float = 0.0
     _first_cycle: bool = True
+    _primary_probes: Tuple[Probe, ...] = ()
+    _confirmation_probes: Tuple[Probe, ...] = ()
 
     CONFIRMATION_DELAY = 30.0  # seconds to wait before confirming lapse
     MINIMUM_SLEEP = 1.0
@@ -401,6 +424,86 @@ class InternetMonitor:
         )
 
     @staticmethod
+    def _create_cloudflare_doh_url(query_name: str) -> str:
+        """Create the URL for the Cloudflare DoH confirmation probe."""
+        return "https://cloudflare-dns.com/dns-query?name={name}&type=1".format(
+            name=urllib.parse.quote(query_name, safe="")
+        )
+
+    @classmethod
+    def _ensure_probe_registry(cls):
+        """Initialise default probe definitions if not already configured."""
+        if not cls._primary_probes:
+            primary_id = cls.HTTPBIN_PROBE_ID
+            gstatic_id = cls.GSTATIC_PROBE_ID
+            cls._primary_probes = (
+                Probe(
+                    identifier=primary_id,
+                    name="HTTPBin JSON echo",
+                    runner=lambda monitor_cls, pid=primary_id: monitor_cls._check_httpbin(pid),
+                ),
+                Probe(
+                    identifier=gstatic_id,
+                    name="GStatic generate_204",
+                    runner=lambda monitor_cls, pid=gstatic_id: monitor_cls._check_gstatic_generate204(pid),
+                ),
+            )
+        if not cls._confirmation_probes:
+            confirm_id = cls.GOOGLE_DOH_PROBE_ID
+            cloudflare_id = cls.CLOUDFLARE_DOH_PROBE_ID
+            cls._confirmation_probes = (
+                Probe(
+                    identifier=confirm_id,
+                    name="Google DoH NXDOMAIN",
+                    runner=lambda monitor_cls, pid=confirm_id: monitor_cls._check_doh_confirmation(pid),
+                ),
+                Probe(
+                    identifier=cloudflare_id,
+                    name="Cloudflare DoH NXDOMAIN",
+                    runner=lambda monitor_cls, pid=cloudflare_id: monitor_cls._check_cloudflare_doh(pid),
+                ),
+            )
+
+    @classmethod
+    def _run_primary_probe(cls) -> Tuple[bool, Optional[str], str]:
+        """Execute a randomly selected primary probe."""
+        cls._ensure_probe_registry()
+        probe = random.choice(cls._primary_probes)
+        _debug(f"Running primary probe {probe.identifier}:{probe.name}")
+        ok, diag = probe.execute(cls)
+        if ok:
+            _debug(f"Probe {probe.identifier} succeeded")
+            cls._log_probe_result(probe.identifier, "P", True, "OK")
+            return True, None, probe.identifier
+
+        _debug(f"Probe {probe.identifier} failed diag={diag}")
+        failure_diag = diag or cls._probe_diag(probe.identifier, "GENFAIL")
+        cls._log_probe_result(probe.identifier, "P", False, failure_diag)
+        return False, failure_diag, probe.identifier
+
+    @classmethod
+    def _run_confirmation_probe(cls, exclude_probe_id: Optional[str]) -> Tuple[bool, Optional[str], str]:
+        """Execute a randomly selected confirmation probe, avoiding excluded probes when possible."""
+        cls._ensure_probe_registry()
+        candidates = [
+            probe for probe in cls._confirmation_probes if probe.identifier != exclude_probe_id
+        ]
+        if not candidates:
+            candidates = list(cls._confirmation_probes)
+        probe = random.choice(candidates)
+        _debug(f"Running confirmation probe {probe.identifier}:{probe.name}")
+        ok, diag = probe.execute(cls)
+        if ok:
+            _debug(f"Probe {probe.identifier} succeeded")
+            cls._log_probe_result(probe.identifier, "C", True, "OK")
+            return True, None, probe.identifier
+
+        _debug(f"Probe {probe.identifier} failed diag={diag}")
+        failure_diag = diag or cls._probe_diag(probe.identifier, "GENFAIL")
+        cls._log_probe_result(probe.identifier, "C", False, failure_diag)
+        return False, failure_diag, probe.identifier
+
+    @staticmethod
     def _format_diag(prefix: str, detail: str = "") -> str:
         """Build a diagnostic code 10-12 chars long."""
         prefix = "".join(ch for ch in prefix.upper() if ch.isalnum())
@@ -413,29 +516,42 @@ class InternetMonitor:
         return code
 
     @classmethod
-    def _check_httpbin(cls) -> Tuple[bool, Optional[str]]:
+    def _probe_diag(cls, probe_id: str, detail: str) -> str:
+        """Format a diagnostic message with the probe identifier prefix."""
+        prefix = "".join(ch for ch in probe_id.upper() if ch.isalnum())
+        detail_clean = "".join(ch for ch in detail.upper() if ch.isalnum())
+        max_detail_len = max(0, 12 - len(prefix))
+        if len(detail_clean) > max_detail_len:
+            detail_clean = detail_clean[:max_detail_len]
+        code = prefix + detail_clean
+        if len(code) < 10:
+            code = code.ljust(10, "0")
+        return code
+
+    @classmethod
+    def _check_httpbin(cls, probe_id: str) -> Tuple[bool, Optional[str]]:
         """Primary probe: call httpbin and confirm random token."""
         random_string = cls._make_random_string()
         url = cls._create_httpbin_url(random_string)
         host = urllib.parse.urlparse(url).hostname or ""
 
-        _debug(f"httpbin probe starting token={random_string} url={url}")
+        _debug(f"[{probe_id}] probe starting token={random_string} url={url}")
 
         try:
             with socket.create_connection(cls.SOCKET_TEST_TARGET, timeout=3):
                 pass
         except OSError:
-            diag = cls._format_diag("SOCK", "CONN01")
+            diag = cls._probe_diag(probe_id, "SCONN01")
             _debug(
-                f"httpbin probe failed: TCP connect diag={diag} target={cls.SOCKET_TEST_TARGET}"
+                f"[{probe_id}] probe failed: TCP connect diag={diag} target={cls.SOCKET_TEST_TARGET}"
             )
             return False, diag
 
         try:
             socket.gethostbyname(host)
         except socket.gaierror:
-            diag = cls._format_diag("DNS", "FAIL01")
-            _debug(f"httpbin probe failed: DNS lookup diag={diag} host={host}")
+            diag = cls._probe_diag(probe_id, "DNSFAIL1")
+            _debug(f"[{probe_id}] probe failed: DNS lookup diag={diag} host={host}")
             return False, diag
 
         req = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
@@ -452,36 +568,36 @@ class InternetMonitor:
                     except Exception:  # pragma: no cover - debug only
                         pass
         except socket.timeout:
-            diag = cls._format_diag("TIMEOUT", "001")
-            _debug(f"httpbin probe failed: socket timeout diag={diag} url={url}")
+            diag = cls._probe_diag(probe_id, "TIMEOUT1")
+            _debug(f"[{probe_id}] probe failed: socket timeout diag={diag} url={url}")
             return False, diag
         except http.client.RemoteDisconnected:
-            diag = cls._format_diag("REMOTE", "DISC")
-            _debug(f"httpbin probe failed: remote disconnect diag={diag} url={url}")
+            diag = cls._probe_diag(probe_id, "REMDISC")
+            _debug(f"[{probe_id}] probe failed: remote disconnect diag={diag} url={url}")
             return False, diag
         except urllib.error.HTTPError as err:
-            diag = cls._format_diag("HTTPFAIL", f"{int(err.code):03d}")
+            diag = cls._probe_diag(probe_id, f"HTTP{int(err.code):03d}")
             _debug(
-                f"httpbin probe failed: HTTP status {err.code} diag={diag} url={url}"
+                f"[{probe_id}] probe failed: HTTP status {err.code} diag={diag} url={url}"
             )
             return False, diag
         except urllib.error.URLError as err:
             if isinstance(err.reason, socket.timeout):
-                diag = cls._format_diag("TIMEOUT", "002")
+                diag = cls._probe_diag(probe_id, "TIMEOUT2")
                 _debug(
-                    f"httpbin probe failed: urllib timeout diag={diag} url={url}"
+                    f"[{probe_id}] probe failed: urllib timeout diag={diag} url={url}"
                 )
                 return False, diag
             reason_name = getattr(err.reason, "__class__", type(err.reason)).__name__
-            diag = cls._format_diag("URL", reason_name[:7])
+            diag = cls._probe_diag(probe_id, f"URL{reason_name[:5]}")
             _debug(
-                f"httpbin probe failed: URLError {reason_name} diag={diag} url={url} details={err}"
+                f"[{probe_id}] probe failed: URLError {reason_name} diag={diag} url={url} details={err}"
             )
             return False, diag
         except OSError as err:
-            diag = cls._format_diag("SOCK", "READ01")
+            diag = cls._probe_diag(probe_id, "SOCKRD1")
             _debug(
-                f"httpbin probe failed: socket read diag={diag} url={url} details={err}"
+                f"[{probe_id}] probe failed: socket read diag={diag} url={url} details={err}"
             )
             return False, diag
 
@@ -495,98 +611,237 @@ class InternetMonitor:
             json_error = err
 
         if json_text_value == random_string:
-            _debug("httpbin probe succeeded (json echo matched)")
+            _debug(f"[{probe_id}] probe succeeded (json echo matched)")
             return True, None
 
         if random_string in html:
-            _debug("httpbin probe succeeded (string search matched)")
+            _debug(f"[{probe_id}] probe succeeded (string search matched)")
             return True, None
 
         if json_error:
-            diag = cls._format_diag("HTTPBJSON", "01")
+            diag = cls._probe_diag(probe_id, "JSON01")
             _debug(
-                f"httpbin probe failed: JSON decode diag={diag} url={url} error={json_error} payload_sample={html[:120]!r}"
+                f"[{probe_id}] probe failed: JSON decode diag={diag} url={url} error={json_error} payload_sample={html[:120]!r}"
             )
             return False, diag
 
-        diag = cls._format_diag("HTTPBARGS", "01")
+        diag = cls._probe_diag(probe_id, "ARGSMIS")
         _debug(
-            f"httpbin probe failed: args mismatch diag={diag} expected={random_string} actual={json_text_value} url={url} payload_sample={html[:120]!r}"
+            f"[{probe_id}] probe failed: args mismatch diag={diag} expected={random_string} actual={json_text_value} url={url} payload_sample={html[:120]!r}"
         )
         return False, diag
 
     @classmethod
-    def _check_doh_confirmation(cls) -> Tuple[bool, Optional[str]]:
+    def _check_gstatic_generate204(cls, probe_id: str) -> Tuple[bool, Optional[str]]:
+        """Secondary HTTP probe: fetch Google's generate_204 endpoint."""
+        random_string = cls._make_random_string()
+        url = f"https://www.gstatic.com/generate_204?rand={random_string}"
+        host = urllib.parse.urlparse(url).hostname or ""
+
+        _debug(f"[{probe_id}] probe starting url={url}")
+
+        try:
+            socket.gethostbyname(host)
+        except socket.gaierror:
+            diag = cls._probe_diag(probe_id, "DNSFAIL1")
+            _debug(f"[{probe_id}] probe failed: DNS lookup diag={diag} host={host}")
+            return False, diag
+
+        req = urllib.request.Request(
+            url, headers={"Cache-Control": "no-cache", "Pragma": "no-cache"}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                status = getattr(response, "status", None)
+                if status is None:
+                    status = response.getcode()
+                if int(status) == 204:
+                    _debug(f"[{probe_id}] probe succeeded with status {status}")
+                    return True, None
+
+                diag = cls._probe_diag(probe_id, f"STATUS{int(status):03d}")
+                _debug(
+                    f"[{probe_id}] probe failed: unexpected status {status} diag={diag} url={url}"
+                )
+                return False, diag
+        except socket.timeout:
+            diag = cls._probe_diag(probe_id, "TIMEOUT1")
+            _debug(f"[{probe_id}] probe failed: socket timeout diag={diag} url={url}")
+            return False, diag
+        except urllib.error.HTTPError as err:
+            diag = cls._probe_diag(probe_id, f"HTTP{int(err.code):03d}")
+            _debug(
+                f"[{probe_id}] probe failed: HTTP status {err.code} diag={diag} url={url}"
+            )
+            return False, diag
+        except urllib.error.URLError as err:
+            reason = getattr(err.reason, "__class__", type(err.reason)).__name__
+            diag = cls._probe_diag(probe_id, f"URL{reason[:5]}")
+            _debug(
+                f"[{probe_id}] probe failed: URLError {reason} diag={diag} url={url} details={err}"
+            )
+            return False, diag
+        except OSError as err:
+            diag = cls._probe_diag(probe_id, "SOCKRD1")
+            _debug(
+                f"[{probe_id}] probe failed: socket read diag={diag} url={url} details={err}"
+            )
+            return False, diag
+
+    @classmethod
+    def _check_doh_confirmation(cls, probe_id: str) -> Tuple[bool, Optional[str]]:
         """Confirmation probe: query Google DoH for a random name."""
         random_string = cls._make_random_string()
         query_name = f"{random_string}.invalid"
         url = cls._create_doh_url(query_name)
 
-        _debug(f"DoH probe starting query={query_name} url={url}")
+        _debug(f"[{probe_id}] probe starting query={query_name} url={url}")
 
         req = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
         try:
             with urllib.request.urlopen(req, timeout=10) as response:
                 payload = response.read().decode("utf-8", errors="ignore")
         except socket.timeout:
-            diag = cls._format_diag("DOH", "TIMEOUT")
-            _debug(f"DoH probe failed: socket timeout diag={diag} url={url}")
+            diag = cls._probe_diag(probe_id, "TIMEOUT")
+            _debug(f"[{probe_id}] probe failed: socket timeout diag={diag} url={url}")
             return False, diag
         except urllib.error.HTTPError as err:
-            diag = cls._format_diag("DOHHTTP", f"{int(err.code):03d}")
+            diag = cls._probe_diag(probe_id, f"HTTP{int(err.code):03d}")
             _debug(
-                f"DoH probe failed: HTTP status {err.code} diag={diag} url={url}"
+                f"[{probe_id}] probe failed: HTTP status {err.code} diag={diag} url={url}"
             )
             return False, diag
         except urllib.error.URLError as err:
             reason = getattr(err.reason, "__class__", type(err.reason)).__name__
-            diag = cls._format_diag("DOHURL", reason[:7])
+            diag = cls._probe_diag(probe_id, f"URL{reason[:5]}")
             _debug(
-                f"DoH probe failed: URLError {reason} diag={diag} url={url} details={err}"
+                f"[{probe_id}] probe failed: URLError {reason} diag={diag} url={url} details={err}"
             )
             return False, diag
         except OSError:
-            diag = cls._format_diag("DOH", "CONN01")
-            _debug(f"DoH probe failed: connection diag={diag} url={url}")
+            diag = cls._probe_diag(probe_id, "CONN01")
+            _debug(f"[{probe_id}] probe failed: connection diag={diag} url={url}")
             return False, diag
 
         try:
             data = json.loads(payload)
         except json.JSONDecodeError:
-            diag = cls._format_diag("DOH", "JSON01")
+            diag = cls._probe_diag(probe_id, "JSON01")
             _debug(
-                f"DoH probe failed: JSON decode diag={diag} url={url} payload_sample={payload[:120]!r}"
+                f"[{probe_id}] probe failed: JSON decode diag={diag} url={url} payload_sample={payload[:120]!r}"
             )
             return False, diag
 
         status = data.get("Status")
         if status is None:
-            diag = cls._format_diag("DOH", "STATUS99")
-            _debug(f"DoH probe failed: missing status diag={diag} url={url}")
+            diag = cls._probe_diag(probe_id, "STATUS99")
+            _debug(f"[{probe_id}] probe failed: missing status diag={diag} url={url}")
             return False, diag
 
         question = data.get("Question") or []
         if not question or not isinstance(question, list):
-            diag = cls._format_diag("DOH", "QUEST01")
-            _debug(f"DoH probe failed: question missing diag={diag} url={url}")
+            diag = cls._probe_diag(probe_id, "QUESTION")
+            _debug(f"[{probe_id}] probe failed: question missing diag={diag} url={url}")
             return False, diag
         actual_name = str(question[0].get("name", "")).strip().rstrip(".")
         expected_name = query_name.rstrip(".")
         if actual_name.lower() != expected_name.lower():
-            diag = cls._format_diag("DOH", "QUEST01")
+            diag = cls._probe_diag(probe_id, "QUESTION")
             _debug(
-                f"DoH probe failed: question mismatch actual={actual_name} expected={expected_name} diag={diag} url={url}"
+                f"[{probe_id}] probe failed: question mismatch actual={actual_name} expected={expected_name} diag={diag} url={url}"
             )
             return False, diag
 
         # Treat NXDOMAIN (3) or success (0) as healthy network responses.
         if int(status) in (0, 3):
-            _debug(f"DoH probe succeeded with status {status}")
+            _debug(f"[{probe_id}] probe succeeded with status {status}")
             return True, None
 
-        diag = cls._format_diag("DOHSTATUS", f"{int(status):02d}")
+        diag = cls._probe_diag(probe_id, f"STATUS{int(status):02d}")
         _debug(
-            f"DoH probe failed: unexpected status {status} diag={diag} url={url} payload_sample={payload[:120]!r}"
+            f"[{probe_id}] probe failed: unexpected status {status} diag={diag} url={url} payload_sample={payload[:120]!r}"
+        )
+        return False, diag
+
+    @classmethod
+    def _check_cloudflare_doh(cls, probe_id: str) -> Tuple[bool, Optional[str]]:
+        """Confirmation probe: query Cloudflare DoH for a random name."""
+        random_string = cls._make_random_string()
+        query_name = f"{random_string}.invalid"
+        url = cls._create_cloudflare_doh_url(query_name)
+
+        _debug(f"[{probe_id}] probe starting query={query_name} url={url}")
+
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+                "Accept": "application/dns-json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                payload = response.read().decode("utf-8", errors="ignore")
+        except socket.timeout:
+            diag = cls._probe_diag(probe_id, "TIMEOUT")
+            _debug(f"[{probe_id}] probe failed: socket timeout diag={diag} url={url}")
+            return False, diag
+        except urllib.error.HTTPError as err:
+            diag = cls._probe_diag(probe_id, f"HTTP{int(err.code):03d}")
+            _debug(
+                f"[{probe_id}] probe failed: HTTP status {err.code} diag={diag} url={url}"
+            )
+            return False, diag
+        except urllib.error.URLError as err:
+            reason = getattr(err.reason, "__class__", type(err.reason)).__name__
+            diag = cls._probe_diag(probe_id, f"URL{reason[:5]}")
+            _debug(
+                f"[{probe_id}] probe failed: URLError {reason} diag={diag} url={url} details={err}"
+            )
+            return False, diag
+        except OSError:
+            diag = cls._probe_diag(probe_id, "CONN01")
+            _debug(f"[{probe_id}] probe failed: connection diag={diag} url={url}")
+            return False, diag
+
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            diag = cls._probe_diag(probe_id, "JSON01")
+            _debug(
+                f"[{probe_id}] probe failed: JSON decode diag={diag} url={url} payload_sample={payload[:120]!r}"
+            )
+            return False, diag
+
+        status = data.get("Status")
+        if status is None:
+            diag = cls._probe_diag(probe_id, "STATUS99")
+            _debug(f"[{probe_id}] probe failed: missing status diag={diag} url={url}")
+            return False, diag
+
+        question = data.get("Question") or []
+        if not question or not isinstance(question, list):
+            diag = cls._probe_diag(probe_id, "QUESTION")
+            _debug(f"[{probe_id}] probe failed: question missing diag={diag} url={url}")
+            return False, diag
+        actual_name = str(question[0].get("name", "")).strip().rstrip(".")
+        expected_name = query_name.rstrip(".")
+        if actual_name.lower() != expected_name.lower():
+            diag = cls._probe_diag(probe_id, "QUESTION")
+            _debug(
+                f"[{probe_id}] probe failed: question mismatch actual={actual_name} expected={expected_name} diag={diag} url={url}"
+            )
+            return False, diag
+
+        status_int = int(status)
+        if status_int in (0, 3):
+            _debug(f"[{probe_id}] probe succeeded with status {status_int}")
+            return True, None
+
+        diag = cls._probe_diag(probe_id, f"STATUS{status_int:02d}")
+        _debug(
+            f"[{probe_id}] probe failed: unexpected status {status_int} diag={diag} url={url} payload_sample={payload[:120]!r}"
         )
         return False, diag
 
@@ -696,7 +951,8 @@ class InternetMonitor:
     @classmethod
     def _confirm_pending_alert(cls, now: float):
         _debug("Running confirmation probe for pending alert")
-        ok, diag = cls._check_doh_confirmation()
+        pending_probe_id = cls._pending_alert.probe_id if cls._pending_alert else None
+        ok, diag, confirm_probe_id = cls._run_confirmation_probe(pending_probe_id)
         if ok:
             cls._pending_alert = None
             _debug("Confirmation probe succeeded; pending alert cleared")
@@ -705,13 +961,21 @@ class InternetMonitor:
         prior_diag = cls._pending_alert.diag if cls._pending_alert else None
         diag_code = diag or prior_diag or cls._format_diag("NET", "ISSUE01")
         if now - cls._last_notification_ts < cls._alert_cooldown:
-            cls._pending_alert = PendingAlert(timestamp=now, diag=diag_code)
+            cls._pending_alert = PendingAlert(
+                timestamp=now,
+                diag=diag_code,
+                probe_id=pending_probe_id,
+            )
             _debug("Confirmation failed but within cooldown; alert rescheduled")
             return
 
         cls._send_notification(diag_code)
         cls._last_notification_ts = now
-        cls._pending_alert = PendingAlert(timestamp=now, diag=diag_code)
+        cls._pending_alert = PendingAlert(
+            timestamp=now,
+            diag=diag_code,
+            probe_id=pending_probe_id or confirm_probe_id,
+        )
         _debug("Confirmation failed; notification sent")
 
     @classmethod
@@ -742,6 +1006,7 @@ class InternetMonitor:
             % (cls._check_interval, cls.CONFIRMATION_DELAY)
         )
 
+        cls._log_probe_result("SYS", "-", True, "Start")
         cls._load_control_state()
 
         next_delay = 0.0
@@ -751,17 +1016,12 @@ class InternetMonitor:
             cls._load_control_state()
             now = time.time()
 
-            if now < cls._suppress_until:
-                cls._pending_alert = None
+            suppressed = now < cls._suppress_until
+            if suppressed:
                 _debug(
-                    "Notifications suppressed for another %.0fs"
+                    "Notifications suppressed for another %.0fs (probes still running)"
                     % (cls._suppress_until - now)
                 )
-                next_delay = max(
-                    cls.MINIMUM_SLEEP,
-                    min(cls._suppress_until - now, cls._check_interval),
-                )
-                continue
 
             if cls._first_cycle:
                 cls._first_cycle = False
@@ -772,24 +1032,33 @@ class InternetMonitor:
                 )
                 continue
 
-            if cls._pending_alert and now - cls._pending_alert.timestamp >= cls.CONFIRMATION_DELAY:
+            if (
+                cls._pending_alert
+                and not suppressed
+                and now - cls._pending_alert.timestamp >= cls.CONFIRMATION_DELAY
+            ):
                 cls._confirm_pending_alert(now)
                 next_delay = cls._check_interval
                 continue
 
-            ok, diag = cls._check_httpbin()
-            cls._log_internet_check(ok, diag)
+            ok, diag, probe_id = cls._run_primary_probe()
             if ok:
                 cls._pending_alert = None
                 _debug("Primary probe succeeded; no pending alert")
                 next_delay = cls._check_interval
                 continue
+            diag_code = diag or cls._probe_diag(probe_id, "GENFAIL")
 
             if not cls._pending_alert:
-                cls._pending_alert = PendingAlert(timestamp=now, diag=diag)
-                _debug(f"Primary probe failed; confirmation scheduled diag={diag}")
+                cls._pending_alert = PendingAlert(
+                    timestamp=now, diag=diag_code, probe_id=probe_id
+                )
+                _debug(
+                    f"Primary probe {probe_id} failed; confirmation scheduled diag={diag_code}"
+                )
             else:
-                cls._pending_alert.diag = diag or cls._pending_alert.diag
+                cls._pending_alert.diag = diag_code or cls._pending_alert.diag
+                cls._pending_alert.probe_id = probe_id or cls._pending_alert.probe_id
                 _debug(
                     "Primary probe failed again; diag updated to %s"
                     % cls._pending_alert.diag
@@ -797,17 +1066,35 @@ class InternetMonitor:
 
             elapsed = now - cls._pending_alert.timestamp
             remaining = max(0.0, cls.CONFIRMATION_DELAY - elapsed)
-            next_delay = max(cls.MINIMUM_SLEEP, remaining)
+            if suppressed:
+                next_delay = cls._check_interval
+            else:
+                next_delay = max(cls.MINIMUM_SLEEP, remaining)
+
+        cls._log_probe_result("SYS", "-", True, "Stop")
 
     @classmethod
-    def _log_internet_check(cls, ok: bool, diag: Optional[str]):
+    def _log_probe_result(
+        cls,
+        probe_id: Optional[str],
+        probe_type: str,
+        ok: bool,
+        status_text: Optional[str],
+    ):
         folder_path = cfg.INTERNET_LOG_FOLDER
         if not folder_path:
             return
 
-        status = "OK" if ok else diag or cls._format_diag("NET", "ISSUE01")
+        effective_probe_id = (probe_id or "GEN").upper()
+        status = status_text or ("OK" if ok else cls._probe_diag(effective_probe_id, "GENFAIL"))
         timestamp = datetime.now()
-        line = f"{timestamp.strftime('%Y-%m-%d')},{timestamp.strftime('%H:%M')},{status}\n"
+        line = (
+            f"{timestamp.strftime('%Y-%m-%d')},"
+            f"{timestamp.strftime('%H:%M:%S')},"
+            f"{effective_probe_id},"
+            f"{probe_type},"
+            f"{status}\n"
+        )
 
         try:
             folder = Path(folder_path)
