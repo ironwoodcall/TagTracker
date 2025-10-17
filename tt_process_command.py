@@ -640,11 +640,11 @@ def process_command(
         lint_report(today=today, strict_datetimes=True, chatty=True)
     elif cmd == CmdKeys.CMD_MONITOR:
         if args[0]:  # True
-            InternetMonitorController.monitor_on()
+            InternetMonitorController.notifications_on()
             pr.iprint("(Re)activating internet monitoring.")
         else:
             monitor_delay = 120
-            InternetMonitorController.monitor_off(monitor_delay)
+            InternetMonitorController.notifications_off(monitor_delay)
             pr.iprint(f"Suppressing internet monitoring for {monitor_delay} minutes.")
     elif cmd == CmdKeys.CMD_NOTES:
         data_changed = tt_notes_command.notes_command(notes_list=today.notes, args=args)

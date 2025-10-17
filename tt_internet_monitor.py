@@ -24,12 +24,12 @@ Diagnostic codes used in notifications:
     - `NETISSUE01`: Generic fallback when confirmation fails without detail.
 
 # Example usage
-from tt_internet_monitor import InternetMonitor
-InternetMonitor.start_monitor()
-InternetMonitor.enable()
-InternetMonitor.disable()
-print(f"Internet Monitoring enabled? {InternetMonitor.enabled})
-print(f"Internet Monitoring process {InternetMonitor.process})
+from tt_internet_monitor import InternetMonitorController
+InternetMonitorController.start_monitor()
+InternetMonitorController.notifications_off()
+InternetMonitorController.notifications_on()
+print(f"Internet monitoring active? {InternetMonitorController.monitor_active}")
+print(f"Internet monitoring process {InternetMonitorController.process}")
 
 Copyright (C) 2023-2024 Julias Hocking and Todd Glover
 
@@ -108,7 +108,7 @@ class InternetMonitorController:
     """Class for the main TT client program to use to control monitoring."""
 
     process = None  # a popen object
-    enabled = False
+    monitor_active = False
     _control_file = DEFAULT_CONTROL_FILE
     _last_command_token: Optional[str] = None
 
@@ -210,7 +210,7 @@ class InternetMonitorController:
             cls.process = None
 
     @classmethod
-    def start_monitor(cls, initial_suppress_seconds: float = 0):
+    def _spawn_monitor_process(cls, initial_suppress_seconds: float = 0):
         """Launch the monitor as a separate process."""
         if not cls.ok_to_start():
             return
@@ -250,8 +250,9 @@ class InternetMonitorController:
         """Terminate the monitor process."""
         if cls.process:
             cls.process.terminate()
-            print("Process terminated")
+            # print("Process terminated")
             cls.process = None
+        cls.monitor_active = False
 
     @classmethod
     def cleanup(cls):
@@ -264,50 +265,48 @@ class InternetMonitorController:
         atexit.register(cls.cleanup)
 
     @classmethod
-    def enable(cls):
-        "Turn on monitoring (if it was off)."
-        cls.start_monitor()
-        cls.enabled = True
-        InternetMonitor._log_probe_result("SYS", "-", True, "On")
+    def start_monitor(cls):
+        """Ensure monitoring is running (if it was stopped)."""
+        cls._spawn_monitor_process()
+        cls.monitor_active = True
 
     @classmethod
-    def disable(cls):
-        """Turn off monitoring (if it was on)."""
+    def stop_monitor(cls):
+        """Stop monitoring (if it was running)."""
         if cls.process:
             cls.kill_monitor()
-        cls.enabled = False
-        InternetMonitor._log_probe_result("SYS", "-", True, "Off")
+        cls.monitor_active = False
 
     @classmethod
-    def monitor_off(cls, duration_minutes: float = 120):
+    def notifications_off(cls, duration_minutes: float = 120):
         """Suppress notifications for the requested duration."""
         suppress_seconds = max(0, float(duration_minutes) * 60)
         _debug(
-            f"Monitor OFF requested for {suppress_seconds:.0f}s (process active={bool(cls.process)})"
+            f"Notifications OFF requested for {suppress_seconds:.0f}s (process active={bool(cls.process)})"
         )
         if not cls.process:
-            cls.start_monitor(initial_suppress_seconds=suppress_seconds)
-            cls.enabled = True
-            InternetMonitor._log_probe_result("SYS", "-", True, "Off")
+            cls._spawn_monitor_process(initial_suppress_seconds=suppress_seconds)
+            cls.monitor_active = True
+            InternetMonitor._log_probe_result("SYS", "-", True, "NotifyOff")
             return
         suppress_until = time.time() + suppress_seconds
         cls._write_control_state(suppress_until)
         cls._signal_monitor()
-        InternetMonitor._log_probe_result("SYS", "-", True, "Off")
+        InternetMonitor._log_probe_result("SYS", "-", True, "NotifyOff")
 
     @classmethod
-    def monitor_on(cls):
+    def notifications_on(cls):
         """Resume notifications immediately."""
-        _debug(f"Monitor ON requested (process active={bool(cls.process)})")
+        _debug(f"Notifications ON requested (process active={bool(cls.process)})")
         if not cls.process:
-            cls.start_monitor(initial_suppress_seconds=0)
-            cls.enabled = True
-            InternetMonitor._log_probe_result("SYS", "-", True, "On")
+            cls._spawn_monitor_process(initial_suppress_seconds=0)
+            cls.monitor_active = True
+            InternetMonitor._log_probe_result("SYS", "-", True, "NotifyOn")
             return
         suppress_until = time.time() - RESUME_EPSILON_SECONDS
         cls._write_control_state(suppress_until)
         cls._signal_monitor()
-        InternetMonitor._log_probe_result("SYS", "-", True, "On")
+        InternetMonitor._log_probe_result("SYS", "-", True, "NotifyOn")
 
 
 @dataclass
@@ -871,7 +870,8 @@ class InternetMonitor:
         signal.signal(signal.SIGINT, cls._handle_shutdown)
 
     @classmethod
-    def _load_control_state(cls):
+    def _load_control_state(cls) -> bool:
+        state_changed = False
         try:
             with open(cls.control_file_path, encoding="utf-8") as control_file:
                 data = json.load(control_file)
@@ -879,11 +879,11 @@ class InternetMonitor:
             cls._suppress_until = time.time()
             _debug("Control file missing; suppression reset")
             cls._control_reload_requested = False
-            return
+            return True
         except json.JSONDecodeError:
             _debug("Control file unreadable; ignoring contents")
             cls._control_reload_requested = False
-            return
+            return False
 
         token = data.get("command_token")
         if (
@@ -893,9 +893,10 @@ class InternetMonitor:
         ):
             _debug("Control token unchanged; no update applied")
             cls._control_reload_requested = False
-            return
+            return False
 
         cls._last_control_token = token
+        state_changed = True
         debug_flag = data.get("debug")
         if debug_flag is not None:
             global DEBUG_MONITOR
@@ -914,6 +915,7 @@ class InternetMonitor:
             )
 
         cls._control_reload_requested = False
+        return state_changed
 
     @classmethod
     def _sleep(cls, duration: float):
@@ -949,7 +951,7 @@ class InternetMonitor:
         )
 
     @classmethod
-    def _confirm_pending_alert(cls, now: float):
+    def _confirm_pending_alert(cls, now: float, suppressed: bool):
         _debug("Running confirmation probe for pending alert")
         pending_probe_id = cls._pending_alert.probe_id if cls._pending_alert else None
         ok, diag, confirm_probe_id = cls._run_confirmation_probe(pending_probe_id)
@@ -959,12 +961,28 @@ class InternetMonitor:
             return
 
         prior_diag = cls._pending_alert.diag if cls._pending_alert else None
-        diag_code = diag or prior_diag or cls._format_diag("NET", "ISSUE01")
+        effective_probe_id = pending_probe_id or confirm_probe_id or "NET"
+        diag_code = diag or prior_diag
+        if not diag_code:
+            if effective_probe_id and effective_probe_id != "NET":
+                diag_code = cls._probe_diag(effective_probe_id, "ISSUE01")
+            else:
+                diag_code = cls._format_diag("NET", "ISSUE01")
+
+        if suppressed:
+            cls._pending_alert = PendingAlert(
+                timestamp=now,
+                diag=diag_code,
+                probe_id=effective_probe_id,
+            )
+            _debug("Confirmation failed but notifications suppressed; rescheduled")
+            return
+
         if now - cls._last_notification_ts < cls._alert_cooldown:
             cls._pending_alert = PendingAlert(
                 timestamp=now,
                 diag=diag_code,
-                probe_id=pending_probe_id,
+                probe_id=effective_probe_id,
             )
             _debug("Confirmation failed but within cooldown; alert rescheduled")
             return
@@ -974,7 +992,7 @@ class InternetMonitor:
         cls._pending_alert = PendingAlert(
             timestamp=now,
             diag=diag_code,
-            probe_id=pending_probe_id or confirm_probe_id,
+            probe_id=effective_probe_id,
         )
         _debug("Confirmation failed; notification sent")
 
@@ -1006,14 +1024,20 @@ class InternetMonitor:
             % (cls._check_interval, cls.CONFIRMATION_DELAY)
         )
 
-        cls._log_probe_result("SYS", "-", True, "Start")
+        cls._log_probe_result("SYS", "-", True, "MonitorStart")
         cls._load_control_state()
 
         next_delay = 0.0
         while cls._running:
             _debug(f"Loop iteration starting; sleep for {next_delay:.1f}s")
             cls._sleep(next_delay)
-            cls._load_control_state()
+            state_changed = cls._load_control_state()
+            if not cls._running:
+                break
+            if state_changed:
+                next_delay = cls.MINIMUM_SLEEP
+                _debug("Control state changed; deferring probe until next cycle")
+                continue
             now = time.time()
 
             suppressed = now < cls._suppress_until
@@ -1034,10 +1058,9 @@ class InternetMonitor:
 
             if (
                 cls._pending_alert
-                and not suppressed
                 and now - cls._pending_alert.timestamp >= cls.CONFIRMATION_DELAY
             ):
-                cls._confirm_pending_alert(now)
+                cls._confirm_pending_alert(now, suppressed)
                 next_delay = cls._check_interval
                 continue
 
@@ -1066,12 +1089,9 @@ class InternetMonitor:
 
             elapsed = now - cls._pending_alert.timestamp
             remaining = max(0.0, cls.CONFIRMATION_DELAY - elapsed)
-            if suppressed:
-                next_delay = cls._check_interval
-            else:
-                next_delay = max(cls.MINIMUM_SLEEP, remaining)
+            next_delay = max(cls.MINIMUM_SLEEP, remaining)
 
-        cls._log_probe_result("SYS", "-", True, "Stop")
+        cls._log_probe_result("SYS", "-", True, "MonitorStop")
 
     @classmethod
     def _log_probe_result(
