@@ -788,7 +788,7 @@ def season_detail(
     else:
         all_days = sorted(all_days, key=lambda x: x.tag)
         sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
-    sort_msg = f"Day Summaries, sorted by {sort_msg} "
+    sort_msg = f"Daily summaries, sorted by {sort_msg} "
 
     # Set up colour maps for shading cell backgrounds
     max_parked_colour = dc.Dimension(interpolation_exponent=2)
@@ -813,7 +813,7 @@ def season_detail(
     if days_totals.max_precipitation not in (None, 0):
         max_precip_colour.add_config(days_totals.max_precipitation, "azure")
 
-    print(f"<h1>{cc.titleize(': Day Summaries')}</h1>")
+    print(f"<h1>{cc.titleize('<br>Daily summaries')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
     print("<br>")
     print(
@@ -879,10 +879,10 @@ def season_detail(
         "<th colspan=2>Hours</th>"
         "<th colspan=3>Bikes parked</th>"
         f"<th rowspan=2><a href={sort_leftovers_link}>Bikes<br />left<br />onsite</a></th>"
-        f"<th rowspan=2><a href={sort_fullness_link}>Most<br />bikes<br />at once</a></th>"
+        f"<th rowspan=2><a href={sort_fullness_link}>Max<br />bikes</a></th>"
         # "<th rowspan=2>Bike-<br />hours</th>"
         # "<th rowspan=2>Bike-<br />hours<br />per hr</th>"
-        "<th rowspan=2>Bike<br />Regs</th>"
+        "<th rowspan=2>Bike<br />regs</th>"
         "<th colspan=2>Weather</th>"
         "</tr>"
     )
@@ -891,7 +891,7 @@ def season_detail(
         f"<th><a href={sort_date_link}>Date</a></th>"
         f"<th><a href={sort_day_link}>Day</a></th>"
         "<th>Open</th><th>Close</th>"
-        f"<th>Reg</th><th>Ovr</th><th><a href={sort_parked_link}>Total</a></th>"
+        f"<th><a href={sort_parked_link}>All<br>bikes</a></th><th>Ovrsz<br>bikes</th><th>Reglr<br>bikes</th>"
         # "<th>Left</th>"
         # "<th>Fullest</th>"
         f"<th><a href={sort_temperature_link}>Max<br />temp</a></th>"
@@ -911,10 +911,10 @@ def season_detail(
             f"<td><a href='{date_link}'>{row.date}</a></td>"
             f"<td style='text-align:left'>{ut.date_str(row.date,dow_str_len=3)}</td>"
             f"<td>{row.time_open}</td><td>{row.time_closed}</td>"
+            f"<td style='{max_parked_colour.css_bg_fg(row.num_parked_combined)}'>{row.num_parked_combined}</td>"
             f"<td>{row.num_parked_regular}</td>"
             f"<td>{row.num_parked_oversize}</td>"
             # f"<td style='background: {max_parked_colour.get_rgb_str(row.parked_total)}'>{row.parked_total}</td>"
-            f"<td style='{max_parked_colour.css_bg_fg(row.num_parked_combined)}'>{row.num_parked_combined}</td>"
             f"<td style='{max_left_colour.css_bg_fg(row.num_remaining_combined)}'>{row.num_remaining_combined}</td>"
             f"<td style='{max_full_colour.css_bg_fg(row.num_fullest_combined)}'>{row.num_fullest_combined}</td>"
             # f"<td style='{max_bike_hours_colour.css_bg_fg(row.bike_hours)}'>{row.bike_hours:0.0f}</td>"
