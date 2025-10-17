@@ -94,7 +94,7 @@ class CmdKeys:
     CMD_BIKE_IN = "BIKE_IN"  # Explicit
     CMD_BIKE_INOUT = "BIKE_INOUT"  # Guess, but won't re-use a tag.
     CMD_BIKE_OUT = "BIKE_OUT"  # Explicit
-    CMD_BUSY = "BUSY"
+    # CMD_BUSY = "BUSY"
     CMD_GRAPHS = "BUSY_CHART"
     CMD_CHART = "CHART"
     CMD_DEBUG = "DEBUG"
@@ -180,12 +180,12 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
-    CmdKeys.CMD_BUSY: CmdConfig(
-        invoke=["busy", "b"],
-        arg_configs=[
-            ArgConfig(ARG_TIME, optional=True),
-        ],
-    ),
+    # CmdKeys.CMD_BUSY: CmdConfig(
+    #     invoke=["busy", "b"],
+    #     arg_configs=[
+    #         ArgConfig(ARG_TIME, optional=True),
+    #     ],
+    # ),
     CmdKeys.CMD_GRAPHS: CmdConfig(
         invoke=["graph","graphs","g","busy-chart", "busy-graph","full-graph","full-chart"],
         arg_configs=[
