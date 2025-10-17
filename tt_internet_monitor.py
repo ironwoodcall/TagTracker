@@ -67,6 +67,7 @@ import socket
 import random
 import string
 import http.client
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
@@ -313,6 +314,7 @@ class InternetMonitor:
     """This class monitors the internet connection as a separate process."""
 
     control_file_path = DEFAULT_CONTROL_FILE
+    HEARTBEAT_FILENAME = "internet_heartbeat.csv"
     _suppress_until: float = 0.0
     _last_control_token: Optional[str] = None
     _control_reload_requested: bool = True
@@ -776,6 +778,7 @@ class InternetMonitor:
                 continue
 
             ok, diag = cls._check_httpbin()
+            cls._log_internet_check(ok, diag)
             if ok:
                 cls._pending_alert = None
                 _debug("Primary probe succeeded; no pending alert")
@@ -795,6 +798,25 @@ class InternetMonitor:
             elapsed = now - cls._pending_alert.timestamp
             remaining = max(0.0, cls.CONFIRMATION_DELAY - elapsed)
             next_delay = max(cls.MINIMUM_SLEEP, remaining)
+
+    @classmethod
+    def _log_internet_check(cls, ok: bool, diag: Optional[str]):
+        folder_path = cfg.INTERNET_LOG_FOLDER
+        if not folder_path:
+            return
+
+        status = "OK" if ok else diag or cls._format_diag("NET", "ISSUE01")
+        timestamp = datetime.now()
+        line = f"{timestamp.strftime('%Y-%m-%d')},{timestamp.strftime('%H:%M')},{status}\n"
+
+        try:
+            folder = Path(folder_path)
+            folder.mkdir(parents=True, exist_ok=True)
+            heartbeat_path = folder / cls.HEARTBEAT_FILENAME
+            with open(heartbeat_path, "a", encoding="utf-8") as heartbeat:
+                heartbeat.write(line)
+        except Exception as err:  # pragma: no cover - logging should not fail monitor
+            _debug(f"Heartbeat logging failed: {err}")
 
 
 if __name__ == "__main__":
