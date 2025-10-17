@@ -23,6 +23,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 """
 
+import html
 import sqlite3
 from datetime import date, timedelta
 import common.tt_util as ut
@@ -30,7 +31,7 @@ import web_common as cc
 import datacolors as dc
 import web_histogram
 from web.web_base_config import HIST_FIXED_Y_AXIS_DURATION
-from web_daterange_selector import generate_date_filter_form
+from web_daterange_selector import build_date_dow_filter_widget
 import common.tt_dbutil as db
 from common.tt_time import VTime
 from common.tt_daysummary import DayTotals
@@ -40,74 +41,6 @@ BLOCK_X_TOP_COLOR = "red"
 BLOCK_Y_TOP_COLOR = "royalblue"
 BLOCK_NORMAL_MARKER = chr(0x25A0)
 BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
-
-
-def _freq_nav_buttons(pages_back, start_date: str = "", end_date: str = "") -> str:
-    """Make nav buttons for the season-frequency report.
-
-    Buttons will be "Mon", "Tue", "Wed", etc, "All days", "Weekdays",
-    """
-    buttons = f"{cc.main_and_back_buttons(pages_back)}&nbsp;&nbsp;&nbsp;"
-
-    buttons += f"""
-        <button type="button"
-        onclick="window.location.href='{
-            cc.selfref(
-                what=cc.WHAT_SUMMARY_FREQUENCIES,
-                start_date=start_date,
-                end_date=end_date,
-                pages_back=cc.increment_pages_back(pages_back),
-                text_note=""
-            )
-            }';">All days</button>
-            &nbsp;&nbsp;&nbsp;
-                    """
-    buttons += f"""
-        <button type="button"
-        onclick="window.location.href='{
-            cc.selfref(
-                what=cc.WHAT_SUMMARY_FREQUENCIES,
-                start_date=start_date,
-                end_date=end_date,
-                qdow="1,2,3,4,5",
-                pages_back=cc.increment_pages_back(pages_back),
-                text_note="weekdays"
-            )
-            }';">Weekdays</button>
-        """
-    buttons += f"""
-        <button type="button"
-        onclick="window.location.href='{
-            cc.selfref(
-                what=cc.WHAT_SUMMARY_FREQUENCIES,
-                start_date=start_date,
-                end_date=end_date,
-                qdow="6,7",
-                pages_back=cc.increment_pages_back(pages_back),
-                text_note="weekends"
-            )
-            }';">Weekends</button>
-            &nbsp;&nbsp;&nbsp;
-        """
-
-    for d in range(1, 8):
-        link = cc.selfref(
-            what=cc.WHAT_SUMMARY_FREQUENCIES,
-            start_date=start_date,
-            end_date=end_date,
-            qdow=d,
-            pages_back=cc.increment_pages_back(pages_back),
-            text_note=ut.dow_str(d, 10) + "s",
-        )
-        label = ut.dow_str(d, 3)
-        buttons += f"""
-            <button type="button"
-            onclick="window.location.href='{link}';">{label}</button>
-            """
-
-    buttons += "<br><br>"
-
-    return buttons
 
 
 def season_frequencies_report(
@@ -150,7 +83,7 @@ def season_frequencies_report(
         end_date = start_date
         title_bit = ""
     else:
-        title_bit = title_bit if title_bit else "all days of the week"
+        title_bit = title_bit or ""
     table_vars = (
         (
             "duration",
@@ -177,12 +110,14 @@ def season_frequencies_report(
         h1 = f"Distribution of visits {start_date}"
     else:
         h1 = f"Distribution of visits {start_date} to {end_date}"
-        h1 = f"{h1} for {title_bit}" if title_bit else h1
+        if title_bit:
+            h1 = f"{h1} for {title_bit}"
     print(f"<h1>{h1}</h1>")
+    print(back_button)
+
     if restrict_to_single_day:
-        print(back_button)
+        normalized_dow = ""
     else:
-        print(_freq_nav_buttons(pages_back, start_date=start_date, end_date=end_date))
         self_url = cc.selfref(
             what=cc.WHAT_SUMMARY_FREQUENCIES,
             qdow=dow_parameter,
@@ -190,11 +125,29 @@ def season_frequencies_report(
             end_date=end_date,
             pages_back=cc.increment_pages_back(pages_back),
         )
-        print(
-            generate_date_filter_form(
-                self_url, default_start_date=start_date, default_end_date=end_date
-            )
+        filter_widget = build_date_dow_filter_widget(
+            self_url,
+            start_date=start_date,
+            end_date=end_date,
+            selected_dow=dow_parameter,
         )
+        normalized_dow = filter_widget.selection.dow_value
+
+        if not title_bit:
+            title_bit = filter_widget.title_fragment()
+        filter_description = filter_widget.description()
+
+        print(filter_widget.html)
+        if filter_description:
+            print(
+                f"<p class='filter-description'>{html.escape(filter_description)}</p>"
+            )
+        print("<br>")
+
+    dow_parameter = "" if restrict_to_single_day else normalized_dow
+
+    if not title_bit and not restrict_to_single_day:
+        title_bit = "all days of the week"
 
     activity_title = "Activity"
     if title_bit:
@@ -698,6 +651,7 @@ def season_detail(
     pages_back: int = 1,
     start_date: str = "",
     end_date: str = "",
+    dow_parameter: str = "",
 ):
     """A summary in which each row is one day."""
 
@@ -717,27 +671,39 @@ def season_detail(
         db_limits=(db_start_date, db_end_date),
     )
 
-    # list of each day's totals
-    all_days = cc.get_days_data(
-        ttdb=ttdb, min_date=start_date, max_date=end_date
-    )  # FIXME: needs to use orgsite_id
-    # overall totals for the whole period
-    # FIXME: hardwired to orgsite_id=1
-    days_totals = db.MultiDayTotals.fetch_from_db(
-        conn=ttdb, orgsite_id=1, start_date=start_date, end_date=end_date
-    )
-
-    # Sort the all_days ldataccording to the sort parameter
     sort_by = sort_by if sort_by else cc.SORT_DATE
     sort_direction = sort_direction if sort_direction else cc.ORDER_REVERSE
-    self_url = cc.selfref(
+
+    filter_base_url = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=sort_by,
         qdir=sort_direction,
+        qdow=dow_parameter,
         start_date=start_date,
         end_date=end_date,
         pages_back=cc.increment_pages_back(pages_back),
     )
+    filter_widget = build_date_dow_filter_widget(
+        filter_base_url,
+        start_date=start_date,
+        end_date=end_date,
+        selected_dow=dow_parameter,
+    )
+    dow_parameter = filter_widget.selection.dow_value
+    filter_description = filter_widget.description()
+
+    all_days = cc.get_days_data(
+        ttdb=ttdb, min_date=start_date, max_date=end_date
+    )  # FIXME: needs to use orgsite_id
+    if dow_parameter:
+        allowed_dows = {
+            int(token) for token in dow_parameter.split(",") if token and token.isdigit()
+        }
+        all_days = [
+            day for day in all_days if getattr(day, "weekday", None) in allowed_dows
+        ]
+
+    # Sort the all_days ldataccording to the sort parameter
     if sort_direction == cc.ORDER_FORWARD:
         other_direction = cc.ORDER_REVERSE
         direction_msg = ""
@@ -789,15 +755,33 @@ def season_detail(
         all_days = sorted(all_days, key=lambda x: x.tag)
         sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
     sort_msg = f"Daily summaries, sorted by {sort_msg} "
+    if filter_description:
+        sort_msg = f"{sort_msg}{filter_description}"
+
+    max_parked_value = (
+        max((day.num_parked_combined or 0) for day in all_days) if all_days else 0
+    )
+    max_full_value = (
+        max((day.num_fullest_combined or 0) for day in all_days) if all_days else 0
+    )
+    max_precip_value = 0.0
+    if all_days:
+        precip_values = [
+            day.precipitation for day in all_days if day.precipitation is not None
+        ]
+        if precip_values:
+            max_precip_value = max(precip_values) or 0.0
 
     # Set up colour maps for shading cell backgrounds
     max_parked_colour = dc.Dimension(interpolation_exponent=2)
     max_parked_colour.add_config(0, "white")
-    max_parked_colour.add_config(days_totals.max_parked_combined, "green")
+    if max_parked_value:
+        max_parked_colour.add_config(max_parked_value, "green")
 
     max_full_colour = dc.Dimension(interpolation_exponent=2)
     max_full_colour.add_config(0, "white")
-    max_full_colour.add_config(days_totals.max_fullest_combined, "teal")
+    if max_full_value:
+        max_full_colour.add_config(max_full_value, "teal")
 
     max_left_colour = dc.Dimension()
     max_left_colour.add_config(0, "white")
@@ -810,62 +794,80 @@ def season_detail(
 
     max_precip_colour = dc.Dimension(interpolation_exponent=1)
     max_precip_colour.add_config(0, "white")
-    if days_totals.max_precipitation not in (None, 0):
-        max_precip_colour.add_config(days_totals.max_precipitation, "azure")
+    if max_precip_value not in (None, 0):
+        max_precip_colour.add_config(max_precip_value, "azure")
 
     print(f"<h1>{cc.titleize('<br>Daily summaries')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
     print("<br>")
-    print(
-        generate_date_filter_form(
-            self_url,
-            default_start_date=start_date,
-            default_end_date=end_date,
+    print(filter_widget.html)
+    if filter_description:
+        print(
+            f"<p class='filter-description'>{html.escape(filter_description)}</p>"
         )
-    )
-
     print("<br><br>")
 
     sort_date_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DATE,
         qdir=other_direction,
+        qdow=dow_parameter,
+        start_date=start_date,
+        end_date=end_date,
         pages_back=cc.increment_pages_back(pages_back),
     )
     sort_day_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DAY,
         qdir=other_direction,
+        qdow=dow_parameter,
+        start_date=start_date,
+        end_date=end_date,
         pages_back=cc.increment_pages_back(pages_back),
     )
     sort_parked_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_PARKED,
         qdir=other_direction,
+        qdow=dow_parameter,
+        start_date=start_date,
+        end_date=end_date,
         pages_back=cc.increment_pages_back(pages_back),
     )
     sort_fullness_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_FULLNESS,
         qdir=other_direction,
+        qdow=dow_parameter,
+        start_date=start_date,
+        end_date=end_date,
         pages_back=cc.increment_pages_back(pages_back),
     )
     sort_leftovers_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_LEFTOVERS,
         qdir=other_direction,
+        qdow=dow_parameter,
+        start_date=start_date,
+        end_date=end_date,
         pages_back=cc.increment_pages_back(pages_back),
     )
     sort_precipitation_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_PRECIPITATAION,
         qdir=other_direction,
+        qdow=dow_parameter,
+        start_date=start_date,
+        end_date=end_date,
         pages_back=cc.increment_pages_back(pages_back),
     )
     sort_temperature_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_TEMPERATURE,
         qdir=other_direction,
+        qdow=dow_parameter,
+        start_date=start_date,
+        end_date=end_date,
         pages_back=cc.increment_pages_back(pages_back),
     )
     # mismatches_link = cc.selfref(cc.WHAT_MISMATCH)

@@ -282,6 +282,7 @@ if what == cc.WHAT_TAG_HISTORY:
 elif what == cc.WHAT_BLOCKS:
     web_block_report.blocks_report(
         database,
+        iso_dow=dow_parameter,
         pages_back=pages_back,
         start_date=date_start,
         end_date=date_end,
@@ -302,6 +303,7 @@ elif what == cc.WHAT_DETAIL:
         pages_back=pages_back,
         start_date=date_start,
         end_date=date_end,
+        dow_parameter=dow_parameter,
     )
 elif what == cc.WHAT_SUMMARY:
     web_season_report.season_summary(database)

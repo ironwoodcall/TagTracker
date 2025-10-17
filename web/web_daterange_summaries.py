@@ -29,7 +29,7 @@ from datetime import datetime, timedelta
 # import tt_util as ut
 import common.tt_dbutil as db
 import web_common as cc
-from web_daterange_selector import generate_date_filter_form
+from web_daterange_selector import build_date_dow_filter_widget
 
 DATERANGE_NAMES = {
     cc.WHAT_DATERANGE_WEEK: "Weeks",
@@ -142,18 +142,21 @@ def daterange_summary(
 
     _daterange_summary_pagetop(start_date, end_date, pages_back)
 
-    self_url = cc.selfref(
+    filter_url = cc.selfref(
         what=cc.WHAT_DATERANGE,
         start_date=start_date,
         end_date=end_date,
-        pages_back=pages_back+1,
+        pages_back=pages_back + 1,
+    )
+    filter_widget = build_date_dow_filter_widget(
+        filter_url,
+        start_date=start_date,
+        end_date=end_date,
+        include_day_filter=False,
+        submit_label="Apply filters",
     )
     print("<br>")
-    print(
-        generate_date_filter_form(
-            self_url, default_start_date=start_date, default_end_date=end_date
-        )
-    )
+    print(filter_widget.html)
 
     print("<br><br><br>")
 
