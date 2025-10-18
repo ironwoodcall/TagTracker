@@ -535,7 +535,7 @@ def totals_table(conn: sqlite3.Connection):
     print("</table>")
 
 
-def season_summary(ttdb: sqlite3.Connection):
+def main_web_page(ttdb: sqlite3.Connection):
     """Print super-brief summary report of the current year."""
 
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)

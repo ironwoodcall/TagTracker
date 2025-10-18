@@ -306,7 +306,7 @@ elif what == cc.WHAT_DETAIL:
         dow_parameter=dow_parameter,
     )
 elif what == cc.WHAT_SUMMARY:
-    web_season_report.season_summary(database)
+    web_season_report.main_web_page(database)
 elif what == cc.WHAT_SUMMARY_FREQUENCIES:
     web_season_report.season_frequencies_report(
         database,
