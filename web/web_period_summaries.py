@@ -140,8 +140,6 @@ def daterange_summary(
         db_limits=(db_start_date, db_end_date),
     )
 
-    _daterange_summary_pagetop(start_date, end_date, pages_back)
-
     filter_url = cc.selfref(
         what=cc.WHAT_DATERANGE,
         start_date=start_date,
@@ -153,8 +151,11 @@ def daterange_summary(
         start_date=start_date,
         end_date=end_date,
         include_day_filter=False,
-        submit_label="Apply filters",
+        submit_label="Apply filter",
     )
+
+    _daterange_summary_pagetop(filter_str=filter_widget.description(), pages_back=pages_back)
+
     print("<br>")
     print(filter_widget.html)
 
@@ -179,9 +180,8 @@ def daterange_summary(
         _daterange_summary_table(ttdb, start_date, end_date, daterange, pages_back)
         print("<br><br><br>")
 
-def _daterange_summary_pagetop(start_date,end_date,pages_back: int = 1):
-    print(f"<h1>{cc.titleize(f'<br>Period summaries from {start_date} to {end_date}')}</h1>")
-    # print(f"<h2>Summary of data from {start_date} to {end_date}</h2>")
+def _daterange_summary_pagetop(filter_str:str="",pages_back: int = 1):
+    print(f"<h1>{cc.titleize(f'<br>Period summaries ({filter_str})')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
 
 

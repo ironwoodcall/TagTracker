@@ -39,7 +39,7 @@ import web_block_report
 from web_day_detail import one_day_tags_report
 import web_season_report
 import web_tags_report
-import web_daterange_summaries
+import web_period_summaries
 import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
@@ -351,7 +351,7 @@ elif what in [
     cc.WHAT_DATERANGE_YEAR,
     cc.WHAT_DATERANGE_CUSTOM,
 ]:
-    web_daterange_summaries.daterange_summary(
+    web_period_summaries.daterange_summary(
         database, what, start_date=date_start, end_date=date_end, pages_back=pages_back
     )
 elif what == cc.WHAT_ESTIMATE_VERBOSE:
