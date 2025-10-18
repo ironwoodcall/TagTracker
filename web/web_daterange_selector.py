@@ -32,45 +32,57 @@ DATE_PATTERN = "[0-9]{4}-[0-9]{2}-[0-9]{2}"
 
 @dataclass(frozen=True)
 class DowOption:
-    """One selectable option for the filter's day-of-week dropdown."""
+    """
+    Immutable configuration for a single day-of-week dropdown choice.
+
+    Attributes:
+        value: Underlying value submitted with the form; may be a comma-delimited list.
+        label: User-facing text displayed within the dropdown.
+        title_bit: Lowercase fragment suitable for titles (e.g., "Mondays" or "weekdays").
+    """
 
     value: str
     label: str
-    description_suffix: str
-    title_suffix: str
+    title_bit: str
 
 
 def _build_day_name(iso_dow: int) -> str:
-    """Return a tidy name for the ISO day-of-week value."""
+    """Return the display name for the provided ISO day-of-week (1=Monday)."""
     return ut.dow_str(iso_dow, 10).strip()
 
 
 DEFAULT_DOW_OPTIONS: tuple[DowOption, ...] = tuple(
-    [DowOption("", "All days", "", "all days of the week")]
+    [DowOption("", "All days ", "")]
     + [
         DowOption(
             str(iso_dow),
-            _build_day_name(iso_dow),
-            f"for {_build_day_name(iso_dow)}",
+            f"{_build_day_name(iso_dow)}s",
             f"{_build_day_name(iso_dow)}s",
         )
         for iso_dow in range(1, 8)
     ]
     + [
-        DowOption("1,2,3,4,5", "Weekdays", "for weekdays", "weekdays"),
-        DowOption("6,7", "Weekends", "for weekends", "weekends"),
+        DowOption("1,2,3,4,5", "Weekdays", "weekdays"),
+        DowOption("6,7", "Weekends", "weekends"),
     ]
 )
 
-def _cap_first(text: str) -> str:
-    return text[:1].upper() + text[1:] if text else text
+# def _cap_first(text: str) -> str:
+#     """Return text with only the first character capitalized if present."""
+#     return text[:1].upper() + text[1:] if text else text
 
 
 def _normalize_dow_value(
     dow_value: str | int | Sequence[int] | None,
     options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS,
 ) -> str:
-    """Return a canonical string for the requested day-of-week selection."""
+    """
+    Return a normalized comma-separated list of ISO day numbers representing a selection.
+
+    The input may be a string, a single integer, a sequence of integers, or ``None``.
+    Non-numeric values or numbers outside the inclusive range of 1–7 yield an empty string.
+    A recognized value must also correspond to one of the supplied ``options``.
+    """
 
     if dow_value is None:
         return ""
@@ -104,7 +116,11 @@ def find_dow_option(
     dow_value: str | int | Sequence[int] | None,
     options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS,
 ) -> DowOption:
-    """Return the option that matches dow_value, defaulting to 'All days'."""
+    """
+    Return the option matching ``dow_value``, or fall back to the "All days" choice.
+
+    The candidate value is normalized in the same manner as the day-of-week selector.
+    """
 
     normalized = _normalize_dow_value(dow_value, options)
     for option in options:
@@ -115,78 +131,80 @@ def find_dow_option(
 
 @dataclass(frozen=True)
 class DateDowSelection:
-    """The concrete selections chosen in the filter widget."""
+    """User-specified date range and optional day-of-week filter selection."""
 
     start_date: str
     end_date: str
     dow_value: str = ""
 
     def option(self, options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS) -> DowOption:
+        """Return the dropdown option that matches the stored day-of-week value."""
         return find_dow_option(self.dow_value, options)
 
-    def description(
-        self, options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS
-    ) -> str:
-        """Return a human-friendly '(Dow from ...)' description."""
+    def description(self, options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS) -> str:
+        """
+        Return a human-friendly summary such as ``"Mondays from 2024-01-01 to 2024-01-31"``.
+
+        A blank string is returned when neither start nor end date are present.
+        """
 
         if not self.start_date and not self.end_date:
             return ""
 
         option = self.option(options)
-        single_day = (
-            self.start_date
-            and self.end_date
-            and self.start_date == self.end_date
-        )
 
-        if single_day:
+        # Single day, say dow name and the date.
+        if self.start_date and self.end_date and self.start_date == self.end_date:
             date_part = self.start_date
             dow_part = ut.dow_str(self.start_date, 10) or option.label
-            content = " ".join(part for part in (dow_part, date_part) if part)
-            return f"({content})" if content else ""
+            content = ", ".join(part for part in (dow_part, date_part) if part)
+            return f"{content}" if content else ""
 
         if self.start_date and self.end_date:
-            date_part = f"from {self.start_date} to {self.end_date}"
+            date_part = f"{self.start_date} to {self.end_date}"
         elif self.start_date:
-            date_part = f"from {self.start_date}"
+            date_part = f"{self.start_date}"
         elif self.end_date:
             date_part = f"through {self.end_date}"
         else:
             date_part = ""
 
-        dow_plural = _cap_first(option.title_suffix or option.label)
-        content = " ".join(part for part in (dow_plural, date_part) if part).strip()
+        content = " from ".join(
+            part for part in (option.title_bit, date_part) if part
+        ).strip()
 
-        return f"({content})" if content else ""
+        return f"{content}" if content else ""
 
-    def title_fragment(
-        self, options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS
-    ) -> str:
-        """Return a text fragment such as 'weekdays' or 'Mondays'."""
+    def title_fragment(self, options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS) -> str:
+        """Return a concise label such as ``"weekdays"`` or ``"Mondays"``."""
 
         option = self.option(options)
-        return option.title_suffix
+        return option.title_bit
 
 
 @dataclass(frozen=True)
 class DateDowFilterWidget:
-    """Rendered HTML plus the associated selection metadata."""
+    """Pair the rendered HTML form with the user selection it represents."""
 
     html: str
     selection: DateDowSelection
     options: tuple[DowOption, ...] = DEFAULT_DOW_OPTIONS
 
     def description(self) -> str:
+        """Delegate to the selection object for a human-readable description."""
         return self.selection.description(self.options)
 
     def title_fragment(self) -> str:
+        """Return the selection's brief label suitable for headings."""
         return self.selection.title_fragment(self.options)
 
     def selected_option(self) -> DowOption:
+        """Return the resolved dropdown option for the stored day-of-week value."""
         return self.selection.option(self.options)
 
 
 def _render_hidden_fields(query_params: dict[str, list[str]]) -> str:
+    """Render hidden ``<input>`` elements for existing query parameters."""
     tokens: list[str] = []
     for name, values in query_params.items():
         if not values:
@@ -202,6 +220,7 @@ def _render_day_dropdown(
     selection: DateDowSelection,
     options: Iterable[DowOption],
 ) -> str:
+    """Render the day-of-week ``<select>`` element for the filter form."""
     rows = ['<label for="dow" style="margin-right:0.5rem;">Day of week:</label>']
     rows.append('<select id="dow" name="dow">')
     for option in options:
@@ -223,7 +242,12 @@ def build_date_dow_filter_widget(
     submit_label: str = "Apply filters",
     options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS,
 ) -> DateDowFilterWidget:
-    """Return a widget that renders the combined date/dow filter."""
+    """
+    Build a date and optional day-of-week filter widget and associated selection.
+
+    The resulting :class:`DateDowFilterWidget` contains the HTML form markup alongside
+    the normalized selection metadata, allowing callers to render or inspect the state.
+    """
 
     options_tuple = tuple(options)
     normalized_dow = (
@@ -252,21 +276,21 @@ def build_date_dow_filter_widget(
             "gap: 0.5rem 1rem; align-items: end; padding: 10px;"
         )
         html_bits = [
-            f"<form action=\"{html.escape(base_portion)}\" method=\"get\" style=\"{form_style}\">",
+            f'<form action="{html.escape(base_portion)}" method="get" style="{form_style}">',
             "<div style='grid-column:1; grid-row:1; display:flex; align-items:center; gap:0.5rem;'>"
-            "<label for=\"start_date\">Start date:</label>"
-            f"<input type=\"date\" id=\"start_date\" name=\"start_date\" "
-            f"value=\"{html.escape(selection.start_date)}\" "
-            f"required pattern=\"{DATE_PATTERN}\"></div>",
+            '<label for="start_date">Start date:</label>'
+            f'<input type="date" id="start_date" name="start_date" '
+            f'value="{html.escape(selection.start_date)}" '
+            f'required pattern="{DATE_PATTERN}"></div>',
             "<div style='grid-column:1; grid-row:2; display:flex; align-items:center; gap:0.5rem;'>"
-            "<label for=\"end_date\">End date:</label>"
-            f"<input type=\"date\" id=\"end_date\" name=\"end_date\" "
-            f"value=\"{html.escape(selection.end_date)}\" "
-            f"required pattern=\"{DATE_PATTERN}\"></div>",
+            '<label for="end_date">End date:&nbsp;</label>'
+            f'<input type="date" id="end_date" name="end_date" '
+            f'value="{html.escape(selection.end_date)}" '
+            f'required pattern="{DATE_PATTERN}"></div>',
             "<div style='grid-column:2; grid-row:1; display:flex; align-items:center; gap:0.5rem;'>"
             f"{_render_day_dropdown(selection, options_tuple)}</div>",
             "<div style='grid-column:2; grid-row:2; justify-self:end; align-self:end;'>"
-            f"<input type=\"submit\" value=\"{html.escape(submit_label)}\"></div>",
+            f'<input type="submit" value="{html.escape(submit_label)}"></div>',
         ]
     else:
         form_style = (
@@ -274,7 +298,7 @@ def build_date_dow_filter_widget(
             "flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 10px;"
         )
         html_bits = [
-            f"<form action=\"{html.escape(base_portion)}\" method=\"get\" style=\"{form_style}\">",
+            f'<form action="{html.escape(base_portion)}" method="get" style="{form_style}">',
             '<label for="start_date">Start Date:</label>',
             '<input type="date" id="start_date" name="start_date" '
             f'value="{html.escape(selection.start_date)}" '
@@ -296,7 +320,12 @@ def build_date_dow_filter_widget(
 
 
 def generate_date_filter_form(base_url, default_start_date="", default_end_date=""):
-    """Compatibility helper to render the legacy date-only filter."""
+    """
+    Return HTML markup that mimics the legacy date-only filtering widget.
+
+    This helper wraps :func:`build_date_dow_filter_widget` while omitting the
+    day-of-week dropdown and using a historical submit button label.
+    """
 
     widget = build_date_dow_filter_widget(
         base_url,
@@ -309,6 +338,7 @@ def generate_date_filter_form(base_url, default_start_date="", default_end_date=
 
 
 def main():
+    """Render an example widget when the module is executed directly."""
     # Example usage when testing this module in isolation.
     base_url = "http://example.com/report?user=admin&role=user"
     widget = build_date_dow_filter_widget(

@@ -27,15 +27,16 @@ import sqlite3
 import copy
 from collections import defaultdict
 
+from web_daterange_selector import build_date_dow_filter_widget, find_dow_option
+import web_common as cc
+import datacolors as dc
+import colortable
 import common.tt_dbutil as db
 from common.tt_time import VTime
 import common.tt_util as ut
 
 # import tt_block
-import web_common as cc
-import datacolors as dc
-import colortable
-from web_daterange_selector import build_date_dow_filter_widget, find_dow_option
+
 
 XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 X_TOP_COLOR = "red"
@@ -220,26 +221,20 @@ def print_the_html(
     day_total_bikes_colors: dc.Dimension,
     day_full_colors: dc.Dimension,
     pages_back: int,
-    page_title_prefix: str = "",
     date_filter_html: str = "",
-    date_range_label: str = "",
     filter_description: str = "",
 ):
     def column_gap() -> str:
         """Make a thicker vertical cell border to mark off sets of blocks."""
         return "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
 
-    title = f"{page_title_prefix}Time block summaries"
-    if date_range_label:
-        title = f"{title} ({date_range_label})"
+    title = "Time block summaries"
+    if filter_description:
+        title = f"{title} ({html.escape(filter_description)})"
     print(f"<h1>{title}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
     if date_filter_html:
         print(date_filter_html)
-    if filter_description:
-        print(
-            f"<p class='filter-description'>{html.escape(filter_description)}</p>"
-        )
     print("<br><br>")
 
     # We frequently use xycolors(0,0). Save & store it.
@@ -406,11 +401,12 @@ def blocks_report(
     dayrows:list[db.DBRow] = _fetch_day_data(ttdb, day_where_clause)
     blockrows:list[db.DBRow] = _fetch_block_rows(ttdb, day_where_clause)
 
-    range_label = f"({start_date} to {end_date})" if start_date or end_date else ""
+    # range_label = f"({start_date} to {end_date})" if start_date or end_date else ""
 
-    heading = f"{title_bit}Time block summaries"
-    if range_label:
-        heading = f"{heading} {range_label}"
+    heading = "Time block summaries"
+
+    # if range_label:
+    #     heading = f"{heading} {range_label}"
 
     if not dayrows:
         print(f"<h1>{heading}</h1>")
@@ -458,9 +454,9 @@ def blocks_report(
         day_total_bikes_colors,
         day_full_colors,
         pages_back,
-        page_title_prefix=title_bit,
+        # page_title_prefix=title_bit,
         date_filter_html=date_filter_html,
-        date_range_label=range_label,
+        # date_range_label=range_label,
         filter_description=filter_description,
     )
 
