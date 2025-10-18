@@ -135,13 +135,8 @@ def season_frequencies_report(
 
         if not title_bit:
             title_bit = filter_widget.title_fragment()
-        filter_description = filter_widget.description()
 
         print(filter_widget.html)
-        if filter_description:
-            print(
-                f"<p class='filter-description'>{html.escape(filter_description)}</p>"
-            )
         print("<br>")
 
     dow_parameter = "" if restrict_to_single_day else normalized_dow
@@ -797,7 +792,7 @@ def season_detail(
     if max_precip_value not in (None, 0):
         max_precip_colour.add_config(max_precip_value, "azure")
 
-    print(f"<h1>{cc.titleize('<br>Daily summaries')}</h1>")
+    print(f"<h1>{cc.titleize(f'<br>Daily summaries ({filter_widget.description()})')}</h1>")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
     print("<br>")
     print(filter_widget.html)

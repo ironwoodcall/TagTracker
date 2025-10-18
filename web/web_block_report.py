@@ -388,7 +388,7 @@ def blocks_report(
     )
     normalized_dow = filter_widget.selection.dow_value
 
-    title_bit, day_where_clause = _process_iso_dow(
+    _, day_where_clause = _process_iso_dow(
         normalized_dow,
         orgsite_id=orgsite_id,
         start_date=start_date,
