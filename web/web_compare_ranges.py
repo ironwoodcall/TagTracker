@@ -350,7 +350,17 @@ def _render_compare_filter_form(
 
     return "\n        ".join(html_bits)
 
-
+def _print_instructions() -> None:
+    """Text at the top of the page to explain what to do."""
+    print("""<p>This page compares bike parking data from two
+          different customizable time periods.  Use the date filter to set
+          the parameters for Period A and for Period B.  By default, this
+          page starts by comparing the most recent complete month to the
+          corresponding month the preceding year.  If looking at differences between periods,
+          be aware that different selections may have different numbers of days,
+          so the counts <i>per day</> may often be more helpful than raw counts.
+          </p>
+""")
 def compare_ranges(
     ttdb: sqlite3.Connection,
     *,
@@ -367,6 +377,8 @@ def compare_ranges(
     title = cc.titleize("Compare date ranges")
     print(title)
     print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
+
+    _print_instructions()
 
     self_url = cc.selfref(
         what=cc.WHAT_COMPARE_RANGES,
@@ -397,18 +409,18 @@ def compare_ranges(
 
     description_a = selection_a.description(options_tuple)
     description_b = selection_b.description(options_tuple)
-    print(
-        "<div style='display:flex; flex-wrap:wrap; gap:1.5rem; margin-top:0.75rem;'>"
-    )
-    print(
-        f"<p style='margin:0;font-style:italic;'><strong>Period A:</strong> "
-        f"{html.escape(description_a or 'All data')}</p>"
-    )
-    print(
-        f"<p style='margin:0;font-style:italic;'><strong>Period B:</strong> "
-        f"{html.escape(description_b or 'All data')}</p>"
-    )
-    print("</div>")
+    # print(
+    #     "<div style='display:flex; flex-wrap:wrap; gap:1.5rem; margin-top:0.75rem;'>"
+    # )
+    # print(
+    #     f"<p style='margin:0;font-style:italic;'><strong>Period A:</strong> "
+    #     f"{html.escape(description_a or 'All data')}</p>"
+    # )
+    # print(
+    #     f"<p style='margin:0;font-style:italic;'><strong>Period B:</strong> "
+    #     f"{html.escape(description_b or 'All data')}</p>"
+    # )
+    # print("</div>")
     print("<br>")
 
     metrics_a = _aggregate_period(
