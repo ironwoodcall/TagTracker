@@ -219,16 +219,10 @@ def _render_hidden_fields(query_params: dict[str, list[str]]) -> str:
 def _render_day_dropdown(
     selection: DateDowSelection,
     options: Iterable[DowOption],
-    field_name: str,
 ) -> str:
     """Render the day-of-week ``<select>`` element for the filter form."""
-    field_id = field_name
-    escaped_id = html.escape(field_id)
-    escaped_name = html.escape(field_name)
-    rows = [
-        f'<label for="{escaped_id}" style="margin-right:0.5rem;">Day of week:</label>'
-    ]
-    rows.append(f'<select id="{escaped_id}" name="{escaped_name}">')
+    rows = ['<label for="dow" style="margin-right:0.5rem;">Day of week:</label>']
+    rows.append('<select id="dow" name="dow">')
     for option in options:
         value = html.escape(option.value)
         label = html.escape(option.label)
@@ -247,7 +241,6 @@ def build_date_dow_filter_widget(
     include_day_filter: bool = True,
     submit_label: str = "Apply filters",
     options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS,
-    field_suffix: str = "",
 ) -> DateDowFilterWidget:
     """
     Build a date and optional day-of-week filter widget and associated selection.
@@ -263,14 +256,9 @@ def build_date_dow_filter_widget(
         include_day_filter: Whether to include the day-of-week dropdown.
         submit_label: Text for the submit button.
         options: Available day-of-week choices.
-        field_suffix: Optional suffix appended to each input name/id so multiple widgets
-            can coexist on the same page without collisions (e.g. ``"2"``).
     """
 
     options_tuple = tuple(options)
-    start_field = f"start_date{field_suffix}"
-    end_field = f"end_date{field_suffix}"
-    dow_field = f"dow{field_suffix}"
     normalized_dow = (
         _normalize_dow_value(selected_dow, options_tuple) if include_day_filter else ""
     )
@@ -283,13 +271,10 @@ def build_date_dow_filter_widget(
     parsed_url = urllib.parse.urlparse(base_url)
     base_portion = base_url.split("?", 1)[0]
     query_params = urllib.parse.parse_qs(parsed_url.query)
-    excluded_fields = {start_field.lower(), end_field.lower()}
-    if include_day_filter:
-        excluded_fields.add(dow_field.lower())
     filtered_params = {
         k: v
         for k, v in query_params.items()
-        if k.lower() not in excluded_fields
+        if k.lower() not in {"start_date", "end_date", "dow"}
     }
     hidden_fields = _render_hidden_fields(filtered_params)
 
@@ -299,22 +284,20 @@ def build_date_dow_filter_widget(
             "grid-template-columns: auto auto; grid-auto-rows: auto; "
             "gap: 0.5rem 1rem; align-items: end; padding: 10px;"
         )
-        escaped_start_field = html.escape(start_field)
-        escaped_end_field = html.escape(end_field)
         html_bits = [
             f'<form action="{html.escape(base_portion)}" method="get" style="{form_style}">',
             "<div style='grid-column:1; grid-row:1; display:flex; align-items:center; gap:0.5rem;'>"
-            f'<label for="{escaped_start_field}">Start date:</label>'
-            f'<input type="date" id="{escaped_start_field}" name="{escaped_start_field}" '
+            '<label for="start_date">Start date:</label>'
+            '<input type="date" id="start_date" name="start_date" '
             f'value="{html.escape(selection.start_date)}" '
             f'required pattern="{DATE_PATTERN}"></div>',
             "<div style='grid-column:1; grid-row:2; display:flex; align-items:center; gap:0.5rem;'>"
-            f'<label for="{escaped_end_field}">End date:&nbsp;</label>'
-            f'<input type="date" id="{escaped_end_field}" name="{escaped_end_field}" '
+            '<label for="end_date">End date:&nbsp;</label>'
+            '<input type="date" id="end_date" name="end_date" '
             f'value="{html.escape(selection.end_date)}" '
             f'required pattern="{DATE_PATTERN}"></div>',
             "<div style='grid-column:2; grid-row:1; display:flex; align-items:center; gap:0.5rem;'>"
-            f"{_render_day_dropdown(selection, options_tuple, dow_field)}</div>",
+            f"{_render_day_dropdown(selection, options_tuple)}</div>",
             "<div style='grid-column:2; grid-row:2; justify-self:end; align-self:end;'>"
             f'<input type="submit" value="{html.escape(submit_label)}"></div>',
         ]
@@ -323,16 +306,14 @@ def build_date_dow_filter_widget(
             "border: 1px solid black; display: inline-flex; "
             "flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 10px;"
         )
-        escaped_start_field = html.escape(start_field)
-        escaped_end_field = html.escape(end_field)
         html_bits = [
             f'<form action="{html.escape(base_portion)}" method="get" style="{form_style}">',
-            f'<label for="{escaped_start_field}">Start Date:</label>',
-            f'<input type="date" id="{escaped_start_field}" name="{escaped_start_field}" '
+            '<label for="start_date">Start Date:</label>',
+            '<input type="date" id="start_date" name="start_date" '
             f'value="{html.escape(selection.start_date)}" '
             f'required pattern="{DATE_PATTERN}">',
-            f'<label for="{escaped_end_field}">End Date:</label>',
-            f'<input type="date" id="{escaped_end_field}" name="{escaped_end_field}" '
+            '<label for="end_date">End Date:</label>',
+            '<input type="date" id="end_date" name="end_date" '
             f'value="{html.escape(selection.end_date)}" '
             f'required pattern="{DATE_PATTERN}">',
             f'<input type="submit" value="{html.escape(submit_label)}">',

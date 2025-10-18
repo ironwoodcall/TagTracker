@@ -8,9 +8,16 @@ import sqlite3
 import urllib.parse
 from dataclasses import dataclass
 from statistics import mean, median
+from typing import Sequence
 
 import web_common as cc
-from web_daterange_selector import build_date_dow_filter_widget
+from web_daterange_selector import (
+    DATE_PATTERN,
+    DEFAULT_DOW_OPTIONS,
+    DateDowSelection,
+    find_dow_option,
+    _render_hidden_fields,
+)
 from common.tt_daysummary import DayTotals
 from common.tt_time import VTime
 
@@ -37,20 +44,6 @@ class PeriodMetrics:
     mean_bikes_per_day: float | None = None
     median_bikes_per_day: float | None = None
     mean_bikes_registered_per_day: float | None = None
-
-
-def _append_query_params(url: str, params: dict[str, str]) -> str:
-    """Return ``url`` with additional query parameters appended."""
-    if not params:
-        return url
-    split = urllib.parse.urlsplit(url)
-    existing = urllib.parse.parse_qsl(split.query, keep_blank_values=True)
-    for key, value in params.items():
-        if value is None:
-            continue
-        existing.append((key, value))
-    new_query = urllib.parse.urlencode(existing)
-    return urllib.parse.urlunsplit((split.scheme, split.netloc, split.path, new_query, split.fragment))
 
 
 def _parse_dow_tokens(dow_value: str) -> set[int]:
@@ -270,6 +263,94 @@ def _percent_to_color(percent_value: float | None) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+def _render_compare_filter_form(
+    base_url: str,
+    selection_a: DateDowSelection,
+    selection_b: DateDowSelection,
+    *,
+    submit_label: str = "Apply filters",
+    options: Sequence = DEFAULT_DOW_OPTIONS,
+) -> str:
+    """Render the combined Period A / Period B filter form."""
+
+    options_tuple = tuple(options)
+
+    parsed_url = urllib.parse.urlparse(base_url)
+    base_portion = base_url.split("?", 1)[0]
+    query_params = urllib.parse.parse_qs(parsed_url.query)
+    excluded = {"start_date", "end_date", "dow", "start_date2", "end_date2", "dow2"}
+    filtered_params = {
+        k: v for k, v in query_params.items() if k.lower() not in excluded
+    }
+    hidden_fields = _render_hidden_fields(filtered_params)
+
+    form_style = (
+        "border: 1px solid black; padding: 12px 18px; display: inline-block;"
+    )
+
+    html_bits = [
+        f'<form action="{html.escape(base_portion)}" method="get" style="{form_style}">',
+        "<div style='display:flex; gap:2rem; justify-content:center; align-items:flex-start;'>",
+    ]
+
+    for heading, selection, suffix in (
+        ("Period A", selection_a, ""),
+        ("Period B", selection_b, "2"),
+    ):
+        start_field = f"start_date{suffix}"
+        end_field = f"end_date{suffix}"
+        dow_field = f"dow{suffix}"
+
+        start_value = html.escape(selection.start_date)
+        end_value = html.escape(selection.end_date)
+
+        column_bits = [
+            "<div>",
+            f"<h3 style='margin:0 0 0.75rem 0; text-align:center;'>{heading}</h3>",
+            "<div style='display:grid; grid-template-columns:auto auto;"
+            " column-gap:0.5rem; row-gap:0.5rem; align-items:center;'>",
+            f"<label for=\"{start_field}\">Start date:</label>",
+            f"<input type=\"date\" id=\"{start_field}\" name=\"{start_field}\" "
+            f"value=\"{start_value}\" required pattern=\"{DATE_PATTERN}\">",
+            f"<label for=\"{end_field}\">End date:</label>",
+            f"<input type=\"date\" id=\"{end_field}\" name=\"{end_field}\" "
+            f"value=\"{end_value}\" required pattern=\"{DATE_PATTERN}\">",
+        ]
+
+        options_html: list[str] = []
+        for option in options_tuple:
+            value = html.escape(option.value)
+            label = html.escape(option.label)
+            selected_attr = " selected" if option.value == selection.dow_value else ""
+            options_html.append(f"<option value=\"{value}\"{selected_attr}>{label}</option>")
+        select_markup = "\n                ".join(options_html)
+        column_bits.extend(
+            [
+                f"<label for=\"{dow_field}\">Day of week:</label>",
+                f"<select id=\"{dow_field}\" name=\"{dow_field}\">"
+                f"\n                {select_markup}\n            </select>",
+                "</div>",
+                "</div>",
+            ]
+        )
+
+        html_bits.extend(column_bits)
+
+    html_bits.append("</div>")
+    html_bits.append(
+        "<div style='text-align:center; margin-top:0.75rem;'>"
+        f"<input type=\"submit\" value=\"{html.escape(submit_label)}\">"
+        "</div>"
+    )
+
+    if hidden_fields:
+        html_bits.append(hidden_fields)
+
+    html_bits.append("</form>")
+
+    return "\n        ".join(html_bits)
+
+
 def compare_ranges(
     ttdb: sqlite3.Connection,
     *,
@@ -292,75 +373,55 @@ def compare_ranges(
         pages_back=cc.increment_pages_back(pages_back),
     )
 
-    action_a_initial = _append_query_params(
-        self_url,
-        {
-            "start_date2": start_date_b or "",
-            "end_date2": end_date_b or "",
-            "dow2": dow_b or "",
-        },
+    options_tuple = tuple(DEFAULT_DOW_OPTIONS)
+    selection_a = DateDowSelection(
+        start_date=start_date_a or "",
+        end_date=end_date_a or "",
+        dow_value=find_dow_option(dow_a, options_tuple).value,
     )
-    widget_a_initial = build_date_dow_filter_widget(
-        action_a_initial,
-        start_date=start_date_a,
-        end_date=end_date_a,
-        selected_dow=dow_a,
-    )
-    action_b = _append_query_params(
-        self_url,
-        {
-            "start_date": widget_a_initial.selection.start_date,
-            "end_date": widget_a_initial.selection.end_date,
-            "dow": widget_a_initial.selection.dow_value,
-        },
-    )
-    widget_b = build_date_dow_filter_widget(
-        action_b,
-        start_date=start_date_b,
-        end_date=end_date_b,
-        selected_dow=dow_b,
-        field_suffix="2",
-    )
-    action_a = _append_query_params(
-        self_url,
-        {
-            "start_date2": widget_b.selection.start_date,
-            "end_date2": widget_b.selection.end_date,
-            "dow2": widget_b.selection.dow_value,
-        },
-    )
-    widget_a = build_date_dow_filter_widget(
-        action_a,
-        start_date=widget_a_initial.selection.start_date,
-        end_date=widget_a_initial.selection.end_date,
-        selected_dow=widget_a_initial.selection.dow_value,
+    selection_b = DateDowSelection(
+        start_date=start_date_b or "",
+        end_date=end_date_b or "",
+        dow_value=find_dow_option(dow_b, options_tuple).value,
     )
 
-    print("<div style='display:flex; flex-wrap:wrap; gap:1.5rem; align-items:flex-start;'>")
-    print("<div>")
-    print("<h3>Period A</h3>")
-    print(widget_a.html)
-    description_a = widget_a.description()
-    print("</div>")
-    print("<div>")
-    print("<h3>Period B</h3>")
-    print(widget_b.html)
-    description_b = widget_b.description()
-    print("</div>")
+    print(
+        _render_compare_filter_form(
+            self_url,
+            selection_a,
+            selection_b,
+            submit_label="Apply filters",
+            options=options_tuple,
+        )
+    )
+
+    description_a = selection_a.description(options_tuple)
+    description_b = selection_b.description(options_tuple)
+    print(
+        "<div style='display:flex; flex-wrap:wrap; gap:1.5rem; margin-top:0.75rem;'>"
+    )
+    print(
+        f"<p style='margin:0;font-style:italic;'><strong>Period A:</strong> "
+        f"{html.escape(description_a or 'All data')}</p>"
+    )
+    print(
+        f"<p style='margin:0;font-style:italic;'><strong>Period B:</strong> "
+        f"{html.escape(description_b or 'All data')}</p>"
+    )
     print("</div>")
     print("<br>")
 
     metrics_a = _aggregate_period(
         ttdb,
-        widget_a.selection.start_date,
-        widget_a.selection.end_date,
-        widget_a.selection.dow_value,
+        selection_a.start_date,
+        selection_a.end_date,
+        selection_a.dow_value,
     )
     metrics_b = _aggregate_period(
         ttdb,
-        widget_b.selection.start_date,
-        widget_b.selection.end_date,
-        widget_b.selection.dow_value,
+        selection_b.start_date,
+        selection_b.end_date,
+        selection_b.dow_value,
     )
 
     metric_rows = [
