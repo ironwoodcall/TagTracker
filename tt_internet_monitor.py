@@ -1063,6 +1063,7 @@ class InternetMonitor:
                 and now - cls._pending_alert.timestamp >= cls.CONFIRMATION_DELAY
             ):
                 cls._confirm_pending_alert(now, suppressed)
+                cls._pending_alert = None
                 next_delay = cls._check_interval
                 continue
 
