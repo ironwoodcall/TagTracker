@@ -358,7 +358,7 @@ def _print_instructions() -> None:
           page starts by comparing the most recent complete month to the
           corresponding month the preceding year.  If looking at differences between periods,
           be aware that different selections may have different numbers of days,
-          so the counts <i>per day</> may often be more helpful than raw counts.
+          so the counts <i>per day</i> may often be more helpful than raw counts.
           </p>
 """)
 def compare_ranges(
