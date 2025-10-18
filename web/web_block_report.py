@@ -274,7 +274,7 @@ def print_the_html(
         "<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>"
     )
     print("<tr>")
-    print(f"<th colspan=3><a href='{cc.selfref(what=cc.WHAT_BLOCKS)}'>Date</a></th>")
+    print("<th colspan=3>Date</th>")
     print("<th colspan=7>6:00 - 9:00</th>")
     print("<th colspan=7>9:00 - 12:00</th>")
     print("<th colspan=7>12:00 - 15:00</th>")
@@ -291,10 +291,9 @@ def print_the_html(
         dayname = ut.date_str(date, dow_str_len=3)
         thisday: _OneDay = tabledata[date]
         tags_report_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=date)
-        dow_report_link = cc.selfref(what=cc.WHAT_BLOCKS_DOW, qdow=ut.dow_int(dayname))
         print("<tr style='text-align: center; width: 15px;padding: 0px 3px;'>")
         print(f"<td style=width:auto;><a href='{tags_report_link}'>{date}</a></td>")
-        print(f"<td style=width:auto;><a href='{dow_report_link}'>{dayname}</a></td>")
+        print(f"<td style=width:auto;>{dayname}</td>")
 
         # Find which time block had the greatest num of bikes this day.
         fullest_block_this_day = ut.block_start(thisday.day_max_bikes_time)

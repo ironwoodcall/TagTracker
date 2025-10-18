@@ -62,6 +62,9 @@ DEFAULT_DOW_OPTIONS: tuple[DowOption, ...] = tuple(
     ]
 )
 
+def _cap_first(text: str) -> str:
+    return text[:1].upper() + text[1:] if text else text
+
 
 def _normalize_dow_value(
     dow_value: str | int | Sequence[int] | None,
@@ -124,24 +127,37 @@ class DateDowSelection:
     def description(
         self, options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS
     ) -> str:
-        """Return '(YYYY-MM-DD ... for <dow>)' descriptor."""
+        """Return a human-friendly '(Dow from ...)' description."""
 
         if not self.start_date and not self.end_date:
             return ""
 
-        if self.start_date and self.end_date and self.start_date == self.end_date:
-            date_part = self.start_date
-        elif self.start_date and self.end_date:
-            date_part = f"{self.start_date} to {self.end_date}"
-        else:
-            date_part = self.start_date or self.end_date or ""
-
         option = self.option(options)
-        dow_suffix = option.description_suffix
+        single_day = (
+            self.start_date
+            and self.end_date
+            and self.start_date == self.end_date
+        )
 
-        if dow_suffix:
-            return f"({date_part} {dow_suffix})"
-        return f"({date_part})"
+        if single_day:
+            date_part = self.start_date
+            dow_part = ut.dow_str(self.start_date, 10) or option.label
+            content = " ".join(part for part in (dow_part, date_part) if part)
+            return f"({content})" if content else ""
+
+        if self.start_date and self.end_date:
+            date_part = f"from {self.start_date} to {self.end_date}"
+        elif self.start_date:
+            date_part = f"from {self.start_date}"
+        elif self.end_date:
+            date_part = f"through {self.end_date}"
+        else:
+            date_part = ""
+
+        dow_plural = _cap_first(option.title_suffix or option.label)
+        content = " ".join(part for part in (dow_plural, date_part) if part).strip()
+
+        return f"({content})" if content else ""
 
     def title_fragment(
         self, options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS
