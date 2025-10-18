@@ -23,7 +23,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 """
 
-import html
+# import html
 import sqlite3
 from datetime import date, timedelta
 import common.tt_util as ut
@@ -547,7 +547,7 @@ def season_summary(ttdb: sqlite3.Connection):
     download_db_link = cc.make_url("tt_download", what="db")
 
     print(
-        f"<h1 style='display: inline;'>{cc.titleize('')}</h1><br><br>")
+        f"{cc.titleize('')}<br>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
 
@@ -792,28 +792,15 @@ def season_detail(
     if max_precip_value not in (None, 0):
         max_precip_colour.add_config(max_precip_value, "azure")
 
-    print(f"<h1>{cc.titleize(f'<br>Daily summaries ({filter_widget.description()})')}</h1>")
+    print(f"{cc.titleize('Daily summaries', filter_widget.description())}")
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
     print("<br>")
     print(filter_widget.html)
-    if filter_description:
-        print(
-            f"<p class='filter-description'>{html.escape(filter_description)}</p>"
-        )
     print("<br><br>")
 
     sort_date_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DATE,
-        qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
-    )
-    sort_day_link = cc.selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_DAY,
         qdir=other_direction,
         qdow=dow_parameter,
         start_date=start_date,
@@ -886,7 +873,7 @@ def season_detail(
     print(
         "<tr>"
         f"<th><a href={sort_date_link}>Date</a></th>"
-        f"<th><a href={sort_day_link}>Day</a></th>"
+        f"<th>Day</th>"
         "<th>Open</th><th>Close</th>"
         f"<th><a href={sort_parked_link}>All<br>bikes</a></th><th>Ovrsz<br>bikes</th><th>Reglr<br>bikes</th>"
         # "<th>Left</th>"

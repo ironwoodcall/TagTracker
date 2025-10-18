@@ -162,9 +162,7 @@ def one_day_tags_report(
     else:
         day_str = ut.date_str(thisday, dow_str_len=10)
 
-    h1 = cc.titleize(f"<br>{thisday} ({day_str}) Detail")
-    html = f"<h1>{h1}</h1>"
-    print(html)
+    print(cc.titleize(f"{day_str}, {thisday} (detail)"))
 
     if not cc.called_by_self():
         pages_back = cc.NAV_MAIN_BUTTON

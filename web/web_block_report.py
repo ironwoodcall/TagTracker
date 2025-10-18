@@ -228,10 +228,10 @@ def print_the_html(
         """Make a thicker vertical cell border to mark off sets of blocks."""
         return "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
 
-    title = cc.titleize("<br>Time block summaries")
-    if filter_description:
-        title = f"{title} ({html.escape(filter_description)})"
-    print(f"<h1>{title}</h1>")
+    title = cc.titleize("Time block summaries",filter_description)
+    # if filter_description:
+    #     title = f"{title} ({html.escape(filter_description)})"
+    print(f"{title}")
     print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
     if date_filter_html:
         print(date_filter_html)
