@@ -435,6 +435,8 @@ class InternetMonitor:
         if not cls._primary_probes:
             primary_id = cls.HTTPBIN_PROBE_ID
             gstatic_id = cls.GSTATIC_PROBE_ID
+            confirm_id = cls.GOOGLE_DOH_PROBE_ID
+            cloudflare_id = cls.CLOUDFLARE_DOH_PROBE_ID
             cls._primary_probes = (
                 Probe(
                     identifier=primary_id,
@@ -446,11 +448,6 @@ class InternetMonitor:
                     name="GStatic generate_204",
                     runner=lambda monitor_cls, pid=gstatic_id: monitor_cls._check_gstatic_generate204(pid),
                 ),
-            )
-        if not cls._confirmation_probes:
-            confirm_id = cls.GOOGLE_DOH_PROBE_ID
-            cloudflare_id = cls.CLOUDFLARE_DOH_PROBE_ID
-            cls._confirmation_probes = (
                 Probe(
                     identifier=confirm_id,
                     name="Google DoH NXDOMAIN",
@@ -462,6 +459,8 @@ class InternetMonitor:
                     runner=lambda monitor_cls, pid=cloudflare_id: monitor_cls._check_cloudflare_doh(pid),
                 ),
             )
+        if not cls._confirmation_probes:
+            cls._confirmation_probes = tuple(cls._primary_probes)
 
     @classmethod
     def _run_primary_probe(cls) -> Tuple[bool, Optional[str], str]:
