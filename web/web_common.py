@@ -164,9 +164,9 @@ def titleize(title: str = "",subtitle: str="") -> str:
     including heading tags."""
     content = f"<h2>{SITE_NAME or 'Bike Parking Service'}</h2>"
     if title:
-        content = f"{content}<h1>{title}</h1>"
+        content = f"{content}<h1>{title.capitalize()}</h1>"
     if subtitle:
-        content = f"{content}<h2>{subtitle}</h2>"
+        content = f"{content}<h2>{subtitle.capitalize()}</h2>"
     return content
 
 
