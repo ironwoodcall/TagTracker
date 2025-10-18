@@ -67,6 +67,7 @@ WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
 WHAT_SUMMARY_FREQUENCIES = "SQ"
 WHAT_AUDIT = "Au"
+WHAT_COMPARE_RANGES = "Cmp"
 WHAT_DATERANGE = "PS"
 WHAT_DATERANGE_FOREVER = "pF"
 WHAT_DATERANGE_YEAR = "pY"
@@ -878,4 +879,3 @@ def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
     print(db.db_latest(ttdb))
 
     print(f"TagTracker version {get_version_info()}")
-

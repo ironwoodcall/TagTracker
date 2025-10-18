@@ -27,6 +27,7 @@ import sys
 import os
 import urllib.parse
 import time
+from datetime import date, timedelta
 import html
 from pathlib import Path
 
@@ -40,6 +41,7 @@ from web_day_detail import one_day_tags_report
 import web_season_report
 import web_tags_report
 import web_period_summaries
+import web_compare_ranges
 import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
@@ -268,12 +270,59 @@ if not what:
 
 requested_start = query_params.get("start_date", [""])[0]
 requested_end = query_params.get("end_date", [""])[0]
+requested_start2 = query_params.get("start_date2", [""])[0]
+requested_end2 = query_params.get("end_date2", [""])[0]
+dow_parameter2 = query_params.get("dow2", [""])[0]
+
+if what == cc.WHAT_COMPARE_RANGES:
+    today_str = ut.date_str("today")
+    try:
+        today_date = date.fromisoformat(today_str)
+    except ValueError:
+        today_date = date.today()
+
+    current_month_start = date(today_date.year, today_date.month, 1)
+    last_month_end = current_month_start - timedelta(days=1)
+    last_month_start = date(last_month_end.year, last_month_end.month, 1)
+
+    def _month_end(start_day: date) -> date:
+        """Return the final day of the month containing ``start_day``."""
+        if start_day.month == 12:
+            next_month_start = date(start_day.year + 1, 1, 1)
+        else:
+            next_month_start = date(start_day.year, start_day.month + 1, 1)
+        return next_month_start - timedelta(days=1)
+
+    period_b_start_default = last_month_start.isoformat()
+    period_b_end_default = last_month_end.isoformat()
+
+    prev_year_start = date(last_month_start.year - 1, last_month_start.month, 1)
+    prev_year_end = _month_end(prev_year_start)
+
+    period_a_start_default = prev_year_start.isoformat()
+    period_a_end_default = prev_year_end.isoformat()
+
+    if not requested_start:
+        requested_start = period_a_start_default
+    if not requested_end:
+        requested_end = period_a_end_default
+    if not requested_start2:
+        requested_start2 = period_b_start_default
+    if not requested_end2:
+        requested_end2 = period_b_end_default
 
 date_start, date_end, _default_start_date, _default_end_date = cc.resolve_date_range(
     database,
     orgsite_id=ORGSITE_ID,
     start_date=requested_start,
     end_date=requested_end,
+)
+
+date_start2, date_end2, _default_start_date2, _default_end_date2 = cc.resolve_date_range(
+    database,
+    orgsite_id=ORGSITE_ID,
+    start_date=requested_start2,
+    end_date=requested_end2,
 )
 
 
@@ -315,6 +364,17 @@ elif what == cc.WHAT_SUMMARY_FREQUENCIES:
         pages_back=pages_back,
         start_date=date_start,
         end_date=date_end,
+    )
+elif what == cc.WHAT_COMPARE_RANGES:
+    web_compare_ranges.compare_ranges(
+        database,
+        pages_back=pages_back,
+        start_date_a=date_start,
+        end_date_a=date_end,
+        dow_a=dow_parameter,
+        start_date_b=date_start2,
+        end_date_b=date_end2,
+        dow_b=dow_parameter2,
     )
 elif what == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)

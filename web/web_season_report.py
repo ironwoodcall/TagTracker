@@ -543,6 +543,7 @@ def main_web_page(ttdb: sqlite3.Connection):
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
     summaries_link = cc.selfref(what=cc.WHAT_DATERANGE)
+    compare_link = cc.selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
     download_csv_link = cc.make_url("tt_download", what="csv")
     download_db_link = cc.make_url("tt_download", what="db")
 
@@ -591,6 +592,14 @@ def main_web_page(ttdb: sqlite3.Connection):
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Time Block<br>Summaries</b></button>
+        &nbsp;&nbsp;
+        """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{compare_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Compare<br>Date Ranges</b></button>
         &nbsp;&nbsp;
         """
     )
