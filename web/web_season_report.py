@@ -26,6 +26,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 # import html
 import sqlite3
 from datetime import date, timedelta
+from functools import lru_cache
 import common.tt_util as ut
 import web_common as cc
 import datacolors as dc
@@ -35,6 +36,10 @@ from web_daterange_selector import build_date_dow_filter_widget
 import common.tt_dbutil as db
 from common.tt_time import VTime
 from common.tt_daysummary import DayTotals
+try:
+    from common.commuter_hump import CommuterHumpAnalyzer
+except ImportError:  # pragma: no cover - optional dependency
+    CommuterHumpAnalyzer = None
 
 BLOCK_XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 BLOCK_X_TOP_COLOR = "red"
@@ -295,6 +300,69 @@ def totals_table(conn: sqlite3.Connection):
     def totals_attr(name: str):
         return lambda totals, attr=name: getattr(totals, attr, None)
 
+    def determine_db_path(connection: sqlite3.Connection) -> str | None:
+        """Return the filesystem path for the main SQLite database, if available."""
+        try:
+            rows = connection.execute("PRAGMA database_list;").fetchall()
+        except sqlite3.Error:
+            return None
+        for _seq, name, file_path in rows:
+            if name == "main" and file_path:
+                return file_path
+        return None
+
+    def iso_date(value) -> str:
+        if isinstance(value, date):
+            return value.isoformat()
+        return value or ""
+
+    db_path = determine_db_path(conn)
+
+    @lru_cache(maxsize=32)
+    def commuter_mean_per_day(start_iso: str, end_iso: str):
+        if not db_path or not start_iso or not end_iso:
+            return None
+        if CommuterHumpAnalyzer is None:
+            return None
+        if start_iso > end_iso:
+            start_iso, end_iso = end_iso, start_iso
+        try:
+            analyzer = CommuterHumpAnalyzer(
+                db_path=db_path,
+                start_date=start_iso,
+                end_date=end_iso,
+                weekdays=(1, 2, 3, 4, 5,6,7),
+            ).run()
+        except Exception:
+            return None
+        if getattr(analyzer, "error", None):
+            return None
+        mean = getattr(analyzer, "mean_commuter_per_day", None)
+        if mean is None:
+            return None
+        try:
+            mean_value = float(mean)
+        except (TypeError, ValueError):
+            return None
+        if mean_value != mean_value:
+            return None
+        return mean_value
+
+    def attach_commuter_metric(totals_obj, start_val, end_val):
+        if not totals_obj:
+            return
+        start_iso = iso_date(start_val)
+        end_iso = iso_date(end_val)
+        if not start_iso or not end_iso:
+            setattr(totals_obj, "commuter_mean_per_day", None)
+            return
+        ordered_start, ordered_end = sorted((start_iso, end_iso))
+        setattr(
+            totals_obj,
+            "commuter_mean_per_day",
+            commuter_mean_per_day(ordered_start, ordered_end),
+        )
+
     today = ut.date_str("today")
     today_date = date.fromisoformat(today)
     selected_year = today_date.year
@@ -341,6 +409,13 @@ def totals_table(conn: sqlite3.Connection):
         prev_12mo_start = prev_12mo_end
     prev_12mo_totals = fetch_totals(prev_12mo_start, prev_12mo_end)
 
+    attach_commuter_metric(ytd_totals, start_of_year, today_date)
+    attach_commuter_metric(prior_ytd_totals, prior_year_start, one_year_ago)
+    attach_commuter_metric(current_12mo_totals, current_12mo_start, today_date)
+    attach_commuter_metric(prev_12mo_totals, prev_12mo_start, prev_12mo_end)
+    for key in display_day_keys:
+        attach_commuter_metric(day_totals[key], key, key)
+
     most_parked_link = cc.selfref(
         what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_parked_combined_date
     )
@@ -376,6 +451,17 @@ def totals_table(conn: sqlite3.Connection):
                 totals.total_parked_combined / totals.total_days_open
                 if totals.total_days_open
                 else None
+            ),
+            "display_fn": _display_average,
+            "percent": True,
+        },
+        {
+            "label": "&nbsp;&nbsp;&nbsp;Commuters per day",
+            "value_fn": lambda totals: getattr(
+                totals, "commuter_mean_per_day", None
+            ),
+            "day_value_fn": lambda totals: getattr(
+                totals, "commuter_mean_per_day", None
             ),
             "display_fn": _display_average,
             "percent": True,
