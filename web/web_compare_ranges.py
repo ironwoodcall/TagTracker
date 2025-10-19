@@ -88,15 +88,25 @@ def _aggregate_period(
     metrics = PeriodMetrics()
     metrics.days_open = len(days)
     metrics.open_minutes = sum(_open_minutes_for_day(day) for day in days)
-    metrics.total_bikes_parked = sum((getattr(day, "num_parked_combined", 0) or 0) for day in days)
+    metrics.total_bikes_parked = sum(
+        (getattr(day, "num_parked_combined", 0) or 0) for day in days
+    )
     metrics.most_bikes = (
-        max((getattr(day, "num_fullest_combined", 0) or 0) for day in days) if days else 0
+        max((getattr(day, "num_fullest_combined", 0) or 0) for day in days)
+        if days
+        else 0
     )
-    metrics.bikes_registered = sum((getattr(day, "bikes_registered", 0) or 0) for day in days)
+    metrics.bikes_registered = sum(
+        (getattr(day, "bikes_registered", 0) or 0) for day in days
+    )
     metrics.max_bikes_parked = (
-        max((getattr(day, "num_parked_combined", 0) or 0) for day in days) if days else 0
+        max((getattr(day, "num_parked_combined", 0) or 0) for day in days)
+        if days
+        else 0
     )
-    metrics.bikes_left = sum((getattr(day, "num_remaining_combined", 0) or 0) for day in days)
+    metrics.bikes_left = sum(
+        (getattr(day, "num_remaining_combined", 0) or 0) for day in days
+    )
     bike_totals = [(getattr(day, "num_parked_combined", 0) or 0) for day in days]
     if bike_totals:
         metrics.mean_bikes_per_day = mean(bike_totals)
@@ -120,9 +130,15 @@ def _aggregate_period(
         for day in days
         if getattr(day, "max_temperature", None) is not None
     ]
-    metrics.max_high_temperature = max(temperature_values) if temperature_values else None
-    metrics.regular_bikes = sum((getattr(day, "num_parked_regular", 0) or 0) for day in days)
-    metrics.oversize_bikes = sum((getattr(day, "num_parked_oversize", 0) or 0) for day in days)
+    metrics.max_high_temperature = (
+        max(temperature_values) if temperature_values else None
+    )
+    metrics.regular_bikes = sum(
+        (getattr(day, "num_parked_regular", 0) or 0) for day in days
+    )
+    metrics.oversize_bikes = sum(
+        (getattr(day, "num_parked_oversize", 0) or 0) for day in days
+    )
 
     day_where_clauses = ["orgsite_id = ?"]
     params: list = [1]
@@ -249,13 +265,13 @@ def _percent_to_color(percent_value: float | None) -> str:
     clamped = max(min(percent_value, 100.0), -100.0)
     if clamped < 0:
         weight = abs(clamped) / 100.0
-        weight = weight ** interpolation_exponent
+        weight = weight**interpolation_exponent
         r = int(neutral_color[0] * (1 - weight) + neg_color[0] * weight)
         g = int(neutral_color[1] * (1 - weight) + neg_color[1] * weight)
         b = int(neutral_color[2] * (1 - weight) + neg_color[2] * weight)
     else:
         weight = clamped / 100.0
-        weight = weight ** interpolation_exponent
+        weight = weight**interpolation_exponent
         r = int(neutral_color[0] * (1 - weight) + pos_color[0] * weight)
         g = int(neutral_color[1] * (1 - weight) + pos_color[1] * weight)
         b = int(neutral_color[2] * (1 - weight) + pos_color[2] * weight)
@@ -284,9 +300,7 @@ def _render_compare_filter_form(
     }
     hidden_fields = _render_hidden_fields(filtered_params)
 
-    form_style = (
-        "border: 1px solid black; padding: 12px 18px; display: inline-block;"
-    )
+    form_style = "border: 1px solid black; padding: 12px 18px; display: inline-block;"
 
     html_bits = [
         f'<form action="{html.escape(base_portion)}" method="get" style="{form_style}">',
@@ -309,12 +323,12 @@ def _render_compare_filter_form(
             f"<h3 style='margin:0 0 0.75rem 0; text-align:center;'>{heading}</h3>",
             "<div style='display:grid; grid-template-columns:auto auto;"
             " column-gap:0.5rem; row-gap:0.5rem; align-items:center;'>",
-            f"<label for=\"{start_field}\">Start date:</label>",
-            f"<input type=\"date\" id=\"{start_field}\" name=\"{start_field}\" "
-            f"value=\"{start_value}\" required pattern=\"{DATE_PATTERN}\">",
-            f"<label for=\"{end_field}\">End date:</label>",
-            f"<input type=\"date\" id=\"{end_field}\" name=\"{end_field}\" "
-            f"value=\"{end_value}\" required pattern=\"{DATE_PATTERN}\">",
+            f'<label for="{start_field}">Start date:</label>',
+            f'<input type="date" id="{start_field}" name="{start_field}" '
+            f'value="{start_value}" required pattern="{DATE_PATTERN}">',
+            f'<label for="{end_field}">End date:</label>',
+            f'<input type="date" id="{end_field}" name="{end_field}" '
+            f'value="{end_value}" required pattern="{DATE_PATTERN}">',
         ]
 
         options_html: list[str] = []
@@ -322,12 +336,14 @@ def _render_compare_filter_form(
             value = html.escape(option.value)
             label = html.escape(option.label)
             selected_attr = " selected" if option.value == selection.dow_value else ""
-            options_html.append(f"<option value=\"{value}\"{selected_attr}>{label}</option>")
+            options_html.append(
+                f'<option value="{value}"{selected_attr}>{label}</option>'
+            )
         select_markup = "\n                ".join(options_html)
         column_bits.extend(
             [
-                f"<label for=\"{dow_field}\">Day of week:</label>",
-                f"<select id=\"{dow_field}\" name=\"{dow_field}\">"
+                f'<label for="{dow_field}">Day of week:</label>',
+                f'<select id="{dow_field}" name="{dow_field}">'
                 f"\n                {select_markup}\n            </select>",
                 "</div>",
                 "</div>",
@@ -339,7 +355,7 @@ def _render_compare_filter_form(
     html_bits.append("</div>")
     html_bits.append(
         "<div style='text-align:center; margin-top:0.75rem;'>"
-        f"<input type=\"submit\" value=\"{html.escape(submit_label)}\">"
+        f'<input type="submit" value="{html.escape(submit_label)}">'
         "</div>"
     )
 
@@ -350,9 +366,11 @@ def _render_compare_filter_form(
 
     return "\n        ".join(html_bits)
 
+
 def _print_instructions() -> None:
     """Text at the top of the page to explain what to do."""
-    print("""
+    print(
+        """
         <style>
             .intro-text {
             max-width: 70ch;
@@ -377,7 +395,10 @@ def _print_instructions() -> None:
                 so the counts <i>per day</i> may often be more helpful than raw counts.
             </p>
         </div>
-    """)
+    """
+    )
+
+
 def compare_ranges(
     ttdb: sqlite3.Connection,
     *,
@@ -454,12 +475,42 @@ def compare_ranges(
     )
 
     metric_rows = [
-        {"label": "Days open:", "attr": "days_open", "value_fmt": _format_int, "delta_fmt": _format_int_delta},
-        {"label": "Hours open:", "attr": "open_minutes", "value_fmt": _format_minutes, "delta_fmt": _format_minutes_delta},
-        {"label": "Total bikes parked:", "attr": "total_bikes_parked", "value_fmt": _format_int, "delta_fmt": _format_int_delta},
-        {"label": "Regular bikes parked:", "attr": "regular_bikes", "value_fmt": _format_int, "delta_fmt": _format_int_delta},
-        {"label": "Oversize bikes parked:", "attr": "oversize_bikes", "value_fmt": _format_int, "delta_fmt": _format_int_delta},
-        {"label": "Max bikes parked in one day:", "attr": "max_bikes_parked", "value_fmt": _format_int, "delta_fmt": _format_int_delta},
+        {
+            "label": "Days open:",
+            "attr": "days_open",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
+        {
+            "label": "Hours open:",
+            "attr": "open_minutes",
+            "value_fmt": _format_minutes,
+            "delta_fmt": _format_minutes_delta,
+        },
+        {
+            "label": "Total bikes parked:",
+            "attr": "total_bikes_parked",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
+        {
+            "label": "Regular bikes parked:",
+            "attr": "regular_bikes",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
+        {
+            "label": "Oversize bikes parked:",
+            "attr": "oversize_bikes",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
+        {
+            "label": "Max bikes parked in one day:",
+            "attr": "max_bikes_parked",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
         {
             "label": "Mean bikes per day:",
             "attr": "mean_bikes_per_day",
@@ -472,19 +523,54 @@ def compare_ranges(
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
-        {"label": "Most bikes at once:", "attr": "most_bikes", "value_fmt": _format_int, "delta_fmt": _format_int_delta},
-        {"label": "Bikes left at end of day:", "attr": "bikes_left", "value_fmt": _format_int, "delta_fmt": _format_int_delta},
-        {"label": "Bikes registered:", "attr": "bikes_registered", "value_fmt": _format_int, "delta_fmt": _format_int_delta},
+        {
+            "label": "Most bikes at once:",
+            "attr": "most_bikes",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
+        {
+            "label": "Bikes left at end of day:",
+            "attr": "bikes_left",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
+        {
+            "label": "Bikes registered:",
+            "attr": "bikes_registered",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
         {
             "label": "Mean bikes registered per day:",
             "attr": "mean_bikes_registered_per_day",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
-        {"label": "Shortest visit:", "attr": "shortest_visit_minutes", "value_fmt": _format_minutes, "delta_fmt": _format_minutes_delta},
-        {"label": "Longest visit:", "attr": "longest_visit_minutes", "value_fmt": _format_minutes, "delta_fmt": _format_minutes_delta},
-        {"label": "Mean visit length:", "attr": "mean_visit_minutes", "value_fmt": _format_minutes, "delta_fmt": _format_minutes_delta},
-        {"label": "Median visit length:", "attr": "median_visit_minutes", "value_fmt": _format_minutes, "delta_fmt": _format_minutes_delta},
+        {
+            "label": "Shortest visit:",
+            "attr": "shortest_visit_minutes",
+            "value_fmt": _format_minutes,
+            "delta_fmt": _format_minutes_delta,
+        },
+        {
+            "label": "Longest visit:",
+            "attr": "longest_visit_minutes",
+            "value_fmt": _format_minutes,
+            "delta_fmt": _format_minutes_delta,
+        },
+        {
+            "label": "Mean visit length:",
+            "attr": "mean_visit_minutes",
+            "value_fmt": _format_minutes,
+            "delta_fmt": _format_minutes_delta,
+        },
+        {
+            "label": "Median visit length:",
+            "attr": "median_visit_minutes",
+            "value_fmt": _format_minutes,
+            "delta_fmt": _format_minutes_delta,
+        },
         {
             "label": "Total precipitation:",
             "attr": "total_precipitation",
@@ -541,14 +627,16 @@ def compare_ranges(
                     percent_value = 0.0
             elif numeric_delta == 0:
                 percent_value = 0.0
-        percent_cell_style = f"text-align:right;background-color:{_percent_to_color(percent_value)};"
+        percent_cell_style = (
+            f"text-align:right;background-color:{_percent_to_color(percent_value)};"
+        )
         print(
             "<tr>"
             f"<td style='text-align:left;'>{html.escape(row['label'])}</td>"
             f"<td style='text-align:right;'>{formatted_a}</td>"
             f"<td style='text-align:right;'>{formatted_b}</td>"
             f"<td style='text-align:right;'>{formatted_delta}</td>"
-            f"<td style=\"{percent_cell_style}\">{percent}</td>"
+            f'<td style="{percent_cell_style}">{percent}</td>'
             "</tr>"
         )
 
