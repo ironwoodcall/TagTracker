@@ -632,7 +632,7 @@ def main_web_page(ttdb: sqlite3.Connection):
     #     <br><br>
     #       """
     # )
-    print("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
+    print("<br><br>")#"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
     print(
     f"""
     <button onclick="window.location.href='{download_csv_link}'"
