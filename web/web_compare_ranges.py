@@ -12,6 +12,7 @@ from statistics import mean, median
 from typing import Sequence
 
 import web_common as cc
+import web_base_config as wcfg
 from web_daterange_selector import (
     DATE_PATTERN,
     DEFAULT_DOW_OPTIONS,
@@ -53,7 +54,7 @@ class PeriodMetrics:
 
 
 def _parse_dow_tokens(dow_value: str) -> set[int]:
-    """Return the permitted ISO weekdays for the normalized selector value."""
+    """Return the permitted ISO days_of_week for the normalized selector value."""
     allowed: set[int] = set()
     if not dow_value:
         return allowed
@@ -79,23 +80,11 @@ def _open_minutes_for_day(day: DayTotals) -> int:
     return duration
 
 
-def _determine_db_path(connection: sqlite3.Connection) -> str | None:
-    """Return the filesystem path for the main SQLite database, if available."""
-    try:
-        rows = connection.execute("PRAGMA database_list;").fetchall()
-    except sqlite3.Error:
-        return None
-    for _seq, name, file_path in rows:
-        if name == "main" and file_path:
-            return file_path
-    return None
-
-
 def _estimate_commuter_mean_per_day(
-    connection: sqlite3.Connection,
+    ttdb:sqlite3.Connection,
     start_iso: str,
     end_iso: str,
-    weekdays: Sequence[int],
+    days_of_week: Sequence[int],
 ) -> float | None:
     """Run the commuter hump analysis and return mean commuters per day."""
     if CommuterHumpAnalyzer is None:
@@ -103,16 +92,13 @@ def _estimate_commuter_mean_per_day(
     if not start_iso or not end_iso:
         return None
     ordered_start, ordered_end = sorted((start_iso, end_iso))
-    db_path = _determine_db_path(connection)
-    if not db_path:
-        return None
-    normalized_weekdays = tuple(sorted(set(weekdays))) or tuple(range(1, 8))
+    normalized_weekdays = tuple(sorted(set(days_of_week))) or tuple(range(1, 8))
     try:
         analyzer = CommuterHumpAnalyzer(
-            db_path=db_path,
+            db_path=ttdb,
             start_date=ordered_start,
             end_date=ordered_end,
-            weekdays=normalized_weekdays,
+            days_of_week=normalized_weekdays,
         ).run()
     except Exception:
         return None

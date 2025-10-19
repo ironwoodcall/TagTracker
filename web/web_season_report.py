@@ -316,11 +316,9 @@ def totals_table(conn: sqlite3.Connection):
             return value.isoformat()
         return value or ""
 
-    db_path = determine_db_path(conn)
-
     @lru_cache(maxsize=32)
     def commuter_mean_per_day(start_iso: str, end_iso: str):
-        if not db_path or not start_iso or not end_iso:
+        if not conn or not start_iso or not end_iso:
             return None
         if CommuterHumpAnalyzer is None:
             return None
@@ -328,10 +326,10 @@ def totals_table(conn: sqlite3.Connection):
             start_iso, end_iso = end_iso, start_iso
         try:
             analyzer = CommuterHumpAnalyzer(
-                db_path=db_path,
+                db_path=conn,
                 start_date=start_iso,
                 end_date=end_iso,
-                weekdays=(1, 2, 3, 4, 5,6,7),
+                days_of_week=(1, 2, 3, 4, 5,6,7),
             ).run()
         except Exception:
             return None

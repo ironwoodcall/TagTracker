@@ -264,41 +264,29 @@ def one_day_tags_report(
         "<div style='display:flex; flex-wrap:wrap; align-items:flex-start;'>"
     )
     print("<div style='flex:0 1 auto; min-width:260px; margin-right:1.5em;'>")
-    def determine_db_path(connection: sqlite3.Connection) -> str | None:
-        """Return the filesystem path for the main SQLite database, if available."""
-        try:
-            rows = connection.execute("PRAGMA database_list;").fetchall()
-        except sqlite3.Error:
-            return None
-        for _seq, name, file_path in rows:
-            if name == "main" and file_path:
-                return file_path
-        return None
 
     commuter_mean = None
     commuter_confidence = None
     if not is_today and CommuterHumpAnalyzer is not None:
-        db_path = determine_db_path(ttdb)
-        if db_path:
-            try:
-                analyzer = CommuterHumpAnalyzer(
-                    db_path=db_path,
-                    start_date=thisday,
-                    end_date=thisday,
-                    weekdays=(1, 2, 3, 4, 5, 6, 7),
-                ).run()
-            except Exception:
-                analyzer = None
-            if analyzer and not getattr(analyzer, "error", None):
-                mean_value = getattr(analyzer, "mean_commuter_per_day", None)
-                if mean_value is not None:
-                    try:
-                        mean_value = float(mean_value)
-                    except (TypeError, ValueError):
-                        mean_value = None
-                if mean_value is not None and not math.isnan(mean_value):
-                    commuter_mean = mean_value
-                    commuter_confidence = analyzer.confidence_text(long_text=False)
+        try:
+            analyzer = CommuterHumpAnalyzer(
+                db_path=ttdb,
+                start_date=thisday,
+                end_date=thisday,
+                days_of_week=(1, 2, 3, 4, 5, 6, 7),
+            ).run()
+        except Exception:
+            analyzer = None
+        if analyzer and not getattr(analyzer, "error", None):
+            mean_value = getattr(analyzer, "mean_commuter_per_day", None)
+            if mean_value is not None:
+                try:
+                    mean_value = float(mean_value)
+                except (TypeError, ValueError):
+                    mean_value = None
+            if mean_value is not None and not math.isnan(mean_value):
+                commuter_mean = mean_value
+                commuter_confidence = analyzer.confidence_text(long_text=False)
 
     summary_html, prediction_html = summary_table(
         day_data,

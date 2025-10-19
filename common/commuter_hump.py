@@ -28,6 +28,7 @@ Outputs include:
 Dependencies: numpy, scipy, sqlite3 (standard library)
 """
 
+import os
 import sys
 import sqlite3
 import numpy as np
@@ -40,9 +41,9 @@ class CommuterHumpAnalyzer:
 
     Attributes populated after calling `fit()` or `run()`:
         Required at start of analysis
-            db_path: SQLite database path queried for visits.
+            db_path: SQLite database path or sqlite3.Connection queried for visits.
             start_date, end_date: Inclusive ISO dates bounding the analysis window.
-            weekdays: Iterable of weekday numbers (1=Mon … 7=Sun) included in the sample.
+            days_of_week: Iterable of weekday numbers (1=Mon … 7=Sun) included in the sample.
         Results of analysis:
             durations: NumPy array of visit durations (hours) extracted from the DB.
             day_count: Number of distinct calendar days represented in the sample.
@@ -65,11 +66,16 @@ class CommuterHumpAnalyzer:
             error: Optional message describing a loading or fitting problem (None on success).
     """
 
-    def __init__(self, db_path, start_date, end_date, weekdays):
-        self.db_path = db_path
+    def __init__(self, db_path, start_date, end_date, days_of_week):
+        if isinstance(db_path, sqlite3.Connection):
+            self._db_connection = db_path
+            self.db_path = None
+        else:
+            self._db_connection = None
+            self.db_path = os.fspath(db_path) if db_path is not None else None
         self.start_date = start_date
         self.end_date = end_date
-        self.weekdays = weekdays
+        self.days_of_week = days_of_week
 
         # --- Data inputs
         self.durations = None  # array of durations (hours)
@@ -93,23 +99,29 @@ class CommuterHumpAnalyzer:
 
     # ------------------------------------------------------------------
     def load_data(self):
-        """Load visit durations (in hours) for the selected date range and weekdays."""
+        """Load visit durations (in hours) for the selected date range and days_of_week."""
         self.error = None
         query = f"""
             SELECT v.duration, d.date
             FROM VISIT v
             JOIN DAY d ON v.day_id = d.id
             WHERE d.date BETWEEN ? AND ?
-              AND d.weekday IN ({",".join("?" * len(self.weekdays))})
+              AND d.weekday IN ({",".join("?" * len(self.days_of_week))})
               AND v.duration IS NOT NULL
               AND v.duration > 0
         """
-        params = [self.start_date, self.end_date, *self.weekdays]
+        params = [self.start_date, self.end_date, *self.days_of_week]
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cur = conn.execute(query, params)
+            if self._db_connection is not None:
+                cur = self._db_connection.execute(query, params)
                 rows = cur.fetchall()
+            else:
+                if not self.db_path:
+                    raise sqlite3.OperationalError("No database path provided.")
+                with sqlite3.connect(self.db_path) as conn:
+                    cur = conn.execute(query, params)
+                    rows = cur.fetchall()
         except sqlite3.Error as exc:
             self.error = f"Database error while loading visit data: {exc}"
             self.durations = None
@@ -117,7 +129,7 @@ class CommuterHumpAnalyzer:
             return False
 
         if not rows:
-            self.error = "No visit data found for the given date range and weekdays."
+            self.error = "No visit data found for the given date range and days_of_week."
             self.durations = None
             self.day_count = 0
             return False
@@ -424,16 +436,16 @@ class CommuterHumpAnalyzer:
 # ----------------------------------------------------------------------
 
 
-def describe_days(weekdays):
+def describe_days(days_of_week):
     names = {1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"}
-    return ",".join(names.get(d, str(d)) for d in sorted(weekdays))
+    return ",".join(names.get(d, str(d)) for d in sorted(days_of_week))
 
 
-def print_summary(analyzer, weekdays):
+def print_summary(analyzer, days_of_week):
     """Display overall summary table."""
     print()
     descr = (
-        f"Visit Summary ({analyzer.day_count} days analyzed: {describe_days(weekdays)})"
+        f"Visit Summary ({analyzer.day_count} days analyzed: {describe_days(days_of_week)})"
     )
     print(descr)
     print("=" * len(descr))
@@ -505,13 +517,13 @@ def main():
         sys.exit(1)
 
     db_path, start_date, end_date = sys.argv[1:4]
-    weekdays = [int(x) for x in sys.argv[4:]]
+    days_of_week = [int(x) for x in sys.argv[4:]]
 
-    analyzer = CommuterHumpAnalyzer(db_path, start_date, end_date, weekdays).run()
+    analyzer = CommuterHumpAnalyzer(db_path, start_date, end_date, days_of_week).run()
     if analyzer.error:
         print(f"Analysis error: {analyzer.error}", file=sys.stderr)
         return
-    print_summary(analyzer, weekdays)
+    print_summary(analyzer, days_of_week)
     # print_bucket_table(analyzer) # do not change
 
 
