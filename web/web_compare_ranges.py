@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import html
+import math
 import sqlite3
 import urllib.parse
 from dataclasses import dataclass
@@ -20,6 +21,10 @@ from web_daterange_selector import (
 )
 from common.tt_daysummary import DayTotals
 from common.tt_time import VTime
+try:
+    from common.commuter_hump import CommuterHumpAnalyzer
+except ImportError:  # pragma: no cover - optional dependency
+    CommuterHumpAnalyzer = None
 
 
 @dataclass
@@ -44,6 +49,7 @@ class PeriodMetrics:
     mean_bikes_per_day: float | None = None
     median_bikes_per_day: float | None = None
     mean_bikes_registered_per_day: float | None = None
+    commuters_per_day: float | None = None
 
 
 def _parse_dow_tokens(dow_value: str) -> set[int]:
@@ -71,6 +77,57 @@ def _open_minutes_for_day(day: DayTotals) -> int:
     if duration < 0:
         return 0
     return duration
+
+
+def _determine_db_path(connection: sqlite3.Connection) -> str | None:
+    """Return the filesystem path for the main SQLite database, if available."""
+    try:
+        rows = connection.execute("PRAGMA database_list;").fetchall()
+    except sqlite3.Error:
+        return None
+    for _seq, name, file_path in rows:
+        if name == "main" and file_path:
+            return file_path
+    return None
+
+
+def _estimate_commuter_mean_per_day(
+    connection: sqlite3.Connection,
+    start_iso: str,
+    end_iso: str,
+    weekdays: Sequence[int],
+) -> float | None:
+    """Run the commuter hump analysis and return mean commuters per day."""
+    if CommuterHumpAnalyzer is None:
+        return None
+    if not start_iso or not end_iso:
+        return None
+    ordered_start, ordered_end = sorted((start_iso, end_iso))
+    db_path = _determine_db_path(connection)
+    if not db_path:
+        return None
+    normalized_weekdays = tuple(sorted(set(weekdays))) or tuple(range(1, 8))
+    try:
+        analyzer = CommuterHumpAnalyzer(
+            db_path=db_path,
+            start_date=ordered_start,
+            end_date=ordered_end,
+            weekdays=normalized_weekdays,
+        ).run()
+    except Exception:
+        return None
+    if analyzer is None or getattr(analyzer, "error", None):
+        return None
+    mean_value = getattr(analyzer, "mean_commuter_per_day", None)
+    if mean_value is None:
+        return None
+    try:
+        mean_value = float(mean_value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(mean_value):
+        return None
+    return mean_value
 
 
 def _aggregate_period(
@@ -119,6 +176,20 @@ def _aggregate_period(
         metrics.mean_bikes_registered_per_day = mean(registered_counts)
     else:
         metrics.mean_bikes_registered_per_day = None
+    metrics.commuters_per_day = None
+    if days:
+        day_dates = [
+            getattr(day, "date", None)
+            for day in days
+            if getattr(day, "date", None)
+        ]
+        if day_dates:
+            metrics.commuters_per_day = _estimate_commuter_mean_per_day(
+                ttdb,
+                min(day_dates),
+                max(day_dates),
+                allowed or range(1, 8),
+            )
     precip_values = [
         getattr(day, "precipitation", None)
         for day in days
@@ -520,6 +591,12 @@ def compare_ranges(
         {
             "label": "Median bikes per day:",
             "attr": "median_bikes_per_day",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "Commuters per day:",
+            "attr": "commuters_per_day",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
