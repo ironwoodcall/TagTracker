@@ -241,18 +241,15 @@ def print_the_html(
     zero_bg = xy_colors.css_bg((0, 0))
 
     # Legend for x/y (background colours)
-    tab = colortable.html_2d_color_table(
+    xy_tab = colortable.html_2d_color_table(
         xy_colors,
         title="<b>Legend for in & out activity</b>",
         num_columns=9,
         num_rows=9,
         cell_size=20,
     )
-    print(tab)
-
     # Legend for markers
-    print("</p></p>")
-    tab = colortable.html_1d_text_color_table(
+    marker_tab = colortable.html_1d_text_color_table(
         marker_colors,
         title="<b>Legend for number of bikes onsite at once</b>",
         subtitle=f"{HIGHLIGHT_MARKER} = Time with the most bikes onsite",
@@ -260,8 +257,34 @@ def print_the_html(
         bg_color="grey",  # bg_color=xy_colors.get_color(0,0).html_color
         num_columns=20,
     )
-    print(tab)
-    print("</p></p>")
+    print("<table style='border-collapse: separate; border-spacing: 16px; width: auto;'>")
+    print("<tr>")
+    print(f"<td style='vertical-align: top; text-align: left; width: auto;'>{xy_tab}</td>")
+    print(
+        """
+
+        <td style='vertical-align: top; text-align: left; width: auto;'>
+            <div style="max-width: 25ch; text-align: left;">
+                <p>
+                    Time block summaries outline patterns of activity for each date, in half-hour segments.
+                </p>
+                <p>
+                    The colour grid highlights how inbound and outbound activity shifts through the day,
+                    while the marker legend tracks the number of bikes onsite.
+                </p>
+                <p>
+                    Hover over any square to get more information about that half hour.
+                </p>
+            </div>
+        </td>
+        """
+    )
+    print("</tr>")
+    print("<tr>")
+    print(f"<td colspan=2 style='padding-top: 8px;'>{marker_tab}</td>")
+    print("</tr>")
+    print("</table>")
+    print("<br>")
 
     # Main table. Column headings
     print("<table class=general_table>")
