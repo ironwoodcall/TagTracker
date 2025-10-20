@@ -569,6 +569,11 @@ def style() -> str:
             .general_table td.heavy-bottom {
                 border-bottom: 2px solid gray !important;
             }
+            /* Heavier top border — apply to row (<tr>) or cell (<td>) */
+            .general_table tr.heavy-top td,
+            .general_table td.heavy-top {
+                border-top: 2px solid gray !important;
+            }
             /* Heavier right-hand border — apply to individual <td> or <th> */
             .general_table td.heavy-right,
             .general_table th.heavy-right {
