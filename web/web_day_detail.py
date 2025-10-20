@@ -347,7 +347,7 @@ def day_activity_histogram(ttdb: sqlite3.Connection, today: str) -> str:
         end_date=today,
         mini=True,
         title=(
-            f"<a href='{graph_link}' style='text-decoration:none; font-weight:bold;'>Graph of Activity</a>"
+            f"<a href='{graph_link}' style='text-decoration:none; font-weight:bold;'>Activity graph</a>"
         ),
         link_target=graph_link,
     )
@@ -448,7 +448,7 @@ def day_fullness_histogram(day_data: DayTotals, blocks) -> str:
     if graph_link:
         footer_label = (
             f"<a href='{graph_link}' style='text-decoration:none; font-weight:bold;'>"
-            f"Graph of Bikes on Hand"
+            f"Max bikes graph"
             "</a>"
         )
 
@@ -554,10 +554,10 @@ def block_activity_table(
     print(
         "<tr>"
         "<th rowspan=2>Time</th>"
-        "<th colspan=3>Bikes in</th>"
-        "<th colspan=3>Bikes out</th>"
-        "<th rowspan=2>Total<br>parked</th>"
-        "<th rowspan=2>Most<br>bikes</th>"
+        "<th colspan=3>Arrivals</th>"
+        "<th colspan=3>Departures</th>"
+        "<th rowspan=2>Visits</th>"
+        "<th rowspan=2>Max<br>bikes</th>"
         "</tr>"
     )
     print(
@@ -741,11 +741,11 @@ def visits_table(
         sort_msg = "bike tag"
     elif sort_by == cc.SORT_TIME_IN:
         rows = sorted(rows, key=lambda x: x.time_in)
-        sort_msg = "time in"
+        sort_msg = "arrival time"
     elif sort_by == cc.SORT_TIME_OUT:
         rows = sorted(rows, key=lambda x: x.time_in)
         rows = sorted(rows, key=lambda x: (not x.time_out, x.time_out))
-        sort_msg = "time out"
+        sort_msg = "departure time"
     elif sort_by == cc.SORT_DURATION:
         rows = sorted(rows, key=lambda x: x.time_in)
         rows = sorted(
@@ -756,7 +756,7 @@ def visits_table(
                 1000000 if x.time_out == "" else x.duration,
             ),
         )
-        sort_msg = "length of visit"
+        sort_msg = "visit duration"
     else:
         rows = sorted(rows, key=lambda x: x.tag)
         sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
@@ -801,16 +801,17 @@ def visits_table(
     html = "<table style=text-align:right class=general_table>"
     html += (
         "<tr><th colspan=5 style='text-align:center'>"
-        f"Bikes on {thisday}<br>{sort_msg}</th></tr>"
+        f"Visits on {thisday}<br>{sort_msg}</th></tr>"
     )
-    html += f"<tr><th><a href='{link_sort_tag}'>Bike</a></th>"
-    html += f"<th><a href='{link_sort_time}'>Time in</a></th>"
-    html += f"<th><a href='{link_sort_time_out}'>Time out</a></th>"
-    html += f"<th><a href='{link_sort_duration}'>Length<br>of visit</a></th>"
+    html += f"<tr><th><a href='{link_sort_tag}'>Tag</a></th>"
+    html += f"<th><a href='{link_sort_time}'>Arrival</a></th>"
+    html += f"<th><a href='{link_sort_time_out}'>Departure</a></th>"
+    html += f"<th><a href='{link_sort_duration}'>Duration</a></th>"
     html += (
-        "<th>Bar graph of this visit<br>"
-        f"{BAR_MARKERS['R']} = Regular bike; "
-        f"{BAR_MARKERS['O']} = Oversize bike</th></tr>"
+        "<th>Bar graph showing each visit<br>"
+        f"{BAR_MARKERS['R']} = Regular bike visit; "
+        f"{BAR_MARKERS['O']} = Oversize bike visit; "
+        "'-' = visit in progress</th></tr>"
     )
     print(html)
 
@@ -880,8 +881,8 @@ def visits_table(
     html = ""
     html += (
         "<tr><td colspan=5 style='text-align:center'><i>"
-        "Where no check-out time exists, duration is "
-        "estimated assuming bike is checked in until "
+        "Where no departure time exists, duration is "
+        "estimated assuming bike is present until "
         "the end of the day</i></td></tr>"
     )
     html += "</table></body></html>"
@@ -922,10 +923,14 @@ def summary_table(
     )
     table_bits.append(
         f"""
-        <tr><td colspan=3>Hours of operation:
+        <tr class='heavy-bottom'><td colspan=3>Hours of operation:
             {day_data.time_open.tidy} - {day_data.time_closed.tidy}</td></tr>
-        <tr><td colspan=2>Total bikes parked (visits):</td>
+        <tr><td colspan=2>Visits (all bike types):</td>
             <td>{day_data.num_parked_combined}</td></tr>
+        <tr><td colspan=2>&nbsp;&nbsp;&nbsp;Regular bike visits:</td>
+            <td>{day_data.num_parked_regular}</td></tr>
+        <tr><td colspan=2>&nbsp;&nbsp;&nbsp;Oversize bike visits:</td>
+            <td>{day_data.num_parked_oversize}</td></tr>
             """
     )
     if (
@@ -934,48 +939,46 @@ def summary_table(
         and commuter_confidence is not None
     ):
         table_bits.append(
-            "<tr><td colspan=2>&nbsp;&nbsp;&nbsp;Commuters "
+            "<tr class='heavy-bottom'><td colspan=2>&nbsp;&nbsp;&nbsp;Commuter portion "
             f"(confidence={html.escape(commuter_confidence)}):</td>"
             f"<td>{int(round(commuter_mean))}</td></tr>"
         )
     if is_today and the_estimate is not None:
         table_bits.append(
             f"""
-        <tr><td colspan=2>&nbsp;&nbsp;Predicted total bikes today:</td>
+        <tr class='heavy-bottom'><td colspan=2>&nbsp;&nbsp;&nbsp;Predicted total visits:</td>
             <td>{the_estimate}</td></tr>
         """
         )
     table_bits.append(
         f"""
-        <tr><td colspan=2>Most bikes at once (at {day_data.time_fullest_combined.tidy}):</td>
+        <tr class='heavy-top'><td colspan=2>Max bikes (at {day_data.time_fullest_combined.tidy}):</td>
             <td>{day_data.num_fullest_combined}</td></tr>
-        <tr><td colspan=2>Bikes remaining:</td>
+        <tr class='heavy-bottom'><td colspan=2>Bikes left:</td>
             <td  width=40 style='{highlights.css_bg_fg(int(day_data.num_remaining_combined>0)*HIGHLIGHT_WARN)}'>
                 {day_data.num_remaining_combined}</td></tr>
-        <tr><td colspan=2>Tags used this day:</td>
-            <td>{tags_used_count}</td></tr>
-        <tr><td colspan=2>Bikes registered:</td>
+        <tr><td colspan=2>Registrations:</td>
             <td>{day_data.bikes_registered}</td></tr>
+        <tr class='heavy-bottom'><td colspan=2>Tags used this day:</td>
+            <td>{tags_used_count}</td></tr>
         """
     )
     if not is_today:
         table_bits.append(
             f"""
-            <tr><td colspan=2>Shortest visit:</td>
-                <td>{stats.shortest}</td></tr>
-            <tr><td colspan=2>Longest visit:</td>
+            <tr><td colspan=2>Visit duration (max):</td>
                 <td>{stats.longest}</td></tr>
-            <tr><td colspan=2>Mean visit length:</td>
+            <tr><td colspan=2>Visit duration (mean):</td>
                 <td>{stats.mean}</td></tr>
-            <tr><td colspan=2>Median visit length:</td>
+            <tr><td colspan=2>Visit duration (median):</td>
                 <td>{stats.median}</td></tr>
-            <tr><td colspan=2>{ut.plural(len(stats.modes),'Mode')}
-                    visit length ({stats.mode_occurences} occurences):</td>
+            <tr class='heavy-bottom'><td colspan=2>{ut.plural(len(stats.modes),'Visit duration (mode, ')}
+                    {stats.mode_occurences} occurences):</td>
                 <td>{'<br>'.join(stats.modes)}</td></tr>
-            <tr><td colspan=2>High temperature:</td>
-                <td>{fmt_none(day_data.max_temperature)}</td></tr>
-            <tr><td colspan=2>Precipitation:</td>
+            <tr><td colspan=2>Precipitation (mm):</td>
                 <td>{fmt_none(day_data.precipitation)}</td></tr>
+            <tr><td colspan=2>Max temperature:</td>
+                <td>{fmt_none(day_data.max_temperature)}</td></tr>
     """
         )
     table_bits.append("</table><p></p>")

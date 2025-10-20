@@ -512,7 +512,7 @@ def totals_table(conn: sqlite3.Connection):
             "percent": True,
         },
         {
-            "label": "Precipitation",
+            "label": "Precipitation (mm)",
             "row_class": "",
             "value_fn": totals_attr("total_precipitation"),
             "day_value_fn": totals_attr("total_precipitation"),
