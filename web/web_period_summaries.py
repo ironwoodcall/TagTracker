@@ -29,7 +29,7 @@ from datetime import datetime, timedelta
 # import tt_util as ut
 import common.tt_dbutil as db
 import web_common as cc
-from web_daterange_selector import generate_date_filter_form
+from web_daterange_selector import build_date_dow_filter_widget
 
 DATERANGE_NAMES = {
     cc.WHAT_DATERANGE_WEEK: "Weeks",
@@ -140,20 +140,26 @@ def daterange_summary(
         db_limits=(db_start_date, db_end_date),
     )
 
-    _daterange_summary_pagetop(start_date, end_date, pages_back)
-
-    self_url = cc.selfref(
+    filter_url = cc.selfref(
         what=cc.WHAT_DATERANGE,
         start_date=start_date,
         end_date=end_date,
-        pages_back=pages_back+1,
+        pages_back=pages_back + 1,
     )
+    filter_widget = build_date_dow_filter_widget(
+        filter_url,
+        start_date=start_date,
+        end_date=end_date,
+        include_day_filter=False,
+        submit_label="Apply filter",
+    )
+
+    _daterange_summary_pagetop(
+        filter_str=filter_widget.description(), pages_back=pages_back
+    )
+
     print("<br>")
-    print(
-        generate_date_filter_form(
-            self_url, default_start_date=start_date, default_end_date=end_date
-        )
-    )
+    print(filter_widget.html)
 
     print("<br><br><br>")
 
@@ -173,12 +179,20 @@ def daterange_summary(
         if daterange not in all_dateranges and daterange != cc.WHAT_DATERANGE_CUSTOM:
             print(f"<br><br><pre>unknown daterange '{daterange}'</pre><br><br>")
             continue
-        _daterange_summary_table(ttdb, start_date, end_date, daterange, pages_back)
+        _daterange_summary_table(
+            ttdb=ttdb,
+            range_start=start_date,
+            range_end=end_date,
+            daterange_type=daterange,
+            filter_description=filter_widget.description(),
+            pages_back=pages_back,
+        )
         print("<br><br><br>")
 
-def _daterange_summary_pagetop(start_date,end_date,pages_back: int = 1):
-    print(f"<h1>{cc.titleize(f'<br>Period summaries from {start_date} to {end_date}')}</h1>")
-    # print(f"<h2>Summary of data from {start_date} to {end_date}</h2>")
+
+def _daterange_summary_pagetop(filter_str: str = "", pages_back: int = 1):
+    title = cc.titleize(f"Period summaries {filter_str}")
+    print(title)
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
 
 
@@ -309,14 +323,13 @@ def _daterange_params(onedate, daterange_type) -> tuple[str, str, str]:
     return start_date, end_date, label
 
 
-def _daterange_summary_table_top(
-    daterange_type, start_date: str = "", end_date: str = ""
-):
+def _daterange_summary_table_top(daterange_type, filter_description: str = ""):
     """Print the table def and header row for one daterange-summaries table."""
-    if daterange_type == cc.WHAT_DATERANGE_CUSTOM:
-        name = f"{start_date} to {end_date}"
-    else:
-        name = DATERANGE_NAMES[daterange_type]
+    # if daterange_type == cc.WHAT_DATERANGE_CUSTOM:
+    #     name = f"{start_date} to {end_date}"
+    # else:
+    name = DATERANGE_NAMES[daterange_type]
+    name = f"{name}, {filter_description}"
     print("<table class='general_table'>")
     print(f"<tr><th colspan=17>Summary of {name}</th></tr>")
     print("<style>td {text-align: right;}</style>")
@@ -397,7 +410,8 @@ def _daterange_summary_table(
     range_start: str,
     range_end: str,
     daterange_type: str,
-    pages_back: int,
+    filter_description: str,
+    pages_back: int = None,
 ):
     """Calculate and print a table for a given daterange type.
 
@@ -414,7 +428,9 @@ def _daterange_summary_table(
 
     if not daterange_rows:
         return
-    _daterange_summary_table_top(daterange_type, range_start, range_end)
+    _daterange_summary_table_top(
+        daterange_type=daterange_type, filter_description=filter_description
+    )
 
     for onerow in daterange_rows:
         onerow: _DateRangeRow

@@ -67,6 +67,7 @@ WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
 WHAT_SUMMARY_FREQUENCIES = "SQ"
 WHAT_AUDIT = "Au"
+WHAT_COMPARE_RANGES = "Cmp"
 WHAT_DATERANGE = "PS"
 WHAT_DATERANGE_FOREVER = "pF"
 WHAT_DATERANGE_YEAR = "pY"
@@ -159,12 +160,20 @@ def test_dow_parameter(dow_parameter: str, list_ok: bool = False):
             error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
 
 
-def titleize(title: str = "") -> str:
-    """Puts SITE_NAME in front of title and makes it pretty."""
-    name = SITE_NAME or "Bike Parking Service"
-    if not title:
-        return name
-    return f"{SITE_NAME} {title}"
+def titleize(title: str = "",subtitle: str="") -> str:
+    """Puts SITE_NAME in front of title and makes it pretty,
+    including heading tags."""
+    content = f"{SITE_NAME or 'Bike Parking Service'}"
+    # Special case: if no title nor subtitle, just use site as h1
+    if not title and not subtitle:
+        return f"<h1>{content}</h1>"
+
+    content = f"<h2>{content}</h2>"
+    if title:
+        content = f"{content}<h1>{title.capitalize()}</h1>"
+    if subtitle:
+        content = f"{content}<h2>{subtitle.capitalize()}</h2>"
+    return content
 
 
 def called_by_self() -> bool:
@@ -875,4 +884,3 @@ def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
     print(db.db_latest(ttdb))
 
     print(f"TagTracker version {get_version_info()}")
-

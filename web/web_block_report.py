@@ -22,19 +22,21 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 """
 
+import html
 import sqlite3
 import copy
 from collections import defaultdict
 
+from web_daterange_selector import build_date_dow_filter_widget, find_dow_option
+import web_common as cc
+import datacolors as dc
+import colortable
 import common.tt_dbutil as db
 from common.tt_time import VTime
 import common.tt_util as ut
 
 # import tt_block
-import web_common as cc
-import datacolors as dc
-import colortable
-from web_daterange_selector import generate_date_filter_form
+
 
 XY_BOTTOM_COLOR = dc.Color((252, 252, 248)).html_color
 X_TOP_COLOR = "red"
@@ -73,19 +75,48 @@ class _OneDay:
 
 
 def _process_iso_dow(
-    iso_dow,
+    dow_value,
     orgsite_id: int,
     start_date: str = "",
     end_date: str = "",
 ) -> tuple[str, str]:
     # Use dow to make report title prefix, and day filter for SQL queries.
     conditions = [f"orgsite_id = {orgsite_id}"]
-    if iso_dow:
-        iso_dow = int(iso_dow)
-        title_bit = f"{ut.dow_str(iso_dow)} "
-        conditions.append(f"strftime('%w',date) = '{iso_dow % 7}'")
-    else:
-        title_bit = ""
+    title_bit = ""
+
+    if dow_value:
+        if isinstance(dow_value, int):
+            tokens = [dow_value]
+        else:
+            tokens = [
+                int(piece.strip())
+                for piece in str(dow_value).split(",")
+                if piece.strip().isdigit()
+            ]
+        validated: list[int] = []
+        for value in tokens:
+            if 1 <= value <= 7:
+                validated.append(value)
+        validated = sorted(set(validated))
+
+        if validated:
+            zero_based = ["0" if value == 7 else str(value % 7) for value in validated]
+            if len(zero_based) == 1:
+                conditions.append(f"strftime('%w',date) = '{zero_based[0]}'")
+            else:
+                quoted = "','".join(zero_based)
+                conditions.append(f"strftime('%w',date) IN ('{quoted}')")
+
+            if len(validated) == 1:
+                title_bit = f"{ut.dow_str(validated[0])} "
+            else:
+                option = find_dow_option(",".join(str(v) for v in validated))
+                if option.value:
+                    title_bit = f"{option.title_suffix} "
+                else:
+                    title_names = ", ".join(ut.dow_str(v) for v in validated)
+                    title_bit = f"{title_names} "
+
     if start_date:
         conditions.append(f"date >= '{start_date}'")
     if end_date:
@@ -190,18 +221,17 @@ def print_the_html(
     day_total_bikes_colors: dc.Dimension,
     day_full_colors: dc.Dimension,
     pages_back: int,
-    page_title_prefix: str = "",
     date_filter_html: str = "",
-    date_range_label: str = "",
+    filter_description: str = "",
 ):
     def column_gap() -> str:
         """Make a thicker vertical cell border to mark off sets of blocks."""
         return "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
 
-    title = f"{page_title_prefix}Time block summaries"
-    if date_range_label:
-        title = f"{title} ({date_range_label})"
-    print(f"<h1>{title}</h1>")
+    title = cc.titleize("Time block summaries",filter_description)
+    # if filter_description:
+    #     title = f"{title} ({html.escape(filter_description)})"
+    print(f"{title}")
     print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
     if date_filter_html:
         print(date_filter_html)
@@ -211,18 +241,15 @@ def print_the_html(
     zero_bg = xy_colors.css_bg((0, 0))
 
     # Legend for x/y (background colours)
-    tab = colortable.html_2d_color_table(
+    xy_tab = colortable.html_2d_color_table(
         xy_colors,
         title="<b>Legend for in & out activity</b>",
         num_columns=9,
         num_rows=9,
         cell_size=20,
     )
-    print(tab)
-
     # Legend for markers
-    print("</p></p>")
-    tab = colortable.html_1d_text_color_table(
+    marker_tab = colortable.html_1d_text_color_table(
         marker_colors,
         title="<b>Legend for number of bikes onsite at once</b>",
         subtitle=f"{HIGHLIGHT_MARKER} = Time with the most bikes onsite",
@@ -230,8 +257,34 @@ def print_the_html(
         bg_color="grey",  # bg_color=xy_colors.get_color(0,0).html_color
         num_columns=20,
     )
-    print(tab)
-    print("</p></p>")
+    print("<table style='border-collapse: separate; border-spacing: 16px; width: auto;'>")
+    print("<tr>")
+    print(f"<td style='vertical-align: top; text-align: left; width: auto;'>{xy_tab}</td>")
+    print(
+        """
+
+        <td style='vertical-align: top; text-align: left; width: auto;'>
+            <div style="max-width: 25ch; text-align: left;">
+                <p>
+                    Time block summaries outline patterns of activity for each date, in half-hour segments.
+                </p>
+                <p>
+                    The colour grid highlights how inbound and outbound activity shifts through the day,
+                    while the marker legend tracks the number of bikes onsite.
+                </p>
+                <p>
+                    Hover over any square to get more information about that half hour.
+                </p>
+            </div>
+        </td>
+        """
+    )
+    print("</tr>")
+    print("<tr>")
+    print(f"<td colspan=2 style='padding-top: 8px;'>{marker_tab}</td>")
+    print("</tr>")
+    print("</table>")
+    print("<br>")
 
     # Main table. Column headings
     print("<table class=general_table>")
@@ -239,7 +292,7 @@ def print_the_html(
         "<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>"
     )
     print("<tr>")
-    print(f"<th colspan=3><a href='{cc.selfref(what=cc.WHAT_BLOCKS)}'>Date</a></th>")
+    print("<th colspan=3>Date</th>")
     print("<th colspan=7>6:00 - 9:00</th>")
     print("<th colspan=7>9:00 - 12:00</th>")
     print("<th colspan=7>12:00 - 15:00</th>")
@@ -256,19 +309,18 @@ def print_the_html(
         dayname = ut.date_str(date, dow_str_len=3)
         thisday: _OneDay = tabledata[date]
         tags_report_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=date)
-        dow_report_link = cc.selfref(what=cc.WHAT_BLOCKS_DOW, qdow=ut.dow_int(dayname))
         print("<tr style='text-align: center; width: 15px;padding: 0px 3px;'>")
         print(f"<td style=width:auto;><a href='{tags_report_link}'>{date}</a></td>")
-        print(f"<td style=width:auto;><a href='{dow_report_link}'>{dayname}</a></td>")
+        print(f"<td style=width:auto;>{dayname}</td>")
 
         # Find which time block had the greatest num of bikes this day.
         fullest_block_this_day = ut.block_start(thisday.day_max_bikes_time)
 
         # Print the blocks for this day.
-        html = ""
+        row_html = ""
         for num, block_key in enumerate(sorted(thisday.blocks.keys())):
             if num % 6 == 0:
-                html += column_gap()
+                row_html += column_gap()
             thisblock: _OneBlock = thisday.blocks[block_key]
             if date == date_today and block_key >= time_now:
                 # Today, later than now
@@ -299,20 +351,20 @@ def print_the_html(
             else:
                 marker = NORMAL_MARKER
 
-            html += (
+            row_html += (
                 f"<td title='{cell_title}' style='{cell_color};"
                 # "text-align: center; width: 15px;padding: 0px 3px;"
                 "'>"
                 f"{marker}</td>"  ##</a></td>"
             )
-        html += column_gap()
+        row_html += column_gap()
 
         s = day_total_bikes_colors.css_bg_fg(thisday.day_total_bikes)
-        html += f"<td style='{s};width:auto;'>{thisday.day_total_bikes}</td>"
+        row_html += f"<td style='{s};width:auto;'>{thisday.day_total_bikes}</td>"
         s = day_full_colors.css_bg_fg(thisday.day_max_bikes)
-        html += f"<td style='{s};width:auto;'>{thisday.day_max_bikes}</td>"
-        html += "</tr>\n"
-        print(html)
+        row_html += f"<td style='{s};width:auto;'>{thisday.day_max_bikes}</td>"
+        row_html += "</tr>\n"
+        print(row_html)
 
     print("</table>")
 
@@ -333,8 +385,6 @@ def blocks_report(
 
     orgsite_id = 1  # orgsite_id hardcoded
 
-    cc.test_dow_parameter(iso_dow, list_ok=False)
-
     start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
         ttdb,
         orgsite_id=orgsite_id,
@@ -342,50 +392,67 @@ def blocks_report(
         end_date=end_date,
     )
 
-    title_bit, day_where_clause = _process_iso_dow(
-        iso_dow,
+    selected_option = find_dow_option(iso_dow)
+    normalized_dow = selected_option.value
+
+    target_what = cc.WHAT_BLOCKS_DOW if normalized_dow else cc.WHAT_BLOCKS
+    self_url = cc.selfref(
+        what=target_what,
+        qdow=normalized_dow if normalized_dow else None,
+        start_date=start_date,
+        end_date=end_date,
+        pages_back=cc.increment_pages_back(pages_back),
+    )
+    filter_widget = build_date_dow_filter_widget(
+        self_url,
+        start_date=start_date,
+        end_date=end_date,
+        selected_dow=normalized_dow,
+    )
+    normalized_dow = filter_widget.selection.dow_value
+
+    _, day_where_clause = _process_iso_dow(
+        normalized_dow,
         orgsite_id=orgsite_id,
         start_date=start_date,
         end_date=end_date,
     )
 
-    target_what = cc.WHAT_BLOCKS_DOW if iso_dow else cc.WHAT_BLOCKS
-    self_url = cc.selfref(
-        what=target_what,
-        qdow=iso_dow if iso_dow else None,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
-    )
-    date_filter_html = generate_date_filter_form(
-        self_url,
-        default_start_date=start_date,
-        default_end_date=end_date,
-    )
+    filter_description = filter_widget.description()
+    date_filter_html = filter_widget.html
 
     dayrows:list[db.DBRow] = _fetch_day_data(ttdb, day_where_clause)
     blockrows:list[db.DBRow] = _fetch_block_rows(ttdb, day_where_clause)
 
-    range_label = f"{start_date} to {end_date}" if start_date or end_date else ""
+    # range_label = f"({start_date} to {end_date})" if start_date or end_date else ""
+
+    heading = "Time block summaries"
+
+    # if range_label:
+    #     heading = f"{heading} {range_label}"
 
     if not dayrows:
-        heading = f"{title_bit}Time block summaries"
-        if range_label:
-            heading = f"{heading} ({range_label})"
         print(f"<h1>{heading}</h1>")
         print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
-        print(date_filter_html)
+        if date_filter_html:
+            print(date_filter_html)
+        if filter_description:
+            print(
+                f"<p class='filter-description'>{html.escape(filter_description)}</p>"
+            )
         print("<br><br>")
         print("<p>No data found for the selected date range.</p>")
         return
 
     if not blockrows:
-        heading = f"{title_bit}Time block summaries"
-        if range_label:
-            heading = f"{heading} ({range_label})"
         print(f"<h1>{heading}</h1>")
         print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
-        print(date_filter_html)
+        if date_filter_html:
+            print(date_filter_html)
+        if filter_description:
+            print(
+                f"<p class='filter-description'>{html.escape(filter_description)}</p>"
+            )
         print("<br><br>")
         print("<p>Block activity data not available for the selected date range.</p>")
         return
@@ -410,9 +477,10 @@ def blocks_report(
         day_total_bikes_colors,
         day_full_colors,
         pages_back,
-        page_title_prefix=title_bit,
+        # page_title_prefix=title_bit,
         date_filter_html=date_filter_html,
-        date_range_label=range_label,
+        # date_range_label=range_label,
+        filter_description=filter_description,
     )
 
 

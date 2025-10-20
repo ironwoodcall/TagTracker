@@ -287,12 +287,12 @@ class InternetMonitorController:
         if not cls.process:
             cls._spawn_monitor_process(initial_suppress_seconds=suppress_seconds)
             cls.monitor_active = True
-            InternetMonitor._log_probe_result("SYS", "-", True, "NotifyOff")
+            InternetMonitor.log_monitor_event("SYS", "-", True, "NotifyOff")
             return
         suppress_until = time.time() + suppress_seconds
         cls._write_control_state(suppress_until)
         cls._signal_monitor()
-        InternetMonitor._log_probe_result("SYS", "-", True, "NotifyOff")
+        InternetMonitor.log_monitor_event("SYS", "-", True, "NotifyOff")
 
     @classmethod
     def notifications_on(cls):
@@ -301,12 +301,12 @@ class InternetMonitorController:
         if not cls.process:
             cls._spawn_monitor_process(initial_suppress_seconds=0)
             cls.monitor_active = True
-            InternetMonitor._log_probe_result("SYS", "-", True, "NotifyOn")
+            InternetMonitor.log_monitor_event("SYS", "-", True, "NotifyOn")
             return
         suppress_until = time.time() - RESUME_EPSILON_SECONDS
         cls._write_control_state(suppress_until)
         cls._signal_monitor()
-        InternetMonitor._log_probe_result("SYS", "-", True, "NotifyOn")
+        InternetMonitor.log_monitor_event("SYS", "-", True, "NotifyOn")
 
 
 @dataclass
@@ -435,6 +435,8 @@ class InternetMonitor:
         if not cls._primary_probes:
             primary_id = cls.HTTPBIN_PROBE_ID
             gstatic_id = cls.GSTATIC_PROBE_ID
+            confirm_id = cls.GOOGLE_DOH_PROBE_ID
+            cloudflare_id = cls.CLOUDFLARE_DOH_PROBE_ID
             cls._primary_probes = (
                 Probe(
                     identifier=primary_id,
@@ -446,11 +448,6 @@ class InternetMonitor:
                     name="GStatic generate_204",
                     runner=lambda monitor_cls, pid=gstatic_id: monitor_cls._check_gstatic_generate204(pid),
                 ),
-            )
-        if not cls._confirmation_probes:
-            confirm_id = cls.GOOGLE_DOH_PROBE_ID
-            cloudflare_id = cls.CLOUDFLARE_DOH_PROBE_ID
-            cls._confirmation_probes = (
                 Probe(
                     identifier=confirm_id,
                     name="Google DoH NXDOMAIN",
@@ -462,6 +459,8 @@ class InternetMonitor:
                     runner=lambda monitor_cls, pid=cloudflare_id: monitor_cls._check_cloudflare_doh(pid),
                 ),
             )
+        if not cls._confirmation_probes:
+            cls._confirmation_probes = tuple(cls._primary_probes)
 
     @classmethod
     def _run_primary_probe(cls) -> Tuple[bool, Optional[str], str]:
@@ -472,12 +471,12 @@ class InternetMonitor:
         ok, diag = probe.execute(cls)
         if ok:
             _debug(f"Probe {probe.identifier} succeeded")
-            cls._log_probe_result(probe.identifier, "P", True, "OK")
+            cls.log_monitor_event(probe.identifier, "P", True, "OK")
             return True, None, probe.identifier
 
         _debug(f"Probe {probe.identifier} failed diag={diag}")
         failure_diag = diag or cls._probe_diag(probe.identifier, "GENFAIL")
-        cls._log_probe_result(probe.identifier, "P", False, failure_diag)
+        cls.log_monitor_event(probe.identifier, "P", False, failure_diag)
         return False, failure_diag, probe.identifier
 
     @classmethod
@@ -494,12 +493,12 @@ class InternetMonitor:
         ok, diag = probe.execute(cls)
         if ok:
             _debug(f"Probe {probe.identifier} succeeded")
-            cls._log_probe_result(probe.identifier, "C", True, "OK")
+            cls.log_monitor_event(probe.identifier, "C", True, "OK")
             return True, None, probe.identifier
 
         _debug(f"Probe {probe.identifier} failed diag={diag}")
         failure_diag = diag or cls._probe_diag(probe.identifier, "GENFAIL")
-        cls._log_probe_result(probe.identifier, "C", False, failure_diag)
+        cls.log_monitor_event(probe.identifier, "C", False, failure_diag)
         return False, failure_diag, probe.identifier
 
     @staticmethod
@@ -829,7 +828,8 @@ class InternetMonitor:
         if actual_name.lower() != expected_name.lower():
             diag = cls._probe_diag(probe_id, "QUESTION")
             _debug(
-                f"[{probe_id}] probe failed: question mismatch actual={actual_name} expected={expected_name} diag={diag} url={url}"
+                f"[{probe_id}] probe failed: question mismatch actual={actual_name} "
+                f"expected={expected_name} diag={diag} url={url}"
             )
             return False, diag
 
@@ -840,7 +840,8 @@ class InternetMonitor:
 
         diag = cls._probe_diag(probe_id, f"STATUS{status_int:02d}")
         _debug(
-            f"[{probe_id}] probe failed: unexpected status {status_int} diag={diag} url={url} payload_sample={payload[:120]!r}"
+            f"[{probe_id}] probe failed: unexpected status {status_int} diag={diag} "
+            f"url={url} payload_sample={payload[:120]!r}"
         )
         return False, diag
 
@@ -988,6 +989,7 @@ class InternetMonitor:
             return
 
         cls._send_notification(diag_code)
+        cls.log_monitor_event('SYS','-',False,'MessageShown')
         cls._last_notification_ts = now
         cls._pending_alert = PendingAlert(
             timestamp=now,
@@ -1024,7 +1026,7 @@ class InternetMonitor:
             % (cls._check_interval, cls.CONFIRMATION_DELAY)
         )
 
-        cls._log_probe_result("SYS", "-", True, "MonitorStart")
+        cls.log_monitor_event("SYS", "-", True, "MonitorStart")
         cls._load_control_state()
 
         next_delay = 0.0
@@ -1061,6 +1063,7 @@ class InternetMonitor:
                 and now - cls._pending_alert.timestamp >= cls.CONFIRMATION_DELAY
             ):
                 cls._confirm_pending_alert(now, suppressed)
+                cls._pending_alert = None
                 next_delay = cls._check_interval
                 continue
 
@@ -1091,10 +1094,10 @@ class InternetMonitor:
             remaining = max(0.0, cls.CONFIRMATION_DELAY - elapsed)
             next_delay = max(cls.MINIMUM_SLEEP, remaining)
 
-        cls._log_probe_result("SYS", "-", True, "MonitorStop")
+        cls.log_monitor_event("SYS", "-", True, "MonitorStop")
 
     @classmethod
-    def _log_probe_result(
+    def log_monitor_event(
         cls,
         probe_id: Optional[str],
         probe_type: str,

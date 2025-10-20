@@ -23,6 +23,7 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 """
 
 import html
+import math
 import sqlite3
 from dataclasses import dataclass
 
@@ -38,6 +39,10 @@ import datacolors as dc
 import web.web_estimator as web_estimator
 import web_histogram
 from web.web_base_config import EST_TYPE_FOR_ONEDAY_SUMMARY, HIST_FIXED_Y_AXIS_FULLNESS
+try:
+    from common.commuter_hump import CommuterHumpAnalyzer
+except ImportError:  # pragma: no cover - optional dependency
+    CommuterHumpAnalyzer = None
 
 
 HIGHLIGHT_NONE = 0
@@ -162,9 +167,7 @@ def one_day_tags_report(
     else:
         day_str = ut.date_str(thisday, dow_str_len=10)
 
-    h1 = cc.titleize(f"<br>{thisday} ({day_str}) Detail")
-    html = f"<h1>{h1}</h1>"
-    print(html)
+    print(cc.titleize(f"{day_str}, {thisday} (detail)"))
 
     if not cc.called_by_self():
         pages_back = cc.NAV_MAIN_BUTTON
@@ -261,12 +264,38 @@ def one_day_tags_report(
         "<div style='display:flex; flex-wrap:wrap; align-items:flex-start;'>"
     )
     print("<div style='flex:0 1 auto; min-width:260px; margin-right:1.5em;'>")
+
+    commuter_mean = None
+    commuter_confidence = None
+    if not is_today and CommuterHumpAnalyzer is not None:
+        try:
+            analyzer = CommuterHumpAnalyzer(
+                db_path=ttdb,
+                start_date=thisday,
+                end_date=thisday,
+                days_of_week=(1, 2, 3, 4, 5, 6, 7),
+            ).run()
+        except Exception:
+            analyzer = None
+        if analyzer and not getattr(analyzer, "error", None):
+            mean_value = getattr(analyzer, "mean_commuter_per_day", None)
+            if mean_value is not None:
+                try:
+                    mean_value = float(mean_value)
+                except (TypeError, ValueError):
+                    mean_value = None
+            if mean_value is not None and not math.isnan(mean_value):
+                commuter_mean = mean_value
+                commuter_confidence = analyzer.confidence_text(long_text=False)
+
     summary_html, prediction_html = summary_table(
         day_data,
         stats,
         tags_used_count,
         highlights,
         is_today,
+        commuter_mean,
+        commuter_confidence,
     )
     print(summary_html)
     print("</div>")
@@ -865,6 +894,8 @@ def summary_table(
     tags_used_count: int,
     highlights: dc.Dimension,
     is_today: bool,
+    commuter_mean=None,
+    commuter_confidence=None,
     # suspicious: int,
 ):
     def fmt_none(obj) -> object:
@@ -897,6 +928,16 @@ def summary_table(
             <td>{day_data.num_parked_combined}</td></tr>
             """
     )
+    if (
+        not is_today
+        and commuter_mean is not None
+        and commuter_confidence is not None
+    ):
+        table_bits.append(
+            "<tr><td colspan=2>&nbsp;&nbsp;&nbsp;Commuters "
+            f"(confidence={html.escape(commuter_confidence)}):</td>"
+            f"<td>{int(round(commuter_mean))}</td></tr>"
+        )
     if is_today and the_estimate is not None:
         table_bits.append(
             f"""
