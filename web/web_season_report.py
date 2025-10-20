@@ -423,28 +423,57 @@ def totals_table(conn: sqlite3.Connection):
 
     row_defs = [
         {
-            "label": "Bikes parked",
+            "label": "Days open",
+            "row_class": "",
+            "value_fn": totals_attr("total_days_open"),
+            "day_value_fn": totals_attr("total_days_open"),
+            "display_fn": _display_default,
+            "percent": True,
+        },
+        {
+            "label": "Hours open",
+            "row_class": "class='heavy-bottom'",
+            "value_fn": totals_attr("total_hours_open"),
+            "day_value_fn": totals_attr("total_hours_open"),
+            "display_fn": _display_hours_open,
+            "percent": True,
+        },
+        {
+            "label": "Visits",
+            "row_class": "",
             "value_fn": totals_attr("total_parked_combined"),
             "day_value_fn": totals_attr("total_parked_combined"),
             "display_fn": _display_default,
             "percent": True,
         },
         {
-            "label": "&nbsp;&nbsp;&nbsp;Regular bikes parked",
+            "label": "&nbsp;&nbsp;&nbsp;Regular bikes",
+            "row_class": "",
             "value_fn": totals_attr("total_parked_regular"),
             "day_value_fn": totals_attr("total_parked_regular"),
             "display_fn": _display_default,
             "percent": True,
         },
         {
-            "label": "&nbsp;&nbsp;&nbsp;Oversize bikes parked",
+            "label": "&nbsp;&nbsp;&nbsp;Oversize bikes",
+            "row_class": "",
             "value_fn": totals_attr("total_parked_oversize"),
             "day_value_fn": totals_attr("total_parked_oversize"),
             "display_fn": _display_default,
             "percent": True,
         },
         {
-            "label": "Bikes per day",
+            "label": (
+                f"Visits per day (max, <a href='{most_parked_link}'>{ytd_totals.max_parked_combined_date}</a>)"
+            ),
+            "row_class": "",
+            "value_fn": totals_attr("max_parked_combined"),
+            "display_fn": _display_default,
+            "percent": None,
+        },
+        {
+            "label": "Visits per day (mean)",
+            "row_class": "",
             "value_fn": lambda totals: (
                 totals.total_parked_combined / totals.total_days_open
                 if totals.total_days_open
@@ -454,7 +483,8 @@ def totals_table(conn: sqlite3.Connection):
             "percent": True,
         },
         {
-            "label": "&nbsp;&nbsp;&nbsp;Commuters per day",
+            "label": "&nbsp;&nbsp;&nbsp;Commuter portion (est.)",
+            "row_class": "class='heavy-bottom'",
             "value_fn": lambda totals: getattr(
                 totals, "commuter_mean_per_day", None
             ),
@@ -465,28 +495,18 @@ def totals_table(conn: sqlite3.Connection):
             "percent": True,
         },
         {
-            "label": "Bike registrations",
-            "value_fn": totals_attr("total_bikes_registered"),
-            "day_value_fn": totals_attr("total_bikes_registered"),
+            "label": (
+                f"Bikes on-site (max, <a href='{fullest_link}'>{ytd_totals.max_fullest_combined_date}</a>)"
+            ),
+            "row_class": "",
+            "value_fn": totals_attr("max_fullest_combined"),
+            "day_value_fn": totals_attr("max_fullest_combined"),
             "display_fn": _display_default,
-            "percent": True,
+            "percent": None,
         },
         {
-            "label": "Days open",
-            "value_fn": totals_attr("total_days_open"),
-            "day_value_fn": totals_attr("total_days_open"),
-            "display_fn": _display_default,
-            "percent": True,
-        },
-        {
-            "label": "Hours open",
-            "value_fn": totals_attr("total_hours_open"),
-            "day_value_fn": totals_attr("total_hours_open"),
-            "display_fn": _display_hours_open,
-            "percent": True,
-        },
-        {
-            "label": "Bikes left on-site",
+            "label": "Bikes on-site (left)",
+            "row_class": "class='heavy-bottom'",
             "value_fn": totals_attr("total_remaining_combined"),
             "day_value_fn": totals_attr("total_remaining_combined"),
             "display_fn": _display_default,
@@ -494,31 +514,24 @@ def totals_table(conn: sqlite3.Connection):
             "subtract_today_from_current": True,
         },
         {
-            "label": (
-                f"Max bikes parked (<a href='{most_parked_link}'>{ytd_totals.max_parked_combined_date}</a>)"
-            ),
-            "value_fn": totals_attr("max_parked_combined"),
+            "label": "Registrations",
+            "row_class": "class='heavy-bottom'",
+            "value_fn": totals_attr("total_bikes_registered"),
+            "day_value_fn": totals_attr("total_bikes_registered"),
             "display_fn": _display_default,
-            "percent": None,
-        },
-        {
-            "label": (
-                f"Max bikes on-site (<a href='{fullest_link}'>{ytd_totals.max_fullest_combined_date}</a>)"
-            ),
-            "value_fn": totals_attr("max_fullest_combined"),
-            "day_value_fn": totals_attr("max_fullest_combined"),
-            "display_fn": _display_default,
-            "percent": None,
+            "percent": True,
         },
         {
             "label": "Precipitation",
+            "row_class": "",
             "value_fn": totals_attr("total_precipitation"),
             "day_value_fn": totals_attr("total_precipitation"),
             "display_fn": _display_default,
             "percent": True,
         },
         {
-            "label": "Max daily temperature",
+            "label": "Max temperature",
+            "row_class": "",
             "value_fn": totals_attr("max_max_temperature"),
             "day_value_fn": totals_attr("max_max_temperature"),
             "display_fn": _display_default,
@@ -531,8 +544,9 @@ def totals_table(conn: sqlite3.Connection):
 
     # Table header
     header_html = (
-        "<tr><th rowspan=2 style='text-align:center;border-right: 2px solid gray;'>Summary</th>"
-        "<th colspan=3 style='text-align:center;border-right: 2px solid gray;'>This year</th>"
+        # "<tr><th rowspan=2 style='text-align:center;border-right: 2px solid gray;'>Summary</th>"
+        "<tr><th rowspan='2' class='heavy-right' style='text-align:center;'>Summary</th>"
+        "<th colspan=3 class='heavy-right' style='text-align:center;'>This year</th>"
         "<th colspan=5>Recent days</th></tr>"
         #f"  <tr><th>{selected_year_str} Summary</th>"
         f"<th style='text-align:center;'>YTD<br>{selected_year_str}</th>"
@@ -549,13 +563,13 @@ def totals_table(conn: sqlite3.Connection):
     print(header_html)
 
     # Table rows
-    def html_row(label, ytd_value, pct_ytd, pct_12mo, day_values):
+    def html_row(label, row_class, ytd_value, pct_ytd, pct_12mo, day_values):
         """Build HTML for a table row."""
         row_html = (
-            f"<tr><td style='text-align:left;border-right: 2px solid gray;'>{label}</td>"
+            f"<tr {row_class}><td class='heavy-right'style='text-align:left;'>{label}</td>"
             f"<td style='text-align:right;'>{_p(ytd_value)}</td>"
             f"<td style='text-align:right'>{_p(pct_ytd)}</td>"
-            f"<td style='text-align:right;border-right: 2px solid gray;'>{_p(pct_12mo)}</td>"
+            f"<td class='heavy-right' style='text-align:right;'>{_p(pct_12mo)}</td>"
         )
         for day_value in day_values:
             row_html += f"<td style='text-align:right'>{_p(day_value)}</td>"
@@ -608,7 +622,7 @@ def totals_table(conn: sqlite3.Connection):
         else:
             day_values = ["-" for _ in display_day_keys]
 
-        print(html_row(label, ytd_display, pct_ytd, pct_12mo, day_values))
+        print(html_row(label, spec["row_class"], ytd_display, pct_ytd, pct_12mo, day_values))
 
     total_columns = 4 + len(display_day_keys)
     print(
