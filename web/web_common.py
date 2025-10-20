@@ -163,7 +163,12 @@ def test_dow_parameter(dow_parameter: str, list_ok: bool = False):
 def titleize(title: str = "",subtitle: str="") -> str:
     """Puts SITE_NAME in front of title and makes it pretty,
     including heading tags."""
-    content = f"<h2>{SITE_NAME or 'Bike Parking Service'}</h2>"
+    content = f"{SITE_NAME or 'Bike Parking Service'}"
+    # Special case: if no title nor subtitle, just use site as h1
+    if not title and not subtitle:
+        return f"<h1>{content}</h1>"
+
+    content = f"<h2>{content}</h2>"
     if title:
         content = f"{content}<h1>{title.capitalize()}</h1>"
     if subtitle:
