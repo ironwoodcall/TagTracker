@@ -300,17 +300,6 @@ def totals_table(conn: sqlite3.Connection):
     def totals_attr(name: str):
         return lambda totals, attr=name: getattr(totals, attr, None)
 
-    def determine_db_path(connection: sqlite3.Connection) -> str | None:
-        """Return the filesystem path for the main SQLite database, if available."""
-        try:
-            rows = connection.execute("PRAGMA database_list;").fetchall()
-        except sqlite3.Error:
-            return None
-        for _seq, name, file_path in rows:
-            if name == "main" and file_path:
-                return file_path
-        return None
-
     def iso_date(value) -> str:
         if isinstance(value, date):
             return value.isoformat()
