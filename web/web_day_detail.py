@@ -556,7 +556,7 @@ def block_activity_table(
         "<th rowspan=2>Time</th>"
         "<th colspan=3>Arrivals</th>"
         "<th colspan=3>Departures</th>"
-        "<th rowspan=2>Visits</th>"
+        "<th rowspan=2>Visits<br>this day</th>"
         "<th rowspan=2>Max<br>bikes</th>"
         "</tr>"
     )
