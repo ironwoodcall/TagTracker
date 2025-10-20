@@ -493,6 +493,7 @@ def totals_table(conn: sqlite3.Connection):
             ),
             "display_fn": _display_average,
             "percent": True,
+            "blank_last_day_value": True,
         },
         {
             "label": (
@@ -619,6 +620,8 @@ def totals_table(conn: sqlite3.Connection):
                 day_raw = day_value_fn(day_totals[key])
                 day_display = day_display_fn(day_raw)
                 day_values.append(day_display)
+            if spec.get("blank_last_day_value") and day_values:
+                day_values[-1] = ""
         else:
             day_values = ["-" for _ in display_day_keys]
 
