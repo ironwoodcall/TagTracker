@@ -678,16 +678,19 @@ def block_activity_table(
     for row in rows_to_render:
         row_border = "border-top:3px solid black;" if row["border_top"] else ""
         base_style = mix_styles("text-align:right", row_border)
-        in_style = lambda val: mix_styles(
-            "text-align:right",
-            row_border,
-            bikes_in_colors.css_bg_fg(val),
-        )
-        out_style = lambda val: mix_styles(
-            "text-align:right",
-            row_border,
-            bikes_out_colors.css_bg_fg(val),
-        )
+        def in_style(val: int) -> str:
+            return mix_styles(
+                "text-align:right",
+                row_border,
+                bikes_in_colors.css_bg_fg(val),
+            )
+
+        def out_style(val: int) -> str:
+            return mix_styles(
+                "text-align:right",
+                row_border,
+                bikes_out_colors.css_bg_fg(val),
+            )
         total_style = mix_styles(
             "text-align:right",
             row_border,
