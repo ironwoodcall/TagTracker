@@ -12,7 +12,6 @@ from statistics import mean, median
 from typing import Sequence
 
 import web_common as cc
-import web_base_config as wcfg
 from web_daterange_selector import (
     DATE_PATTERN,
     DEFAULT_DOW_OPTIONS,
@@ -35,21 +34,25 @@ class PeriodMetrics:
     days_open: int = 0
     open_minutes: int = 0
     total_bikes_parked: int = 0
+    regular_bikes: int = 0
+    oversize_bikes: int = 0
     most_bikes: int = 0
     bikes_registered: int = 0
     max_bikes_parked: int = 0
     bikes_left: int = 0
     total_precipitation: float | None = 0.0
     max_high_temperature: float | None = None
-    regular_bikes: int = 0
-    oversize_bikes: int = 0
-    shortest_visit_minutes: int | None = None
     longest_visit_minutes: int | None = None
     mean_visit_minutes: int | None = None
     median_visit_minutes: int | None = None
-    mean_bikes_per_day: float | None = None
-    median_bikes_per_day: float | None = None
+    mean_bikes_per_day_combined: float | None = 0.0
+    median_bikes_per_day_combined: float | None = 0.0
+    mean_bikes_per_day_regular: float | None = 0.0
+    median_bikes_per_day_regular: float | None = 0.0
+    mean_bikes_per_day_oversize: float | None = 0.0
+    median_bikes_per_day_oversize: float | None = 0.0
     mean_bikes_registered_per_day: float | None = None
+    commuters: int | None = None
     commuters_per_day: float | None = None
 
 
@@ -80,17 +83,17 @@ def _open_minutes_for_day(day: DayTotals) -> int:
     return duration
 
 
-def _estimate_commuter_mean_per_day(
+def _fetch_commuter_metrics(
     ttdb:sqlite3.Connection,
     start_iso: str,
     end_iso: str,
     days_of_week: Sequence[int],
-) -> float | None:
-    """Run the commuter hump analysis and return mean commuters per day."""
+) -> tuple[int | None, float | None]:
+    """Run the commuter hump analysis and return commuter count and mean per day."""
     if CommuterHumpAnalyzer is None:
-        return None
+        return None, None
     if not start_iso or not end_iso:
-        return None
+        return None, None
     ordered_start, ordered_end = sorted((start_iso, end_iso))
     normalized_weekdays = tuple(sorted(set(days_of_week))) or tuple(range(1, 8))
     try:
@@ -101,19 +104,25 @@ def _estimate_commuter_mean_per_day(
             days_of_week=normalized_weekdays,
         ).run()
     except Exception:
-        return None
+        return None, None
     if analyzer is None or getattr(analyzer, "error", None):
-        return None
+        return None, None
+    commuter_count = getattr(analyzer, "commuter_count", None)
+    if commuter_count is not None:
+        try:
+            commuter_count = int(commuter_count)
+        except (TypeError, ValueError):
+            commuter_count = None
     mean_value = getattr(analyzer, "mean_commuter_per_day", None)
     if mean_value is None:
-        return None
+        return commuter_count, None
     try:
         mean_value = float(mean_value)
     except (TypeError, ValueError):
-        return None
+        return commuter_count, None
     if math.isnan(mean_value):
-        return None
-    return mean_value
+        return commuter_count, None
+    return commuter_count, mean_value
 
 
 def _aggregate_period(
@@ -150,18 +159,36 @@ def _aggregate_period(
     metrics.bikes_left = sum(
         (getattr(day, "num_remaining_combined", 0) or 0) for day in days
     )
-    bike_totals = [(getattr(day, "num_parked_combined", 0) or 0) for day in days]
-    if bike_totals:
-        metrics.mean_bikes_per_day = mean(bike_totals)
-        metrics.median_bikes_per_day = median(bike_totals)
-    else:
-        metrics.mean_bikes_per_day = None
-        metrics.median_bikes_per_day = None
+
+    # Map of bike type labels to their corresponding day attributes
+    bike_type_attr_map = [
+        ("combined", "num_parked_combined"),
+        ("regular", "num_parked_regular"),
+        ("oversize", "num_parked_oversize"),
+    ]
+    # Find mean & medians daily values for regular, oversize & total bikes
+    for label, attr in bike_type_attr_map:
+        totals = [(getattr(day, attr, 0) or 0) for day in days]
+        if totals:
+            setattr(metrics, f"mean_bikes_per_day_{label}", mean(totals))
+            setattr(metrics, f"median_bikes_per_day_{label}", median(totals))
+        else:
+            setattr(metrics, f"mean_bikes_per_day_{label}", None)
+            setattr(metrics, f"median_bikes_per_day_{label}", None)
+
+    # bike_totals = [(getattr(day, "num_parked_combined", 0) or 0) for day in days]
+    # if bike_totals:
+    #     metrics.mean_bikes_per_day = mean(bike_totals)
+    #     metrics.median_bikes_per_day = median(bike_totals)
+    # else:
+    #     metrics.mean_bikes_per_day = None
+    #     metrics.median_bikes_per_day = None
     registered_counts = [(getattr(day, "bikes_registered", 0) or 0) for day in days]
     if registered_counts:
         metrics.mean_bikes_registered_per_day = mean(registered_counts)
     else:
         metrics.mean_bikes_registered_per_day = None
+    metrics.commuters = None
     metrics.commuters_per_day = None
     if days:
         day_dates = [
@@ -170,12 +197,14 @@ def _aggregate_period(
             if getattr(day, "date", None)
         ]
         if day_dates:
-            metrics.commuters_per_day = _estimate_commuter_mean_per_day(
+            commuter_count, commuters_per_day = _fetch_commuter_metrics(
                 ttdb,
                 min(day_dates),
                 max(day_dates),
                 allowed or range(1, 8),
             )
+            metrics.commuters = commuter_count
+            metrics.commuters_per_day = commuters_per_day
     precip_values = [
         getattr(day, "precipitation", None)
         for day in days
@@ -221,12 +250,12 @@ def _aggregate_period(
     cursor.close()
     if visit_durations:
         durations_minutes = [int(round(duration)) for duration in visit_durations]
-        metrics.shortest_visit_minutes = min(durations_minutes)
+        # metrics.shortest_visit_minutes = min(durations_minutes)
         metrics.longest_visit_minutes = max(durations_minutes)
         metrics.mean_visit_minutes = int(round(mean(durations_minutes)))
         metrics.median_visit_minutes = int(round(median(durations_minutes)))
     else:
-        metrics.shortest_visit_minutes = None
+        # metrics.shortest_visit_minutes = None
         metrics.longest_visit_minutes = None
         metrics.mean_visit_minutes = None
         metrics.median_visit_minutes = None
@@ -533,115 +562,162 @@ def compare_ranges(
 
     metric_rows = [
         {
-            "label": "Days open:",
+            "label": "Days open (total):",
+            "row_class": "",
             "attr": "days_open",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
-            "label": "Hours open:",
+            "label": "Hours open (total):",
+            "row_class": "class='heavy-bottom'",
             "attr": "open_minutes",
             "value_fmt": _format_minutes,
             "delta_fmt": _format_minutes_delta,
         },
         {
-            "label": "Total bikes parked:",
+            "label": "Visits (total):",
+            "row_class": "",
             "attr": "total_bikes_parked",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
-            "label": "Regular bikes parked:",
+            "label": "&nbsp;&nbsp;&nbsp;Regular bike visits:",
+            "row_class": "",
             "attr": "regular_bikes",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
-            "label": "Oversize bikes parked:",
+            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits:",
+            "row_class": "",
             "attr": "oversize_bikes",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
+            "label": "&nbsp;&nbsp;&nbsp;Commuter portion:",
+            "row_class": "",
+            "attr": "commuters",
+            "value_fmt": _format_int,
+            "delta_fmt": _format_int_delta,
+        },
+        {
             "label": "Max bikes parked in one day:",
+            "row_class": "",
             "attr": "max_bikes_parked",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
-            "label": "Mean bikes per day:",
-            "attr": "mean_bikes_per_day",
+            "label": "Mean bikes per day (combined):",
+            "row_class": "",
+            "attr": "mean_bikes_per_day_combined",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
-            "label": "Median bikes per day:",
-            "attr": "median_bikes_per_day",
+            "label": "Median bikes per day (combined):",
+            "row_class": "",
+            "attr": "median_bikes_per_day_combined",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "Mean bikes per day (regular):",
+            "row_class": "",
+            "attr": "mean_bikes_per_day_regular",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "Median bikes per day (regular):",
+            "row_class": "",
+            "attr": "median_bikes_per_day_regular",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "Mean bikes per day (oversize):",
+            "row_class": "",
+            "attr": "mean_bikes_per_day_oversize",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "Median bikes per day (oversize):",
+            "row_class": "",
+            "attr": "median_bikes_per_day_oversize",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
             "label": "Commuters per day:",
+            "row_class": "",
             "attr": "commuters_per_day",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
             "label": "Most bikes at once:",
+            "row_class": "",
             "attr": "most_bikes",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
             "label": "Bikes left at end of day:",
+            "row_class": "",
             "attr": "bikes_left",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
             "label": "Bikes registered:",
+            "row_class": "",
             "attr": "bikes_registered",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
             "label": "Mean bikes registered per day:",
+            "row_class": "",
             "attr": "mean_bikes_registered_per_day",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
-            "label": "Shortest visit:",
-            "attr": "shortest_visit_minutes",
-            "value_fmt": _format_minutes,
-            "delta_fmt": _format_minutes_delta,
-        },
-        {
             "label": "Longest visit:",
+            "row_class": "",
             "attr": "longest_visit_minutes",
             "value_fmt": _format_minutes,
             "delta_fmt": _format_minutes_delta,
         },
         {
             "label": "Mean visit length:",
+            "row_class": "",
             "attr": "mean_visit_minutes",
             "value_fmt": _format_minutes,
             "delta_fmt": _format_minutes_delta,
         },
         {
             "label": "Median visit length:",
+            "row_class": "class='heavy-bottom'",
             "attr": "median_visit_minutes",
             "value_fmt": _format_minutes,
             "delta_fmt": _format_minutes_delta,
         },
         {
             "label": "Total precipitation:",
+            "row_class": "",
             "attr": "total_precipitation",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
             "label": "Max daily high temperature:",
+            "row_class": "",
             "attr": "max_high_temperature",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
@@ -694,8 +770,8 @@ def compare_ranges(
             f"text-align:right;background-color:{_percent_to_color(percent_value)};"
         )
         print(
-            "<tr>"
-            f"<td style='text-align:left;'>{html.escape(row['label'])}</td>"
+            f"<tr {row['row_class']}>"
+            f"<td style='text-align:left;'>{row['label']}</td>"
             f"<td style='text-align:right;'>{formatted_a}</td>"
             f"<td style='text-align:right;'>{formatted_b}</td>"
             f"<td style='text-align:right;'>{formatted_delta}</td>"
