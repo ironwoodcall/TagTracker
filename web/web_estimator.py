@@ -104,8 +104,8 @@ class Estimator:
     # Measure label strings (edit here to change table text)
     MEAS_ACTIVITY_TEMPLATE = "Activity, next hour (to {end_time})"
     MEAS_FURTHER = "Further visits today"
-    MEAS_TIME_MAX = "Time max bikes on-site"
-    MEAS_MAX = "Max bikes onsite"
+    MEAS_TIME_MAX = "Time of max bikes"
+    MEAS_MAX = "Max bikes"
 
     # Table headers (centralized)
     HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Probability", "Model"]
