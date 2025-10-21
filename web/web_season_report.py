@@ -92,32 +92,32 @@ def season_frequencies_report(
     table_vars = (
         (
             "duration",
-            "Length of visits",
-            "Frequency distribution of lengths of visits",
+            "Visit duration",
+            "Average visit durations",
             "mediumseagreen",
         ),
         (
             "time_in",
-            "When bikes arrived",
-            "Frequency distribution of arrival times",
+            "Arrivals",
+            "Average number of visits by arrival times",
             "lightcoral",
         ),
         (
             "time_out",
-            "When bikes departed",
-            "Frequency distribution of departure times",
+            "Departures",
+            "Average number of visits by departure times",
             "lightskyblue",
         ),
     )
     back_button = f"{cc.main_and_back_buttons(pages_back)}<p></p>"
 
     if restrict_to_single_day:
-        h1 = f"Distribution of visits {start_date}"
+        title = cc.titleize(f"Graphs for {start_date}")
     else:
-        h1 = f"Distribution of visits {start_date} to {end_date}"
-        if title_bit:
-            h1 = f"{h1} for {title_bit}"
-    print(f"<h1>{h1}</h1>")
+        title = cc.titleize(f"Graphs for {start_date} to {end_date}")
+        # if title_bit:
+        #     h1 = f"{h1} for {title_bit}"
+    print(title)
     print(back_button)
 
     if restrict_to_single_day:
@@ -169,11 +169,11 @@ def season_frequencies_report(
     )
     print("<br><br>")
 
-    fullness_title = "Parking fullness"
+    fullness_title = "Max bikes on-site"
     if title_bit:
         fullness_title = f"{fullness_title} ({title_bit})"
     fullness_title = f"<h2>{fullness_title}</h2>"
-    fullness_subtitle = "Average bikes on site by 30-minute interval"
+    fullness_subtitle = "Mean of max bikes on-site"
     print(
         web_histogram.fullness_hist_table(
             ttdb,
@@ -209,28 +209,6 @@ def season_frequencies_report(
         print("<br><br>")
     print(back_button)
 
-
-# def mini_freq_tables(ttdb: sqlite3.Connection):
-#     table_vars = (
-#         ("duration", "Visit length", "teal"),
-#         ("time_in", "Time in", "crimson"),
-#         ("time_out", "Time out", "royalblue"),
-#     )
-#     orgsite_id = 1 # hardcoded orgsite_id FIXME
-#     for parameters in table_vars:
-#         column, title, color = parameters
-#         title = f"<a href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'>{title}</a>"
-#         print(
-#             web_histogram.times_hist_table(
-#                 ttdb,
-#                 orgsite_id=orgsite_id,
-#                 query_column=column,
-#                 mini=True,
-#                 color=color,
-#                 title=title,
-#             )
-#         )
-#         print("<br>")
 
 
 def totals_table(conn: sqlite3.Connection):
