@@ -562,12 +562,12 @@ def block_activity_table(
     )
     print(
         "<tr>"
-        "<th>Reglr</th>"
-        "<th>Ovrsz</th>"
         "<th>Total</th>"
-        "<th>Reglr</th>"
-        "<th>Ovrsz</th>"
+        "<th style='font-weight: normal;'>Reglr</th>"
+        "<th style='font-weight: normal;'>Ovrsz</th>"
         "<th>Total</th>"
+        "<th style='font-weight: normal;'>Reglr</th>"
+        "<th style='font-weight: normal;'>Ovrsz</th>"
         "</tr>"
     )
 
@@ -609,12 +609,12 @@ def block_activity_table(
         rows_to_render.append(
             {
                 "time_label": time_label,
+                "all_in": all_in,
                 "rg_in": rg_in,
                 "ov_in": ov_in,
-                "all_in": all_in,
+                "all_out": all_out,
                 "rg_out": rg_out,
                 "ov_out": ov_out,
-                "all_out": all_out,
                 "total_in": cumulative_total_in,
                 "block_max": block_max,
                 "start_on_hand": start_on_hand,
@@ -710,12 +710,12 @@ def block_activity_table(
         print(
             "<tr>"
             f"<td style='{base_style}' title=\"{hover_attr}\">{row['time_label']}</td>"
+            f"<td style='{in_style(row['all_in'])}'>{row['all_in']}</td>"
             f"<td style='{in_style(row['rg_in'])}'>{row['rg_in']}</td>"
             f"<td style='{in_style(row['ov_in'])}'>{row['ov_in']}</td>"
-            f"<td style='{in_style(row['all_in'])}'>{row['all_in']}</td>"
+            f"<td style='{out_style(row['all_out'])}'>{row['all_out']}</td>"
             f"<td style='{out_style(row['rg_out'])}'>{row['rg_out']}</td>"
             f"<td style='{out_style(row['ov_out'])}'>{row['ov_out']}</td>"
-            f"<td style='{out_style(row['all_out'])}'>{row['all_out']}</td>"
             f"<td style='{total_style}' title=\"{hover_attr}\">{row['total_in']}</td>"
             f"<td style='{most_style}' title=\"{hover_attr}\">{row['block_max']}</td>"
             "</tr>"
@@ -972,7 +972,7 @@ def summary_table(
                 <td>{stats.mean}</td></tr>
             <tr><td colspan=2>Visit duration (median):</td>
                 <td>{stats.median}</td></tr>
-            <tr class='heavy-bottom'><td colspan=2>{ut.plural(len(stats.modes),'Visit duration (mode, ')}
+            <tr class='heavy-bottom'><td colspan=2>{ut.plural(len(stats.modes),'Visit duration (mode')},
                     {stats.mode_occurences} occurences):</td>
                 <td>{'<br>'.join(stats.modes)}</td></tr>
             <tr><td colspan=2>Precipitation (mm):</td>
