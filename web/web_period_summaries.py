@@ -32,11 +32,11 @@ import web_common as cc
 from web_daterange_selector import build_date_dow_filter_widget
 
 DATERANGE_NAMES = {
-    cc.WHAT_DATERANGE_WEEK: "Weeks",
-    cc.WHAT_DATERANGE_MONTH: "Months",
-    cc.WHAT_DATERANGE_QUARTER: "Quarters",
-    cc.WHAT_DATERANGE_YEAR: "Years",
-    cc.WHAT_DATERANGE_FOREVER: "All Data",
+    cc.WHAT_DATERANGE_WEEK: "weeks",
+    cc.WHAT_DATERANGE_MONTH: "months",
+    cc.WHAT_DATERANGE_QUARTER: "quarters",
+    cc.WHAT_DATERANGE_YEAR: "years",
+    cc.WHAT_DATERANGE_FOREVER: "whole period",
 }
 
 
@@ -339,8 +339,8 @@ def _daterange_summary_table_top(daterange_type, filter_description: str = ""):
         "<th rowspan=2>Period</th>"
         "<th colspan=2>Open</th>"
         "<th colspan=4>Total</th>"
-        "<th colspan=5>Day Average</th>"
-        "<th colspan=5>Day Maximum</th>"
+        "<th colspan=5>Day average (mean)</th>"
+        "<th colspan=5>Day maximum</th>"
         "</tr>"
     )
 
@@ -349,19 +349,19 @@ def _daterange_summary_table_top(daterange_type, filter_description: str = ""):
         "<th>Days</th>"
         "<th>Hours</th>"
         "<th>All<br>bikes</th>"
-        "<th>Reglr<br>bikes</th>"
-        "<th>Ovrsz<br>bikes</th>"
-        "<th>Bike<br>reg</th>"
+        "<th style='font-weight:normal'>Reglr<br>bikes</th>"
+        "<th style='font-weight:normal'>Ovrsz<br>bikes</th>"
+        "<th>Regis</th>"
         "<th>All<br>bikes</th>"
-        "<th>Reglr<br>bikes</th>"
-        "<th>Ovrsz<br>bikes</th>"
-        "<th>Most<br>full</th>"
-        "<th>Bike<br>reg</th>"
+        "<th style='font-weight:normal'>Reglr<br>bikes</th>"
+        "<th style='font-weight:normal'>Ovrsz<br>bikes</th>"
+        "<th>Max<br>bikes</th>"
+        "<th>Regis</th>"
         "<th>All<br>bikes</th>"
-        "<th>Reglr<br>bikes</th>"
-        "<th>Ovrsz<br>bikes</th>"
-        "<th>Most<br>full</th>"
-        "<th>Bike<br>reg</th>"
+        "<th style='font-weight:normal'>Reglr<br>bikes</th>"
+        "<th style='font-weight:normal'>Ovrsz<br>bikes</th>"
+        "<th>Max<br>bikes</th>"
+        "<th>Regis</th>"
         "</th>"
     )
 
