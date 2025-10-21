@@ -243,7 +243,7 @@ def print_the_html(
     # Legend for x/y (background colours)
     xy_tab = colortable.html_2d_color_table(
         xy_colors,
-        title="<b>Legend for in & out activity</b>",
+        title="<b>Legend for activity (arrivals & departures)</b>",
         num_columns=9,
         num_rows=9,
         cell_size=20,
@@ -251,8 +251,8 @@ def print_the_html(
     # Legend for markers
     marker_tab = colortable.html_1d_text_color_table(
         marker_colors,
-        title="<b>Legend for number of bikes onsite at once</b>",
-        subtitle=f"{HIGHLIGHT_MARKER} = Time with the most bikes onsite",
+        title="<b>Legend for max bikes on-site</b>",
+        subtitle=f"{HIGHLIGHT_MARKER} = Time with max bikes onsite",
         marker=NORMAL_MARKER,
         bg_color="grey",  # bg_color=xy_colors.get_color(0,0).html_color
         num_columns=20,
@@ -299,8 +299,8 @@ def print_the_html(
     print("<th colspan=7>15:00 - 18:00</th>")
     print("<th colspan=7>18:00 - 21:00</th>")
     print("<th colspan=7>21:00 - 24:00</th>")
-    print("<th>Bikes<br>parked</th>")
-    print("<th>Most<br/>bikes</th>")
+    print("<th>Visits</th>")
+    print("<th>Max<br/>bikes</th>")
     print("</tr>")
 
     date_today = ut.date_str("today")
@@ -330,8 +330,8 @@ def print_the_html(
                 # No activity this block
                 cell_color = f"{zero_bg};" f"{marker_colors.css_fg(thisblock.full)};"
                 cell_title = (
-                    f"Bikes in: 0\nBikes out: 0\n"
-                    f"Bikes so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
+                    f"Arrivals: 0\nDepartures: 0\n"
+                    f"Visits so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
                 )
             else:
                 # Regular block with activity in it
@@ -340,14 +340,14 @@ def print_the_html(
                     f"{marker_colors.css_fg(thisblock.full)};"
                 )
                 cell_title = (
-                    f"Bikes in: {thisblock.num_in}\nBikes out: {thisblock.num_out}\n"
-                    f"Bikes so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
+                    f"Arrivals: {thisblock.num_in}\nDepartures: {thisblock.num_out}\n"
+                    f"Visits so far: {thisblock.so_far}\nBikes at end: {thisblock.full} "
                 )
 
             # Special marker & hover text if this is the fullest block of the day
             if block_key == fullest_block_this_day:
                 marker = HIGHLIGHT_MARKER
-                cell_title = f"{cell_title}\nMost bikes today: {thisday.day_max_bikes}"
+                cell_title = f"{cell_title}\nMax bikes: {thisday.day_max_bikes}"
             else:
                 marker = NORMAL_MARKER
 
@@ -494,10 +494,10 @@ def create_color_maps(day_maxes: _OneDay, block_maxes: _OneBlock) -> tuple:
         day_full_colors,"""
     # Set up color maps
     colors = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
-    d1 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes parked")
+    d1 = colors.add_dimension(interpolation_exponent=0.82, label="Arrivals")
     d1.add_config(0, XY_BOTTOM_COLOR)
     d1.add_config(block_maxes.num_in, X_TOP_COLOR)
-    d2 = colors.add_dimension(interpolation_exponent=0.82, label="Bikes returned")
+    d2 = colors.add_dimension(interpolation_exponent=0.82, label="Departures")
     d2.add_config(0, XY_BOTTOM_COLOR)
     d2.add_config(block_maxes.num_out, Y_TOP_COLOR)
 
@@ -521,12 +521,12 @@ def create_color_maps(day_maxes: _OneDay, block_maxes: _OneBlock) -> tuple:
 
     # These are for the right-most two columns
     day_total_bikes_colors = dc.Dimension(
-        interpolation_exponent=1.5, label="Bikes parked this day"
+        interpolation_exponent=1.5, label="Visits this day"
     )
     day_total_bikes_colors.add_config(0, "white")
     day_total_bikes_colors.add_config(day_maxes.day_total_bikes, "green")
     day_full_colors = dc.Dimension(
-        interpolation_exponent=1.5, label="Most bikes this day"
+        interpolation_exponent=1.5, label="Max bikes this day"
     )
     day_full_colors.add_config(0, "white")
     day_full_colors.add_config(day_maxes.day_max_bikes, "teal")

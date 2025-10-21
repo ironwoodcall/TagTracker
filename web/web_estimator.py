@@ -102,10 +102,10 @@ class Estimator:
     }
 
     # Measure label strings (edit here to change table text)
-    MEAS_ACTIVITY_TEMPLATE = "Ins+Outs, now to {end_time}"
-    MEAS_FURTHER = "Further bikes"
-    MEAS_TIME_MAX = "Time most bikes onsite"
-    MEAS_MAX = "Most bikes onsite"
+    MEAS_ACTIVITY_TEMPLATE = "Activity, next hour (to {end_time})"
+    MEAS_FURTHER = "Further visits today"
+    MEAS_TIME_MAX = "Time of max bikes"
+    MEAS_MAX = "Max bikes"
 
     # Table headers (centralized)
     HEADER_MIXED = ["Measure", "Value", "Range (90%)", "Probability", "Model"]
@@ -124,7 +124,7 @@ class Estimator:
             # Keep current bikes-only total if parsing fails.
             pass
         base = getattr(self, "MEAS_FURTHER", "Further bikes")
-        return f"{base} (for day total {total})"
+        return f"{base} (to total {total})"
 
     # Static cache for calibration JSON
     _CALIB_CACHE = None
