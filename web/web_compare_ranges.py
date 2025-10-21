@@ -52,6 +52,8 @@ class PeriodMetrics:
     mean_bikes_per_day_oversize: float | None = 0.0
     median_bikes_per_day_oversize: float | None = 0.0
     mean_bikes_registered_per_day: float | None = None
+    median_bikes_registered_per_day: float | None = None
+    mean_bikes_left_per_day: float | None = None
     commuters: int | None = None
     commuters_per_day: float | None = None
 
@@ -159,6 +161,10 @@ def _aggregate_period(
     metrics.bikes_left = sum(
         (getattr(day, "num_remaining_combined", 0) or 0) for day in days
     )
+    if days:
+        metrics.mean_bikes_left_per_day = metrics.bikes_left / len(days)
+    else:
+        metrics.mean_bikes_left_per_day = None
 
     # Map of bike type labels to their corresponding day attributes
     bike_type_attr_map = [
@@ -176,18 +182,13 @@ def _aggregate_period(
             setattr(metrics, f"mean_bikes_per_day_{label}", None)
             setattr(metrics, f"median_bikes_per_day_{label}", None)
 
-    # bike_totals = [(getattr(day, "num_parked_combined", 0) or 0) for day in days]
-    # if bike_totals:
-    #     metrics.mean_bikes_per_day = mean(bike_totals)
-    #     metrics.median_bikes_per_day = median(bike_totals)
-    # else:
-    #     metrics.mean_bikes_per_day = None
-    #     metrics.median_bikes_per_day = None
     registered_counts = [(getattr(day, "bikes_registered", 0) or 0) for day in days]
     if registered_counts:
         metrics.mean_bikes_registered_per_day = mean(registered_counts)
+        metrics.median_bikes_registered_per_day = median(registered_counts)
     else:
         metrics.mean_bikes_registered_per_day = None
+        metrics.median_bikes_registered_per_day = None
     metrics.commuters = None
     metrics.commuters_per_day = None
     if days:
@@ -563,7 +564,8 @@ def compare_ranges(
     metric_rows = [
         {
             "label": "Days open (total):",
-            "row_class": "",
+            "row_span": 2,
+            "row_span_color": "#d6d8ce",
             "attr": "days_open",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
@@ -575,134 +577,140 @@ def compare_ranges(
             "value_fmt": _format_minutes,
             "delta_fmt": _format_minutes_delta,
         },
+        # Period totals here
         {
-            "label": "Visits (total):",
-            "row_class": "",
+            "label": "Visits (all bike types):",
+            "row_span": 8,
+            "row_span_color": "#c1b8aa",
             "attr": "total_bikes_parked",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
             "label": "&nbsp;&nbsp;&nbsp;Regular bike visits:",
-            "row_class": "",
             "attr": "regular_bikes",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
             "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits:",
-            "row_class": "",
             "attr": "oversize_bikes",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
             "label": "&nbsp;&nbsp;&nbsp;Commuter portion:",
-            "row_class": "",
             "attr": "commuters",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
-            "label": "Max bikes parked in one day:",
-            "row_class": "",
+            "label": "Max visits in one day:",
             "attr": "max_bikes_parked",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
-            "label": "Mean bikes per day (combined):",
-            "row_class": "",
-            "attr": "mean_bikes_per_day_combined",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Median bikes per day (combined):",
-            "row_class": "",
-            "attr": "median_bikes_per_day_combined",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Mean bikes per day (regular):",
-            "row_class": "",
-            "attr": "mean_bikes_per_day_regular",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Median bikes per day (regular):",
-            "row_class": "",
-            "attr": "median_bikes_per_day_regular",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Mean bikes per day (oversize):",
-            "row_class": "",
-            "attr": "mean_bikes_per_day_oversize",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Median bikes per day (oversize):",
-            "row_class": "",
-            "attr": "median_bikes_per_day_oversize",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Commuters per day:",
-            "row_class": "",
-            "attr": "commuters_per_day",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Most bikes at once:",
-            "row_class": "",
+            "label": "Max bikes on-site:",
             "attr": "most_bikes",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
-            "label": "Bikes left at end of day:",
-            "row_class": "",
+            "label": "Bikes left on-site:",
             "attr": "bikes_left",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
         {
-            "label": "Bikes registered:",
-            "row_class": "",
+            "label": "Registrations:",
+            "row_class": "class=heavy-bottom",
             "attr": "bikes_registered",
             "value_fmt": _format_int,
             "delta_fmt": _format_int_delta,
         },
+        # Per-day below this
         {
-            "label": "Mean bikes registered per day:",
-            "row_class": "",
+            "label": "Mean visits <b>per day</b> (all bike types):",
+            "row_span": 10,
+            "row_span_color": "#d6d8ce",
+            "attr": "mean_bikes_per_day_combined",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "&nbsp;&nbsp;&nbsp;Regular bike visits:",
+            "attr": "mean_bikes_per_day_regular",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits::",
+            "attr": "mean_bikes_per_day_oversize",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "&nbsp;&nbsp;&nbsp;Commuter portion:",
+            # "row_class": "class='heavy-bottom'",
+            "attr": "commuters_per_day",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "Median visits <b>per day</b> (all bike types):",
+            "attr": "median_bikes_per_day_combined",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "&nbsp;&nbsp;&nbsp;Regular bike visits:",
+            "attr": "median_bikes_per_day_regular",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits",
+            "attr": "median_bikes_per_day_oversize",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "Bikes left on-site <b>per day</b>:",
+            "attr": "mean_bikes_left_per_day",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        {
+            "label": "Registrations <b>per day</b> (mean):",
             "attr": "mean_bikes_registered_per_day",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
-            "label": "Longest visit:",
-            "row_class": "",
+            "label": "Registrations <b>per day</b> (median):",
+            "row_class": "class='heavy-bottom'",
+            "attr": "median_bikes_registered_per_day",
+            "value_fmt": lambda value: _format_float(value, decimals=1),
+            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
+        },
+        # Visit stats
+        {
+            "label": "Visit duration (max):",
+            "row_span": 3,
+            "row_span_color": "#c1b8aa",
             "attr": "longest_visit_minutes",
             "value_fmt": _format_minutes,
             "delta_fmt": _format_minutes_delta,
         },
         {
-            "label": "Mean visit length:",
-            "row_class": "",
+            "label": "Visit duration (mean):",
             "attr": "mean_visit_minutes",
             "value_fmt": _format_minutes,
             "delta_fmt": _format_minutes_delta,
         },
         {
-            "label": "Median visit length:",
+            "label": "Visit duration (median)",
             "row_class": "class='heavy-bottom'",
             "attr": "median_visit_minutes",
             "value_fmt": _format_minutes,
@@ -710,14 +718,15 @@ def compare_ranges(
         },
         {
             "label": "Total precipitation:",
-            "row_class": "",
+            "row_span": 2,
+            "row_span_color": "#d6d8ce",
             "attr": "total_precipitation",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
-            "label": "Max daily high temperature:",
-            "row_class": "",
+            "label": "Max temperature:",
+            "row_class": "class='heavy-bottom'",
             "attr": "max_high_temperature",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
@@ -731,14 +740,14 @@ def compare_ranges(
     )
     print(
         "<tr>"
-        "<th colspan='5' style='text-align:center;font-size:1.5em;'>"
+        "<th colspan='6' style='text-align:center;font-size:1.5em;'>"
         f"{description_row}"
         "</th>"
         "</tr>"
     )
     print(
         "<tr>"
-        "<th style='text-align:left;'>Item</th>"
+        "<th colspan=2 style='text-align:left;'>Item</th>"
         "<th style='text-align:right;'>Period A</th>"
         "<th style='text-align:right;'>Period B</th>"
         "<th style='text-align:right;'>Delta</th>"
@@ -769,8 +778,15 @@ def compare_ranges(
         percent_cell_style = (
             f"text-align:right;background-color:{_percent_to_color(percent_value)};"
         )
+        row_class = row["row_class"] if "row_class" in row else ""
+        row_span = row["row_span"] if "row_span" in row else ""
+        row_span_color = row["row_span_color"] if "row_span_color" in row else "white"
+        row_span_style = f"style=background-color:{row_span_color}"
+
+        print(f"<tr {row_class}>")
+        if row_span:
+            print(f"<td rowspan={row_span} class='heavy-bottom' {row_span_style}>&nbsp;</td>")
         print(
-            f"<tr {row['row_class']}>"
             f"<td style='text-align:left;'>{row['label']}</td>"
             f"<td style='text-align:right;'>{formatted_a}</td>"
             f"<td style='text-align:right;'>{formatted_b}</td>"
