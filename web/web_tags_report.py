@@ -152,7 +152,7 @@ def tags_report(conn: sqlite3.Connection):
                 )
             else:
                 print(
-                    f"  <td title='Tag {tagid.upper()} unknown' style='{STYLE_EMPTY}'>&nbsp;</td>"
+                    f"  <td title='Tag {tag.upper()} unknown' style='{STYLE_EMPTY}'>&nbsp;</td>"
                 )
         print("</tr>")
     print("</table>")
@@ -162,7 +162,7 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: k.MaybeTag) -> N
 
     tagid = TagID(maybe_tag)
     if not tagid:
-        print(f"Not a tagid: '{ut.untaint(tagid.original)}'")
+        print(f"Not a tag ID: '{ut.untaint(tagid.original)}'")
         sys.exit()
 
     cursor = ttdb.cursor()
@@ -190,7 +190,7 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: k.MaybeTag) -> N
     print(f"<h3>This tag has been used {len(rows)} {ut.plural(len(rows), 'time')}</h3>")
     print()
     if not rows:
-        print(f"No record that {tagid.upper()} ever used<br />")
+        print(f"No record that {tagid.upper()} was ever used<br />")
     else:
         print("<table class=general_table>")
         print("<style>td {text-align: right;}</style>")

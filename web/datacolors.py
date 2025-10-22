@@ -119,7 +119,7 @@ class Color(tuple):
             elif color_init in COLOR_NAMES:
                 rgb = COLOR_NAMES[color_init]
             else:
-                raise ValueError(f"Can not get color from '{color_init}'")
+                raise ValueError(f"Cannot get color from '{color_init}'")
         else:
             raise ValueError("Color definition must be a string or RGB tuple")
 

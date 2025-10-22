@@ -68,15 +68,15 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
     pr.iprint()
     pr.iprint("Summary             Regular Oversize Total", style=k.SUBTITLE_STYLE)
     pr.iprint(
-        f"Bikes checked in:     {regular_in:4d}    {oversize_in:4d}"
+        f"Bikes arrivals:       {regular_in:4d}    {oversize_in:4d}"
         f"    {total_in:4d}"
     )
     pr.iprint(
-        f"Bikes returned out:   {regular_out:4d}    {oversize_out:4d}"
+        f"Bike departures:      {regular_out:4d}    {oversize_out:4d}"
         f"    {total_out:4d}"
     )
     pr.iprint(
-        f"Bikes onsite:         {(regular_onsite):4d}"
+        f"Bikes on-site:        {(regular_onsite):4d}"
         f"    {(oversize_onsite):4d}    {total_onsite:4d}"
     )
 

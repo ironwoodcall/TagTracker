@@ -645,7 +645,7 @@ def compare_ranges(
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
-            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits::",
+            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits:",
             "attr": "mean_bikes_per_day_oversize",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
@@ -670,7 +670,7 @@ def compare_ranges(
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
         },
         {
-            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits",
+            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits:",
             "attr": "median_bikes_per_day_oversize",
             "value_fmt": lambda value: _format_float(value, decimals=1),
             "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),

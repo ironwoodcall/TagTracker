@@ -280,7 +280,7 @@ for oldfile in in_files:
     # (I mean really.... !!!!????)
     date = filename_to_date(oldfile)
     if not date:
-        print(f"Error: can not determine date from filename {oldfile}")
+        print(f"Error: cannot determine date from filename {oldfile}")
         continue
     hours = valet_hours(date)
     if not hours[0]:

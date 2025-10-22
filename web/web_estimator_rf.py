@@ -131,7 +131,7 @@ class RandomForestRegressorModel:
         # nmae_str = _format_measure(self.nmae)
         # nrmse_str = _format_measure(self.nrmse)
         # if nmae_str == "?" and nrmse_str == "?":
-        #     lines.append("    Model quality can not be calculated.")
+        #     lines.append("    Model quality cannot be calculated.")
         # else:
         #     lines.append(
         #         f"    NMAE {nmae_str}; "

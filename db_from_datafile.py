@@ -325,7 +325,7 @@ def get_file_timestamp(file_path):
         modified_time = datetime.fromtimestamp(timestamp)
         return modified_time.strftime("%Y-%m-%dT%H:%M:%S")
     except FileNotFoundError:
-        print("    File not found {e}.", file=sys.stderr)
+        print(f"    File not found {e}.", file=sys.stderr)
         return None
 
 
@@ -1013,7 +1013,7 @@ def get_args() -> argparse.Namespace:
         "--tail-only",
         action="store_true",
         help="if files have same basename, only consider "
-        "the one that is closer to the tail of of the file list",
+        "the one that is closer to the tail of the file list",
     )
     parser.add_argument(
         "-o",
@@ -1035,7 +1035,7 @@ def get_args() -> argparse.Namespace:
 
     if prog_args.tail_only and prog_args.newest_only:
         print(
-            "Error: Can not use --newest-only and --tail-only together", file=sys.stderr
+            "Error: Cannot use --newest-only and --tail-only together", file=sys.stderr
         )
         sys.exit(1)
 
@@ -1100,11 +1100,11 @@ def get_files_metadata(maybe_datafiles: list):
         f_info.basename = os.path.basename(f)
         f_info.fingerprint = get_file_fingerprint(f)
         if not f_info.fingerprint:
-            f_info.set_bad("Can not read md5sum")
+            f_info.set_bad("Cannot read md5sum")
             continue
         f_info.timestamp = get_file_timestamp(f)
         if not f_info.timestamp:
-            f_info.set_bad("Can not read timestamp")
+            f_info.set_bad("Cannot read timestamp")
             continue
 
     ok_datafiles = [
