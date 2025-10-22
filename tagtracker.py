@@ -226,8 +226,6 @@ def error_exit() -> None:
     Any specific info about the error should already have been printed.
     """
     pr.iprint()
-    pr.iprint("Closing in 30 seconds", style=k.ERROR_STYLE)
-    time.sleep(30)
     exit()
 
 
@@ -242,8 +240,6 @@ def midnight_message():
     )
     pr.iprint()
     print("\n\n\n")
-    print("Automatically exiting in 15 seconds")
-    time.sleep(15)
 
 
 def midnight_passed(today_is: str) -> bool:
