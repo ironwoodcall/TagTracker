@@ -66,7 +66,7 @@ def web_audit_report(
 
 
     print("""<meta name="format-detection" content="telephone=no"/>""")
-    print(f"<h1>Audit report {as_of_time.tidy} {thisday}</h1>")
+    print(cc.titleize("Attendant audit report",f"As at {as_of_time.tidy} {thisday}"))
     # Only put a "Back" button if this was called from itself
     if cc.called_by_self():
         print(f"{cc.back_button(1)}<br><br>")
@@ -78,7 +78,7 @@ def web_audit_report(
     cursor.close()
 
     if not day_id:
-        print("<br><b>No bike information in the database for this day.</b><br><br>")
+        print("<br><b>No visits in the database for this day.</b><br><br>")
         return
 
     day = db.db2day(ttdb=ttdb, day_id=day_id)
@@ -101,17 +101,17 @@ def web_audit_report(
         "<table class='general_table' "
         "style='max-width:22rem;margin-bottom:1.5rem;'>"
     )
-    print("<tr><th colspan='2'>Bikes currently onsite</th></tr>")
+    print(f"<tr><th>Bikes currently on-site</th><th><b>{total_onsite}</b></th></tr>")
     print(
-        f"<tr><td>Regular bikes</td><td style='text-align:right;'>{regular_onsite}</td></tr>"
+        f"<tr><td>&nbsp;&nbsp;&nbsp;Regular bikes</td><td style='text-align:right;'>{regular_onsite}</td></tr>"
     )
     print(
-        f"<tr><td>Oversize bikes</td><td style='text-align:right;'>{oversize_onsite}</td></tr>"
+        f"<tr><td>&nbsp;&nbsp;&nbsp;Oversize bikes</td><td style='text-align:right;'>{oversize_onsite}</td></tr>"
     )
-    print(
-        "<tr><td><b>Total bikes</b></td><td style='text-align:right;'>"
-        f"<b>{total_onsite}</b></td></tr>"
-    )
+    # print(
+    #     "<tr><td><b>Total bikes</b></td><td style='text-align:right;'>"
+    #     f"<b>{total_onsite}</b></td></tr>"
+    # )
     print("</table>")
 
     base_table_style = (
