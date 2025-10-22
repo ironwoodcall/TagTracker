@@ -324,8 +324,8 @@ def get_file_timestamp(file_path):
         timestamp = os.path.getmtime(file_path)
         modified_time = datetime.fromtimestamp(timestamp)
         return modified_time.strftime("%Y-%m-%dT%H:%M:%S")
-    except FileNotFoundError:
-        print(f"    File not found {e}.", file=sys.stderr)
+    except FileNotFoundError as e:
+        print(f"    File {file_path} not found {e}.", file=sys.stderr)
         return None
 
 
