@@ -100,7 +100,7 @@ class SimpleModel:
             return
         if self.state not in [READY, OK]:
             self.state = ERROR
-            self.error = "can not guess, model not in ready state."
+            self.error = "cannot guess, model not in ready state."
             return
         self.matched_afters = []
         for i, before in enumerate(self.raw_befores or []):
@@ -186,7 +186,7 @@ class LRModel:
             return
         if self.state not in [READY, OK]:
             self.state = ERROR
-            self.error = "model not ready, can not guess"
+            self.error = "model not ready, cannot guess"
             return
         self.further_bikes = int(round((self.slope or 0) * x + (self.intercept or 0)))
         self.state = OK

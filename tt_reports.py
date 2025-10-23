@@ -141,7 +141,7 @@ def recent(day: TrackerDay, args: list[VTime]) -> None:
     # Anything we can work with?
     if not start_time or not end_time or start_time > end_time:
         pr.iprint(
-            "Can not make sense of the given start/end times",
+            "Cannot make sense of the given start/end times",
             style=k.WARNING_STYLE,
         )
         return

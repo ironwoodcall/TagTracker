@@ -94,7 +94,7 @@ def edit_event(args: list, today: TrackerDay) -> bool:
 
     Will only edit events from the most recent visit for the tag(s).
 
-    This can not be used to create a new check-in or check-out event
+    This cannot be used to create a new check-in or check-out event
     (unlike earlier version of TagTracker). Use 'IN' or 'OUT' command
     with [time] argument for that.
 

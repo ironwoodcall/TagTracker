@@ -68,7 +68,7 @@ class InternetMonitorController:
             return False
         if not sys.platform.startswith("linux"):
             pr.iprint(
-                "Not Linux, can not start internet monitor.", style=k.WARNING_STYLE
+                "Not Linux, cannot start internet monitor.", style=k.WARNING_STYLE
             )
             return False
         return True
@@ -135,7 +135,7 @@ class InternetMonitor:
     def _must_be_main():
         if __name__ != "__main__":
             print(
-                "Can not use this class as an import."
+                "Cannot use this class as an import."
                 " Did you mean InternetMonitorController?"
             )
             raise RuntimeError
