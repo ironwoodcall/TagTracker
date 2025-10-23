@@ -309,6 +309,7 @@ if __name__ == "__main__":
         dc.BLEND_MIN,
         dc.BLEND_MAX,
         dc.BLEND_ALPHA,
+        dc.BLEND_CIELAB,
         dc.BLEND_SUBTRACTIVE,
         dc.BLEND_DIFFERENCE,
         dc.BLEND_OVERLAY,
