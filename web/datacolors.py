@@ -68,6 +68,11 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 import re
 import math
 
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - numpy is optional at runtime
+    np = None  # type: ignore
+
 from color_names import COLOR_NAMES
 
 BLEND_LERP = "lerp"  # linear interpolation
@@ -79,6 +84,10 @@ BLEND_MULTIPLICATIVE = "multiply"
 BLEND_OVERLAY = "overlay"
 BLEND_MIN = "min"
 BLEND_MAX = "max"
+BLEND_CIELAB = "cielab"
+
+COLOR_SPACE_RGB = "rgb"
+COLOR_SPACE_LAB = "lab"
 
 
 class Color(tuple):
@@ -382,6 +391,99 @@ class Color(tuple):
         )
         return Color(blended_color)
 
+    @staticmethod
+    def _require_numpy() -> None:
+        """Ensure numpy is available for LAB conversions."""
+        if np is None:
+            raise RuntimeError(
+                "CIELAB blending requires numpy. Install numpy to use this mode."
+            )
+
+    @staticmethod
+    def _rgb_to_lab(color: "Color"):
+        """Convert an RGB color to LAB coordinates."""
+        Color._require_numpy()
+        rgb = np.array(color, dtype=np.float64) / 255.0
+        rgb_linear = np.where(
+            rgb <= 0.04045,
+            rgb / 12.92,
+            ((rgb + 0.055) / 1.055) ** 2.4,
+        )
+        xyz = np.array(
+            [
+                [0.4124564, 0.3575761, 0.1804375],
+                [0.2126729, 0.7151522, 0.0721750],
+                [0.0193339, 0.1191920, 0.9503041],
+            ],
+            dtype=np.float64,
+        ) @ rgb_linear
+        white = np.array([0.95047, 1.0, 1.08883], dtype=np.float64)
+        xyz_scaled = xyz / white
+        epsilon = 216.0 / 24389.0
+        kappa = 24389.0 / 27.0
+        f_xyz = np.where(
+            xyz_scaled > epsilon,
+            np.cbrt(xyz_scaled),
+            (kappa * xyz_scaled + 16.0) / 116.0,
+        )
+        L = 116.0 * f_xyz[1] - 16.0
+        a_component = 500.0 * (f_xyz[0] - f_xyz[1])
+        b_component = 200.0 * (f_xyz[1] - f_xyz[2])
+        return np.array([L, a_component, b_component], dtype=np.float64)
+
+    @staticmethod
+    def _lab_to_rgb(lab_vector) -> "Color":
+        """Convert LAB coordinates back to an RGB Color."""
+        Color._require_numpy()
+        lab = np.array(lab_vector, dtype=np.float64)
+        L, a_component, b_component = lab
+        fy = (L + 16.0) / 116.0
+        fx = fy + a_component / 500.0
+        fz = fy - b_component / 200.0
+        epsilon = 216.0 / 24389.0
+        kappa = 24389.0 / 27.0
+
+        def inv(component):
+            component_cubed = component**3
+            if component_cubed > epsilon:
+                return component_cubed
+            return (116.0 * component - 16.0) / kappa
+
+        xyz = np.array([inv(fx), inv(fy), inv(fz)], dtype=np.float64)
+        white = np.array([0.95047, 1.0, 1.08883], dtype=np.float64)
+        xyz *= white
+        rgb_linear = np.array(
+            [
+                [3.2404542, -1.5371385, -0.4985314],
+                [-0.9692660, 1.8760108, 0.0415560],
+                [0.0556434, -0.2040259, 1.0572252],
+            ],
+            dtype=np.float64,
+        ) @ xyz
+        rgb_linear = np.clip(rgb_linear, 0.0, 1.0)
+        rgb = np.where(
+            rgb_linear <= 0.0031308,
+            12.92 * rgb_linear,
+            1.055 * np.power(rgb_linear, 1 / 2.4) - 0.055,
+        )
+        rgb = np.clip(np.rint(rgb * 255.0), 0, 255).astype(int)
+        return Color(tuple(int(component) for component in rgb.tolist()))
+
+    @staticmethod
+    def _blend_cielab_colors(colors: list["Color"]) -> "Color":
+        """Blend colors by averaging in LAB space."""
+        Color._require_numpy()
+        labs = np.array(
+            [Color._rgb_to_lab(color) for color in colors],
+            dtype=np.float64,
+        )
+        mean_lab = labs.mean(axis=0)
+        return Color._lab_to_rgb(mean_lab)
+
+    @staticmethod
+    def _blend_cielab_pair(base_color: "Color", blend_color: "Color") -> "Color":
+        """Blend two colors in LAB space."""
+        return Color._blend_cielab_colors([base_color, blend_color])
 
 
     # Map blend methods to blend functions
@@ -395,6 +497,7 @@ class Color(tuple):
         BLEND_MIN: _blend_min,
         BLEND_MAX: _blend_max,
         BLEND_OVERLAY: _blend_overlay,
+        BLEND_CIELAB: _blend_cielab_pair,
     }
 
     @classmethod
@@ -405,6 +508,9 @@ class Color(tuple):
 
         if len(colors_list) == 1:
             return colors_list[0]
+
+        if blend_method == BLEND_CIELAB:
+            return cls._blend_cielab_colors(colors_list)
 
         while len(colors_list) > 2:
             # Reduce list by blending the first two colors.
@@ -433,6 +539,7 @@ class MappingPoint(float):
         """Create new float object for the instance."""
         instance = super(MappingPoint, cls).__new__(cls, determiner)
         instance.color = Color(color)
+        instance.lab = None
         if not instance.color:
             raise ValueError("Invalid color")
         return instance
@@ -480,10 +587,17 @@ class Dimension:
         interpolation_exponent: float = 1,
         none_color: str = "white",
         label=None,
+        color_space: str = COLOR_SPACE_RGB,
     ):
         """Set initial values for Dimension properties."""
         if interpolation_exponent < 0:
             raise ValueError("Interpolation exponent must be >= 0.")
+        color_space = (color_space or COLOR_SPACE_LAB).lower()
+        if color_space not in (COLOR_SPACE_RGB, COLOR_SPACE_LAB):
+            raise ValueError(
+                f"Unsupported color_space '{color_space}'. "
+                f"Use '{COLOR_SPACE_RGB}' or '{COLOR_SPACE_LAB}'."
+            )
         self.interpolation_exponent = interpolation_exponent
         self.configs = []
         self.ready = False
@@ -492,6 +606,7 @@ class Dimension:
         self.range = None
         self.none_color = None if none_color is None else Color(none_color)
         self.label = label
+        self.color_space = color_space
 
     def add_config(self, determiner: float, color: str) -> None:
         """Add a MappingPoint to this dimension."""
@@ -502,6 +617,8 @@ class Dimension:
             raise ValueError(
                 f"MappingPoint with determiner {pt} already exists"
             )
+        if self.color_space == COLOR_SPACE_LAB:
+            pt.lab = Color._rgb_to_lab(pt.color)
         self.configs.append(pt)
         self.configs.sort()
         self.min = float(min(self.configs))
@@ -558,6 +675,17 @@ class Dimension:
         blend_factor = (adjusted_determiner - gradient_min.real) / float(
             gradient_max - gradient_min
         )
+        if self.color_space == COLOR_SPACE_LAB:
+            Color._require_numpy()
+            if gradient_min.lab is None:
+                gradient_min.lab = Color._rgb_to_lab(gradient_min.color)
+            if gradient_max.lab is None:
+                gradient_max.lab = Color._rgb_to_lab(gradient_max.color)
+            lab_min = gradient_min.lab
+            lab_max = gradient_max.lab
+            interpolated_lab = lab_min + (lab_max - lab_min) * blend_factor
+            return Color._lab_to_rgb(interpolated_lab)
+
         return Color.blend_lerp(
             gradient_min.color, gradient_max.color, blend_factor
         )
@@ -596,6 +724,7 @@ class Dimension:
             f"{indent}  ready: {self.ready}; configs: {len(self.configs)}; "
             f"min/max/range: {self.min}/{self.max}/{self.range}; "
             f"interpolation_exponent: {self.interpolation_exponent}; "
+            f"color_space: {self.color_space}; "
             f"none_color: {self.none_color}"
         )
         for j, pt in enumerate(self.configs):
@@ -641,12 +770,14 @@ class MultiDimension:
         interpolation_exponent: float = 1,
         none_color: str = "white",
         label: str = None,
+        color_space: str = COLOR_SPACE_RGB,
     ) -> Dimension:
         """Add an empty Dimension to the MultiDimension."""
         d = Dimension(
             interpolation_exponent=interpolation_exponent,
             none_color=none_color,
             label=label,
+            color_space=color_space,
         )
         self.dimensions.append(d)
         return d
