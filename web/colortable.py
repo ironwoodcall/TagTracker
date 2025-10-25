@@ -78,11 +78,25 @@ class HtmlHelper:
             }}
             .rotate {{
                 text-align: center;
+                vertical-align: middle;
+                white-space: nowrap;
+                width: 1.5em;
+            }}
+
+            .rotate div {{
+                width: 0;
+                display: inline-block;
+                transform: rotate(-90deg);
+                transform-origin: center center;
+
+            }}
+            .superseded-rotate {{
+                text-align: center;
                 white-space: nowrap;
                 vertical-align: middle;
                 width: 1.5em;
             }}
-            .rotate div {{
+            .superseded-rotate div {{
                 -moz-transform: rotate(-90.0deg);  /* FF3.5+ */
                     -o-transform: rotate(-90.0deg);  /* Opera 10.5 */
                 -webkit-transform: rotate(-90.0deg);  /* Saf3.1+, Chrome */
@@ -120,9 +134,7 @@ def html_2d_color_table(
     ) -> str:
         """Return a coloured html table cell."""
         this_color = factory.get_color(x_index, y_index)
-        title_text = (
-            f"{x_label}: {round(x_index)}\n{y_label}: {round(y_index)}"
-        )
+        title_text = f"{x_label}: {round(x_index)}\n{y_label}: {round(y_index)}"
         c = factory.get_color(x_index, y_index).html_color
         return f"<td style='{this_color.css_bg()}' title='{title_text}'></td>"
 
@@ -161,9 +173,7 @@ def html_2d_color_table(
     y_index = y.max
     rownum = 1
     html.add("            <tr>")
-    html.add(
-        f"               <td style='{y.css_bg_fg(y_max)}'>{round(y_max)}</td>"
-    )
+    html.add(f"               <td style='{y.css_bg_fg(y_max)}'>{round(y_max)}</td>")
     x_index = x_min
     for _ in range(num_columns):
         html.add(cell(factory, x_index, y_index, x_label, y_label))
@@ -228,14 +238,15 @@ def html_2d_color_table(
     )
     return html.text
 
+
 def html_1d_text_color_table(
     dim: dc.Dimension,
     title: str = "",
     subtitle: str = "",
-    marker:str = chr(0x25cf),
+    marker: str = chr(0x25CF),
     num_columns: int = 20,
     cell_size: int = 25,
-    bg_color: dc.Color = dc.Color('white'),
+    bg_color: dc.Color = dc.Color("white"),
 ) -> str:
     """Create html color table for cf and return it as a string."""
 
@@ -243,13 +254,11 @@ def html_1d_text_color_table(
         dim: dc.Dimension,
         index,
         label: str = "",
-        bg_color: dc.Color = dc.Color('lightgrey'),
+        bg_color: dc.Color = dc.Color("lightgrey"),
     ) -> str:
         """Return a text-coloured html table cell."""
         this_color = dim.get_color(index).css_fg()
-        title_text = (
-            f"{label}: {round(index)}"
-        )
+        title_text = f"{label}: {round(index)}"
         bg_color = dc.Color(bg_color).css_bg()
         return f"<td style='text-align:center;{this_color};{bg_color};' title='{title_text}'>{marker}</td>"
 
@@ -271,12 +280,14 @@ def html_1d_text_color_table(
     step = dim.range / (num_columns)
     index = dim.min
     for _ in range(num_columns):
-        html.add(cell(dim,index,label=label))
+        html.add(cell(dim, index, label=label))
         index += step
     html.add("</tr>")
     # A row to show the values
     html.add("<tr>")
-    html.add(f"<td colspan=2 style='text-align:left;{dim.css_bg_fg(dim.min)};'>{round(dim.min)}</td>")
+    html.add(
+        f"<td colspan=2 style='text-align:left;{dim.css_bg_fg(dim.min)};'>{round(dim.min)}</td>"
+    )
     html.add(f"<td colspan={num_columns-4} style='text-align:center'>{subtitle}</td>")
     html.add(f"<td colspan=2 style='{dim.css_bg_fg(dim.max)};'>{round(dim.max)}</td>")
     html.add("</tr>")

@@ -22,6 +22,8 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
 import sqlite3
 from dataclasses import dataclass
+from html import escape
+from typing import TYPE_CHECKING
 
 import common.tt_util as ut
 import common.tt_dbutil as db
@@ -33,6 +35,9 @@ from web.web_base_config import (
     HIST_FIXED_Y_AXIS_FULLNESS,
 )
 
+if TYPE_CHECKING:
+    from web.datacolors import Dimension
+
 
 @dataclass
 class HistogramResult:
@@ -43,6 +48,19 @@ class HistogramResult:
     open_bucket: int | None = None
     close_bucket: int | None = None
     category_minutes: int = 30
+
+
+@dataclass
+class HistogramMatrixResult:
+    """Structured two-dimensional histogram data for arrival vs duration buckets."""
+
+    arrival_labels: list[str]
+    duration_labels: list[str]
+    normalized_values: dict[str, dict[str, float]]
+    raw_values: dict[str, dict[str, float]]
+    day_count: int
+    arrival_bucket_minutes: int = 30
+    duration_bucket_minutes: int = 30
 
 
 def _build_day_filter_items(
@@ -79,6 +97,46 @@ def _bucket_label(bucket_minutes: int | None) -> str | None:
     if not vt:
         return None
     return vt.tidy if hasattr(vt, "tidy") else str(vt)
+
+
+def _format_minutes(minutes: int) -> str:
+    """Return zero-padded HH:MM string for a minutes value."""
+
+    if minutes < 0:
+        minutes = 0
+    hours = minutes // 60
+    mins = minutes % 60
+    return f"{hours:02}:{mins:02}"
+
+
+def _duration_bucket_label(
+    bucket_minutes: int | None, bucket_width: int = 30
+) -> str | None:
+    """Return label like '00:00' for the start of a duration bucket."""
+
+    if bucket_minutes is None:
+        return None
+    return _format_minutes(bucket_minutes)
+
+
+def _minutes_expr(column_name: str) -> str:
+    """Return SQL expression that converts HH:MM text to minutes."""
+
+    return (
+        f"CASE WHEN {column_name} IS NULL OR {column_name} = '' THEN NULL "
+        f"WHEN length({column_name}) < 5 THEN NULL "
+        f"ELSE ((CAST(substr({column_name}, 1, 2) AS INTEGER) * 60) + "
+        f"CAST(substr({column_name}, 4, 2) AS INTEGER)) END"
+    )
+
+
+def _duration_minutes_expr(column_name: str = "V.duration") -> str:
+    """Return SQL expression that coerces duration text to integer minutes."""
+
+    return (
+        f"CASE WHEN {column_name} IS NULL OR {column_name} = '' THEN NULL "
+        f"ELSE CAST({column_name} AS INTEGER) END"
+    )
 
 
 def html_histogram(
@@ -400,21 +458,13 @@ def time_histogram_data(
 ) -> HistogramResult:
     """Return averaged histogram data for the requested time column."""
 
-    def minutes_expr(column_name: str) -> str:
-        return (
-            f"CASE WHEN {column_name} IS NULL OR {column_name} = '' THEN NULL "
-            f"WHEN length({column_name}) < 5 THEN NULL "
-            f"ELSE ((CAST(substr({column_name}, 1, 2) AS INTEGER) * 60) + "
-            f"CAST(substr({column_name}, 4, 2) AS INTEGER)) END"
-        )
-
     time_column_lower = query_column.lower()
     if time_column_lower not in {"time_in", "time_out", "duration"}:
         raise ValueError(f"Bad value for query column, '{query_column}' ")
 
     minutes_column_map = {
-        "time_in": minutes_expr("V.time_in"),
-        "time_out": minutes_expr("V.time_out"),
+        "time_in": _minutes_expr("V.time_in"),
+        "time_out": _minutes_expr("V.time_out"),
         "duration": "V.duration",
     }
     minutes_column = minutes_column_map[time_column_lower]
@@ -705,6 +755,487 @@ def fullness_histogram_data(
         open_bucket=open_bucket,
         close_bucket=close_bucket,
         category_minutes=category_minutes,
+    )
+
+
+def arrival_duration_matrix_data(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    days_of_week: str | None = None,
+    arrival_bucket_minutes: int = 30,
+    duration_bucket_minutes: int = 30,
+    min_arrival_time: str = "06:00",
+) -> HistogramMatrixResult:
+    """Return normalized arrival vs duration data suitable for a heatmap table.
+
+    Each arrival bucket holds a stack of duration buckets.  Values are normalized
+    within each arrival bucket (max value => 1.0) so that a single Dimension
+    can colourize the resulting HTML table.
+    """
+
+    if arrival_bucket_minutes < 1 or duration_bucket_minutes < 1:
+        raise ValueError("Bucket widths must be positive integers.")
+
+    time_in_minutes_expr = _minutes_expr("V.time_in")
+    duration_minutes_expr = _duration_minutes_expr()
+
+    threshold_minutes = VTime(min_arrival_time).num if min_arrival_time else None
+    if threshold_minutes is None:
+        threshold_minutes = 0
+
+    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
+
+    day_filter_items = _build_day_filter_items(
+        orgsite_filter, start_date, end_date, days_of_week
+    )
+    filter_items: list[str] = list(day_filter_items)
+    filter_items.extend(
+        [
+            "V.time_in IS NOT NULL",
+            "V.time_in <> ''",
+            "V.time_out IS NOT NULL",
+            "V.time_out <> ''",
+            f"({time_in_minutes_expr}) IS NOT NULL",
+            f"({duration_minutes_expr}) IS NOT NULL",
+            f"({duration_minutes_expr}) > 0",
+        ]
+    )
+    if threshold_minutes:
+        filter_items.append(f"({time_in_minutes_expr}) >= {threshold_minutes}")
+
+    filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
+    base_cte = f"""
+WITH filtered_visits AS (
+    SELECT
+        D.date AS visit_date,
+        {time_in_minutes_expr} AS arrival_minutes,
+        {duration_minutes_expr} AS duration_minutes
+    FROM
+        DAY D
+    JOIN
+        VISIT V ON D.id = V.day_id
+    WHERE {filter_clause}
+)
+    """
+
+    day_count_query = (
+        base_cte
+        + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
+    )
+    day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
+    day_count = day_rows[0].day_count if day_rows else 0
+    if day_count is None:
+        day_count = 0
+    elif not isinstance(day_count, int):
+        day_count = int(day_count)
+
+    bucket_query = (
+        base_cte
+        + "SELECT\n"
+        f"    arrival_minutes - (arrival_minutes % {arrival_bucket_minutes}) AS arrival_bucket,\n"
+        f"    duration_minutes - (duration_minutes % {duration_bucket_minutes}) AS duration_bucket,\n"
+        "    COUNT(*) AS bucket_count\n"
+        "FROM filtered_visits\n"
+        "WHERE arrival_minutes IS NOT NULL AND duration_minutes IS NOT NULL\n"
+        "GROUP BY arrival_bucket, duration_bucket\n"
+        "ORDER BY arrival_bucket, duration_bucket;\n"
+    )
+    bucket_rows = db.db_fetch(
+        ttdb,
+        bucket_query,
+        ["arrival_bucket", "duration_bucket", "bucket_count"],
+    )
+
+    buckets: dict[int, dict[int, int]] = {}
+    arrival_buckets: set[int] = set()
+    duration_buckets: set[int] = set()
+    for row in bucket_rows:
+        if row.arrival_bucket is None or row.duration_bucket is None:
+            continue
+        arrival_minute = int(row.arrival_bucket)
+        duration_minute = int(row.duration_bucket)
+        count = int(row.bucket_count)
+        arrival_buckets.add(arrival_minute)
+        duration_buckets.add(duration_minute)
+        buckets.setdefault(arrival_minute, {})
+        buckets[arrival_minute][duration_minute] = count
+
+    if not buckets:
+        return HistogramMatrixResult(
+            arrival_labels=[],
+            duration_labels=[],
+            normalized_values={},
+            raw_values={},
+            day_count=day_count,
+            arrival_bucket_minutes=arrival_bucket_minutes,
+            duration_bucket_minutes=duration_bucket_minutes,
+        )
+
+    arrival_range = sorted(arrival_buckets)
+    if arrival_range:
+        start_arrival = arrival_range[0]
+        end_arrival = arrival_range[-1]
+        arrival_range = list(
+            range(start_arrival, end_arrival + arrival_bucket_minutes, arrival_bucket_minutes)
+        )
+
+    duration_range = sorted(duration_buckets)
+    if duration_range:
+        start_duration = 0
+        end_duration = duration_range[-1]
+        duration_range = list(
+            range(start_duration, end_duration + duration_bucket_minutes, duration_bucket_minutes)
+        )
+
+    arrival_labels: list[str] = []
+    for minute in arrival_range:
+        label = _bucket_label(minute)
+        if label is None:
+            label = VTime(minute, allow_large=True).tidy if minute is not None else ""
+        arrival_labels.append(label or _format_minutes(minute))
+
+    duration_labels: list[str] = []
+    for minute in duration_range:
+        label = _duration_bucket_label(minute, duration_bucket_minutes)
+        duration_labels.append(label or _format_minutes(minute))
+
+    normalized_values: dict[str, dict[str, float]] = {}
+    raw_values: dict[str, dict[str, float]] = {}
+
+    for arrival_minute, arrival_label in zip(arrival_range, arrival_labels):
+        raw_row: dict[str, float] = {}
+        max_value = 0.0
+        source = buckets.get(arrival_minute, {})
+        for duration_minute, duration_label in zip(duration_range, duration_labels):
+            val = float(source.get(duration_minute, 0))
+            raw_row[duration_label] = val
+            if val > max_value:
+                max_value = val
+        raw_values[arrival_label] = raw_row
+        normalized_row: dict[str, float] = {}
+        for duration_label in duration_labels:
+            value = raw_row[duration_label]
+            normalized_row[duration_label] = value / max_value if max_value else 0.0
+        normalized_values[arrival_label] = normalized_row
+
+    if day_count:
+        for arrival_label, raw_row in raw_values.items():
+            for duration_label, val in raw_row.items():
+                raw_row[duration_label] = val / day_count
+
+    return HistogramMatrixResult(
+        arrival_labels=arrival_labels,
+        duration_labels=duration_labels,
+        normalized_values=normalized_values,
+        raw_values=raw_values,
+        day_count=day_count,
+        arrival_bucket_minutes=arrival_bucket_minutes,
+        duration_bucket_minutes=duration_bucket_minutes,
+    )
+
+
+def html_histogram_matrix(
+    matrix: HistogramMatrixResult,
+    dimension: "Dimension | None",
+    *,
+    title: str = "",
+    subtitle: str = "",
+    table_width: int = 60,
+    border_color: str = "black",
+    value_threshold: float = 0.2,
+    show_counts: bool = True,
+    use_contrasting_text: bool = False,
+) -> str:
+    """Render a 2D histogram matrix (arrival x duration) as HTML."""
+
+    if not matrix.arrival_labels or not matrix.duration_labels:
+        return "<p>No data available.</p>"
+
+    try:
+        threshold = float(value_threshold)
+    except (TypeError, ValueError):
+        threshold = 0.0
+    threshold = max(0.0, min(1.0, threshold))
+
+    if dimension is None:
+        try:
+            import datacolors as dc  # type: ignore
+        except ModuleNotFoundError:  # pragma: no cover - fallback when run as package
+            from web import datacolors as dc  # type: ignore
+
+        dimension = dc.Dimension()
+        dimension.add_config(0.0, "white")
+        dimension.add_config(1.0, "RoyalBlue")
+
+    table_width = table_width or 0
+    table_width = max(table_width, 10)
+    width_style = f"{table_width}%" if table_width else "auto"
+    prefix = ut.random_string(4)
+
+    data_columns = len(matrix.arrival_labels)
+    colspan = data_columns + 2
+
+    color_func_name = "css_bg_fg" if use_contrasting_text and hasattr(dimension, "css_bg_fg") else "css_bg"
+    color_func = getattr(dimension, color_func_name)
+
+    data_cell_width_em = 1.2
+    row_unit_em = 0.18
+    cell_height_em = row_unit_em * 2
+
+    style_block = f"""
+    <style>
+        .{prefix}-table {{
+            border-collapse: collapse;
+            width: {width_style};
+            font-family: sans-serif;
+            margin: 0 auto;
+            border: 1px solid {border_color};
+            background: white;
+            table-layout: fixed;
+        }}
+        .{prefix}-title-cell {{
+            text-align: center;
+            font-weight: bold;
+            padding: 0.4em 0.6em;
+            background: #f8f8f8;
+            border-bottom: 1px solid {border_color};
+        }}
+        .{prefix}-subtitle-cell {{
+            text-align: center;
+            font-size: 0.85em;
+            padding: 0.35em 0.6em;
+            background: #fafafa;
+            border-top: 1px solid {border_color};
+        }}
+        .{prefix}-arrival-cell {{
+            text-align: center;
+            font-weight: normal;
+            padding: 0.1em 0.15em;
+            background: white;
+            white-space: nowrap;
+            height: 3.5em;
+            vertical-align: top;
+            border-left: 1px solid {border_color};
+            border-right: 1px solid {border_color};
+            border-top: 1px solid {border_color};
+            border-bottom: 1px solid {border_color};
+        }}
+        .{prefix}-axis-title {{
+            text-align: center;
+            vertical-align: middle;
+            background: white;
+            border-left: 1px solid {border_color};
+            border-right: 1px solid {border_color};
+            border-top: 1px solid {border_color};
+            border-bottom: 1px solid {border_color};
+            width: 2.4em;
+            padding: 0;
+        }}
+        .{prefix}-axis-title-text {{
+            display: inline-block;
+            transform: rotate(90deg);
+            transform-origin: center;
+            white-space: nowrap;
+            font-weight: bold;
+            font-size: 0.85em;
+            letter-spacing: 0.05em;
+        }}
+        .{prefix}-arrival-text {{
+            display: inline-block;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            white-space: nowrap;
+            font-weight: normal;
+            font-size: 0.8em;
+        }}
+        .{prefix}-label-cell {{
+            text-align: right;
+            font-weight: normal;
+            padding: 0.15em 0.25em;
+            background: white;
+            white-space: nowrap;
+            border-left: 1px solid {border_color};
+            border-right: 1px solid {border_color};
+            border-bottom: 1px solid {border_color};
+            font-size: 0.85em;
+            min-width: 4.5em;
+            width: 4.5em;
+        }}
+        .{prefix}-data-cell {{
+            text-align: center;
+            padding: 0.03em 0.04em;
+            width: {data_cell_width_em:.2f}em;
+            min-width: {data_cell_width_em:.2f}em;
+            height: {cell_height_em:.3f}em;
+        }}
+        .{prefix}-corner-cell {{
+            background: white;
+            border-left: 1px solid {border_color};
+            border-right: 1px solid {border_color};
+            border-top: 1px solid {border_color};
+            border-bottom: 1px solid {border_color};
+        }}
+        .{prefix}-axis-corner {{
+            background: white;
+            border-left: 1px solid {border_color};
+            border-right: 1px solid {border_color};
+            border-top: 1px solid {border_color};
+            border-bottom: 1px solid {border_color};
+            width: 2.4em;
+        }}
+        .{prefix}-data-row {{
+            height: {row_unit_em:.3f}em;
+        }}
+        .{prefix}-data-row-blank {{
+            height: 0;
+        }}
+    </style>
+    """
+
+    parts: list[str] = [style_block, f"<table class='{prefix}-table'>"]
+
+    if title:
+        parts.append(
+            f"<tr><td colspan='{colspan}' class='{prefix}-title-cell'>{title}</td></tr>"
+        )
+
+    duration_labels_desc = list(reversed(matrix.duration_labels))
+    column_top_indices: dict[str, int | None] = {}
+    for arrival_label in matrix.arrival_labels:
+        top_index = None
+        normalized_row = matrix.normalized_values.get(arrival_label, {})
+        for idx, duration_label in enumerate(duration_labels_desc):
+            if normalized_row.get(duration_label, 0.0) >= threshold:
+                top_index = idx
+                break
+        column_top_indices[arrival_label] = top_index
+
+    axis_rowspan = len(duration_labels_desc) * 2 if duration_labels_desc else 0
+
+    for row_index, duration_label in enumerate(duration_labels_desc):
+        parts.append(f"<tr class='{prefix}-data-row'>")
+        if row_index == 0 and axis_rowspan:
+            parts.append(
+                f"<th class='{prefix}-axis-title' rowspan='{axis_rowspan}'><span class='{prefix}-axis-title-text'>Duration of visit</span></th>"
+            )
+        display_duration = duration_label or "&nbsp;"
+        parts.append(
+            f"<th class='{prefix}-label-cell' rowspan='2'>{display_duration}</th>"
+        )
+        for arrival_label in matrix.arrival_labels:
+            normalized_row = matrix.normalized_values.get(arrival_label, {})
+            raw_row = matrix.raw_values.get(arrival_label, {})
+            normalized_value = normalized_row.get(duration_label, 0.0)
+            raw_value = raw_row.get(duration_label, 0.0)
+            effective_value = normalized_value if normalized_value >= threshold else 0.0
+            cell_text = "&nbsp;"
+            if show_counts:
+                if normalized_value >= threshold:
+                    if raw_value.is_integer():
+                        cell_text = str(int(raw_value))
+                    else:
+                        cell_text = f"{raw_value:.2f}"
+                else:
+                    cell_text = "0"
+            classes = [f"{prefix}-data-cell"]
+            style_value = color_func(effective_value)
+            style_components = [style_value, f"height: {cell_height_em:.3f}em;", f"min-height: {cell_height_em:.3f}em;"]
+            top_index = column_top_indices.get(arrival_label)
+            if top_index is not None and row_index >= top_index:
+                style_components.append(f"border-left: 1px solid {border_color};")
+                style_components.append(f"border-right: 1px solid {border_color};")
+                if row_index == top_index:
+                    style_components.append(f"border-top: 1px solid {border_color};")
+            mean_visits = float(raw_value)
+            if mean_visits.is_integer():
+                visit_text = f"{int(mean_visits)} visit{'s' if mean_visits != 1 else ''}/day"
+            else:
+                visit_text = f"{mean_visits:.2f} visits/day"
+            tooltip = (
+                f"{visit_text}\n"
+                f"starting {arrival_label}\n"
+                f"lasting {duration_label}"
+            )
+            title_text = escape(tooltip, quote=True).replace("\n", "&#10;")
+            style_attr = " ".join(style_components)
+            parts.append(
+                f"<td class='{' '.join(classes)}' rowspan='2' style='{style_attr}' "
+                f"title='{title_text}'>{cell_text}</td>"
+            )
+        parts.append("</tr>")
+        parts.append(f"<tr class='{prefix}-data-row-blank'></tr>")
+
+    parts.append("<tr>")
+    parts.append(f"<th class='{prefix}-axis-corner'>&nbsp;</th>")
+    parts.append(f"<th class='{prefix}-corner-cell'>&nbsp;</th>")
+    for idx, arrival_label in enumerate(matrix.arrival_labels):
+        display_arrival = arrival_label if arrival_label else "&nbsp;"
+        parts.append(
+            f"<th class='{prefix}-arrival-cell'><span class='{prefix}-arrival-text'>{display_arrival}</span></th>"
+        )
+    parts.append("</tr>")
+
+    if subtitle:
+        parts.append(
+            f"<tr><td colspan='{colspan}' class='{prefix}-subtitle-cell'>{subtitle}</td></tr>"
+        )
+
+    parts.append("</table>")
+    return "\n".join(parts)
+
+
+def arrival_duration_hist_table(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    dimension: "Dimension | None" = None,
+    *,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    days_of_week: str | None = None,
+    arrival_bucket_minutes: int = 30,
+    duration_bucket_minutes: int = 30,
+    min_arrival_time: str = "06:00",
+    title: str = "",
+    subtitle: str = "",
+    table_width: int = 60,
+    border_color: str = "black",
+    value_threshold: float = 0.2,
+    show_counts: bool = True,
+    use_contrasting_text: bool = False,
+) -> str:
+    """Convenience helper to fetch data and render the arrival-duration matrix."""
+
+    matrix = arrival_duration_matrix_data(
+        ttdb=ttdb,
+        orgsite_id=orgsite_id,
+        start_date=start_date,
+        end_date=end_date,
+        days_of_week=days_of_week,
+        arrival_bucket_minutes=arrival_bucket_minutes,
+        duration_bucket_minutes=duration_bucket_minutes,
+        min_arrival_time=min_arrival_time,
+    )
+
+    if not matrix.arrival_labels or not matrix.duration_labels:
+        return "<p>No data available.</p>"
+
+    subtitle_text = subtitle
+    if not subtitle_text and matrix.day_count:
+        plural = "day" if matrix.day_count == 1 else "days"
+        subtitle_text = f"Averaged across {matrix.day_count} {plural}"
+
+    return html_histogram_matrix(
+        matrix,
+        dimension,
+        title=title,
+        subtitle=subtitle_text,
+        table_width=table_width,
+        border_color=border_color,
+        value_threshold=value_threshold,
+        show_counts=show_counts,
+        use_contrasting_text=use_contrasting_text,
     )
 
 
