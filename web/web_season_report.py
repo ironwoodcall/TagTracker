@@ -207,6 +207,41 @@ def season_frequencies_report(
             )
         )
         print("<br><br>")
+
+    arrival_duration_title = "Visit duration as a function of arrival time </br>"
+    if title_bit:
+        arrival_duration_title = f"{arrival_duration_title} ({title_bit})"
+    arrival_duration_title = f"<h2>{arrival_duration_title}</h2>"
+    arrival_duration_subtitle = (
+        "Data is semi-normalized by columns and entire matrix. Hover on cells for data values."
+    )
+
+    arrival_duration_colors = dc.Dimension(interpolation_exponent=0.8)
+    arrival_duration_colors.add_config(0.00, "#fffbe6")   # very pale yellow
+    arrival_duration_colors.add_config(0.25, "#fde6a2")   # warm light yellow
+    arrival_duration_colors.add_config(0.50, "#f5b75e")   # soft amber
+    arrival_duration_colors.add_config(0.75, "#d67642")   # burnt orange
+    arrival_duration_colors.add_config(1.00, "#6b2c1a")   # deep brown-red
+
+    print(
+        web_histogram.arrival_duration_hist_table(
+            ttdb,
+            orgsite_id=orgsite_id,
+            dimension=arrival_duration_colors,
+            days_of_week=dow_parameter,
+            start_date=start_date,
+            end_date=end_date,
+            title=arrival_duration_title,
+            subtitle=arrival_duration_subtitle,
+            visit_threshold=0.15,
+            show_counts=False,
+            use_contrasting_text=False,
+            normalization_mode="blended",
+            arrival_time_threshold="07:00",
+            max_duration_threshold="12:00"
+        )
+    )
+    print("<br><br>")
     print(back_button)
 
 

@@ -1,0 +1,601 @@
+"""
+Data preparation utilities for the histogram views.
+"""
+
+from dataclasses import dataclass
+import sqlite3
+
+import common.tt_dbutil as db
+import web_common as cc
+from common.tt_time import VTime
+
+
+@dataclass
+class HistogramResult:
+    """Structured histogram data plus operating hour metadata."""
+
+    values: dict[str, float]
+    day_count: int
+    open_bucket: int | None = None
+    close_bucket: int | None = None
+    category_minutes: int = 30
+
+
+@dataclass
+class HistogramMatrixResult:
+    """Structured two-dimensional histogram data for arrival vs duration buckets."""
+
+    arrival_labels: list[str]
+    duration_labels: list[str]
+    normalized_values: dict[str, dict[str, float]]
+    raw_values: dict[str, dict[str, float]]
+    day_count: int
+    arrival_bucket_minutes: int = 30
+    duration_bucket_minutes: int = 30
+
+
+def bucket_label(bucket_minutes: int | None) -> str | None:
+    """Return tidy label text for a bucket start in minutes."""
+
+    if bucket_minutes is None:
+        return None
+    vt = VTime(bucket_minutes)
+    if not vt:
+        return None
+    return vt.tidy if hasattr(vt, "tidy") else str(vt)
+
+
+def format_minutes(minutes: int) -> str:
+    """Return zero-padded HH:MM string for a minutes value."""
+
+    if minutes < 0:
+        minutes = 0
+    hours = minutes // 60
+    mins = minutes % 60
+    return f"{hours:02}:{mins:02}"
+
+
+def duration_bucket_label(bucket_minutes: int | None, bucket_width: int = 30) -> str | None:
+    """Return label like '00:00' for the start of a duration bucket."""
+
+    if bucket_minutes is None:
+        return None
+    return format_minutes(bucket_minutes)
+
+
+def _minutes_expr(column_name: str) -> str:
+    """Return SQL expression that converts HH:MM text to minutes."""
+
+    return (
+        f"CASE WHEN {column_name} IS NULL OR {column_name} = '' THEN NULL "
+        f"WHEN length({column_name}) < 5 THEN NULL "
+        f"ELSE ((CAST(substr({column_name}, 1, 2) AS INTEGER) * 60) + "
+        f"CAST(substr({column_name}, 4, 2) AS INTEGER)) END"
+    )
+
+
+def _duration_minutes_expr(column_name: str = "V.duration") -> str:
+    """Return SQL expression that coerces duration text to integer minutes."""
+
+    return (
+        f"CASE WHEN {column_name} IS NULL OR {column_name} = '' THEN NULL "
+        f"ELSE CAST({column_name} AS INTEGER) END"
+    )
+
+
+def _build_day_filter_items(
+    orgsite_filter: int,
+    start_date: str | None,
+    end_date: str | None,
+    days_of_week: str | None,
+) -> list[str]:
+    """Return reusable WHERE-clause pieces that only reference the DAY table."""
+
+    items: list[str] = []
+    if orgsite_filter:
+        items.append(f"D.orgsite_id = {orgsite_filter}")
+    if start_date:
+        items.append(f"D.DATE >= '{start_date}'")
+    if end_date:
+        items.append(f"D.DATE <= '{end_date}'")
+    if days_of_week:
+        cc.test_dow_parameter(days_of_week, list_ok=True)
+        dow_bits = [int(s) for s in days_of_week.split(",")]
+        zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
+        items.append(
+            f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
+        )
+    return items
+
+
+def time_histogram_data(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    query_column: str,
+    start_date: str = None,
+    end_date: str = None,
+    days_of_week: str = None,
+    category_minutes: int = 30,
+) -> HistogramResult:
+    """Return averaged histogram data for the requested time column."""
+
+    time_column_lower = query_column.lower()
+    if time_column_lower not in {"time_in", "time_out", "duration"}:
+        raise ValueError(f"Bad value for query column, '{query_column}' ")
+
+    minutes_column_map = {
+        "time_in": _minutes_expr("V.time_in"),
+        "time_out": _minutes_expr("V.time_out"),
+        "duration": "V.duration",
+    }
+    minutes_column = minutes_column_map[time_column_lower]
+
+    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
+
+    day_filter_items = _build_day_filter_items(
+        orgsite_filter, start_date, end_date, days_of_week
+    )
+
+    filter_items: list[str] = [f"({minutes_column}) IS NOT NULL"] + day_filter_items
+    if time_column_lower == "duration":
+        filter_items.append("V.time_out IS NOT NULL")
+        filter_items.append("V.time_out <> ''")
+    filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
+    day_filter_clause = (
+        " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
+    )
+
+    if time_column_lower == "duration":
+        start_time, end_time = ("00:00", "12:00")
+    else:
+        start_time, end_time = ("07:00", "22:00")
+
+    base_cte = f"""
+WITH filtered_visits AS (
+    SELECT
+        D.date AS visit_date,
+        {minutes_column} AS minutes_value
+    FROM
+        DAY D
+    JOIN
+        VISIT V ON D.id = V.day_id
+    WHERE {filter_clause}
+)
+    """
+
+    day_count_query = (
+        base_cte
+        + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
+    )
+    day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
+    day_count = day_rows[0].day_count if day_rows else 0
+    if day_count is None:
+        day_count = 0
+    elif not isinstance(day_count, int):
+        day_count = int(day_count)
+
+    bucket_query = (
+        base_cte
+        + "SELECT\n"
+        f"    minutes_value - (minutes_value % {category_minutes}) AS bucket_start,\n"
+        "    COUNT(*) AS bucket_count\n"
+        "FROM filtered_visits\n"
+        "WHERE minutes_value IS NOT NULL\n"
+        "GROUP BY bucket_start\n"
+        "ORDER BY bucket_start;\n"
+    )
+    bucket_rows = db.db_fetch(ttdb, bucket_query, ["bucket_start", "bucket_count"])
+    bucket_counts: dict[int, int] = {}
+    for row in bucket_rows:
+        if row.bucket_start is None:
+            continue
+        bucket_counts[int(row.bucket_start)] = int(row.bucket_count)
+
+    open_bucket = close_bucket = None
+    hours_query = f"""
+        SELECT
+            MIN(NULLIF(D.time_open, '')) AS min_open,
+            MAX(NULLIF(D.time_closed, '')) AS max_close
+        FROM DAY D
+        WHERE {day_filter_clause}
+    """
+    hours_rows = db.db_fetch(ttdb, hours_query, ["min_open", "max_close"])
+    if hours_rows:
+        open_val = getattr(hours_rows[0], "min_open", None)
+        close_val = getattr(hours_rows[0], "max_close", None)
+        open_minutes = VTime(open_val).num if open_val else None
+        close_minutes = VTime(close_val).num if close_val else None
+        if open_minutes is not None and category_minutes:
+            open_bucket = (open_minutes // category_minutes) * category_minutes
+        if close_minutes is not None and category_minutes:
+            close_effective = max(close_minutes - 1, 0)
+            close_bucket = (close_effective // category_minutes) * category_minutes
+
+    if not bucket_counts:
+        averaged_freq: dict[str, float] = {}
+    else:
+        start_minutes = VTime(start_time).num if start_time else min(bucket_counts.keys())
+        end_minutes = VTime(end_time).num if end_time else max(bucket_counts.keys())
+        start_bucket = (start_minutes // category_minutes) * category_minutes
+        end_bucket = (end_minutes // category_minutes) * category_minutes
+        categories_by_minute: dict[int, int] = {
+            minute: 0
+            for minute in range(start_bucket, end_bucket + category_minutes, category_minutes)
+        }
+        have_unders = have_overs = False
+        for bucket_start, count in bucket_counts.items():
+            if bucket_start in categories_by_minute:
+                categories_by_minute[bucket_start] = count
+            elif bucket_start < start_bucket:
+                categories_by_minute[start_bucket] += count
+                have_unders = True
+            elif bucket_start > end_bucket:
+                categories_by_minute[end_bucket] += count
+                have_overs = True
+
+        categories_str = {
+            VTime(minute).tidy: value for minute, value in categories_by_minute.items()
+        }
+        if have_unders:
+            start_label = VTime(start_bucket).tidy
+            categories_str[f"{start_label}-"] = categories_str.pop(start_label, 0)
+        if have_overs:
+            end_label = VTime(end_bucket).tidy
+            categories_str[f"{end_label}+"] = categories_str.pop(end_label, 0)
+        averaged_freq = {
+            key: (value / (day_count or 1)) for key, value in sorted(categories_str.items())
+        }
+
+    return HistogramResult(
+        values=averaged_freq,
+        day_count=day_count,
+        open_bucket=open_bucket,
+        close_bucket=close_bucket,
+        category_minutes=category_minutes,
+    )
+
+
+def fullness_histogram_data(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    start_date: str = None,
+    end_date: str = None,
+    days_of_week: str = None,
+    category_minutes: int = 30,
+) -> HistogramResult:
+    """Return averaged fullness data (bikes on hand) for each time block."""
+
+    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
+
+    day_filter_items = _build_day_filter_items(
+        orgsite_filter, start_date, end_date, days_of_week
+    )
+
+    filter_items: list[str] = ["B.num_on_hand_combined IS NOT NULL"] + day_filter_items
+    filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
+    day_filter_clause = (
+        " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
+    )
+
+    day_count_query = f"""
+        SELECT COUNT(DISTINCT D.DATE) AS day_count
+        FROM DAY D
+        JOIN BLOCK B ON B.day_id = D.id
+        WHERE {filter_clause}
+    """
+    day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
+    day_count = day_rows[0].day_count if day_rows else 0
+    if day_count is None:
+        day_count = 0
+    elif not isinstance(day_count, int):
+        day_count = int(day_count)
+
+    bucket_query = f"""
+        SELECT
+            B.time_start AS bucket_start,
+            AVG(B.num_on_hand_combined) AS avg_fullness,
+            COUNT(*) AS sample_count
+        FROM DAY D
+        JOIN BLOCK B ON B.day_id = D.id
+        WHERE {filter_clause}
+        GROUP BY B.time_start
+        ORDER BY B.time_start
+    """
+    bucket_rows = db.db_fetch(
+        ttdb, bucket_query, ["bucket_start", "avg_fullness", "sample_count"]
+    )
+
+    bucket_totals: dict[int, float] = {}
+    bucket_counts: dict[int, int] = {}
+    for row in bucket_rows:
+        bucket_time = VTime(row.bucket_start)
+        if not bucket_time or getattr(bucket_time, "num", None) is None:
+            continue
+        minute_value = int(bucket_time.num)
+        sample_count = int(row.sample_count or 0)
+        if sample_count <= 0:
+            continue
+        avg_fullness = float(row.avg_fullness or 0.0)
+        bucket_totals[minute_value] = bucket_totals.get(minute_value, 0.0) + (
+            avg_fullness * sample_count
+        )
+        bucket_counts[minute_value] = bucket_counts.get(minute_value, 0) + sample_count
+
+    open_bucket = close_bucket = None
+    hours_query = f"""
+        SELECT
+            MIN(NULLIF(D.time_open, '')) AS min_open,
+            MAX(NULLIF(D.time_closed, '')) AS max_close
+        FROM DAY D
+        WHERE {day_filter_clause}
+    """
+    hours_rows = db.db_fetch(ttdb, hours_query, ["min_open", "max_close"])
+    if hours_rows:
+        open_val = getattr(hours_rows[0], "min_open", None)
+        close_val = getattr(hours_rows[0], "max_close", None)
+        open_minutes = VTime(open_val).num if open_val else None
+        close_minutes = VTime(close_val).num if close_val else None
+        if open_minutes is not None and category_minutes:
+            open_bucket = (open_minutes // category_minutes) * category_minutes
+        if close_minutes is not None and category_minutes:
+            close_effective = max(close_minutes - 1, 0)
+            close_bucket = (close_effective // category_minutes) * category_minutes
+
+    if not bucket_totals:
+        return HistogramResult(
+            values={},
+            day_count=day_count,
+            open_bucket=open_bucket,
+            close_bucket=close_bucket,
+            category_minutes=category_minutes,
+        )
+
+    start_minutes = VTime("07:00").num
+    end_minutes = VTime("22:00").num
+    if start_minutes is None or end_minutes is None:
+        return HistogramResult(
+            values={},
+            day_count=day_count,
+            open_bucket=open_bucket,
+            close_bucket=close_bucket,
+            category_minutes=category_minutes,
+        )
+
+    start_bucket = (start_minutes // category_minutes) * category_minutes
+    end_bucket = (end_minutes // category_minutes) * category_minutes
+    bucket_range = range(start_bucket, end_bucket + category_minutes, category_minutes)
+
+    buckets_to_totals: dict[int, float] = {minute: 0.0 for minute in bucket_range}
+    buckets_to_counts: dict[int, int] = {minute: 0 for minute in bucket_range}
+    have_unders = have_overs = False
+
+    for minute_value, total_fullness in bucket_totals.items():
+        bucket_minute = (minute_value // category_minutes) * category_minutes
+        count = bucket_counts.get(minute_value, 0)
+        if count <= 0:
+            continue
+        if bucket_minute < start_bucket:
+            buckets_to_totals[start_bucket] += total_fullness
+            buckets_to_counts[start_bucket] += count
+            have_unders = True
+        elif bucket_minute > end_bucket:
+            buckets_to_totals[end_bucket] += total_fullness
+            buckets_to_counts[end_bucket] += count
+            have_overs = True
+        else:
+            buckets_to_totals.setdefault(bucket_minute, 0.0)
+            buckets_to_counts.setdefault(bucket_minute, 0)
+            buckets_to_totals[bucket_minute] += total_fullness
+            buckets_to_counts[bucket_minute] += count
+
+    ordered_pairs: list[tuple[str, float]] = []
+    for minute in bucket_range:
+        vt = VTime(minute)
+        if not vt:
+            continue
+        label = vt.tidy if hasattr(vt, "tidy") else str(vt)
+        total = buckets_to_totals.get(minute, 0.0)
+        count = buckets_to_counts.get(minute, 0)
+        avg_value = total / count if count else 0.0
+        ordered_pairs.append((label, avg_value))
+
+    if ordered_pairs and have_unders:
+        start_label, start_value = ordered_pairs[0]
+        ordered_pairs[0] = (f"{start_label}-", start_value)
+
+    if ordered_pairs and have_overs:
+        end_idx = len(ordered_pairs) - 1
+        end_label, end_value = ordered_pairs[end_idx]
+        ordered_pairs[end_idx] = (f"{end_label}+", end_value)
+
+    averaged_fullness = dict(ordered_pairs)
+
+    return HistogramResult(
+        values=averaged_fullness,
+        day_count=day_count,
+        open_bucket=open_bucket,
+        close_bucket=close_bucket,
+        category_minutes=category_minutes,
+    )
+
+
+def arrival_duration_matrix_data(
+    ttdb: sqlite3.Connection,
+    orgsite_id: int,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    days_of_week: str | None = None,
+    arrival_bucket_minutes: int = 30,
+    duration_bucket_minutes: int = 30,
+    arrival_time_threshold: str = "06:00",
+    max_duration_threshold: str | None = None,
+) -> HistogramMatrixResult:
+    """Return visit counts per arrival-vs-duration bucket."""
+
+    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
+
+    day_filter_items = _build_day_filter_items(
+        orgsite_filter, start_date, end_date, days_of_week
+    )
+    day_filter_clause = (
+        " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
+    )
+
+    arrival_minutes_expr = _minutes_expr("V.time_in")
+    duration_minutes_expr = _duration_minutes_expr()
+
+    arrival_threshold_minutes = VTime(arrival_time_threshold).num if arrival_time_threshold else None
+    max_duration_minutes = (
+        VTime(max_duration_threshold, allow_large=True).num if max_duration_threshold else None
+    )
+
+    threshold_filters: list[str] = []
+    if arrival_threshold_minutes is not None:
+        threshold_filters.append(f"(arrival_minutes >= {int(arrival_threshold_minutes)})")
+    if max_duration_minutes is not None:
+        threshold_filters.append(f"(duration_minutes <= {int(max_duration_minutes)})")
+    threshold_clause = " AND ".join(threshold_filters) if threshold_filters else "1 = 1"
+
+    base_cte = f"""
+WITH filtered_visits AS (
+    SELECT
+        D.date AS visit_date,
+        {arrival_minutes_expr} AS arrival_minutes,
+        {duration_minutes_expr} AS duration_minutes
+    FROM
+        DAY D
+    JOIN
+        VISIT V ON D.id = V.day_id
+    WHERE {day_filter_clause}
+        AND {arrival_minutes_expr} IS NOT NULL
+        AND {duration_minutes_expr} IS NOT NULL
+        AND {threshold_clause}
+)
+    """
+
+    day_count_query = (
+        base_cte
+        + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
+    )
+    day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
+    day_count = day_rows[0].day_count if day_rows else 0
+    if day_count is None:
+        day_count = 0
+    elif not isinstance(day_count, int):
+        day_count = int(day_count)
+
+    bucket_query = (
+        base_cte
+        + "SELECT\n"
+        f"    arrival_minutes - (arrival_minutes % {arrival_bucket_minutes}) AS arrival_bucket,\n"
+        f"    duration_minutes - (duration_minutes % {duration_bucket_minutes}) AS duration_bucket,\n"
+        "    COUNT(*) AS bucket_count\n"
+        "FROM filtered_visits\n"
+        "WHERE arrival_minutes IS NOT NULL AND duration_minutes IS NOT NULL\n"
+        "GROUP BY arrival_bucket, duration_bucket\n"
+        "ORDER BY arrival_bucket, duration_bucket;\n"
+    )
+    bucket_rows = db.db_fetch(
+        ttdb,
+        bucket_query,
+        ["arrival_bucket", "duration_bucket", "bucket_count"],
+    )
+
+    buckets: dict[int, dict[int, int]] = {}
+    arrival_buckets: set[int] = set()
+    duration_buckets: set[int] = set()
+    for row in bucket_rows:
+        if row.arrival_bucket is None or row.duration_bucket is None:
+            continue
+        arrival_minute = int(row.arrival_bucket)
+        duration_minute = int(row.duration_bucket)
+        count = int(row.bucket_count)
+        arrival_buckets.add(arrival_minute)
+        duration_buckets.add(duration_minute)
+        buckets.setdefault(arrival_minute, {})
+        buckets[arrival_minute][duration_minute] = count
+
+    if not buckets:
+        return HistogramMatrixResult(
+            arrival_labels=[],
+            duration_labels=[],
+            normalized_values={},
+            raw_values={},
+            day_count=day_count,
+            arrival_bucket_minutes=arrival_bucket_minutes,
+            duration_bucket_minutes=duration_bucket_minutes,
+        )
+
+    arrival_range = sorted(arrival_buckets)
+    if arrival_range:
+        start_arrival = arrival_range[0]
+        end_arrival = arrival_range[-1]
+        arrival_range = list(
+            range(start_arrival, end_arrival + arrival_bucket_minutes, arrival_bucket_minutes)
+        )
+
+    duration_range = sorted(duration_buckets)
+    if duration_range:
+        start_duration = 0
+        end_duration = duration_range[-1]
+        duration_range = list(
+            range(start_duration, end_duration + duration_bucket_minutes, duration_bucket_minutes)
+        )
+
+    arrival_labels: list[str] = []
+    for minute in arrival_range:
+        label = bucket_label(minute)
+        if label is None:
+            label = VTime(minute, allow_large=True).tidy if minute is not None else ""
+        arrival_labels.append(label or format_minutes(minute))
+
+    duration_labels: list[str] = []
+    for minute in duration_range:
+        label = duration_bucket_label(minute, duration_bucket_minutes)
+        duration_labels.append(label or format_minutes(minute))
+
+    normalized_values: dict[str, dict[str, float]] = {}
+    raw_values: dict[str, dict[str, float]] = {}
+
+    for arrival_minute, arrival_label in zip(arrival_range, arrival_labels):
+        raw_row: dict[str, float] = {}
+        max_value = 0.0
+        source = buckets.get(arrival_minute, {})
+        for duration_minute, duration_label in zip(duration_range, duration_labels):
+            val = float(source.get(duration_minute, 0))
+            raw_row[duration_label] = val
+            if val > max_value:
+                max_value = val
+        raw_values[arrival_label] = raw_row
+        normalized_row: dict[str, float] = {}
+        for duration_label in duration_labels:
+            value = raw_row[duration_label]
+            normalized_row[duration_label] = value / max_value if max_value else 0.0
+        normalized_values[arrival_label] = normalized_row
+
+    if day_count:
+        for arrival_label, raw_row in raw_values.items():
+            for duration_label, val in raw_row.items():
+                raw_row[duration_label] = val / day_count
+
+    return HistogramMatrixResult(
+        arrival_labels=arrival_labels,
+        duration_labels=duration_labels,
+        normalized_values=normalized_values,
+        raw_values=raw_values,
+        day_count=day_count,
+        arrival_bucket_minutes=arrival_bucket_minutes,
+        duration_bucket_minutes=duration_bucket_minutes,
+    )
+
+
+__all__ = [
+    "HistogramResult",
+    "HistogramMatrixResult",
+    "arrival_duration_matrix_data",
+    "bucket_label",
+    "duration_bucket_label",
+    "format_minutes",
+    "fullness_histogram_data",
+    "time_histogram_data",
+]
