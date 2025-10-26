@@ -12,7 +12,11 @@ from common.tt_time import VTime
 
 @dataclass
 class HistogramResult:
-    """Structured histogram data plus operating hour metadata."""
+    """Structured histogram data plus operating hour metadata.
+
+    The rendering layer expects ``values`` to already be averaged per day and the
+    optional ``open/close`` buckets to align with ``category_minutes``.
+    """
 
     values: dict[str, float]
     day_count: int
@@ -35,8 +39,13 @@ class HistogramMatrixResult:
 
 
 def bucket_label(bucket_minutes: int | None) -> str | None:
-    """Return tidy label text for a bucket start in minutes."""
+    """Return tidy label text for a bucket start in minutes.
 
+    ``VTime`` instances expose several string helpers; prefer ``tidy`` when
+    available so labels match the rest of the web UI, otherwise fall back to the
+    default ``str`` representation.
+    """
+    return VTime(bucket_minutes).tidy
     if bucket_minutes is None:
         return None
     vt = VTime(bucket_minutes)
@@ -46,7 +55,11 @@ def bucket_label(bucket_minutes: int | None) -> str | None:
 
 
 def format_minutes(minutes: int) -> str:
-    """Return zero-padded HH:MM string for a minutes value."""
+    """Return zero-padded HH:MM string for a minutes value.
+
+    Negative inputs can occur when upstream code subtracts buffers, so clamp to
+    zero to avoid confusing ``-01:15`` style labels.
+    """
 
     if minutes < 0:
         minutes = 0
@@ -101,6 +114,7 @@ def _build_day_filter_items(
     if days_of_week:
         cc.test_dow_parameter(days_of_week, list_ok=True)
         dow_bits = [int(s) for s in days_of_week.split(",")]
+        # SQLite's strftime uses 0=Sunday, TagTracker uses 7=Sunday; convert.
         zero_based_days_of_week = ["0" if i == 7 else str(i) for i in dow_bits]
         items.append(
             f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
@@ -119,6 +133,7 @@ def time_histogram_data(
 ) -> HistogramResult:
     """Return averaged histogram data for the requested time column."""
 
+    # Accept only known columns so SQL fragments remain safe.
     time_column_lower = query_column.lower()
     if time_column_lower not in {"time_in", "time_out", "duration"}:
         raise ValueError(f"Bad value for query column, '{query_column}' ")
@@ -136,6 +151,7 @@ def time_histogram_data(
         orgsite_filter, start_date, end_date, days_of_week
     )
 
+    # Filter rows where minutes are present; durations also require a time_out.
     filter_items: list[str] = [f"({minutes_column}) IS NOT NULL"] + day_filter_items
     if time_column_lower == "duration":
         filter_items.append("V.time_out IS NOT NULL")
@@ -150,6 +166,7 @@ def time_histogram_data(
     else:
         start_time, end_time = ("07:00", "22:00")
 
+    # Common table expression keeps the expensive filtering reusable.
     base_cte = f"""
 WITH filtered_visits AS (
     SELECT
@@ -167,6 +184,7 @@ WITH filtered_visits AS (
         base_cte
         + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
     )
+    # Average counts per day, so capture the number of distinct days in scope.
     day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
     day_count = day_rows[0].day_count if day_rows else 0
     if day_count is None:
@@ -214,6 +232,7 @@ WITH filtered_visits AS (
     if not bucket_counts:
         averaged_freq: dict[str, float] = {}
     else:
+        # Base label range defaults to operating hours when possible.
         start_minutes = VTime(start_time).num if start_time else min(bucket_counts.keys())
         end_minutes = VTime(end_time).num if end_time else max(bucket_counts.keys())
         start_bucket = (start_minutes // category_minutes) * category_minutes
@@ -224,6 +243,8 @@ WITH filtered_visits AS (
         }
         have_unders = have_overs = False
         for bucket_start, count in bucket_counts.items():
+            # Buckets outside the target window are rolled into the first/last bin
+            # so the chart still reflects their impact.
             if bucket_start in categories_by_minute:
                 categories_by_minute[bucket_start] = count
             elif bucket_start < start_bucket:
@@ -243,6 +264,7 @@ WITH filtered_visits AS (
             end_label = VTime(end_bucket).tidy
             categories_str[f"{end_label}+"] = categories_str.pop(end_label, 0)
         averaged_freq = {
+            # Divide by day_count (defaulting to 1) to get per-day averages.
             key: (value / (day_count or 1)) for key, value in sorted(categories_str.items())
         }
 
@@ -283,6 +305,7 @@ def fullness_histogram_data(
         JOIN BLOCK B ON B.day_id = D.id
         WHERE {filter_clause}
     """
+    # Day count is needed later to normalize averages when data is sparse.
     day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
     day_count = day_rows[0].day_count if day_rows else 0
     if day_count is None:
@@ -350,6 +373,7 @@ def fullness_histogram_data(
             category_minutes=category_minutes,
         )
 
+    # Fullness reports always focus on business hours (07:00-22:00 local time).
     start_minutes = VTime("07:00").num
     end_minutes = VTime("22:00").num
     if start_minutes is None or end_minutes is None:
@@ -374,6 +398,7 @@ def fullness_histogram_data(
         count = bucket_counts.get(minute_value, 0)
         if count <= 0:
             continue
+        # Add out-of-range samples to the nearest visible bucket so totals stay balanced.
         if bucket_minute < start_bucket:
             buckets_to_totals[start_bucket] += total_fullness
             buckets_to_counts[start_bucket] += count
@@ -400,6 +425,8 @@ def fullness_histogram_data(
         ordered_pairs.append((label, avg_value))
 
     if ordered_pairs and have_unders:
+        # Prefix '-' or '+' markers so downstream renderers know values were
+        # aggregated from buckets outside the visible window.
         start_label, start_value = ordered_pairs[0]
         ordered_pairs[0] = (f"{start_label}-", start_value)
 
@@ -430,7 +457,20 @@ def arrival_duration_matrix_data(
     arrival_time_threshold: str = "06:00",
     max_duration_threshold: str | None = None,
 ) -> HistogramMatrixResult:
-    """Return visit counts per arrival-vs-duration bucket."""
+    """Return visit counts per arrival-vs-duration bucket.
+
+    Args:
+        ttdb: SQLite connection to the TagTracker database.
+        orgsite_id: Target org/site identifier (defaults to 1 when falsy).
+        start_date/end_date/days_of_week: Standard visit filters mirrored across reports.
+        arrival_bucket_minutes: Minutes per arrival column.
+        duration_bucket_minutes: Minutes per duration row.
+        arrival_time_threshold: Drop visits that start before this time-of-day.
+        max_duration_threshold: Cap rows to durations below this HH:MM ceiling.
+
+    Returns:
+        ``HistogramMatrixResult`` with both raw per-day counts and normalized columns.
+    """
 
     orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
 
@@ -449,6 +489,7 @@ def arrival_duration_matrix_data(
         VTime(max_duration_threshold, allow_large=True).num if max_duration_threshold else None
     )
 
+    # Optional arrival/duration bounds keep the matrix from growing unbounded.
     threshold_filters: list[str] = []
     if arrival_threshold_minutes is not None:
         threshold_filters.append(f"(arrival_minutes >= {int(arrival_threshold_minutes)})")
@@ -456,6 +497,7 @@ def arrival_duration_matrix_data(
         threshold_filters.append(f"(duration_minutes <= {int(max_duration_minutes)})")
     threshold_clause = " AND ".join(threshold_filters) if threshold_filters else "1 = 1"
 
+    # Reusable CTE makes it easy to pull both day counts and per-bucket stats.
     base_cte = f"""
 WITH filtered_visits AS (
     SELECT
@@ -501,6 +543,7 @@ WITH filtered_visits AS (
         ["arrival_bucket", "duration_bucket", "bucket_count"],
     )
 
+    # Nested dict keyed by arrival bucket then duration bucket → raw counts.
     buckets: dict[int, dict[int, int]] = {}
     arrival_buckets: set[int] = set()
     duration_buckets: set[int] = set()
@@ -528,6 +571,7 @@ WITH filtered_visits AS (
 
     arrival_range = sorted(arrival_buckets)
     if arrival_range:
+        # Ensure buckets form a continuous range so renderers can assume gaps are zeroes.
         start_arrival = arrival_range[0]
         end_arrival = arrival_range[-1]
         arrival_range = list(
@@ -536,12 +580,14 @@ WITH filtered_visits AS (
 
     duration_range = sorted(duration_buckets)
     if duration_range:
+        # Duration buckets always start from zero for clarity on the Y axis.
         start_duration = 0
         end_duration = duration_range[-1]
         duration_range = list(
             range(start_duration, end_duration + duration_bucket_minutes, duration_bucket_minutes)
         )
 
+    # Convert bucket minutes into the display labels expected by renderers.
     arrival_labels: list[str] = []
     for minute in arrival_range:
         label = bucket_label(minute)
@@ -569,11 +615,13 @@ WITH filtered_visits AS (
         raw_values[arrival_label] = raw_row
         normalized_row: dict[str, float] = {}
         for duration_label in duration_labels:
+            # Normalize within the column so rendering can scale 0..1 regardless of volume.
             value = raw_row[duration_label]
             normalized_row[duration_label] = value / max_value if max_value else 0.0
         normalized_values[arrival_label] = normalized_row
 
     if day_count:
+        # Convert counts into per-day averages so charts stay comparable between ranges.
         for arrival_label, raw_row in raw_values.items():
             for duration_label, val in raw_row.items():
                 raw_row[duration_label] = val / day_count

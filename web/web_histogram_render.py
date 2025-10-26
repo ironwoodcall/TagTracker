@@ -26,8 +26,30 @@ def html_histogram(
     close_marker_label: str | None = None,
     marker_color: str | None = None,
 ) -> str:
-    """Create an html histogram from a dictionary."""
+    """Render a single-series (optionally stacked) histogram table as HTML.
 
+    Args:
+        data: Mapping of categorical labels to primary values.
+        num_data_rows: Number of vertical rows used to draw the bars.
+        bar_color: CSS color for the primary portion of each bar.
+        title: Optional chart title (suppressed in ``mini`` mode).
+        subtitle: Optional chart subtitle placed under the axis labels.
+        table_width: Percentage width assigned to the rendered table.
+        border_color: CSS color used for table and bar borders.
+        mini: When true, suppresses labels and tightens the layout.
+        stack_data: Optional mapping of secondary values stacked on top.
+        stack_color: CSS color for the stacked portion of each bar.
+        link_target: Optional href to wrap the table to make it clickable.
+        max_value: Explicit max used for height normalization (auto if ``None``).
+        open_marker_label: Label prefix for highlighting a left boundary.
+        close_marker_label: Label prefix for highlighting a right boundary.
+        marker_color: CSS color for the dotted boundary markers.
+
+    Returns:
+        HTML string containing an inline-styled table representation.
+    """
+
+    # Nothing to render if both the base and stacked series are empty.
     stack_data = stack_data or {}
     if not data and not stack_data:
         return "<p>No data available.</p>"
@@ -35,7 +57,7 @@ def html_histogram(
     bar_color = bar_color or "blue"
     stack_color = stack_color or "royalblue"
 
-    # Input validation
+    # Guardrails: invalid arguments usually mean a templating mistake upstream.
     if (
         not all(
             isinstance(arg, expected)
@@ -53,6 +75,7 @@ def html_histogram(
     if num_columns == 0:
         return "<p>No data available.</p>"
 
+    # Randomize CSS prefixes so that multiple tables on a page never collide.
     prefix = ut.random_string(4)
 
     marker_color = marker_color or "darkblue"
@@ -60,6 +83,7 @@ def html_histogram(
 
     if open_marker_label or close_marker_label:
 
+        # Resolve fuzzy marker labels (prefix match) to concrete keys.
         def resolve_marker(label: str | None) -> str | None:
             if not label:
                 return None
@@ -95,6 +119,7 @@ def html_histogram(
     base_values: dict[str, float] = {}
     stack_values: dict[str, float] = {}
     for key in all_keys:
+        # Track each column's primary + stack contributions for later use.
         base_values[key] = float(data.get(key, 0) or 0)
         stack_values[key] = float(stack_data.get(key, 0) or 0)
         totals[key] = base_values[key] + stack_values[key]
@@ -117,6 +142,7 @@ def html_histogram(
     normalized_totals: dict[str, int] = {}
 
     for key in all_keys:
+        # Convert real-valued totals into integer row counts.
         combined_value = totals[key]
         if reference_max:
             clamped_total = (
@@ -140,6 +166,7 @@ def html_histogram(
         normalized_totals[key] = max(total_height, 0)
 
     if mini:
+        # Mini histograms rely on em-based widths for predictable compactness.
         cell_width = max(0.4, min(1.0, 6.0 / max(num_columns, 1)))
         cell_width_style = f"{cell_width}em"
         empty_width_style = cell_width_style
@@ -168,6 +195,7 @@ def html_histogram(
         }}
         """
 
+    # Inline styles keep the widget self-contained so it can be embedded anywhere.
     html_table = f"""
     <style>
         .{prefix}-table {{ font-family: sans-serif;
@@ -231,6 +259,7 @@ def html_histogram(
 
     empty_text = "" if mini else "&nbsp;"
     for row_index in range(num_data_rows):
+        # Build the histogram top-down so that CSS borders align naturally.
         html_table += "<tr>"
         for key in all_keys:
             total_height = normalized_totals[key]
@@ -315,10 +344,22 @@ def html_histogram_matrix(
     """Render a 2D histogram matrix (arrival x duration) as HTML.
 
     Args:
-        normalization_mode: Controls how cell intensities are scaled.
-            - ``"column"`` (default): scale each arrival column independently.
-            - ``"matrix"``: scale against the single maximum across the whole matrix.
-            - ``"blended"``: average the column and matrix scales for a compromise.
+        matrix: ``HistogramMatrixResult`` carrying raw and normalized values.
+        dimension: ``datacolors.Dimension`` instance to translate magnitudes to CSS.
+        title: Optional heading shown above the matrix.
+        subtitle: Optional text rendered below the axis labels.
+        table_width: Percentage width to allocate to the table.
+        border_color: CSS color applied to table borders.
+        visit_threshold: Minimum mean visits required before numbers are shown.
+        show_counts: When false suppresses numeric labels entirely.
+        use_contrasting_text: Prefer ``css_bg_fg`` if the dimension exposes it.
+        normalization_mode: Controls how intensities are scaled:
+            - ``"column"`` (default): scale per arrival column.
+            - ``"matrix"``: scale against the single global max.
+            - ``"blended"``: average of the column and global scales.
+
+    Returns:
+        Fully composed HTML snippet ready for embedding.
     """
 
     if not matrix.arrival_labels or not matrix.duration_labels:
@@ -328,6 +369,7 @@ def html_histogram_matrix(
         visit_threshold = float(visit_threshold)
     except (TypeError, ValueError):
         visit_threshold = 0.0
+    # Negative thresholds make no sense for visit counts, so clamp up.
     visit_threshold = max(0.0, visit_threshold)
 
     if dimension is None:
@@ -336,6 +378,7 @@ def html_histogram_matrix(
         except ModuleNotFoundError:
             from web import datacolors as dc  # type: ignore
 
+        # Fall back to a simple pastel-to-purple ramp if no palette is provided.
         dimension = dc.Dimension()
         dimension.add_config(0.0, "lemonchiffon")
         dimension.add_config(0.35, "khaki")
@@ -345,6 +388,7 @@ def html_histogram_matrix(
     table_width = table_width or 0
     table_width = max(table_width, 10)
     width_style = f"{table_width}%" if table_width else "auto"
+    # Prefix randomization ensures multiple tables can co-exist without CSS bleed.
     prefix = ut.random_string(4)
 
     data_columns = len(matrix.arrival_labels)
@@ -356,6 +400,8 @@ def html_histogram_matrix(
         if use_contrasting_text and hasattr(dimension, "css_bg_fg")
         else "css_bg"
     )
+    # Dimension instances expose helpers that return inline CSS declarations;
+    # pick whichever variant delivers readable text for the current settings.
     color_func = getattr(dimension, color_func_name)
 
     data_cell_width_em = 1.2
@@ -364,19 +410,10 @@ def html_histogram_matrix(
 
     style_block = f"""
     <style>
-        .{prefix}-table-offline {{
-            border-collapse: collapse;
-            width: {width_style};
-            font-family: sans-serif;
-            margin: 0 auto;
-            border: 1px solid {border_color};
-            background: white;
-            table-layout: fixed;
-        }}
         .{prefix}-table {{font-family: sans-serif;
                 border-collapse: collapse;
                 border: 1px solid {border_color};
-                width: {width_style};
+                #width: {width_style};
         }}
         .{prefix}-title-cell {{
             text-align: center;
@@ -392,7 +429,7 @@ def html_histogram_matrix(
             background: white;
             border-top: 1px solid {border_color};
         }}
-        .{prefix}-arrival-cell {{
+        .{prefix}-arrival-label-cell {{
             position: relative;
             text-align: center;
             font-weight: normal;
@@ -404,6 +441,16 @@ def html_histogram_matrix(
             border-right: 1px solid {border_color};
             border-top: 1px solid {border_color};
             border-bottom: 1px solid {border_color};
+        }}
+        .{prefix}-arrival-label-text {{
+            position: absolute;
+            left: 50%;
+            bottom: 0.3em;
+            transform: translateX(-50%) rotate(-90deg);
+            transform-origin: bottom center;
+            white-space: nowrap;
+            font-weight: normal;
+            font-size: 0.8em;
         }}
         .{prefix}-rotate {{
             text-align: center;
@@ -420,17 +467,7 @@ def html_histogram_matrix(
             transform-origin: center center;
         }}
 
-        .{prefix}-arrival-text {{
-            position: absolute;
-            left: 50%;
-            bottom: 0.3em;
-            transform: translateX(-50%) rotate(-90deg);
-            transform-origin: bottom center;
-            white-space: nowrap;
-            font-weight: normal;
-            font-size: 0.8em;
-        }}
-        .{prefix}-label-cell {{
+        .{prefix}-duration-label-cell {{
             text-align: right;
             font-weight: normal;
             font-size: 0.8em;
@@ -464,15 +501,13 @@ def html_histogram_matrix(
             background: white;
             border-bottom: 0px solid {border_color};
         }}
-        .{prefix}-data-row-blank {{
-            height: {row_unit_em:.3f}em;
-        }}
         .{prefix}-title-row {{
             background: white;
         }}
     </style>
     """
 
+    # Build HTML in chunks; it keeps string reallocations under control.
     parts: list[str] = [style_block]
     parts.append(f"<table class='{prefix}-table'>")
 
@@ -493,6 +528,7 @@ def html_histogram_matrix(
         for value in raw_row.values():
             if value > global_max:
                 global_max = value
+    # Figure out whether we need normalized (0..1) values based on a global max.
     if global_max > 0.0:
         global_lookup = {
             arrival_label: {
@@ -510,6 +546,7 @@ def html_histogram_matrix(
             for arrival_label in matrix.arrival_labels
         }
 
+    # Choose the normalization table based on the requested mode.
     if normalized_mode == "column":
         normalized_lookup = per_column_lookup
     elif normalized_mode == "matrix":
@@ -526,6 +563,7 @@ def html_histogram_matrix(
                 blended_row[duration_label] = (column_val + matrix_val) / 2.0
             normalized_lookup[arrival_label] = blended_row
 
+    # Track where each column's data stack begins so empty padding stays put.
     column_top_indices: dict[str, int] = {}
     for arrival_label in matrix.arrival_labels:
         column_top_indices[arrival_label] = next(
@@ -544,26 +582,14 @@ def html_histogram_matrix(
         if _first_time:
             _first_time = False
             parts.append(
-                f"<td rowspan='{len(duration_labels) * 2}' class='{prefix}-rotate' style='text-align: center'>"
+                f"<td rowspan='{len(duration_labels)}' class='{prefix}-rotate' style='text-align: center'>"
                 f"<div>Visit duration</div>"
                 "</td>"
             )
 
-
-            # parts.append(
-            #     f"<td class='{prefix}-axis-title' rowspan='{len(duration_labels) * 2}'>"
-            #     f"<div class='{prefix}-axis-title-text'>Visit duration</div>"
-            #     "</td>"
-            # )
-
-            # parts.append(
-            #     f"<td rowspan='{len(duration_labels) * 2}'><div style=\"display:inline-block; "
-            #     'transform: rotate(-90deg); transform-origin: center; white-space: nowrap;">'
-            #     "Visit duration</div></td>"
-            # )
         display_duration = VTime(duration_label).short or "&nbsp;"
         parts.append(
-            f"<th class='{prefix}-label-cell' rowspan='2'>{display_duration}</th>"
+            f"<th class='{prefix}-duration-label-cell'>{display_duration}</th>"
         )
         for arrival_label in matrix.arrival_labels:
             raw_row = matrix.raw_values.get(arrival_label, {})
@@ -574,16 +600,12 @@ def html_histogram_matrix(
             effective_value = normalized_value if is_above_threshold else 0.0
             cell_text = "&nbsp;"
             mean_visits = float(raw_value)
-            if mean_visits.is_integer():
-                visit_text = (
-                    f"{int(mean_visits)} visit{'s' if mean_visits != 1 else ''}/day"
-                )
-            else:
-                visit_text = f"{mean_visits:.2f} visits/day"
+            # Provide human-friendly hover text for analysts poking at cells.
             tooltip = (
-                f"{visit_text}\n"
-                f"that start at {arrival_label}\n"
-                f"last {VTime(duration_label).short}"
+                f"On average:\n"
+                f"  {mean_visits:.2f} visits per day\n"
+                f"  start at {arrival_label}\n"
+                f"  and last {VTime(duration_label).short} hours\n"
             )
             title_text = escape(tooltip, quote=True).replace("\n", "&#10;")
 
@@ -597,6 +619,7 @@ def html_histogram_matrix(
                 )
                 continue
             if show_counts:
+                # Only show values when the associated raw metric clears the threshold.
                 if is_above_threshold:
                     if raw_value.is_integer():
                         cell_text = str(int(raw_value))
@@ -618,18 +641,17 @@ def html_histogram_matrix(
                     style_components.append(f"border-top: 1px solid {border_color};")
             style_attr = " ".join(style_components)
             parts.append(
-                f"<td class='{' '.join(classes)}' rowspan='2' style='{style_attr}' "
+                f"<td class='{' '.join(classes)}' style='{style_attr}' "
                 f"title='{title_text}'>{cell_text}</td>"
             )
         parts.append("</tr>")
-        parts.append(f"<tr class='{prefix}-data-row-blank'></tr>")
 
     parts.append("<tr>")
     parts.append(f"<th colspan=2 rowspan=1 class='{prefix}-axis-corner'>&nbsp;</th>")
     for arrival_label in matrix.arrival_labels:
         display_arrival = arrival_label if arrival_label else "&nbsp;"
         parts.append(
-            f"<th class='{prefix}-arrival-cell'><span class='{prefix}-arrival-text'>{display_arrival}</span></th>"
+            f"<th class='{prefix}-arrival-label-cell'><span class='{prefix}-arrival-label-text'>{display_arrival}</span></th>"
         )
     parts.append("</tr>")
 

@@ -213,7 +213,7 @@ def season_frequencies_report(
         arrival_duration_title = f"{arrival_duration_title} ({title_bit})"
     arrival_duration_title = f"<h2>{arrival_duration_title}</h2>"
     arrival_duration_subtitle = (
-        "Data is semi-normalized by columns and entire matrix. Hover on cells for data values."
+        "Data is normalized by average of whole-matrix and per-column maximums. Hover on indiidual cells for exact values."
     )
 
     arrival_duration_colors = dc.Dimension(interpolation_exponent=0.8)
