@@ -10,10 +10,11 @@ from typing import TYPE_CHECKING
 from common.tt_time import VTime
 
 from web_histogram_data import (
-    arrival_duration_matrix_data,
+    # arrival_duration_matrix_data,
     bucket_label,
     fullness_histogram_data,
     time_histogram_data,
+    HistogramMatrixResult,
 )
 from web_histogram_render import html_histogram, html_histogram_matrix
 from web_base_config import (
@@ -35,7 +36,7 @@ def arrival_duration_hist_table(
     days_of_week: str | None = None,
     arrival_bucket_minutes: int = 30,
     duration_bucket_minutes: int = 30,
-    arrival_time_threshold: str = "06:00",
+    min_arrival_threshold: str = "06:00",
     max_duration_threshold: str | None = None,
     title: str = "",
     subtitle: str = "",
@@ -44,24 +45,28 @@ def arrival_duration_hist_table(
     visit_threshold: float = 0.05,
     show_counts: bool = True,
     use_contrasting_text: bool = False,
-    normalization_mode: str = "column",
+    normalization_mode: str = HistogramMatrixResult.NORMALIZATION_BLEND,
 ) -> str:
     """Convenience helper to fetch data and render the arrival-duration matrix.
 
     Args:
-        normalization_mode: Pass ``"column"``, ``"matrix"``, or ``"blended"`` to choose
+        normalization_mode: Pass ``"column"``, ``"global"``, or ``"blend"`` to choose
             how the heatmap values are scaled.
     """
 
-    matrix = arrival_duration_matrix_data(
+    matrix = HistogramMatrixResult(
+        arrival_bucket_minutes=arrival_bucket_minutes,
+        duration_bucket_minutes=duration_bucket_minutes,
+    )
+    # Fetch the raw data & set the day count
+    matrix.fetch_raw_data(
         ttdb=ttdb,
-        orgsite_id=orgsite_id,
         start_date=start_date,
         end_date=end_date,
         days_of_week=days_of_week,
         arrival_bucket_minutes=arrival_bucket_minutes,
         duration_bucket_minutes=duration_bucket_minutes,
-        arrival_time_threshold=arrival_time_threshold,
+        min_arrival_threshold=min_arrival_threshold,
         max_duration_threshold=max_duration_threshold,
     )
 
@@ -139,7 +144,7 @@ def times_hist_table(
                 else (expanded_values[n // 2 - 1] + expanded_values[n // 2]) / 2
             )
             variance = sum((val - mean_val) ** 2 for val in expanded_values) / n
-            std_dev = variance ** 0.5
+            std_dev = variance**0.5
             median_vt = VTime(median_val, allow_large=True)
             mean_vt = VTime(mean_val, allow_large=True)
             std_vt = VTime(std_dev, allow_large=True)

@@ -339,7 +339,7 @@ def html_histogram_matrix(
     visit_threshold: float = 0.05,
     show_counts: bool = True,
     use_contrasting_text: bool = False,
-    normalization_mode: str = "column",
+    normalization_mode: str = HistogramMatrixResult.NORMALIZATION_BLEND,
 ) -> str:
     """Render a 2D histogram matrix (arrival x duration) as HTML.
 
@@ -355,8 +355,8 @@ def html_histogram_matrix(
         use_contrasting_text: Prefer ``css_bg_fg`` if the dimension exposes it.
         normalization_mode: Controls how intensities are scaled:
             - ``"column"`` (default): scale per arrival column.
-            - ``"matrix"``: scale against the single global max.
-            - ``"blended"``: average of the column and global scales.
+            - ``"global"``: scale against the single global max.
+            - ``"blend"``: average of the column and global scales.
 
     Returns:
         Fully composed HTML snippet ready for embedding.
@@ -415,6 +415,9 @@ def html_histogram_matrix(
                 border: 1px solid {border_color};
                 #width: {width_style};
         }}
+        .{prefix}-title-row {{
+            background: white;
+        }}
         .{prefix}-title-cell {{
             text-align: center;
             font-weight: bold;
@@ -429,30 +432,7 @@ def html_histogram_matrix(
             background: white;
             border-top: 1px solid {border_color};
         }}
-        .{prefix}-arrival-label-cell {{
-            position: relative;
-            text-align: center;
-            font-weight: normal;
-            padding: 0;
-            background: white;
-            white-space: nowrap;
-            ZZZheight: 4.4em;
-            border-left: 1px solid {border_color};
-            border-right: 1px solid {border_color};
-            border-top: 1px solid {border_color};
-            border-bottom: 1px solid {border_color};
-        }}
-        .{prefix}-arrival-label-text {{
-            position: absolute;
-            left: 50%;
-            bottom: 0.3em;
-            transform: translateX(-50%) rotate(-90deg);
-            transform-origin: bottom center;
-            white-space: nowrap;
-            font-weight: normal;
-            font-size: 0.8em;
-        }}
-        .{prefix}-rotate {{
+        .{prefix}-duration-axis-label {{
             text-align: center;
             vertical-align: middle;
             white-space: nowrap;
@@ -460,13 +440,12 @@ def html_histogram_matrix(
             font-size: 0.85em;
             width: 1.5em;
         }}
-        .{prefix}-rotate div {{
+        .{prefix}-duration-axis-label div {{
             width: 0;
             display: inline-block;
             transform: rotate(-90deg);
             transform-origin: center center;
         }}
-
         .{prefix}-duration-label-cell {{
             text-align: right;
             font-weight: normal;
@@ -477,14 +456,39 @@ def html_histogram_matrix(
             border-top: 1px solid {border_color};
             border-bottom: 1px solid {border_color};
         }}
+        .{prefix}-arrival-label-cell {{
+            position: relative;
+            #text-align: right;
+            font-weight: normal;
+            #padding: 0;
+            background: white;
+            white-space: nowrap;
+            height: 6ch;
+            border-left: 1px solid {border_color};
+            border-right: 1px solid {border_color};
+            border-top: 1px solid {border_color};
+            border-bottom: 0px solid {border_color};
+        }}
+        .{prefix}-arrival-label-text {{
+            position: absolute;
+            left: 2.5ch;
+            bottom: 4ch;
+            #bottom: 0.3em;
+            transform: translateX(-50%) rotate(-90deg);
+            transform-origin: bottom center;
+            white-space: nowrap;
+            font-weight: normal;
+            font-size: 0.8em;
+        }}
         .{prefix}-axis-corner {{
             border: 1px solid {border_color};
             background: white;
         }}
-        .{prefix}-axis-footer-label {{
+        .{prefix}-arrival-axis-label {{
             text-align: center;
             padding: 0.4em 0.6em;
-            font-weight: bold;
+            font-weight: normal;
+            font-size: 0.8em;
             background: white;
             border-left: 1px solid {border_color};
             border-right: 1px solid {border_color};
@@ -500,9 +504,7 @@ def html_histogram_matrix(
         .{prefix}-empty-cell {{
             background: white;
             border-bottom: 0px solid {border_color};
-        }}
-        .{prefix}-title-row {{
-            background: white;
+            min-width: {data_cell_width_em:.2f}em;
         }}
     </style>
     """
@@ -517,8 +519,10 @@ def html_histogram_matrix(
             f"colspan='{colspan}'>{title}</th></tr>"
         )
 
+    matrix.normalize(normalization_mode=normalization_mode)
+
     normalized_mode = (normalization_mode or "column").lower()
-    if normalized_mode not in {"column", "matrix", "blended"}:
+    if normalized_mode not in {"column", "global", "blend"}:
         normalized_mode = "column"
 
     per_column_lookup = matrix.normalized_values
@@ -549,7 +553,7 @@ def html_histogram_matrix(
     # Choose the normalization table based on the requested mode.
     if normalized_mode == "column":
         normalized_lookup = per_column_lookup
-    elif normalized_mode == "matrix":
+    elif normalized_mode == "global":
         normalized_lookup = global_lookup
     else:
         normalized_lookup = {}
@@ -576,14 +580,15 @@ def html_histogram_matrix(
             None,
         )
 
-    _first_time = True
+    _first_data_row = True
     for row_index, duration_label in enumerate(duration_labels):
         parts.append("<tr>")
-        if _first_time:
-            _first_time = False
+        # For first row, create a rowspan column for the y axis label
+        if _first_data_row:
+            _first_data_row = False
             parts.append(
-                f"<td rowspan='{len(duration_labels)}' class='{prefix}-rotate' style='text-align: center'>"
-                f"<div>Visit duration</div>"
+                f"<td rowspan='{len(duration_labels)}' class='{prefix}-duration-axis-label' style='text-align: center'>"
+                "<div>Duration of visit</div>"
                 "</td>"
             )
 
@@ -602,10 +607,10 @@ def html_histogram_matrix(
             mean_visits = float(raw_value)
             # Provide human-friendly hover text for analysts poking at cells.
             tooltip = (
-                f"On average:\n"
-                f"  {mean_visits:.2f} visits per day\n"
-                f"  start at {arrival_label}\n"
-                f"  and last {VTime(duration_label).short} hours\n"
+                "There were\n"
+                f"  {mean_visits:.2f} visits {'' if matrix.day_count == 1 else 'per day'}\n"
+                f"  that started at {arrival_label}\n"
+                f"  and lasted {VTime(duration_label).short} hours\n"
             )
             title_text = escape(tooltip, quote=True).replace("\n", "&#10;")
 
@@ -647,7 +652,7 @@ def html_histogram_matrix(
         parts.append("</tr>")
 
     parts.append("<tr>")
-    parts.append(f"<th colspan=2 rowspan=1 class='{prefix}-axis-corner'>&nbsp;</th>")
+    parts.append(f"<th colspan=2 rowspan=2 class='{prefix}-axis-corner'>&nbsp;</th>")
     for arrival_label in matrix.arrival_labels:
         display_arrival = arrival_label if arrival_label else "&nbsp;"
         parts.append(
@@ -656,9 +661,9 @@ def html_histogram_matrix(
     parts.append("</tr>")
 
     parts.append("<tr>")
-    parts.append(f"<th colspan=2 class='{prefix}-axis-corner'>&nbsp;</th>")
+    # parts.append(f"<th colspan=2 class='{prefix}-axis-corner'>&nbsp;</th>")
     parts.append(
-        f"<td class='{prefix}-axis-footer-label' colspan='{data_columns}'>Time of arrival</td>"
+        f"<td class='{prefix}-arrival-axis-label' colspan='{data_columns}'>Time of arrival</td>"
     )
     parts.append("</tr>")
 

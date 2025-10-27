@@ -17,10 +17,10 @@ work to the new modules.
 from web_histogram_data import (
     HistogramMatrixResult,
     HistogramResult,
-    arrival_duration_matrix_data,
+    # arrival_duration_matrix_data,
     bucket_label,
     duration_bucket_label,
-    format_minutes,
+    # format_minutes,
     fullness_histogram_data,
     time_histogram_data,
 )
@@ -34,7 +34,7 @@ from web_histogram_tables import (
 
 # Backward compatible aliases for legacy private helpers.
 _bucket_label = bucket_label
-_format_minutes = format_minutes
+# _format_minutes = format_minutes
 _duration_bucket_label = duration_bucket_label
 
 
@@ -43,7 +43,7 @@ __all__ = [
     "HistogramResult",
     "activity_hist_table",
     "arrival_duration_hist_table",
-    "arrival_duration_matrix_data",
+    # "arrival_duration_matrix_data",
     "bucket_label",
     "fullness_hist_table",
     "fullness_histogram_data",
@@ -52,8 +52,8 @@ __all__ = [
     "time_histogram_data",
     "times_hist_table",
     "duration_bucket_label",
-    "format_minutes",
+    # "format_minutes",
     "_bucket_label",
-    "_format_minutes",
+    # "_format_minutes",
     "_duration_bucket_label",
 ]

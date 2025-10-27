@@ -10,72 +10,6 @@ import web_common as cc
 from common.tt_time import VTime
 
 
-@dataclass
-class HistogramResult:
-    """Structured histogram data plus operating hour metadata.
-
-    The rendering layer expects ``values`` to already be averaged per day and the
-    optional ``open/close`` buckets to align with ``category_minutes``.
-    """
-
-    values: dict[str, float]
-    day_count: int
-    open_bucket: int | None = None
-    close_bucket: int | None = None
-    category_minutes: int = 30
-
-
-@dataclass
-class HistogramMatrixResult:
-    """Structured two-dimensional histogram data for arrival vs duration buckets."""
-
-    arrival_labels: list[str]
-    duration_labels: list[str]
-    normalized_values: dict[str, dict[str, float]]
-    raw_values: dict[str, dict[str, float]]
-    day_count: int
-    arrival_bucket_minutes: int = 30
-    duration_bucket_minutes: int = 30
-
-
-def bucket_label(bucket_minutes: int | None) -> str | None:
-    """Return tidy label text for a bucket start in minutes.
-
-    ``VTime`` instances expose several string helpers; prefer ``tidy`` when
-    available so labels match the rest of the web UI, otherwise fall back to the
-    default ``str`` representation.
-    """
-    return VTime(bucket_minutes).tidy
-    if bucket_minutes is None:
-        return None
-    vt = VTime(bucket_minutes)
-    if not vt:
-        return None
-    return vt.tidy if hasattr(vt, "tidy") else str(vt)
-
-
-def format_minutes(minutes: int) -> str:
-    """Return zero-padded HH:MM string for a minutes value.
-
-    Negative inputs can occur when upstream code subtracts buffers, so clamp to
-    zero to avoid confusing ``-01:15`` style labels.
-    """
-
-    if minutes < 0:
-        minutes = 0
-    hours = minutes // 60
-    mins = minutes % 60
-    return f"{hours:02}:{mins:02}"
-
-
-def duration_bucket_label(bucket_minutes: int | None, bucket_width: int = 30) -> str | None:
-    """Return label like '00:00' for the start of a duration bucket."""
-
-    if bucket_minutes is None:
-        return None
-    return format_minutes(bucket_minutes)
-
-
 def _minutes_expr(column_name: str) -> str:
     """Return SQL expression that converts HH:MM text to minutes."""
 
@@ -97,10 +31,10 @@ def _duration_minutes_expr(column_name: str = "V.duration") -> str:
 
 
 def _build_day_filter_items(
-    orgsite_filter: int,
-    start_date: str | None,
-    end_date: str | None,
-    days_of_week: str | None,
+    orgsite_filter: int = 1,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    days_of_week: str | None = None,
 ) -> list[str]:
     """Return reusable WHERE-clause pieces that only reference the DAY table."""
 
@@ -120,6 +54,358 @@ def _build_day_filter_items(
             f"""strftime('%w',D.DATE) IN ('{"','".join(zero_based_days_of_week)}')"""
         )
     return items
+
+
+@dataclass
+class HistogramResult:
+    """Structured histogram data plus operating hour metadata.
+
+    The rendering layer expects ``values`` to already be averaged per day and the
+    optional ``open/close`` buckets to align with ``category_minutes``.
+    """
+
+    values: dict[str, float]
+    day_count: int
+    open_bucket: int | None = None
+    close_bucket: int | None = None
+    category_minutes: int = 30
+
+
+class HistogramMatrixResult:
+    """Structured two-dimensional histogram data for arrival vs duration buckets."""
+
+    NORMALIZATION_GLOBAL = "global"
+    NORMALIZATION_COLUMN = "column"
+    NORMALIZATION_BLEND = "blend"
+
+    def __init__(
+        self,
+        # arrival_labels: list[str] = None,
+        # duration_labels: list[str] = None,
+        # normalized_values: dict[str, dict[str, float]] = None,
+        # raw_values: dict[str, dict[str, float]],
+        # day_count: int = 0,
+        arrival_bucket_minutes: int = 30,
+        duration_bucket_minutes: int = 30,
+    ):
+        self.arrival_bucket_minutes = arrival_bucket_minutes
+        self.duration_bucket_minutes = duration_bucket_minutes
+        self.raw_values = {}
+        self.day_count = None
+        self.arrival_labels = []
+        self.duration_labels = []
+        self.normalized_values = {}
+
+    def fetch_raw_data(
+        self,
+        ttdb: sqlite3.Connection,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        days_of_week: str | None = None,
+        arrival_bucket_minutes: int = 30,
+        duration_bucket_minutes: int = 30,
+        min_arrival_threshold: str = "06:00",
+        max_duration_threshold: str | None = None,
+    ):
+        """Load data from the database:
+        raw_values
+        day_count
+        arrival_labels  (these will be .tidy - e.g. " 9:30" not "09:30" )
+        duration_labels (ditto)
+        """
+
+        day_filter_items = _build_day_filter_items(
+            start_date=start_date, end_date=end_date, days_of_week=days_of_week
+        )
+        day_filter_clause = (
+            " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
+        )
+
+        arrival_minutes_expr = _minutes_expr("V.time_in")
+        duration_minutes_expr = _duration_minutes_expr()
+
+        arrival_threshold_minutes = (
+            VTime(min_arrival_threshold).num if min_arrival_threshold else None
+        )
+        max_duration_minutes = (
+            VTime(max_duration_threshold, allow_large=True).num
+            if max_duration_threshold
+            else None
+        )
+
+        # Optional arrival/duration bounds keep the matrix from growing unbounded.
+        threshold_filters: list[str] = []
+        if arrival_threshold_minutes is not None:
+            threshold_filters.append(
+                f"(arrival_minutes >= {int(arrival_threshold_minutes)})"
+            )
+        if max_duration_minutes is not None:
+            threshold_filters.append(
+                f"(duration_minutes <= {int(max_duration_minutes)})"
+            )
+        threshold_clause = (
+            " AND ".join(threshold_filters) if threshold_filters else "1 = 1"
+        )
+
+        # Reusable CTE makes it easy to pull both day counts and per-bucket stats.
+        base_cte = f"""
+        WITH filtered_visits AS (
+        SELECT
+            D.date AS visit_date,
+            {arrival_minutes_expr} AS arrival_minutes,
+            {duration_minutes_expr} AS duration_minutes
+        FROM
+            DAY D
+        JOIN
+            VISIT V ON D.id = V.day_id
+        WHERE {day_filter_clause}
+            AND {arrival_minutes_expr} IS NOT NULL
+            AND {duration_minutes_expr} IS NOT NULL
+            AND {threshold_clause}
+    )
+        """
+
+        day_count_query = (
+            base_cte
+            + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
+        )
+        day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
+        day_count = day_rows[0].day_count if day_rows else 0
+        if day_count is None:
+            day_count = 0
+        elif not isinstance(day_count, int):
+            day_count = int(day_count)
+
+        bucket_query = (
+            base_cte + "SELECT\n"
+            f"    arrival_minutes - (arrival_minutes % {arrival_bucket_minutes}) AS arrival_bucket,\n"
+            f"    duration_minutes - (duration_minutes % {duration_bucket_minutes}) AS duration_bucket,\n"
+            "    COUNT(*) AS bucket_count\n"
+            "FROM filtered_visits\n"
+            "WHERE arrival_minutes IS NOT NULL AND duration_minutes IS NOT NULL\n"
+            "GROUP BY arrival_bucket, duration_bucket\n"
+            "ORDER BY arrival_bucket, duration_bucket;\n"
+        )
+        bucket_rows = db.db_fetch(
+            ttdb,
+            bucket_query,
+            ["arrival_bucket", "duration_bucket", "bucket_count"],
+        )
+
+        # Nested dict keyed by arrival bucket then duration bucket → raw counts.
+        buckets: dict[int, dict[int, int]] = {}
+        arrival_buckets: set[int] = set()
+        duration_buckets: set[int] = set()
+        for row in bucket_rows:
+            if row.arrival_bucket is None or row.duration_bucket is None:
+                continue
+            arrival_minute = int(row.arrival_bucket)
+            duration_minute = int(row.duration_bucket)
+            count = int(row.bucket_count)
+            arrival_buckets.add(arrival_minute)
+            duration_buckets.add(duration_minute)
+            buckets.setdefault(arrival_minute, {})
+            buckets[arrival_minute][duration_minute] = count
+
+        if not buckets:
+            self.raw_values = {}
+            self.day_count = 0
+            return
+
+        arrival_range = sorted(arrival_buckets)
+        if arrival_range:
+            # Ensure buckets form a continuous range so renderers can assume gaps are zeroes.
+            start_arrival = arrival_range[0]
+            end_arrival = arrival_range[-1]
+            arrival_range = list(
+                range(
+                    start_arrival,
+                    end_arrival + arrival_bucket_minutes,
+                    arrival_bucket_minutes,
+                )
+            )
+
+        duration_range = sorted(duration_buckets)
+        if duration_range:
+            # Duration buckets always start from zero for clarity on the Y axis.
+            start_duration = 0
+            end_duration = duration_range[-1]
+            duration_range = list(
+                range(
+                    start_duration,
+                    end_duration + duration_bucket_minutes,
+                    duration_bucket_minutes,
+                )
+            )
+
+        # Convert bucket minutes into the display labels expected by renderers.
+        arrival_labels: list[str] = []
+        for minute in arrival_range:
+            label = bucket_label(minute)
+            if label is None:
+                label = (
+                    VTime(minute, allow_large=True).tidy if minute is not None else ""
+                )
+            arrival_labels.append(label or VTime(minute).tidy)
+        self.arrival_labels = arrival_labels
+
+        duration_labels: list[str] = []
+        for minute in duration_range:
+            label = duration_bucket_label(minute)
+            duration_labels.append(label or VTime(minute).tidy)
+        self.duration_labels = duration_labels
+
+        # normalized_values: dict[str, dict[str, float]] = {}
+        raw_values: dict[str, dict[str, float]] = {}
+
+        for arrival_minute, arrival_label in zip(arrival_range, arrival_labels):
+            raw_row: dict[str, float] = {}
+            max_value = 0.0
+            source = buckets.get(arrival_minute, {})
+            for duration_minute, duration_label in zip(duration_range, duration_labels):
+                val = float(source.get(duration_minute, 0))
+                raw_row[duration_label] = val
+                if val > max_value:
+                    max_value = val
+            raw_values[arrival_label] = raw_row
+
+        if day_count:
+            # Convert counts into per-day averages so charts stay comparable between ranges.
+            for arrival_label, raw_row in raw_values.items():
+                for duration_label, val in raw_row.items():
+                    raw_row[duration_label] = val / day_count
+
+        self.day_count = day_count
+        self.raw_values = raw_values
+
+    def _normalize_column(self) -> dict[str, dict[str, float]]:
+        """Returns normalized from raw using 'column' method,
+        i.e., normalizes the data from each column independently.
+        """
+
+        normalized = {}
+
+        for col, inner in self.raw_values.items():
+            # find max for this column
+            col_max = max(inner.values(), default=0.0)
+
+            if col_max == 0:
+                # if all zero, make entire column zeros
+                normalized[col] = {row: 0.0 for row in inner}
+            else:
+                # divide each value by column max
+                normalized[col] = {row: val / col_max for row, val in inner.items()}
+        return normalized
+
+    def _normalize_global(self) -> dict[str, dict[str, float]] | None:
+        """Returns normalized from raw using 'global' method"""
+
+        # 1. find the global max value across all nested dicts
+        max_val = max(v for inner in self.raw_values.values() for v in inner.values())
+        if not max_val:
+            return None
+
+        # 2. divide each value by the global max
+        normalized = {
+            outer_k: {inner_k: v / max_val for inner_k, v in inner.items()}
+            for outer_k, inner in self.raw_values.items()
+        }
+        return normalized
+
+        # duration_labels = list(self.duration_labels)[::-1]
+
+        # global_max = 0.0
+        # for raw_row in self.raw_values.values():
+        #     for value in raw_row.values():
+        #         if value > global_max:
+        #             global_max = value
+        # # Figure out whether we need normalized (0..1) values based on a global max.
+        # if global_max > 0.0:
+        #     global_lookup = {
+        #         arrival_label: {
+        #             duration_label: (
+        #                 self.raw_values.get(arrival_label, {}).get(duration_label, 0.0)
+        #                 / global_max
+        #             )
+        #             for duration_label in duration_labels
+        #         }
+        #         for arrival_label in self.arrival_labels
+        #     }
+        # else:
+        #     global_lookup = {
+        #         arrival_label: {duration_label: 0.0 for duration_label in duration_labels}
+        #         for arrival_label in self.arrival_labels
+        #     }
+        # return global_lookup
+
+    def _normalize_blend(self) -> dict[str, dict[str, float]]:
+        """Return normalized data using the 'blend' method,
+        i.e. the average of global and column normalizations.
+        """
+
+        global_matrix = self._normalize_global()
+        column_matrix = self._normalize_column()
+
+        blended_matrix = {}
+        for arrival_label in self.arrival_labels:
+            column_row = column_matrix.get(arrival_label, {})
+            global_row = global_matrix.get(arrival_label, {})
+            blended_row: dict[str, float] = {}
+            for duration_label in self.duration_labels:
+                column_val = column_row.get(duration_label, 0.0)
+                global_val = global_row.get(duration_label, 0.0)
+                blended_row[duration_label] = (column_val + global_val) / 2.0
+            blended_matrix[arrival_label] = blended_row
+
+        return blended_matrix
+
+    def normalize(self, normalization_mode: str):
+        """Sets .normalized_values in matrix according to normalization_mode.
+
+        normalization_mode is 'column', 'global', or 'blend'.
+        """
+
+        # duration_labels = list(self.duration_labels)[::-1]
+        # per_column_lookup = self.normalized_values
+
+        # Choose the normalization table based on the requested mode.
+        if normalization_mode == self.NORMALIZATION_COLUMN:
+            self.normalized_values = self._normalize_column()
+        elif normalization_mode == self.NORMALIZATION_GLOBAL:
+            self.normalized_values = self._normalize_global()
+        elif normalization_mode == self.NORMALIZATION_BLEND:
+            self.normalized_values = self._normalize_blend()
+        else:
+            cc.error_out(f"Unrecognized normalization mode '{normalization_mode}'")
+
+
+def bucket_label(bucket_minutes: int | None) -> str | None:
+    """Return tidy label text for a bucket start in minutes.
+
+    ``VTime`` instances expose several string helpers; prefer ``tidy`` when
+    available so labels match the rest of the web UI, otherwise fall back to the
+    default ``str`` representation.
+    """
+    return VTime(bucket_minutes).tidy
+
+
+# def format_minutes(minutes: int) -> str:
+#     """Return zero-padded HH:MM string for a minutes value.
+
+#     Negative inputs can occur when upstream code subtracts buffers, so clamp to
+#     zero to avoid confusing ``-01:15`` style labels.
+#     """
+#     return VTime(minutes).tidy
+
+
+def duration_bucket_label(
+    bucket_minutes: int | None
+) -> str | None:
+    """Return label like '00:00' for the start of a duration bucket."""
+
+    # if bucket_minutes is None:
+    #     return None
+    return VTime(bucket_minutes).tidy
 
 
 def time_histogram_data(
@@ -157,9 +443,7 @@ def time_histogram_data(
         filter_items.append("V.time_out IS NOT NULL")
         filter_items.append("V.time_out <> ''")
     filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
-    day_filter_clause = (
-        " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
-    )
+    day_filter_clause = " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
 
     if time_column_lower == "duration":
         start_time, end_time = ("00:00", "12:00")
@@ -193,8 +477,7 @@ WITH filtered_visits AS (
         day_count = int(day_count)
 
     bucket_query = (
-        base_cte
-        + "SELECT\n"
+        base_cte + "SELECT\n"
         f"    minutes_value - (minutes_value % {category_minutes}) AS bucket_start,\n"
         "    COUNT(*) AS bucket_count\n"
         "FROM filtered_visits\n"
@@ -233,13 +516,17 @@ WITH filtered_visits AS (
         averaged_freq: dict[str, float] = {}
     else:
         # Base label range defaults to operating hours when possible.
-        start_minutes = VTime(start_time).num if start_time else min(bucket_counts.keys())
+        start_minutes = (
+            VTime(start_time).num if start_time else min(bucket_counts.keys())
+        )
         end_minutes = VTime(end_time).num if end_time else max(bucket_counts.keys())
         start_bucket = (start_minutes // category_minutes) * category_minutes
         end_bucket = (end_minutes // category_minutes) * category_minutes
         categories_by_minute: dict[int, int] = {
             minute: 0
-            for minute in range(start_bucket, end_bucket + category_minutes, category_minutes)
+            for minute in range(
+                start_bucket, end_bucket + category_minutes, category_minutes
+            )
         }
         have_unders = have_overs = False
         for bucket_start, count in bucket_counts.items():
@@ -265,7 +552,8 @@ WITH filtered_visits AS (
             categories_str[f"{end_label}+"] = categories_str.pop(end_label, 0)
         averaged_freq = {
             # Divide by day_count (defaulting to 1) to get per-day averages.
-            key: (value / (day_count or 1)) for key, value in sorted(categories_str.items())
+            key: (value / (day_count or 1))
+            for key, value in sorted(categories_str.items())
         }
 
     return HistogramResult(
@@ -295,9 +583,7 @@ def fullness_histogram_data(
 
     filter_items: list[str] = ["B.num_on_hand_combined IS NOT NULL"] + day_filter_items
     filter_clause = " AND ".join(filter_items) if filter_items else "1 = 1"
-    day_filter_clause = (
-        " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
-    )
+    day_filter_clause = " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
 
     day_count_query = f"""
         SELECT COUNT(DISTINCT D.DATE) AS day_count
@@ -446,204 +732,13 @@ def fullness_histogram_data(
     )
 
 
-def arrival_duration_matrix_data(
-    ttdb: sqlite3.Connection,
-    orgsite_id: int,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    days_of_week: str | None = None,
-    arrival_bucket_minutes: int = 30,
-    duration_bucket_minutes: int = 30,
-    arrival_time_threshold: str = "06:00",
-    max_duration_threshold: str | None = None,
-) -> HistogramMatrixResult:
-    """Return visit counts per arrival-vs-duration bucket.
-
-    Args:
-        ttdb: SQLite connection to the TagTracker database.
-        orgsite_id: Target org/site identifier (defaults to 1 when falsy).
-        start_date/end_date/days_of_week: Standard visit filters mirrored across reports.
-        arrival_bucket_minutes: Minutes per arrival column.
-        duration_bucket_minutes: Minutes per duration row.
-        arrival_time_threshold: Drop visits that start before this time-of-day.
-        max_duration_threshold: Cap rows to durations below this HH:MM ceiling.
-
-    Returns:
-        ``HistogramMatrixResult`` with both raw per-day counts and normalized columns.
-    """
-
-    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
-
-    day_filter_items = _build_day_filter_items(
-        orgsite_filter, start_date, end_date, days_of_week
-    )
-    day_filter_clause = (
-        " AND ".join(day_filter_items) if day_filter_items else "1 = 1"
-    )
-
-    arrival_minutes_expr = _minutes_expr("V.time_in")
-    duration_minutes_expr = _duration_minutes_expr()
-
-    arrival_threshold_minutes = VTime(arrival_time_threshold).num if arrival_time_threshold else None
-    max_duration_minutes = (
-        VTime(max_duration_threshold, allow_large=True).num if max_duration_threshold else None
-    )
-
-    # Optional arrival/duration bounds keep the matrix from growing unbounded.
-    threshold_filters: list[str] = []
-    if arrival_threshold_minutes is not None:
-        threshold_filters.append(f"(arrival_minutes >= {int(arrival_threshold_minutes)})")
-    if max_duration_minutes is not None:
-        threshold_filters.append(f"(duration_minutes <= {int(max_duration_minutes)})")
-    threshold_clause = " AND ".join(threshold_filters) if threshold_filters else "1 = 1"
-
-    # Reusable CTE makes it easy to pull both day counts and per-bucket stats.
-    base_cte = f"""
-WITH filtered_visits AS (
-    SELECT
-        D.date AS visit_date,
-        {arrival_minutes_expr} AS arrival_minutes,
-        {duration_minutes_expr} AS duration_minutes
-    FROM
-        DAY D
-    JOIN
-        VISIT V ON D.id = V.day_id
-    WHERE {day_filter_clause}
-        AND {arrival_minutes_expr} IS NOT NULL
-        AND {duration_minutes_expr} IS NOT NULL
-        AND {threshold_clause}
-)
-    """
-
-    day_count_query = (
-        base_cte
-        + "SELECT COUNT(DISTINCT visit_date) AS day_count FROM filtered_visits;"
-    )
-    day_rows = db.db_fetch(ttdb, day_count_query, ["day_count"])
-    day_count = day_rows[0].day_count if day_rows else 0
-    if day_count is None:
-        day_count = 0
-    elif not isinstance(day_count, int):
-        day_count = int(day_count)
-
-    bucket_query = (
-        base_cte
-        + "SELECT\n"
-        f"    arrival_minutes - (arrival_minutes % {arrival_bucket_minutes}) AS arrival_bucket,\n"
-        f"    duration_minutes - (duration_minutes % {duration_bucket_minutes}) AS duration_bucket,\n"
-        "    COUNT(*) AS bucket_count\n"
-        "FROM filtered_visits\n"
-        "WHERE arrival_minutes IS NOT NULL AND duration_minutes IS NOT NULL\n"
-        "GROUP BY arrival_bucket, duration_bucket\n"
-        "ORDER BY arrival_bucket, duration_bucket;\n"
-    )
-    bucket_rows = db.db_fetch(
-        ttdb,
-        bucket_query,
-        ["arrival_bucket", "duration_bucket", "bucket_count"],
-    )
-
-    # Nested dict keyed by arrival bucket then duration bucket → raw counts.
-    buckets: dict[int, dict[int, int]] = {}
-    arrival_buckets: set[int] = set()
-    duration_buckets: set[int] = set()
-    for row in bucket_rows:
-        if row.arrival_bucket is None or row.duration_bucket is None:
-            continue
-        arrival_minute = int(row.arrival_bucket)
-        duration_minute = int(row.duration_bucket)
-        count = int(row.bucket_count)
-        arrival_buckets.add(arrival_minute)
-        duration_buckets.add(duration_minute)
-        buckets.setdefault(arrival_minute, {})
-        buckets[arrival_minute][duration_minute] = count
-
-    if not buckets:
-        return HistogramMatrixResult(
-            arrival_labels=[],
-            duration_labels=[],
-            normalized_values={},
-            raw_values={},
-            day_count=day_count,
-            arrival_bucket_minutes=arrival_bucket_minutes,
-            duration_bucket_minutes=duration_bucket_minutes,
-        )
-
-    arrival_range = sorted(arrival_buckets)
-    if arrival_range:
-        # Ensure buckets form a continuous range so renderers can assume gaps are zeroes.
-        start_arrival = arrival_range[0]
-        end_arrival = arrival_range[-1]
-        arrival_range = list(
-            range(start_arrival, end_arrival + arrival_bucket_minutes, arrival_bucket_minutes)
-        )
-
-    duration_range = sorted(duration_buckets)
-    if duration_range:
-        # Duration buckets always start from zero for clarity on the Y axis.
-        start_duration = 0
-        end_duration = duration_range[-1]
-        duration_range = list(
-            range(start_duration, end_duration + duration_bucket_minutes, duration_bucket_minutes)
-        )
-
-    # Convert bucket minutes into the display labels expected by renderers.
-    arrival_labels: list[str] = []
-    for minute in arrival_range:
-        label = bucket_label(minute)
-        if label is None:
-            label = VTime(minute, allow_large=True).tidy if minute is not None else ""
-        arrival_labels.append(label or format_minutes(minute))
-
-    duration_labels: list[str] = []
-    for minute in duration_range:
-        label = duration_bucket_label(minute, duration_bucket_minutes)
-        duration_labels.append(label or format_minutes(minute))
-
-    normalized_values: dict[str, dict[str, float]] = {}
-    raw_values: dict[str, dict[str, float]] = {}
-
-    for arrival_minute, arrival_label in zip(arrival_range, arrival_labels):
-        raw_row: dict[str, float] = {}
-        max_value = 0.0
-        source = buckets.get(arrival_minute, {})
-        for duration_minute, duration_label in zip(duration_range, duration_labels):
-            val = float(source.get(duration_minute, 0))
-            raw_row[duration_label] = val
-            if val > max_value:
-                max_value = val
-        raw_values[arrival_label] = raw_row
-        normalized_row: dict[str, float] = {}
-        for duration_label in duration_labels:
-            # Normalize within the column so rendering can scale 0..1 regardless of volume.
-            value = raw_row[duration_label]
-            normalized_row[duration_label] = value / max_value if max_value else 0.0
-        normalized_values[arrival_label] = normalized_row
-
-    if day_count:
-        # Convert counts into per-day averages so charts stay comparable between ranges.
-        for arrival_label, raw_row in raw_values.items():
-            for duration_label, val in raw_row.items():
-                raw_row[duration_label] = val / day_count
-
-    return HistogramMatrixResult(
-        arrival_labels=arrival_labels,
-        duration_labels=duration_labels,
-        normalized_values=normalized_values,
-        raw_values=raw_values,
-        day_count=day_count,
-        arrival_bucket_minutes=arrival_bucket_minutes,
-        duration_bucket_minutes=duration_bucket_minutes,
-    )
-
-
 __all__ = [
     "HistogramResult",
     "HistogramMatrixResult",
-    "arrival_duration_matrix_data",
+    # "arrival_duration_matrix_data",
     "bucket_label",
     "duration_bucket_label",
-    "format_minutes",
+    # "format_minutes",
     "fullness_histogram_data",
     "time_histogram_data",
 ]
