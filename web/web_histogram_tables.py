@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from common.tt_time import VTime
 
 from web_histogram_data import (
-    # arrival_duration_matrix_data,
     bucket_label,
     fullness_histogram_data,
     time_histogram_data,
