@@ -385,9 +385,8 @@ def html_histogram_matrix(
         dimension.add_config(0.7, "orchid")
         dimension.add_config(1.0, "purple")
 
-    table_width = table_width or 0
-    table_width = max(table_width, 10)
-    width_style = f"{table_width}%" if table_width else "auto"
+    # table_width = table_width or 0
+    # table_width = max(table_width, 10)
     # Prefix randomization ensures multiple tables can co-exist without CSS bleed.
     prefix = ut.random_string(4)
 
@@ -404,16 +403,27 @@ def html_histogram_matrix(
     # pick whichever variant delivers readable text for the current settings.
     color_func = getattr(dimension, color_func_name)
 
-    data_cell_width_em = 1.2
+    y_axis_title_width = 1.5
+    y_axis_label_width = 2.2
+    data_cell_width_em = 1.8
     row_unit_em = 0.18
     cell_height_em = row_unit_em * 2
-
+    table_width = (
+        len(matrix.arrival_labels) * data_cell_width_em
+        + y_axis_title_width
+        + y_axis_label_width
+    )  # em
     style_block = f"""
     <style>
-        .{prefix}-table {{font-family: sans-serif;
+        .{prefix}-table {{
+                font-family: sans-serif;
                 border-collapse: collapse;
                 border: 1px solid {border_color};
-                #width: {width_style};
+                table-layout: fixed;
+                width: {table_width}em;
+        }}
+        .{prefix}-table td th {{
+                box-sizing: border-box;
         }}
         .{prefix}-title-row {{
             background: white;
@@ -438,7 +448,7 @@ def html_histogram_matrix(
             white-space: nowrap;
             font-weight: normal;
             font-size: 0.85em;
-            width: 1.5em;
+            #width: 1.5em;
         }}
         .{prefix}-duration-axis-label div {{
             width: 0;
@@ -467,7 +477,7 @@ def html_histogram_matrix(
             border-left: 1px solid {border_color};
             border-right: 1px solid {border_color};
             border-top: 1px solid {border_color};
-            border-bottom: 0px solid {border_color};
+            border-bottom: none; #0px solid {border_color};
         }}
         .{prefix}-arrival-label-text {{
             position: absolute;
@@ -498,13 +508,13 @@ def html_histogram_matrix(
             text-align: center;
             font-size: 0.75em;
             padding: 0;
-            min-width: {data_cell_width_em:.2f}em;
-            ZZZborder-bottom: 1px solid {border_color};
+            #min-width: {data_cell_width_em:.2f}em;
+            #border-bottom: 1px solid {border_color};
         }}
         .{prefix}-empty-cell {{
-            background: white;
-            border-bottom: 0px solid {border_color};
-            min-width: {data_cell_width_em:.2f}em;
+            background: #f6f6f6;
+            border-bottom: none;
+            #min-width: {data_cell_width_em:.2f}em;
         }}
     </style>
     """
@@ -512,6 +522,17 @@ def html_histogram_matrix(
     # Build HTML in chunks; it keeps string reallocations under control.
     parts: list[str] = [style_block]
     parts.append(f"<table class='{prefix}-table'>")
+
+    _data_col_elements = f"<col width={data_cell_width_em}em>" * len(
+        matrix.arrival_labels
+    )
+    parts.append(
+        "<colgroup>"
+        f"<col width={y_axis_title_width}em>"
+        f"<col width={y_axis_label_width}em>"
+        f"{_data_col_elements}"
+        "</colgroup>"
+    )
 
     if title:
         parts.append(

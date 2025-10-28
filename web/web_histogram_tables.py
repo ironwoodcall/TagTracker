@@ -21,14 +21,12 @@ from web_base_config import (
     HIST_FIXED_Y_AXIS_FULLNESS,
 )
 
-if TYPE_CHECKING:
-    from web.datacolors import Dimension
+from web.datacolors import Dimension
 
 
 def arrival_duration_hist_table(
     ttdb: sqlite3.Connection,
     orgsite_id: int,
-    dimension: "Dimension | None" = None,
     *,
     start_date: str | None = None,
     end_date: str | None = None,
@@ -52,6 +50,14 @@ def arrival_duration_hist_table(
         normalization_mode: Pass ``"column"``, ``"global"``, or ``"blend"`` to choose
             how the heatmap values are scaled.
     """
+
+    arrival_duration_colors = Dimension(interpolation_exponent=0.8)
+    arrival_duration_colors.add_config(0.00, "#fffbe6")   # very pale yellow
+    arrival_duration_colors.add_config(0.25, "#fde6a2")   # warm light yellow
+    arrival_duration_colors.add_config(0.50, "#f5b75e")   # soft amber
+    arrival_duration_colors.add_config(0.75, "#d67642")   # burnt orange
+    arrival_duration_colors.add_config(1.00, "#6b2c1a")   # deep brown-red
+
 
     matrix = HistogramMatrixResult(
         arrival_bucket_minutes=arrival_bucket_minutes,
@@ -79,7 +85,7 @@ def arrival_duration_hist_table(
 
     return html_histogram_matrix(
         matrix,
-        dimension,
+        arrival_duration_colors,
         title=title,
         subtitle=subtitle_text,
         table_width=table_width,
