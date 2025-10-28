@@ -508,6 +508,8 @@ def html_histogram_matrix(
             text-align: center;
             font-size: 0.75em;
             padding: 0;
+            position: relative;
+            cursor: pointer;
             #min-width: {data_cell_width_em:.2f}em;
             #border-bottom: 1px solid {border_color};
         }}
@@ -515,6 +517,48 @@ def html_histogram_matrix(
             background: #f6f6f6;
             border-bottom: none;
             #min-width: {data_cell_width_em:.2f}em;
+        }}
+        .{prefix}-tooltip {{
+            display: none;
+            position: absolute;
+            z-index: 20;
+            left: 50%;
+            top: 100%;
+            transform: translate(-50%, 0.5em);
+            background: white;
+            border: 1px solid {border_color};
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+            padding: 0.6em 0.75em;
+            text-align: left;
+            #font-size: 0.75em;
+            color: #222;
+            line-height: 1.4;
+            min-width: 12em;
+            max-width: 18em;
+            border-radius: 0.4em;
+        }}
+        .{prefix}-tooltip::before {{
+            content: "";
+            position: absolute;
+            top: -0.5em;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 0.5em 0.5em 0;
+            border-style: solid;
+            border-color: {border_color} transparent transparent transparent;
+        }}
+        .{prefix}-tooltip::after {{
+            content: "";
+            position: absolute;
+            top: calc(-0.5em + 1px);
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 0.5em 0.5em 0;
+            border-style: solid;
+            border-color: white transparent transparent transparent;
+        }}
+        .{prefix}-tooltip-visible .{prefix}-tooltip {{
+            display: block;
         }}
     </style>
     """
@@ -622,18 +666,12 @@ def html_histogram_matrix(
             normalized_row = normalized_lookup.get(arrival_label, {})
             normalized_value = normalized_row.get(duration_label, 0.0)
             raw_value = raw_row.get(duration_label, 0.0)
+            # FIXME: visit_threshold should be applied to raw values,
+            # probably as a part of HistogramMatrixResult.fetch_raw_data
             is_above_threshold = raw_value >= visit_threshold
             effective_value = normalized_value if is_above_threshold else 0.0
             cell_text = "&nbsp;"
             mean_visits = float(raw_value)
-            # Provide human-friendly hover text for analysts poking at cells.
-            tooltip = (
-                "There were\n"
-                f"  {mean_visits:.2f} visits {'' if matrix.day_count == 1 else 'per day'}\n"
-                f"  that started at {arrival_label}\n"
-                f"  and lasted {VTime(duration_label).short} hours\n"
-            )
-            title_text = escape(tooltip, quote=True).replace("\n", "&#10;")
 
             top_index = column_top_indices.get(arrival_label)
             is_empty_above_stack = top_index is None or row_index < top_index
@@ -666,9 +704,28 @@ def html_histogram_matrix(
                 if row_index == top_index:
                     style_components.append(f"border-top: 1px solid {border_color};")
             style_attr = " ".join(style_components)
+
+            day_count = matrix.day_count or 0
+            if day_count == 1:
+                visits_line = f"{mean_visits:.2f} visit(s)"
+            else:
+                visits_line = f"{mean_visits:.2f} visit(s) per day"
+            duration_text = VTime(duration_label).short or duration_label or ""
+            arrival_text = arrival_label or "Unknown"
+            tooltip_lines: list[str] = ["There are",visits_line, f"arriving at {arrival_text}"]
+            if duration_text:
+                tooltip_lines.append(f"and lasting {duration_text} hour(s)")
+            if (matrix.day_count or 0) > 1:
+                tooltip_lines.append(f"({matrix.day_count} day average)")
+            tooltip_html = "".join(
+                f"<div>{escape(line)}</div>" for line in tooltip_lines if line
+            )
+
             parts.append(
-                f"<td class='{' '.join(classes)}' style='{style_attr}' "
-                f"title='{title_text}'>{cell_text}</td>"
+                f"<td class='{' '.join(classes)}' style='{style_attr}'>"
+                f"{cell_text}"
+                f"<div class='{prefix}-tooltip' role='tooltip'>{tooltip_html}</div>"
+                "</td>"
             )
         parts.append("</tr>")
 
@@ -694,6 +751,50 @@ def html_histogram_matrix(
         )
 
     parts.append("</table>")
+    script_block = f"""
+    <script>
+    (function() {{
+        const scriptEl = document.currentScript;
+        if (!scriptEl) {{ return; }}
+        const table = scriptEl.previousElementSibling;
+        if (!table) {{ return; }}
+        const cells = Array.from(table.querySelectorAll('.{prefix}-data-cell'));
+        if (!cells.length) {{ return; }}
+        const visibleClass = '{prefix}-tooltip-visible';
+        let activeCell = null;
+        function closeTooltip() {{
+            if (activeCell) {{
+                activeCell.classList.remove(visibleClass);
+                activeCell = null;
+            }}
+        }}
+        cells.forEach((cell) => {{
+            const tooltip = cell.querySelector('.{prefix}-tooltip');
+            if (!tooltip) {{ return; }}
+            tooltip.addEventListener('click', function(event) {{
+                event.stopPropagation();
+            }});
+            cell.addEventListener('click', function(event) {{
+                event.stopPropagation();
+                if (activeCell === cell) {{
+                    closeTooltip();
+                    return;
+                }}
+                closeTooltip();
+                cell.classList.add(visibleClass);
+                activeCell = cell;
+            }});
+        }});
+        document.addEventListener('click', closeTooltip);
+        document.addEventListener('keydown', function(event) {{
+            if (event.key === 'Escape') {{
+                closeTooltip();
+            }}
+        }});
+    }})();
+    </script>
+    """
+    parts.append(script_block)
     return "\n".join(parts)
 
 
