@@ -214,7 +214,7 @@ def season_frequencies_report(
     if title_bit:
         arrival_duration_title = f"{arrival_duration_title} ({title_bit})"
     arrival_duration_title = f"<h2>{arrival_duration_title}</h2>"
-    arrival_duration_subtitle = "Data is normalized by average of whole-matrix and per-column maximums. Hover on indiidual cells for exact values."
+    arrival_duration_subtitle = "Data is normalized by average of whole-matrix and per-column maximums. Click on individual cells for exact values."
 
     print(
         web_histogram.arrival_duration_hist_table(
