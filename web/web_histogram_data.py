@@ -111,8 +111,6 @@ class ArrivalDepartureMatrix:
         duration_labels (ditto)
         """
 
-        # FIXME: exclude unfinished visits
-
         arrival_minutes_expr = _minutes_expr("V.time_in")
         duration_minutes_expr = _duration_minutes_expr()
 
@@ -217,6 +215,8 @@ class ArrivalDepartureMatrix:
         JOIN
             VISIT V ON D.id = V.day_id
         WHERE {day_filter_clause}
+            AND V.time_out IS NOT NULL
+            AND V.time_out != ''
             AND {arrival_minutes_expr} IS NOT NULL
             AND {duration_minutes_expr} IS NOT NULL
             AND {threshold_clause}
