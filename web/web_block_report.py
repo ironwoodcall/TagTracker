@@ -273,7 +273,7 @@ def print_the_html(
                     while the marker legend tracks the number of bikes onsite.
                 </p>
                 <p>
-                    Hover over any square to get more information about that half hour.
+                    Click on any square to get more information about that half hour.
                 </p>
             </div>
         </td>
