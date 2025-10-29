@@ -286,7 +286,63 @@ def print_the_html(
     print("</table>")
     print("<br>")
 
+    tooltip_prefix = f"blk{ut.random_string(4)}"
+    tooltip_style = f"""
+    <style>
+    .{tooltip_prefix}-data-cell {{
+        position: relative;
+        cursor: pointer;
+    }}
+    .{tooltip_prefix}-data-cell:focus {{
+        outline: 2px solid #444;
+        outline-offset: 1px;
+    }}
+    .{tooltip_prefix}-tooltip {{
+        display: none;
+        position: absolute;
+        z-index: 30;
+        left: 50%;
+        top: 100%;
+        transform: translate(-50%, 0.5em);
+        background: white;
+        border: 1px solid #444;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+        padding: 0.6em 0.75em;
+        text-align: left;
+        color: #222;
+        line-height: 1.4;
+        min-width: 14em;
+        max-width: 20em;
+        border-radius: 0.4em;
+    }}
+    .{tooltip_prefix}-tooltip::before {{
+        content: "";
+        position: absolute;
+        top: -0.5em;
+        left: 50%;
+        transform: translateX(-50%);
+        border-width: 0.5em 0.5em 0;
+        border-style: solid;
+        border-color: #444 transparent transparent transparent;
+    }}
+    .{tooltip_prefix}-tooltip::after {{
+        content: "";
+        position: absolute;
+        top: calc(-0.5em + 1px);
+        left: 50%;
+        transform: translateX(-50%);
+        border-width: 0.5em 0.5em 0;
+        border-style: solid;
+        border-color: white transparent transparent transparent;
+    }}
+    .{tooltip_prefix}-tooltip-visible .{tooltip_prefix}-tooltip {{
+        display: block;
+    }}
+    </style>
+    """
+
     # Main table. Column headings
+    print(tooltip_style)
     print("<table class=general_table>")
     print(
         "<style>td {text-align: right;text-align: center; width: 13px;padding: 4px 4px;}</style>"
@@ -351,11 +407,26 @@ def print_the_html(
             else:
                 marker = NORMAL_MARKER
 
+            tooltip_lines = [line.strip() for line in cell_title.split("\n") if line.strip()]
+            tooltip_text = "\n".join(tooltip_lines)
+            tooltip_attr = html.escape(tooltip_text, quote=True) if tooltip_text else ""
+            tooltip_html = "".join(
+                f"<div>{html.escape(line)}</div>" for line in tooltip_lines
+            )
+            attr_parts = [
+                f"class='{tooltip_prefix}-data-cell'",
+                f"style='{cell_color}'",
+                "tabindex='0'",
+            ]
+            if tooltip_attr:
+                attr_parts.append(f"title='{tooltip_attr}'")
+                attr_parts.append(f"aria-label='{tooltip_attr}'")
+            attr_str = " ".join(attr_parts)
             row_html += (
-                f"<td title='{cell_title}' style='{cell_color};"
-                # "text-align: center; width: 15px;padding: 0px 3px;"
-                "'>"
-                f"{marker}</td>"  ##</a></td>"
+                f"<td {attr_str}>"
+                f"{marker}"
+                f"<div class='{tooltip_prefix}-tooltip' role='tooltip'>{tooltip_html}</div>"
+                "</td>"
             )
         row_html += column_gap()
 
@@ -367,6 +438,58 @@ def print_the_html(
         print(row_html)
 
     print("</table>")
+    script_block = f"""
+    <script>
+    (function() {{
+        const scriptEl = document.currentScript;
+        if (!scriptEl) {{ return; }}
+        const table = scriptEl.previousElementSibling;
+        if (!table || table.tagName !== 'TABLE') {{ return; }}
+        const cells = Array.from(table.querySelectorAll('.{tooltip_prefix}-data-cell'));
+        if (!cells.length) {{ return; }}
+        const visibleClass = '{tooltip_prefix}-tooltip-visible';
+        let activeCell = null;
+        function closeTooltip() {{
+            if (activeCell) {{
+                activeCell.classList.remove(visibleClass);
+                activeCell = null;
+            }}
+        }}
+        cells.forEach((cell) => {{
+            const tooltip = cell.querySelector('.{tooltip_prefix}-tooltip');
+            if (!tooltip) {{ return; }}
+            tooltip.addEventListener('click', function(event) {{
+                event.stopPropagation();
+            }});
+            cell.addEventListener('click', function(event) {{
+                event.stopPropagation();
+                if (activeCell === cell) {{
+                    closeTooltip();
+                    return;
+                }}
+                closeTooltip();
+                cell.classList.add(visibleClass);
+                activeCell = cell;
+            }});
+            cell.addEventListener('keydown', function(event) {{
+                if (event.key === 'Enter' || event.key === ' ') {{
+                    event.preventDefault();
+                    cell.click();
+                }} else if (event.key === 'Escape') {{
+                    closeTooltip();
+                }}
+            }});
+        }});
+        document.addEventListener('click', closeTooltip);
+        document.addEventListener('keydown', function(event) {{
+            if (event.key === 'Escape') {{
+                closeTooltip();
+            }}
+        }});
+    }})();
+    </script>
+    """
+    print(script_block)
 
 
 def blocks_report(
