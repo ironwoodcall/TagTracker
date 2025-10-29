@@ -197,7 +197,6 @@ def season_frequencies_report(
         print(
             web_histogram.times_hist_table(
                 ttdb,
-                orgsite_id=orgsite_id,
                 query_column=column,
                 days_of_week=dow_parameter,
                 color=color,
@@ -219,7 +218,6 @@ def season_frequencies_report(
     print(
         web_histogram.arrival_duration_hist_table(
             ttdb,
-            orgsite_id=orgsite_id,
             days_of_week=dow_parameter,
             start_date=start_date,
             end_date=end_date,

@@ -470,7 +470,6 @@ def duration_bucket_label(
 
 def time_histogram_data(
     ttdb: sqlite3.Connection,
-    orgsite_id: int,
     query_column: str,
     start_date: str = None,
     end_date: str = None,
@@ -491,7 +490,7 @@ def time_histogram_data(
     }
     minutes_column = minutes_column_map[time_column_lower]
 
-    orgsite_filter = orgsite_id if orgsite_id else 1  # FIXME: default fallback
+    orgsite_filter =  1  # FIXME: default fallback
 
     day_filter_items = _build_day_filter_items(
         orgsite_filter, start_date, end_date, days_of_week

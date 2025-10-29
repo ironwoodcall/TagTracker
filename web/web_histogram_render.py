@@ -334,7 +334,6 @@ def html_histogram_matrix(
     *,
     title: str = "",
     subtitle: str = "",
-    table_width: int = 60,
     border_color: str = "black",
     show_counts: bool = True,
     normalization_mode: str = ArrivalDepartureMatrix.NORMALIZATION_BLEND,
@@ -346,7 +345,6 @@ def html_histogram_matrix(
         dimension: ``datacolors.Dimension`` instance to translate magnitudes to CSS.
         title: Optional heading shown above the matrix.
         subtitle: Optional text rendered below the axis labels.
-        table_width: Percentage width to allocate to the table.
         border_color: CSS color applied to table borders.
         show_counts: When false suppresses numeric labels entirely.
         normalization_mode: Controls how intensities are scaled:
@@ -375,8 +373,6 @@ def html_histogram_matrix(
         dimension.add_config(0.7, "orchid")
         dimension.add_config(1.0, "purple")
 
-    # table_width = table_width or 0
-    # table_width = max(table_width, 10)
     # Prefix randomization ensures multiple tables can co-exist without CSS bleed.
     prefix = ut.random_string(4)
 

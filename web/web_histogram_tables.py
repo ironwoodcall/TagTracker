@@ -26,7 +26,6 @@ from web.datacolors import Dimension
 
 def arrival_duration_hist_table(
     ttdb: sqlite3.Connection,
-    orgsite_id: int,
     *,
     start_date: str | None = None,
     end_date: str | None = None,
@@ -37,7 +36,6 @@ def arrival_duration_hist_table(
     max_duration_threshold: str | None = None,
     title: str = "",
     subtitle: str = "",
-    table_width: int = 60,
     border_color: str = "black",
     show_counts: bool = True,
     normalization_mode: str = ArrivalDepartureMatrix.NORMALIZATION_BLEND,
@@ -86,7 +84,6 @@ def arrival_duration_hist_table(
         arrival_duration_colors,
         title=title,
         subtitle=subtitle_text,
-        table_width=table_width,
         border_color=border_color,
         show_counts=show_counts,
         normalization_mode=normalization_mode,
@@ -95,7 +92,6 @@ def arrival_duration_hist_table(
 
 def times_hist_table(
     ttdb: sqlite3.Connection,
-    orgsite_id: int,
     query_column: str,
     start_date: str = None,
     end_date: str = None,
@@ -110,7 +106,6 @@ def times_hist_table(
 
     result = time_histogram_data(
         ttdb,
-        orgsite_id=orgsite_id,
         query_column=query_column,
         start_date=start_date,
         end_date=end_date,
@@ -256,7 +251,6 @@ def activity_hist_table(
 
     arrivals_result = time_histogram_data(
         ttdb,
-        orgsite_id=orgsite_id,
         query_column="time_in",
         start_date=start_date,
         end_date=end_date,
@@ -264,7 +258,6 @@ def activity_hist_table(
     )
     departures_result = time_histogram_data(
         ttdb,
-        orgsite_id=orgsite_id,
         query_column="time_out",
         start_date=start_date,
         end_date=end_date,
