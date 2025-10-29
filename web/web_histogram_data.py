@@ -71,12 +71,14 @@ class HistogramResult:
     category_minutes: int = 30
 
 
-class HistogramMatrixResult:
+class ArrivalDepartureMatrix:
     """Structured two-dimensional histogram data for arrival vs duration buckets."""
 
     NORMALIZATION_GLOBAL = "global"
     NORMALIZATION_COLUMN = "column"
     NORMALIZATION_BLEND = "blend"
+    # Any visits per day below this threshold will be truncated to 0
+    VISIT_MIN_THRESHOLD = 0.01
 
     def __init__(
         self,
@@ -108,6 +110,8 @@ class HistogramMatrixResult:
         arrival_labels  (these will be .tidy - e.g. " 9:30" not "09:30" )
         duration_labels (ditto)
         """
+
+        # FIXME: exclude unfinished visits
 
         arrival_minutes_expr = _minutes_expr("V.time_in")
         duration_minutes_expr = _duration_minutes_expr()
@@ -156,6 +160,7 @@ class HistogramMatrixResult:
             buckets=buckets,
         )
         self.raw_values = self._average_by_day(raw_values, day_count)
+        self.raw_values = self._truncate_low_values(self.raw_values, day_count)
         self.day_count = day_count
 
     def _build_day_filter_clause(
@@ -352,6 +357,20 @@ class HistogramMatrixResult:
         for raw_row in raw_values.values():
             for duration_label, value in raw_row.items():
                 raw_row[duration_label] = value / day_count
+        return raw_values
+
+    def _truncate_low_values(
+        self, raw_values: dict[str, dict[str, float]], day_count: int
+    ) -> dict[str, dict[str, float]]:
+        """Truncate any row values (visits/day) to 0 that
+        are below a minimum threshold.
+        """
+        if not day_count:
+            return raw_values
+        for raw_row in raw_values.values():
+            for duration_label, value in raw_row.items():
+                if raw_row[duration_label] < self.VISIT_MIN_THRESHOLD:
+                    raw_row[duration_label] = 0
         return raw_values
 
     def _normalize_column(self) -> dict[str, dict[str, float]]:
@@ -775,7 +794,7 @@ def fullness_histogram_data(
 
 __all__ = [
     "HistogramResult",
-    "HistogramMatrixResult",
+    "ArrivalDepartureMatrix",
     "bucket_label",
     "duration_bucket_label",
     "fullness_histogram_data",

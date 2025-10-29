@@ -13,7 +13,7 @@ from web_histogram_data import (
     bucket_label,
     fullness_histogram_data,
     time_histogram_data,
-    HistogramMatrixResult,
+    ArrivalDepartureMatrix,
 )
 from web_histogram_render import html_histogram, html_histogram_matrix
 from web_base_config import (
@@ -39,10 +39,8 @@ def arrival_duration_hist_table(
     subtitle: str = "",
     table_width: int = 60,
     border_color: str = "black",
-    visit_threshold: float = 0.05,
     show_counts: bool = True,
-    use_contrasting_text: bool = False,
-    normalization_mode: str = HistogramMatrixResult.NORMALIZATION_BLEND,
+    normalization_mode: str = ArrivalDepartureMatrix.NORMALIZATION_BLEND,
 ) -> str:
     """Convenience helper to fetch data and render the arrival-duration matrix.
 
@@ -59,7 +57,7 @@ def arrival_duration_hist_table(
     arrival_duration_colors.add_config(1.00, "#6b2c1a")   # deep brown-red
 
 
-    matrix = HistogramMatrixResult(
+    matrix = ArrivalDepartureMatrix(
         arrival_bucket_minutes=arrival_bucket_minutes,
         duration_bucket_minutes=duration_bucket_minutes,
     )
@@ -90,9 +88,7 @@ def arrival_duration_hist_table(
         subtitle=subtitle_text,
         table_width=table_width,
         border_color=border_color,
-        visit_threshold=visit_threshold,
         show_counts=show_counts,
-        use_contrasting_text=use_contrasting_text,
         normalization_mode=normalization_mode,
     )
 

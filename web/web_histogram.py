@@ -15,7 +15,7 @@ work to the new modules.
 """
 
 from web_histogram_data import (
-    HistogramMatrixResult,
+    ArrivalDepartureMatrix,
     HistogramResult,
     # arrival_duration_matrix_data,
     bucket_label,
@@ -39,7 +39,7 @@ _duration_bucket_label = duration_bucket_label
 
 
 __all__ = [
-    "HistogramMatrixResult",
+    "ArrivalDepartureMatrix",
     "HistogramResult",
     "activity_hist_table",
     "arrival_duration_hist_table",

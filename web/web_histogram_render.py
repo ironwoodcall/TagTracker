@@ -6,7 +6,7 @@ from html import escape
 from common.tt_time import VTime
 import common.tt_util as ut
 
-from web_histogram_data import HistogramMatrixResult
+from web_histogram_data import ArrivalDepartureMatrix
 
 
 def html_histogram(
@@ -329,30 +329,26 @@ def html_histogram(
 
 
 def html_histogram_matrix(
-    matrix: HistogramMatrixResult,
+    matrix: ArrivalDepartureMatrix,
     dimension,
     *,
     title: str = "",
     subtitle: str = "",
     table_width: int = 60,
     border_color: str = "black",
-    visit_threshold: float = 0.05,
     show_counts: bool = True,
-    use_contrasting_text: bool = False,
-    normalization_mode: str = HistogramMatrixResult.NORMALIZATION_BLEND,
+    normalization_mode: str = ArrivalDepartureMatrix.NORMALIZATION_BLEND,
 ) -> str:
     """Render a 2D histogram matrix (arrival x duration) as HTML.
 
     Args:
-        matrix: ``HistogramMatrixResult`` carrying raw and normalized values.
+        matrix: ``ArrivalDepartureMatrix`` carrying raw and normalized values.
         dimension: ``datacolors.Dimension`` instance to translate magnitudes to CSS.
         title: Optional heading shown above the matrix.
         subtitle: Optional text rendered below the axis labels.
         table_width: Percentage width to allocate to the table.
         border_color: CSS color applied to table borders.
-        visit_threshold: Minimum mean visits required before numbers are shown.
         show_counts: When false suppresses numeric labels entirely.
-        use_contrasting_text: Prefer ``css_bg_fg`` if the dimension exposes it.
         normalization_mode: Controls how intensities are scaled:
             - ``"column"`` (default): scale per arrival column.
             - ``"global"``: scale against the single global max.
@@ -365,12 +361,6 @@ def html_histogram_matrix(
     if not matrix.arrival_labels or not matrix.duration_labels:
         return "<p>No data available.</p>"
 
-    try:
-        visit_threshold = float(visit_threshold)
-    except (TypeError, ValueError):
-        visit_threshold = 0.0
-    # Negative thresholds make no sense for visit counts, so clamp up.
-    visit_threshold = max(0.0, visit_threshold)
 
     if dimension is None:
         try:
@@ -394,15 +384,9 @@ def html_histogram_matrix(
     colspan = data_columns + 2
     duration_labels = list(matrix.duration_labels)[::-1]
 
-    color_func_name = (
-        "css_bg_fg"
-        if use_contrasting_text and hasattr(dimension, "css_bg_fg")
-        else "css_bg"
-    )
-    # Dimension instances expose helpers that return inline CSS declarations;
-    # pick whichever variant delivers readable text for the current settings.
-    color_func = getattr(dimension, color_func_name)
+    color_func = getattr(dimension, "css_bg")
 
+    nothing_color = "#e0e0e0"
     y_axis_title_width = 1.5
     y_axis_label_width = 2.2
     data_cell_width_em = 1.8
@@ -514,7 +498,7 @@ def html_histogram_matrix(
             #border-bottom: 1px solid {border_color};
         }}
         .{prefix}-empty-cell {{
-            background: #f6f6f6;
+            background: {nothing_color};
             border-bottom: none;
             #min-width: {data_cell_width_em:.2f}em;
         }}
@@ -585,52 +569,7 @@ def html_histogram_matrix(
         )
 
     matrix.normalize(normalization_mode=normalization_mode)
-
-    normalized_mode = (normalization_mode or "column").lower()
-    if normalized_mode not in {"column", "global", "blend"}:
-        normalized_mode = "column"
-
-    per_column_lookup = matrix.normalized_values
-
-    global_max = 0.0
-    for raw_row in matrix.raw_values.values():
-        for value in raw_row.values():
-            if value > global_max:
-                global_max = value
-    # Figure out whether we need normalized (0..1) values based on a global max.
-    if global_max > 0.0:
-        global_lookup = {
-            arrival_label: {
-                duration_label: (
-                    matrix.raw_values.get(arrival_label, {}).get(duration_label, 0.0)
-                    / global_max
-                )
-                for duration_label in duration_labels
-            }
-            for arrival_label in matrix.arrival_labels
-        }
-    else:
-        global_lookup = {
-            arrival_label: {duration_label: 0.0 for duration_label in duration_labels}
-            for arrival_label in matrix.arrival_labels
-        }
-
-    # Choose the normalization table based on the requested mode.
-    if normalized_mode == "column":
-        normalized_lookup = per_column_lookup
-    elif normalized_mode == "global":
-        normalized_lookup = global_lookup
-    else:
-        normalized_lookup = {}
-        for arrival_label in matrix.arrival_labels:
-            column_row = per_column_lookup.get(arrival_label, {})
-            matrix_row = global_lookup.get(arrival_label, {})
-            blended_row: dict[str, float] = {}
-            for duration_label in duration_labels:
-                column_val = column_row.get(duration_label, 0.0)
-                matrix_val = matrix_row.get(duration_label, 0.0)
-                blended_row[duration_label] = (column_val + matrix_val) / 2.0
-            normalized_lookup[arrival_label] = blended_row
+    normalized_lookup = matrix.normalized_values
 
     # Track where each column's data stack begins so empty padding stays put.
     column_top_indices: dict[str, int] = {}
@@ -666,10 +605,6 @@ def html_histogram_matrix(
             normalized_row = normalized_lookup.get(arrival_label, {})
             normalized_value = normalized_row.get(duration_label, 0.0)
             raw_value = raw_row.get(duration_label, 0.0)
-            # FIXME: visit_threshold should be applied to raw values,
-            # probably as a part of HistogramMatrixResult.fetch_raw_data
-            is_above_threshold = raw_value >= visit_threshold
-            effective_value = normalized_value if is_above_threshold else 0.0
             cell_text = "&nbsp;"
             mean_visits = float(raw_value)
 
@@ -684,15 +619,15 @@ def html_histogram_matrix(
                 continue
             if show_counts:
                 # Only show values when the associated raw metric clears the threshold.
-                if is_above_threshold:
-                    if raw_value.is_integer():
-                        cell_text = str(int(raw_value))
-                    else:
-                        cell_text = f"{raw_value:.2f}"
+                if raw_value.is_integer():
+                    cell_text = str(int(raw_value))
                 else:
-                    cell_text = "0"
+                    cell_text = f"{raw_value:.2f}"
             classes = [f"{prefix}-data-cell"]
-            style_value = color_func(effective_value)
+            if raw_value > 0:
+                style_value = color_func(normalized_value)
+            else:
+                style_value = f"background:{nothing_color};"
             style_components = [
                 style_value,
                 f"height: {cell_height_em:.3f}em;",

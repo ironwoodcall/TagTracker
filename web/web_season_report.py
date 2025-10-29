@@ -33,7 +33,7 @@ import datacolors as dc
 import web_histogram
 from web.web_base_config import HIST_FIXED_Y_AXIS_DURATION
 from web_daterange_selector import build_date_dow_filter_widget
-from web.web_histogram_data import HistogramMatrixResult
+from web.web_histogram_data import ArrivalDepartureMatrix
 import common.tt_dbutil as db
 from common.tt_time import VTime
 from common.tt_daysummary import DayTotals
@@ -225,10 +225,8 @@ def season_frequencies_report(
             end_date=end_date,
             title=arrival_duration_title,
             subtitle=arrival_duration_subtitle,
-            visit_threshold=0.15,
             show_counts=False,
-            use_contrasting_text=False,
-            normalization_mode=HistogramMatrixResult.NORMALIZATION_BLEND,
+            normalization_mode=ArrivalDepartureMatrix.NORMALIZATION_BLEND,
             min_arrival_threshold="07:00",
             max_duration_threshold="12:30",
         )
