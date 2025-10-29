@@ -33,9 +33,11 @@ import datacolors as dc
 import web_histogram
 from web.web_base_config import HIST_FIXED_Y_AXIS_DURATION
 from web_daterange_selector import build_date_dow_filter_widget
+from web.web_histogram_data import ArrivalDepartureMatrix
 import common.tt_dbutil as db
 from common.tt_time import VTime
 from common.tt_daysummary import DayTotals
+
 try:
     from common.commuter_hump import CommuterHumpAnalyzer
 except ImportError:  # pragma: no cover - optional dependency
@@ -55,7 +57,7 @@ def season_frequencies_report(
     pages_back: int = 0,
     start_date: str = "",
     end_date: str = "",
-    restrict_to_single_day:bool = False,
+    restrict_to_single_day: bool = False,
 ):
     """Web page showing histograms of visit frequency distributions.
 
@@ -195,7 +197,6 @@ def season_frequencies_report(
         print(
             web_histogram.times_hist_table(
                 ttdb,
-                orgsite_id=orgsite_id,
                 query_column=column,
                 days_of_week=dow_parameter,
                 color=color,
@@ -207,8 +208,29 @@ def season_frequencies_report(
             )
         )
         print("<br><br>")
-    print(back_button)
 
+    arrival_duration_title = "Arrival-duration visit density map</br>"
+    if title_bit:
+        arrival_duration_title = f"{arrival_duration_title} ({title_bit})"
+    arrival_duration_title = f"<h2>{arrival_duration_title}</h2>"
+    arrival_duration_subtitle = "Data is normalized by average of whole-matrix and per-column maximums. Click on individual cells for exact values."
+
+    print(
+        web_histogram.arrival_duration_hist_table(
+            ttdb,
+            days_of_week=dow_parameter,
+            start_date=start_date,
+            end_date=end_date,
+            title=arrival_duration_title,
+            subtitle=arrival_duration_subtitle,
+            show_counts=False,
+            normalization_mode=ArrivalDepartureMatrix.NORMALIZATION_BLEND,
+            min_arrival_threshold="07:00",
+            max_duration_threshold="12:30",
+        )
+    )
+    print("<br><br>")
+    print(back_button)
 
 
 def totals_table(conn: sqlite3.Connection):
@@ -243,7 +265,9 @@ def totals_table(conn: sqlite3.Connection):
         """Return formatted percent change, or '-' if not computable."""
         if current is None or previous is None:
             return "-"
-        if not isinstance(current, (int, float)) or not isinstance(previous, (int, float)):
+        if not isinstance(current, (int, float)) or not isinstance(
+            previous, (int, float)
+        ):
             return "-"
         if abs(previous) < 1e-9:
             return "0.0%" if abs(current) < 1e-9 else "-"
@@ -296,7 +320,7 @@ def totals_table(conn: sqlite3.Connection):
                 db_path=conn,
                 start_date=start_iso,
                 end_date=end_iso,
-                days_of_week=(1, 2, 3, 4, 5,6,7),
+                days_of_week=(1, 2, 3, 4, 5, 6, 7),
             ).run()
         except Exception:
             return None
@@ -452,9 +476,7 @@ def totals_table(conn: sqlite3.Connection):
         {
             "label": "&nbsp;&nbsp;&nbsp;Commuter portion (est.)",
             "row_class": "class='heavy-bottom'",
-            "value_fn": lambda totals: getattr(
-                totals, "commuter_mean_per_day", None
-            ),
+            "value_fn": lambda totals: getattr(totals, "commuter_mean_per_day", None),
             "day_value_fn": lambda totals: getattr(
                 totals, "commuter_mean_per_day", None
             ),
@@ -516,7 +538,7 @@ def totals_table(conn: sqlite3.Connection):
         "<tr><th rowspan='2' class='heavy-right' style='text-align:center;'>Summary</th>"
         "<th colspan=3 class='heavy-right' style='text-align:center;'>This year</th>"
         "<th colspan=5>Recent days</th></tr>"
-        #f"  <tr><th>{selected_year_str} Summary</th>"
+        # f"  <tr><th>{selected_year_str} Summary</th>"
         f"<th style='text-align:center;'>YTD<br>{selected_year_str}</th>"
         "<th style='text-align:center'>%Δ<br>YTD</th>"
         "<th style='text-align:center;border-right: 2px solid gray;'>%Δ<br>12mo</th>"
@@ -592,7 +614,11 @@ def totals_table(conn: sqlite3.Connection):
         else:
             day_values = ["-" for _ in display_day_keys]
 
-        print(html_row(label, spec["row_class"], ytd_display, pct_ytd, pct_12mo, day_values))
+        print(
+            html_row(
+                label, spec["row_class"], ytd_display, pct_ytd, pct_12mo, day_values
+            )
+        )
 
     total_columns = 4 + len(display_day_keys)
     print(
@@ -615,8 +641,7 @@ def main_web_page(ttdb: sqlite3.Connection):
     download_csv_link = cc.make_url("tt_download", what="csv")
     download_db_link = cc.make_url("tt_download", what="db")
 
-    print(
-        f"{cc.titleize('')}<br>")
+    print(f"{cc.titleize('')}<br>")
     print("<div style='display:inline-block'>")
     print("<div style='margin-bottom: 10px; display:inline-block; margin-right:5em'>")
 
@@ -700,9 +725,9 @@ def main_web_page(ttdb: sqlite3.Connection):
     #     <br><br>
     #       """
     # )
-    print("<br><br>")#"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
+    print("<br><br>")  # "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
     print(
-    f"""
+        f"""
     <button onclick="window.location.href='{download_csv_link}'"
         style="padding: 10px; display: inline-block; background-color: #ddd; border: 1px solid #aaa;">
       <b>Download<br>CSV</b></button>
@@ -712,8 +737,7 @@ def main_web_page(ttdb: sqlite3.Connection):
       <b>Download<br>Database</b></button>
     <br><br>
       """
-)
-
+    )
 
 
 def season_detail(
@@ -769,7 +793,9 @@ def season_detail(
     )  # FIXME: needs to use orgsite_id
     if dow_parameter:
         allowed_dows = {
-            int(token) for token in dow_parameter.split(",") if token and token.isdigit()
+            int(token)
+            for token in dow_parameter.split(",")
+            if token and token.isdigit()
         }
         all_days = [
             day for day in all_days if getattr(day, "weekday", None) in allowed_dows
@@ -791,8 +817,7 @@ def season_detail(
     if sort_by == cc.SORT_DATE:
         sort_msg = f"date{direction_msg}"
     elif sort_by == cc.SORT_DAY:
-        all_days = sorted(all_days, reverse=reverse_sort,
-                          key=lambda x: x.weekday)
+        all_days = sorted(all_days, reverse=reverse_sort, key=lambda x: x.weekday)
         sort_msg = f"day of week{direction_msg}"
     elif sort_by == cc.SORT_PARKED:
         all_days = sorted(
@@ -994,17 +1019,14 @@ def create_blocks_color_maps(block_maxes: cc.BlocksSummary) -> tuple:
     """
     # Set up color maps
     inout_colors = dc.MultiDimension(blend_method=dc.BLEND_MULTIPLICATIVE)
-    d1 = inout_colors.add_dimension(
-        interpolation_exponent=0.82, label="Bikes parked")
+    d1 = inout_colors.add_dimension(interpolation_exponent=0.82, label="Bikes parked")
     d1.add_config(0, BLOCK_XY_BOTTOM_COLOR)
     d1.add_config(block_maxes.num_in, BLOCK_X_TOP_COLOR)
-    d2 = inout_colors.add_dimension(
-        interpolation_exponent=0.82, label="Bikes returned")
+    d2 = inout_colors.add_dimension(interpolation_exponent=0.82, label="Bikes returned")
     d2.add_config(0, BLOCK_XY_BOTTOM_COLOR)
     d2.add_config(block_maxes.num_out, BLOCK_Y_TOP_COLOR)
 
-    fullness_colors = dc.Dimension(
-        interpolation_exponent=0.85, label="Bikes onsite")
+    fullness_colors = dc.Dimension(interpolation_exponent=0.85, label="Bikes onsite")
     fullness_colors_list = [
         inout_colors.get_color(0, 0),
         "thistle",
