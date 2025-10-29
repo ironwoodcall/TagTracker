@@ -209,7 +209,7 @@ def season_frequencies_report(
         )
         print("<br><br>")
 
-    arrival_duration_title = "Visit duration as a function of arrival time </br>"
+    arrival_duration_title = "Arrival-duration visit density map</br>"
     if title_bit:
         arrival_duration_title = f"{arrival_duration_title} ({title_bit})"
     arrival_duration_title = f"<h2>{arrival_duration_title}</h2>"
