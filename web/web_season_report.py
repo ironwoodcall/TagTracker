@@ -701,7 +701,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
-          <b>Activity<br>Graphs</b></button>
+          <b>Graphs</b></button>
         &nbsp;&nbsp;
         """
     )
