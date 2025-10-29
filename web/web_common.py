@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 import copy
 import urllib
 from datetime import datetime, timedelta
+from typing import Any, Mapping
 
 
 from web.web_base_config import SITE_NAME
@@ -98,6 +99,91 @@ ORDER_REVERSE = "reverse"
 # Special values related to 'pages_back' handling
 NAV_NO_BUTTON = -1
 NAV_MAIN_BUTTON = -2
+
+
+@dataclass(frozen=True)
+class ReportQueryParams:
+    """Structured representation of report query parameters backed by a mapping."""
+
+    params: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        normalized: dict[str, str] = {}
+        for key, value in (self.params or {}).items():
+            normalized_value = self._coerce_value(value)
+            if normalized_value == "":
+                continue
+            normalized[str(key)] = normalized_value
+        object.__setattr__(self, "_params", normalized)
+
+    @staticmethod
+    def _coerce_value(value: Any) -> str:
+        """Convert values to their string representation, skipping empties."""
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return "1" if value else "0"
+        if isinstance(value, (int, float)):
+            return str(value)
+        return str(value).strip()
+
+    @property
+    def pages_back(self) -> int | None:
+        """Return the ``back`` parameter as an integer if available."""
+        return self.get_int("back")
+
+    def get(self, key: str) -> str | None:
+        """Return a parameter value or ``None`` if missing."""
+        return self._params.get(key)
+
+    def get_int(self, key: str, default: int | None = None) -> int | None:
+        """Return a parameter value coerced to int, if possible."""
+        value = self._params.get(key)
+        if value in (None, ""):
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def query_map(self) -> dict[str, str]:
+        """Return a plain dictionary of query parameters."""
+        return dict(self._params)
+
+    def query_string(self) -> str:
+        """Render the parameters as a query string fragment."""
+        return "&".join(f"{key}={value}" for key, value in self._params.items())
+
+    def set_dict(self, updates: Mapping[str, Any] | None = None) -> "ReportQueryParams":
+        """Update this instance with key/value pairs from ``updates``."""
+        if not updates:
+            return self
+        for key, value in updates.items():
+            normalized = self._coerce_value(value)
+            key_str = str(key)
+            if normalized == "":
+                self._params.pop(key_str, None)
+            else:
+                self._params[key_str] = normalized
+        return self
+
+    def set(self, key: str, value: Any) -> None:
+        """Set or update an individual parameter on this instance."""
+        normalized = self._coerce_value(value)
+        key_str = str(key)
+        params = self._params
+        if normalized == "":
+            params.pop(key_str, None)
+        else:
+            params[key_str] = normalized
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._params
+
+    def __getattr__(self, item: str) -> str | int | None:
+        if item == "pages_back":
+            return self.pages_back
+        return self._params.get(item, "")
 
 
 class WebAuth:
@@ -317,7 +403,7 @@ class URLParameters:
         qtag=None,
         qdate=None,
         qdow=None,
-        qtime=None,
+        clock=None,
         pages_back=None,
         sort_directions=None,
         sort_column=None,
@@ -326,7 +412,7 @@ class URLParameters:
         self.qtag = qtag
         self.qdate = qdate
         self.qdow = qdow
-        self.qtime = qtime
+        self.clock = clock
         self.pages_back = pages_back
         self.sort_directions = sort_directions
         self.sort_column = sort_column
@@ -337,7 +423,7 @@ class URLParameters:
         self.action = query_params.get("what", [WHAT_SUMMARY])[0]
         self.qtag = TagID(query_params.get("tag", [""])[0])
         self.qdate = ut.date_str(query_params.get("date", [""])[0])
-        self.qtime = VTime(query_params.get("time", [""])[0])
+        self.clock = VTime(query_params.get("clock", [""])[0])
 
         # dow_parameter = query_params.get("dow", [""])[0]
         # if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
@@ -363,7 +449,7 @@ class URLParameters:
         parms = []
         one_parameter(parms, self._ACTION_KEY, self.action)
         one_parameter(parms, self._QDATE_KEY, self.encode_date(self.qdate))
-        one_parameter(parms, self._QTIME_KEY, self.qtime)
+        one_parameter(parms, self._QTIME_KEY, self.clock)
         one_parameter(parms, self._QTAG_KEY, self.qtag)
         one_parameter(parms, self._QDOW_KEY, self.qdow)
         one_parameter(parms, self._SORT_COLUMN_KEY, self.sort_column)  # might be 0
@@ -420,7 +506,7 @@ def _resolve_script_path(script_name: str) -> str:
 def _build_query_params(
     what: str = "",
     qdate: str = "",
-    qtime: str = "",
+    clock: str = "",
     qtag: str = "",
     qdow: str = "",
     qsort: str = "",
@@ -428,30 +514,62 @@ def _build_query_params(
     text_note: str = "",
     start_date: str = "",
     end_date: str = "",
+    start_date2: str = "",
+    end_date2: str = "",
+    dow2: str = "",
     pages_back=None,
+    *,
+    extra_params: Mapping[str, Any] | None = None,
+    query_params: ReportQueryParams | None = None,
 ) -> str:
     """Create a query string fragment from the standard parameter set."""
 
-    params = {
-        "what": what,
-        "date": qdate,
-        "start_date": start_date,
-        "end_date": end_date,
-        "time": qtime,
-        "tag": qtag,
-        "dow": qdow,
-        "sort": qsort,
-        "dir": qdir,
-        "text": text_note,
-        # pages_back might legitimately be 0
-        "back": pages_back if pages_back is not None else "",
-    }
+    if query_params is not None:
+        explicit_values = (
+            what,
+            qdate,
+            clock,
+            qtag,
+            qdow,
+            qsort,
+            qdir,
+            text_note,
+            start_date,
+            end_date,
+            start_date2,
+            end_date2,
+            dow2,
+            pages_back,
+        )
+        if any(value for value in explicit_values):
+            raise ValueError(
+                "Cannot supply both explicit parameters and a ReportQueryParams instance."
+            )
+        params = ReportQueryParams(query_params.query_map())
+        params.set_dict(extra_params)
+    else:
+        base_params: dict[str, Any] = {
+            "what": what,
+            "date": qdate,
+            "clock": clock,
+            "tag": qtag,
+            "dow": qdow,
+            "sort": qsort,
+            "dir": qdir,
+            "text": text_note,
+            "start_date": start_date,
+            "end_date": end_date,
+            "start_date2": start_date2,
+            "end_date2": end_date2,
+            "dow2": dow2,
+        }
+        if pages_back is not None:
+            base_params["back"] = pages_back
+        if extra_params:
+            base_params.update(extra_params)
+        params = ReportQueryParams(base_params)
 
-    filtered_params = {key: value for key, value in params.items() if value}
-    if not filtered_params:
-        return ""
-
-    return "&".join(f"{key}={value}" for key, value in filtered_params.items())
+    return params.query_string()
 
 
 def make_url(
@@ -459,7 +577,7 @@ def make_url(
     *,
     what: str = "",
     qdate: str = "",
-    qtime: str = "",
+    clock: str = "",
     qtag: str = "",
     qdow: str = "",
     qsort: str = "",
@@ -467,7 +585,12 @@ def make_url(
     text_note: str = "",
     start_date: str = "",
     end_date: str = "",
+    start_date2: str = "",
+    end_date2: str = "",
+    dow2: str = "",
     pages_back=None,
+    extra_params: Mapping[str, Any] | None = None,
+    query_params: ReportQueryParams | None = None,
 ) -> str:
     """Return a URL for the given script on this host with the provided parameters."""
 
@@ -475,7 +598,7 @@ def make_url(
     query = _build_query_params(
         what=what,
         qdate=qdate,
-        qtime=qtime,
+        clock=clock,
         qtag=qtag,
         qdow=qdow,
         qsort=qsort,
@@ -483,7 +606,12 @@ def make_url(
         text_note=text_note,
         start_date=start_date,
         end_date=end_date,
+        start_date2=start_date2,
+        end_date2=end_date2,
+        dow2=dow2,
         pages_back=pages_back,
+        extra_params=extra_params,
+        query_params=query_params,
     )
 
     if not query:
@@ -495,7 +623,7 @@ def make_url(
 def selfref(
     what: str = "",
     qdate: str = "",
-    qtime: str = "",
+    clock: str = "",
     qtag: str = "",
     qdow: str = "",
     qsort: str = "",
@@ -503,7 +631,12 @@ def selfref(
     text_note: str = "",
     start_date: str = "",
     end_date: str = "",
+    start_date2: str = "",
+    end_date2: str = "",
+    dow2: str = "",
     pages_back=None,
+    extra_params: Mapping[str, Any] | None = None,
+    query_params: ReportQueryParams | None = None,
 ) -> str:
     """Return a self-reference with the given parameters."""
 
@@ -512,7 +645,7 @@ def selfref(
         script_name,
         what=what,
         qdate=qdate,
-        qtime=qtime,
+        clock=clock,
         qtag=qtag,
         qdow=qdow,
         qsort=qsort,
@@ -520,7 +653,12 @@ def selfref(
         text_note=text_note,
         start_date=start_date,
         end_date=end_date,
+        start_date2=start_date2,
+        end_date2=end_date2,
+        dow2=dow2,
         pages_back=pages_back,
+        extra_params=extra_params,
+        query_params=query_params,
     )
 
 

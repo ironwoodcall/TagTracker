@@ -386,6 +386,8 @@ def totals_table(conn: sqlite3.Connection):
     if prior_year_start > one_year_ago:
         prior_year_start = one_year_ago
     prior_ytd_totals = fetch_totals(prior_year_start, one_year_ago)
+    # FIXME: this iswhere to pt the prior_ytd_compare link definition
+    prior_ytd_compare_link = cc.selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
 
     current_12mo_start = one_year_ago + timedelta(days=1)
     if current_12mo_start > today_date:
@@ -713,18 +715,6 @@ def main_web_page(ttdb: sqlite3.Connection):
         &nbsp;&nbsp;
           """
     )
-    # print(
-    #     f"""
-    #     <button onclick="window.location.href='{download_csv_link}'"
-    #         style="padding: 10px; display: inline-block;">
-    #       <b>Download<br>CSV</b></button>
-    #     &nbsp;&nbsp;
-    #     <button onclick="window.location.href='{download_db_link}'"
-    #         style="padding: 10px; display: inline-block;">
-    #       <b>Download<br>Database</b></button>
-    #     <br><br>
-    #       """
-    # )
     print("<br><br>")  # "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
     print(
         f"""

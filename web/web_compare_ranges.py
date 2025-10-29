@@ -6,7 +6,6 @@ from __future__ import annotations
 import html
 import math
 import sqlite3
-import urllib.parse
 from dataclasses import dataclass
 from statistics import mean, median
 from typing import Sequence
@@ -367,30 +366,22 @@ def _percent_to_color(percent_value: float | None) -> str:
 
 
 def _render_compare_filter_form(
-    base_url: str,
+    form_action: str,
     selection_a: DateDowSelection,
     selection_b: DateDowSelection,
     *,
     submit_label: str = "Apply filters",
     options: Sequence = DEFAULT_DOW_OPTIONS,
+    hidden_fields: str = "",
 ) -> str:
     """Render the combined Period A / Period B filter form."""
 
     options_tuple = tuple(options)
 
-    parsed_url = urllib.parse.urlparse(base_url)
-    base_portion = base_url.split("?", 1)[0]
-    query_params = urllib.parse.parse_qs(parsed_url.query)
-    excluded = {"start_date", "end_date", "dow", "start_date2", "end_date2", "dow2"}
-    filtered_params = {
-        k: v for k, v in query_params.items() if k.lower() not in excluded
-    }
-    hidden_fields = _render_hidden_fields(filtered_params)
-
     form_style = "border: 1px solid black; padding: 12px 18px; display: inline-block;"
 
     html_bits = [
-        f'<form action="{html.escape(base_portion)}" method="get" style="{form_style}">',
+        f'<form action="{html.escape(form_action)}" method="get" style="{form_style}">',
         "<div style='display:flex; gap:2rem; justify-content:center; align-items:flex-start;'>",
     ]
 
@@ -496,39 +487,83 @@ def compare_ranges(
     start_date_b: str = "",
     end_date_b: str = "",
     dow_b: str = "",
+    query_params: cc.ReportQueryParams | None = None,
 ) -> None:
     """Render the comparison report between two date ranges."""
 
+    resolved_start_a = start_date_a or (query_params.get("start_date") if query_params else "")
+    resolved_end_a = end_date_a or (query_params.get("end_date") if query_params else "")
+    resolved_start_b = start_date_b or (query_params.get("start_date2") if query_params else "")
+    resolved_end_b = end_date_b or (query_params.get("end_date2") if query_params else "")
+    resolved_dow_a = dow_a or (query_params.get("dow") if query_params else "")
+    resolved_dow_b = dow_b or (query_params.get("dow2") if query_params else "")
+
+    resolved_pages_back: int = pages_back
+    if query_params:
+        existing_back = query_params.get_int("back")
+        if existing_back is not None:
+            resolved_pages_back = existing_back
+    if not isinstance(resolved_pages_back, int):
+        resolved_pages_back = 1
+
+    base_updates = {
+        "what": cc.WHAT_COMPARE_RANGES,
+        "start_date": resolved_start_a,
+        "end_date": resolved_end_a,
+        "start_date2": resolved_start_b,
+        "end_date2": resolved_end_b,
+        "dow": resolved_dow_a,
+        "dow2": resolved_dow_b,
+        "back": resolved_pages_back,
+    }
+
+    if query_params is not None:
+        base_params = cc.ReportQueryParams(query_params.query_map())
+        base_params.set_dict(base_updates)
+    else:
+        base_params = cc.ReportQueryParams(base_updates)
+
+    nav_pages_back = resolved_pages_back
+
     title = cc.titleize("Compare date ranges")
     print(title)
-    print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
+    print(f"{cc.main_and_back_buttons(nav_pages_back)}<br><br>")
 
     _print_instructions()
 
-    self_url = cc.selfref(
-        what=cc.WHAT_COMPARE_RANGES,
-        pages_back=cc.increment_pages_back(pages_back),
-    )
-
     options_tuple = tuple(DEFAULT_DOW_OPTIONS)
     selection_a = DateDowSelection(
-        start_date=start_date_a or "",
-        end_date=end_date_a or "",
-        dow_value=find_dow_option(dow_a, options_tuple).value,
+        start_date=resolved_start_a,
+        end_date=resolved_end_a,
+        dow_value=find_dow_option(resolved_dow_a, options_tuple).value,
     )
     selection_b = DateDowSelection(
-        start_date=start_date_b or "",
-        end_date=end_date_b or "",
-        dow_value=find_dow_option(dow_b, options_tuple).value,
+        start_date=resolved_start_b,
+        end_date=resolved_end_b,
+        dow_value=find_dow_option(resolved_dow_b, options_tuple).value,
     )
+
+    self_params = cc.ReportQueryParams(base_params.query_map())
+    self_params.set_dict({"back": cc.increment_pages_back(nav_pages_back)})
+    self_url = cc.selfref(query_params=self_params)
+    form_action = self_url.split("?", 1)[0]
+
+    excluded = {"start_date", "end_date", "dow", "start_date2", "end_date2", "dow2"}
+    hidden_params = {
+        key: [value]
+        for key, value in self_params.query_map().items()
+        if key.lower() not in excluded
+    }
+    hidden_fields = _render_hidden_fields(hidden_params)
 
     print(
         _render_compare_filter_form(
-            self_url,
+            form_action,
             selection_a,
             selection_b,
             submit_label="Apply filters",
             options=options_tuple,
+            hidden_fields=hidden_fields,
         )
     )
 

@@ -206,7 +206,7 @@ def web_est_wrapper() -> None:
 
 # Query parameter sanitizing ---------------------------------------------------------------
 SAFE_QUERY_CHARS = frozenset(
-    " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-:"
+    " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:,-"
 )
 
 
@@ -241,7 +241,7 @@ validate_query_params(query_params)
 what = query_params.get("what", [""])[0]
 what = what if what else cc.WHAT_SUMMARY
 maybedate = query_params.get("date", [""])[0]
-maybetime = query_params.get("time", [""])[0]
+maybetime = query_params.get("clock", [""])[0]
 tag = query_params.get("tag", [""])[0]
 text = query_params.get("text", [""])[0]
 dow_parameter = query_params.get("dow", [""])[0]
@@ -274,12 +274,12 @@ k.set_html_style()
 qdate = ut.date_str(maybedate)
 if not maybetime:
     if qdate == ut.date_str("today"):
-        qtime = VTime("now")
+        clock = VTime("now")
     else:
-        qtime = VTime("24:00")
+        clock = VTime("24:00")
 else:
-    qtime = VTime(maybetime)
-if not qtime:
+    clock = VTime(maybetime)
+if not clock:
     cc.error_out(f"Bad time: '{ut.untaint(maybetime)}")
 
 cc.html_head()
@@ -384,6 +384,18 @@ elif what == cc.WHAT_SUMMARY_FREQUENCIES:
         end_date=date_end,
     )
 elif what == cc.WHAT_COMPARE_RANGES:
+    compare_query_params = cc.ReportQueryParams(
+        {
+            "what": cc.WHAT_COMPARE_RANGES,
+            "start_date": date_start,
+            "end_date": date_end,
+            "start_date2": date_start2,
+            "end_date2": date_end2,
+            "dow": dow_parameter,
+            "dow2": dow_parameter2,
+            "back": pages_back,
+        }
+    )
     web_compare_ranges.compare_ranges(
         database,
         pages_back=pages_back,
@@ -393,6 +405,7 @@ elif what == cc.WHAT_COMPARE_RANGES:
         start_date_b=date_start2,
         end_date_b=date_end2,
         dow_b=dow_parameter2,
+        query_params=compare_query_params,
     )
 elif what == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
