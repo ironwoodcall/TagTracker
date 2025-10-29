@@ -204,6 +204,24 @@ def web_est_wrapper() -> None:
         print("</pre><hr>")
 
 
+# Query parameter sanitizing ---------------------------------------------------------------
+SAFE_QUERY_CHARS = frozenset(
+    " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-:"
+)
+
+
+def validate_query_params(query_parms: dict[str, list[str]]) -> None:
+    """Ensure all provided query parameter values only contain allowed characters."""
+    for key, values in query_parms.items():
+        for value in values:
+            if not value:
+                continue
+            if any(char not in SAFE_QUERY_CHARS for char in value):
+                cc.error_out(
+                    f"Invalid characters in parameter '{ut.untaint(str(key))}'"
+                )
+
+
 # =================================================================
 
 start_time = time.perf_counter()
@@ -214,23 +232,12 @@ ORGSITE_ID = 1  # FIXME hardwired. (This one uc so sub-functions can't read orgs
 
 print("Content-type: text/html\n\n\n")
 
-TagID.uc(wcfg.TAGS_UPPERCASE)
-
-DBFILE = wcfg.DB_FILENAME
-database = db.db_connect(DBFILE)
-if not database:
-    print("<br>No database")
-    sys.exit()
-
-# Set text colours off (for the text-based reports)
-# pr.COLOUR_ACTIVE = True
-k.set_html_style()
-
 # Parse query parameters from the URL if present
 QUERY_STRING = ut.untaint(os.environ.get("QUERY_STRING", ""))
 if os.getenv("TAGTRACKER_DEBUG"):
     print("<pre style='color:red'>\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n" "</pre>")
 query_params = urllib.parse.parse_qs(QUERY_STRING)
+validate_query_params(query_params)
 what = query_params.get("what", [""])[0]
 what = what if what else cc.WHAT_SUMMARY
 maybedate = query_params.get("date", [""])[0]
@@ -249,6 +256,18 @@ sort_by = query_params.get("sort", [""])[0]
 sort_direction = query_params.get("dir", [""])[0]
 pages_back: str = query_params.get("back", "1")[0]
 pages_back: int = int(pages_back) if ut.is_int(pages_back) else 0
+
+TagID.uc(wcfg.TAGS_UPPERCASE)
+
+DBFILE = wcfg.DB_FILENAME
+database = db.db_connect(DBFILE)
+if not database:
+    print("<br>No database")
+    sys.exit()
+
+# Set text colours off (for the text-based reports)
+# pr.COLOUR_ACTIVE = True
+k.set_html_style()
 
 # Date will be 'today' or 'yesterday' or ...
 # Time of day will be 24:00 unless it's today (or specified)
@@ -360,7 +379,6 @@ elif what == cc.WHAT_SUMMARY_FREQUENCIES:
     web_season_report.season_frequencies_report(
         database,
         dow_parameter=dow_parameter,
-        title_bit=text,
         pages_back=pages_back,
         start_date=date_start,
         end_date=date_end,
