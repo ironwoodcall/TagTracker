@@ -638,12 +638,15 @@ def html_histogram_matrix(
 
             day_count = matrix.day_count or 0
             if day_count == 1:
-                visits_line = f"{mean_visits:.2f} visit(s)"
+                visits_line = f"{mean_visits:.2f} visits"
             else:
-                visits_line = f"{mean_visits:.2f} visit(s) per day"
+                visits_line = f"{mean_visits:.2f} visits/day"
             duration_text = VTime(duration_label).short or duration_label or ""
             arrival_text = arrival_label or "Unknown"
-            tooltip_lines: list[str] = ["There are",visits_line, f"arriving at {arrival_text}"]
+            tooltip_lines: list[str] = [
+                f"There are {visits_line}",
+                f"arriving at {arrival_text}",
+            ]
             if duration_text:
                 tooltip_lines.append(f"and lasting {duration_text} hour(s)")
             if (matrix.day_count or 0) > 1:
@@ -651,9 +654,13 @@ def html_histogram_matrix(
             tooltip_html = "".join(
                 f"<div>{escape(line)}</div>" for line in tooltip_lines if line
             )
+            tooltip_text = "\n".join(line for line in tooltip_lines if line)
+            tooltip_attr = escape(tooltip_text, quote=True) if tooltip_text else ""
 
             parts.append(
-                f"<td class='{' '.join(classes)}' style='{style_attr}'>"
+                f"<td class='{' '.join(classes)}' style='{style_attr}'"
+                + (f" title='{tooltip_attr}' aria-label='{tooltip_attr}'" if tooltip_attr else "")
+                + ">"
                 f"{cell_text}"
                 f"<div class='{prefix}-tooltip' role='tooltip'>{tooltip_html}</div>"
                 "</td>"
