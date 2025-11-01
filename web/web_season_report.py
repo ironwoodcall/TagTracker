@@ -546,8 +546,13 @@ def totals_table(conn: sqlite3.Connection):
         "<th style='text-align:center;border-right: 2px solid gray;'>%Δ<br>12mo</th>"
     )
     for day in display_day_keys:
-        daylabel = "Today" if day == today else day
-        daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=day)
+        if day == today:
+            daylabel = "Today"
+            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
+        else:
+            daylabel = day
+            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=day)
+
         header_html += (
             f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
         )
@@ -640,8 +645,8 @@ def main_web_page(ttdb: sqlite3.Connection):
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
     summaries_link = cc.selfref(what=cc.WHAT_DATERANGE)
     compare_link = cc.selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
-    download_csv_link = cc.make_url("tt_download", what="csv")
-    download_db_link = cc.make_url("tt_download", what="db")
+    download_csv_link = cc.make_url("tt_download", what=cc.WHAT_DOWNLOAD_CSV)
+    download_db_link = cc.make_url("tt_download", what=cc.WHAT_DOWNLOAD_DB)
 
     print(f"{cc.titleize('')}<br>")
     print("<div style='display:inline-block'>")
@@ -703,7 +708,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
-          <b>Graphs</b></button>
+          <b>Summary<br>Graphs</b></button>
         &nbsp;&nbsp;
         """
     )

@@ -518,7 +518,7 @@ def blocks_report(
     selected_option = find_dow_option(iso_dow)
     normalized_dow = selected_option.value
 
-    target_what = cc.WHAT_BLOCKS_DOW if normalized_dow else cc.WHAT_BLOCKS
+    target_what = cc.WHAT_BLOCKS
     self_url = cc.selfref(
         what=target_what,
         qdow=normalized_dow if normalized_dow else None,

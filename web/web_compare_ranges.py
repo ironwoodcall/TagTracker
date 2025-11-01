@@ -8,7 +8,7 @@ import math
 import sqlite3
 from dataclasses import dataclass
 from statistics import mean, median
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 import web_common as cc
 from web_daterange_selector import (
@@ -124,6 +124,28 @@ def _fetch_commuter_metrics(
     if math.isnan(mean_value):
         return commuter_count, None
     return commuter_count, mean_value
+
+
+def _coerce_param_value(value: Any) -> str:
+    """Normalize query parameter values to strings, skipping blanks."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return str(value).strip()
+
+
+def _normalize_query_params(params: Mapping[str, Any]) -> dict[str, str]:
+    """Normalize and filter query parameters for use in hidden fields."""
+    normalized: dict[str, str] = {}
+    for key, value in (params or {}).items():
+        coerced = _coerce_param_value(value)
+        if coerced == "":
+            continue
+        normalized[str(key)] = coerced
+    return normalized
 
 
 def _aggregate_period(
@@ -480,6 +502,7 @@ def _print_instructions() -> None:
 def compare_ranges(
     ttdb: sqlite3.Connection,
     *,
+    params: cc.ReportParameters,
     pages_back: int = 1,
     start_date_a: str = "",
     end_date_a: str = "",
@@ -487,22 +510,17 @@ def compare_ranges(
     start_date_b: str = "",
     end_date_b: str = "",
     dow_b: str = "",
-    query_params: cc.ReportQueryParams | None = None,
 ) -> None:
     """Render the comparison report between two date ranges."""
 
-    resolved_start_a = start_date_a or (query_params.get("start_date") if query_params else "")
-    resolved_end_a = end_date_a or (query_params.get("end_date") if query_params else "")
-    resolved_start_b = start_date_b or (query_params.get("start_date2") if query_params else "")
-    resolved_end_b = end_date_b or (query_params.get("end_date2") if query_params else "")
-    resolved_dow_a = dow_a or (query_params.get("dow") if query_params else "")
-    resolved_dow_b = dow_b or (query_params.get("dow2") if query_params else "")
+    resolved_start_a = start_date_a or ""
+    resolved_end_a = end_date_a or ""
+    resolved_start_b = start_date_b or ""
+    resolved_end_b = end_date_b or ""
+    resolved_dow_a = dow_a or ""
+    resolved_dow_b = dow_b or ""
 
     resolved_pages_back: int = pages_back
-    if query_params:
-        existing_back = query_params.get_int("back")
-        if existing_back is not None:
-            resolved_pages_back = existing_back
     if not isinstance(resolved_pages_back, int):
         resolved_pages_back = 1
 
@@ -516,12 +534,7 @@ def compare_ranges(
         "dow2": resolved_dow_b,
         "back": resolved_pages_back,
     }
-
-    if query_params is not None:
-        base_params = cc.ReportQueryParams(query_params.query_map())
-        base_params.set_dict(base_updates)
-    else:
-        base_params = cc.ReportQueryParams(base_updates)
+    normalized_updates = _normalize_query_params(base_updates)
 
     nav_pages_back = resolved_pages_back
 
@@ -543,15 +556,25 @@ def compare_ranges(
         dow_value=find_dow_option(resolved_dow_b, options_tuple).value,
     )
 
-    self_params = cc.ReportQueryParams(base_params.query_map())
-    self_params.set_dict({"back": cc.increment_pages_back(nav_pages_back)})
-    self_url = cc.selfref(query_params=self_params)
+
+    self_url = cc.selfref(
+        what=cc.WHAT_COMPARE_RANGES,
+        start_date=resolved_start_a,
+        end_date=resolved_end_a,
+        start_date2=resolved_start_b,
+        end_date2=resolved_end_b,
+        qdow=resolved_dow_a,
+        dow2=resolved_dow_b,
+        pages_back=cc.increment_pages_back(resolved_pages_back),
+    )
+
+
     form_action = self_url.split("?", 1)[0]
 
     excluded = {"start_date", "end_date", "dow", "start_date2", "end_date2", "dow2"}
     hidden_params = {
         key: [value]
-        for key, value in self_params.query_map().items()
+        for key, value in normalized_updates.items()
         if key.lower() not in excluded
     }
     hidden_fields = _render_hidden_fields(hidden_params)

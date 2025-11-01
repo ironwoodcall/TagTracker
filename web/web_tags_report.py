@@ -134,7 +134,7 @@ def tags_report(conn: sqlite3.Connection):
         for num in range(0, max_tag + 1):
             tag = TagID(f"{pre}{num}")
             if tag in taginfo:
-                taglink = cc.selfref(cc.WHAT_TAG_HISTORY, qtag=tag)
+                taglink = cc.selfref(cc.WHAT_TAG_HISTORY, tag=tag)
                 info = taginfo[tag]
                 hover = f"Tag: {tag.upper()}\nUsed {info.times_used} {ut.plural(info.times_used,'time')}\nLast used {info.last_used}\n"
                 if info.times_lost == 0:

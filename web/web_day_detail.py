@@ -338,7 +338,6 @@ def day_activity_histogram(ttdb: sqlite3.Connection, today: str) -> str:
         start_date=today,
         end_date=today,
         pages_back=1,
-        text_note="one day",
     )
     return web_histogram.activity_hist_table(
         ttdb,
@@ -441,7 +440,6 @@ def day_fullness_histogram(day_data: DayTotals, blocks) -> str:
         start_date=day_data.date if day_data else "",
         end_date=day_data.date if day_data else "",
         pages_back=1,
-        text_note="one day",
     )
 
     footer_label = "Graph of Bikes on Hand"
@@ -824,7 +822,7 @@ def visits_table(
         duration = VTime(v.duration)
         print("<tr>")
         # Tag
-        tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, qtag=v.tag)
+        tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, tag=v.tag)
         c = "color:auto;"
         # if v.next_time_in < time_in and time_out <= "" and not is_today:
         #     if v.tag[:1] == v.next_tag[:1]:
