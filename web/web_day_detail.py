@@ -39,6 +39,7 @@ import datacolors as dc
 import web.web_estimator as web_estimator
 import web_histogram
 from web.web_base_config import EST_TYPE_FOR_ONEDAY_SUMMARY, HIST_FIXED_Y_AXIS_FULLNESS
+
 try:
     from common.commuter_hump import CommuterHumpAnalyzer
 except ImportError:  # pragma: no cover - optional dependency
@@ -119,7 +120,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                 """
         link = cc.selfref(
             what=cc.WHAT_ONE_DAY,
-            qdate='today',
+            qdate="today",
             pages_back=cc.increment_pages_back(pages_back),
         )
         return f"""
@@ -231,15 +232,7 @@ def one_day_tags_report(
             visits[i - 1].next_time_in = v.time_in
             visits[i - 1].next_tag = v.tag
 
-    # # leftovers = len([t.time_out for t in rows if t.time_out <= ""])
-    # suspicious = len(
-    #     [
-    #         t.next_time_in
-    #         for t in visits
-    #         if t.next_time_in < t.time_in and t.time_out <= ""
-    #     ]
-    # )
-
+    # FIXME: 'daylight' probably can be removed
     daylight = dc.Dimension()
     daylight.add_config(VTime("07:30").num, "LightSkyBlue")
     daylight.add_config(VTime("12:00").num, "LightCyan")
@@ -260,9 +253,7 @@ def one_day_tags_report(
         print(f"No information in database for {thisday}")
         return
 
-    print(
-        "<div style='display:flex; flex-wrap:wrap; align-items:flex-start;'>"
-    )
+    print("<div style='display:flex; flex-wrap:wrap; align-items:flex-start;'>")
     print("<div style='flex:0 1 auto; min-width:260px; margin-right:1.5em;'>")
 
     commuter_mean = None
@@ -676,6 +667,7 @@ def block_activity_table(
     for row in rows_to_render:
         row_border = "border-top:3px solid black;" if row["border_top"] else ""
         base_style = mix_styles("text-align:right", row_border)
+
         def in_style(val: int) -> str:
             return mix_styles(
                 "text-align:right",
@@ -689,6 +681,7 @@ def block_activity_table(
                 row_border,
                 bikes_out_colors.css_bg_fg(val),
             )
+
         total_style = mix_styles(
             "text-align:right",
             row_border,
@@ -870,7 +863,9 @@ def visits_table(
                 elapsed_len = bar_itself_len
             elapsed_len = max(0, min(bar_itself_len, elapsed_len))
             remaining_len = max(0, bar_itself_len - elapsed_len)
-            bar_itself = (bar_marker * elapsed_len) + (BAR_MARKER_FUTURE * remaining_len)
+            bar_itself = (bar_marker * elapsed_len) + (
+                BAR_MARKER_FUTURE * remaining_len
+            )
         else:
             bar_itself = bar_marker * bar_itself_len
         c = "background:auto" if time_out else "background:khaki"  # "rgb(255, 230, 0)"
@@ -934,11 +929,7 @@ def summary_table(
             <td>{day_data.num_parked_oversize}</td></tr>
             """
     )
-    if (
-        not is_today
-        and commuter_mean is not None
-        and commuter_confidence is not None
-    ):
+    if not is_today and commuter_mean is not None and commuter_confidence is not None:
         table_bits.append(
             "<tr class='heavy-bottom'><td colspan=2>&nbsp;&nbsp;&nbsp;Commuter portion "
             f"(confidence={html.escape(commuter_confidence)}):</td>"
@@ -992,10 +983,10 @@ def summary_table(
             "<div style='margin-top:0.5em'>"
             f"{result_html}"
             "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-            f"<button type=\"button\" style=\"padding: 10px; display: inline-block;\" "
+            f'<button type="button" style="padding: 10px; display: inline-block;" '
             f"onclick=\"window.location.href='{detail_link}';\"><b>Detailed<br>Prediction</b></button>"
             "&nbsp;&nbsp;&nbsp;&nbsp;"
-            f"<button type=\"button\" style=\"padding: 10px; display: inline-block;\" "
+            f'<button type="button" style="padding: 10px; display: inline-block;" '
             f"onclick=\"window.location.href='{audit_link}';\"><b>Audit<br>Report</b></button>"
             "<br><br></div>"
         )

@@ -128,8 +128,7 @@ def fetch_orgsite_id(
     return this_id
 
 
-def fetch_date_range_limits(    conn_or_cursor,  orgsite_id:int
-) -> tuple[str,str]:
+def fetch_date_range_limits(conn_or_cursor, orgsite_id: int) -> tuple[str, str]:
     """Fetch the min and max date range for a given orgsite_id."""
 
     # Determine if the input is a connection or a cursor
@@ -141,12 +140,15 @@ def fetch_date_range_limits(    conn_or_cursor,  orgsite_id:int
         should_close_cursor = False
 
     # Execute the query and fetch all rows
-    raw_rows = curs.execute(f"select min(date),max(date) from day where orgsite_id = {orgsite_id}").fetchone()
+    raw_rows = curs.execute(
+        f"select min(date),max(date) from day where orgsite_id = {orgsite_id}"
+    ).fetchone()
     if should_close_cursor:
         curs.close()
     if not raw_rows:
-        return None,None
-    return raw_rows[0],raw_rows[1]
+        return None, None
+    return raw_rows[0], raw_rows[1]
+
 
 def fetch_day_id(
     cursor: sqlite3.Connection.cursor,
@@ -289,49 +291,6 @@ def db_fetch(
     return rows
 
 
-# def db_fetch(
-#     conn_or_cursor: sqlite3.Connection|sqlite3.Connection.cursor,
-#     select_statement: str,
-#     col_names: list[str] = None,
-# ) -> list[DBRow]:
-#     """Fetch a select statement into a list of database rows.
-
-#     The col_names list converts the database column names into
-#     other names. E.g. ['fred','smorg'] will save the value of
-#     the first colun in attribute 'fred' and the 2nd in 'smorg'.
-#     Not sure what happens when
-#     the column name is something like 'count(tag)'
-
-#     """
-
-#     def flatten(raw_column_name: str) -> str:
-#         """Convert str into a name usable as a class attribute."""
-
-#         usable: str = "".join(
-#             [c for c in raw_column_name.lower() if c.isalnum() or c == "_"]
-#         )
-#         if usable and usable[0].isdigit():
-#             usable = f"_{usable}"
-#         return usable
-
-#     if isinstance(conn_or_cursor,sqlite3.Connection):
-#         curs = conn_or_cursor.cursor()
-#     else:
-#         curs = conn_or_cursor
-
-#     raw_rows = curs.execute(select_statement).fetchall()
-#     # Make sure we have a list of the target names for the columns(attributes)
-#     if not col_names:
-#         col_names = [flatten(description[0]) for description in curs.description]
-
-#     if isinstance(conn_or_cursor,sqlite3.Connection):
-#         curs.close()
-
-
-#     rows = [DBRow(col_names, r) for r in raw_rows]
-#     return rows
-
-
 def db_latest(ttdb: sqlite3.Connection) -> str:
     """Return str describing latest db update date/time."""
 
@@ -353,28 +312,6 @@ def db_latest(ttdb: sqlite3.Connection) -> str:
     )[0].latest
 
     return f"Latest DB: load={latest_load}; event={latest_event}"
-
-
-# def db_tags_contexts(ttdb: sqlite3.Connection, whatdate: str, day: TrackerDay):
-#     """Fetch tags contexts from database into 'day' object."""
-
-#     def string_to_frozenset(string) -> frozenset:
-#         """Return a comma-separated str of TagID items as a frozenset of them."""
-#         tags = string.split(",")  # Split the string into a list of items
-#         return frozenset(
-#             [TagID(t) for t in tags]
-#         )  # Convert the list to a frozenset and return it
-
-#     rows = db_fetch(
-#         ttdb, f"SELECT regular,oversize,retired FROM taglist where date = '{whatdate}'"
-#     )
-#     # I expect one row back.
-#     if not rows:
-#         return
-#     # print(f"{rows[0].retired=}")
-#     day.regular = string_to_frozenset(rows[0].regular)
-#     day.oversize = string_to_frozenset(rows[0].oversize)
-#     day.retired = string_to_frozenset(rows[0].retired)
 
 
 def fetch_day_totals(cursor: sqlite3.Cursor, day_id: int) -> DayTotals:
@@ -519,7 +456,7 @@ def fetch_day_summary(
 def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
     """Create one day's TrackerDay from the database."""
     # Do we have info about the day?  Need its open/close times
-    if not isinstance(day_id,int):
+    if not isinstance(day_id, int):
         ut.squawk(f"db2day received non-int {day_id=}")
     curs = ttdb.cursor()
     row = curs.execute(
@@ -549,16 +486,15 @@ def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
     for row in rows:
         tagid = TagID(row[0])
 
-        bike_type = {
-            "R": k.REGULAR,
-            "O": k.OVERSIZE
-        }.get(row[3], k.UNKNOWN)
+        bike_type = {"R": k.REGULAR, "O": k.OVERSIZE}.get(row[3], k.UNKNOWN)
 
         if tagid not in biketags:
             biketags[tagid] = BikeTag(tagid=tagid, bike_type=bike_type)
         else:
             if biketags[tagid].bike_type != bike_type:
-                print(f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type")
+                print(
+                    f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type"
+                )
 
         visit = BikeVisit(tagid=tagid, time_in=row[1], time_out=row[2])
         biketags[tagid].visits.append(visit)
@@ -573,45 +509,10 @@ def db2day(ttdb: sqlite3.Connection, day_id: int) -> TrackerDay:
         else:
             biketag.status = BikeTag.IN_USE
 
-
-    # biketags: dict[VTime, BikeTag] = {}
-    # for row in rows:
-    #     tagid = TagID(row[0])
-    #     if row[3] == "R":
-    #         bike_type = k.REGULAR
-    #     elif row[3] == "O":
-    #         bike_type = k.OVERSIZE
-    #     else:
-    #         bike_type = k.UNKNOWN
-
-    #     if tagid in biketags:
-    #         # FIXME: support a biketag with multiple bike_types
-    #         if bike_type != biketags[tagid].bike_type:
-    #             print(
-    #                 f"FIXME: BikeTag {tagid} on {day_id=} has visits with different bike_type"
-    #             )
-    #     if tagid not in biketags:
-    #         biketags[tagid] = None
-    #         biketag = BikeTag(tagid=tagid, bike_type=bike_type)
-    #     else:
-    #         biketag = biketags[tagid]
-    #     visit = BikeVisit(tagid=tagid, time_in=row[1], time_out=row[2])
-    #     biketag.visits.append(visit)
-    #     biketags[tagid] = biketag    # Set BikeTag's statuses (none will be RETIRED)
-    # day.biketags = biketags
-    # for biketag in biketags.values():
-    #     biketag: BikeTag
-    #     if not biketag.visits:
-    #         biketag.status = BikeTag.UNUSED
-    #     elif biketag.visits[-1].time_out:
-    #         biketag.status = BikeTag.DONE
-    #     else:
-    #         biketag.status = BikeTag.IN_USE
-
     # Set the tag context lists
     reg = set()
     ovr = set()
-    for tagid,bike in biketags.items():
+    for tagid, bike in biketags.items():
         if bike.bike_type == k.REGULAR:
             reg.add(tagid)
         elif bike.bike_type == k.OVERSIZE:

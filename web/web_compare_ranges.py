@@ -592,18 +592,6 @@ def compare_ranges(
 
     description_a = selection_a.description(options_tuple)
     description_b = selection_b.description(options_tuple)
-    # print(
-    #     "<div style='display:flex; flex-wrap:wrap; gap:1.5rem; margin-top:0.75rem;'>"
-    # )
-    # print(
-    #     f"<p style='margin:0;font-style:italic;'><strong>Period A:</strong> "
-    #     f"{html.escape(description_a or 'All data')}</p>"
-    # )
-    # print(
-    #     f"<p style='margin:0;font-style:italic;'><strong>Period B:</strong> "
-    #     f"{html.escape(description_b or 'All data')}</p>"
-    # )
-    # print("</div>")
     print("<br>")
 
     metrics_a = _aggregate_period(

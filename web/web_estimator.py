@@ -143,15 +143,6 @@ class Estimator:
         self.verbose = bool(self.estimation_type == "verbose")
         raw_open_param = (opening_time or "").strip()
         raw_close_param = (closing_time or "").strip()
-        # has_open_param = bool(raw_open_param)
-        # has_close_param = bool(raw_close_param)
-
-        # if self.estimation_type == "schedule" and not (
-        #     has_open_param and has_close_param
-        # ):
-        #     self.error = "Please provide both opening_time and closing_time when estimation_type=schedule."
-        #     self.state = ERROR
-        #     return
 
         self._allowed_models = {
             self.MODEL_SM,
@@ -985,7 +976,9 @@ class Estimator:
         frac_elapsed: float,
         score: float | None,
     ) -> str:
-        prob = self._probability_from_score(model_code, measure_code, frac_elapsed, score)
+        prob = self._probability_from_score(
+            model_code, measure_code, frac_elapsed, score
+        )
         if prob is None:
             return "--"
         pct = int(round(max(0.0, min(1.0, prob)) * 100.0))
@@ -1106,33 +1099,25 @@ class Estimator:
                 self._activity_label(t_end),
                 f"{int(nxh_activity)}",
                 sm_act_rng or self._rng_str(act_lo, act_hi, False),
-                self._probability_label(
-                    self.MODEL_SM, "act", frac_elapsed, score_act
-                ),
+                self._probability_label(self.MODEL_SM, "act", frac_elapsed, score_act),
             ),
             (
                 self._further_measure_label(remainder),
                 f"{int(remainder)}",
                 sm_fut_rng or self._rng_str(rem_lo, rem_hi, False),
-                self._probability_label(
-                    self.MODEL_SM, "fut", frac_elapsed, score_rem
-                ),
+                self._probability_label(self.MODEL_SM, "fut", frac_elapsed, score_rem),
             ),
             (
                 self.MEAS_TIME_MAX,
                 f"{peak_time.short}",
                 self._rng_str(ptime_lo, ptime_hi, True),
-                self._probability_label(
-                    self.MODEL_SM, "ptime", frac_elapsed, score_pt
-                ),
+                self._probability_label(self.MODEL_SM, "ptime", frac_elapsed, score_pt),
             ),
             (
                 self.MEAS_MAX,
                 f"{int(peak_val)}",
                 sm_pk_rng or self._rng_str(pk_lo, pk_hi, False),
-                self._probability_label(
-                    self.MODEL_SM, "peak", frac_elapsed, score_pk
-                ),
+                self._probability_label(self.MODEL_SM, "peak", frac_elapsed, score_pk),
             ),
         ]
         return rows
@@ -1647,9 +1632,7 @@ class Estimator:
                 self.MEAS_TIME_MAX,
                 f"{peak_time.short}",
                 self._rng_str(ptime_lo, ptime_hi, True),
-                self._probability_label(
-                    self.MODEL_RF, "ptime", frac_elapsed, conf_pt
-                ),
+                self._probability_label(self.MODEL_RF, "ptime", frac_elapsed, conf_pt),
             ),
             (
                 self.MEAS_MAX,
@@ -1785,9 +1768,7 @@ class Estimator:
             if best[2] in selected_by_model:
                 selected_by_model[best[2]].add(idx)
             label_txt = best[3][0]
-            selection_info.append(
-                f"Chosen: {best[2]} for '{label_txt}' ({why})"
-            )
+            selection_info.append(f"Chosen: {best[2]} for '{label_txt}' ({why})")
 
         return mixed_rows, mixed_models, selected_by_model, selection_info
 
@@ -1849,7 +1830,7 @@ class Estimator:
                 if as_html:
                     import html as _html
 
-                    lines.append("<div class=\"estimator-extra\">")
+                    lines.append('<div class="estimator-extra">')
                     lines.append("<h4>Inputs</h4>")
                     lines.append(
                         f"<li>Bikes so far: {_html.escape(str(self.bikes_so_far))}<br>"
@@ -1866,11 +1847,9 @@ class Estimator:
                     lines.append(
                         f"<li>Match tolerance (VARIANCE): {_html.escape(str(variance))}<br>"
                     )
-                    lines.append(
-                        f"<li>Outlier Z cutoff: {_html.escape(str(zcut))}<br>"
-                    )
+                    lines.append(f"<li>Outlier Z cutoff: {_html.escape(str(zcut))}<br>")
                     if sm and getattr(sm, "state", None) == OK:
-                        lines.append("<div class=\"estimator-simple-model\">")
+                        lines.append('<div class="estimator-simple-model">')
                         lines.append("<h4>Simple model (similar days)</h4>")
                         lines.append(
                             f"<li>Points matched: {_html.escape(str(getattr(sm, 'num_points', '')))}<br>"
@@ -1884,9 +1863,7 @@ class Estimator:
                             f"{_html.escape(str(sm.max))}<br>"
                         )
                         lines.append("</div>")
-                    lines.append(
-                        f"<li>Confidence level: {_html.escape(level)}<br>"
-                    )
+                    lines.append(f"<li>Confidence level: {_html.escape(level)}<br>")
                     lines.append(
                         f"<li>Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}<br>"
                     )
@@ -1901,17 +1878,15 @@ class Estimator:
                     lines.append(
                         f"Day progress: {int(frac_elapsed*100)}% (span {span} minutes)"
                     )
-                    lines.append(
-                        f"Similar-day rows: {similar_count} ({match_note})"
-                    )
-                    lines.append(
-                        f"Match tolerance (VARIANCE): {variance}"
-                    )
+                    lines.append(f"Similar-day rows: {similar_count} ({match_note})")
+                    lines.append(f"Match tolerance (VARIANCE): {variance}")
                     lines.append(f"Outlier Z cutoff: {zcut}")
                     if sm and getattr(sm, "state", None) == OK:
                         lines.append("")
                         lines.append("Simple model (similar days)")
-                        lines.append(f"  Points matched: {getattr(sm, 'num_points', '')}")
+                        lines.append(
+                            f"  Points matched: {getattr(sm, 'num_points', '')}"
+                        )
                         lines.append(
                             f"  Discarded as outliers: {getattr(sm, 'num_discarded', '')}"
                         )
@@ -1922,9 +1897,7 @@ class Estimator:
                     lines.append(
                         f"Bands used (remainder/activity/peak/peaktime): {rbs}/{abs_}/{pbs}/{tbs}"
                     )
-                    lines.append(
-                        f"Base bands (before scaling): {rb}/{ab}/{pb}/{tb}"
-                    )
+                    lines.append(f"Base bands (before scaling): {rb}/{ab}/{pb}/{tb}")
             except Exception:
                 # Do not fail rendering on details
                 pass
@@ -1983,7 +1956,9 @@ if __name__ == "__main__":
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
         if render_html:
-            print(f"<p class=\"estimator-query-time\">Query took {elapsed_time:.1f} seconds.</p>")
+            print(
+                f'<p class="estimator-query-time">Query took {elapsed_time:.1f} seconds.</p>'
+            )
         else:
             print(f"\n\nQuery took {elapsed_time:.1f} seconds.")
     except Exception as e:  # pylint:disable=broad-except

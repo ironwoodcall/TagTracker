@@ -105,80 +105,10 @@ COL_FINGERPRINT = "datafile_fingerprint"
 COL_DATAFILE = "datafile_name"
 COL_TIMESTAMP = "datafile_timestamp"
 COL_BATCH = "batch"
-## COL_DATE = "date" FIXME: v2 this uses a DAY_ID
-# (Also uses COL_DATE and COL_BATCH)
-
-# # Table of individual bike visits
-# TABLE_VISITS = "visit"
-# COL_ID = "id"  # text date.tag PK
-# COL_DATE = "date"
-# COL_TAG = "tag"
-# COL_BIKETYPE = "type"
-# COL_TIME_IN = "time_in"
-# COL_TIME_OUT = "time_out"
-# COL_DURATION = "duration"
-# COL_NOTES = "notes"
-# COL_BATCH = "batch"
-
-# # Table of day summaries
-# TABLE_DAYS = "day"
-# # COL_DATE name reused - text date PK
-# COL_REGULAR = "parked_regular"  # int count
-# COL_OVERSIZE = "parked_oversize"  # int count
-# COL_TOTAL = "parked_total"  # int sum of 2 above
-# COL_TOTAL_LEFTOVER = "leftover"  # int count
-# COL_MAX_REGULAR = "max_reg"  # int count of max regular bikes
-# COL_MAX_REGULAR_TIME = "time_max_reg"  # HHMM time
-# COL_MAX_OVERSIZE = "max_over"  # int count of max oversize bikes
-# COL_MAX_OVERSIZE_TIME = "time_max_over"  # HHMM time
-# COL_MAX_TOTAL = "max_total"  # int sum of 2 above
-# COL_MAX_TOTAL_TIME = "time_max_total"  # HHMM
-# COL_TIME_OPEN = "time_open"  # HHMM opening time
-# COL_TIME_CLOSE = "time_closed"  # HHMM closing time
-# COL_DAY_OF_WEEK = "weekday"  # ISO 8601-compliant 1-7 M-S
-# COL_PRECIP_MM = "precip_mm"  # mm (bulk pop from EnvCan dat)
-# COL_TEMP = "temp"
-# COL_SUNSET = "sunset"  # HHMM time at sunset - same
-# COL_EVENT = "event"  # brief name of nearby event
-# COL_EVENT_PROX = "event_prox_km"  # est. num of km to event
-# COL_REGISTRATIONS = "registrations"  # num of bike registrations recorded
-# # COL_NOTES name reused
-# # COL_BATCH name reused
-
-# # Table of tags contexts
-# TABLE_TAGS_CONTEXT = "taglist"
-# COL_REGULAR_CONTEXT = "regular"
-# COL_OVERSIZE_CONTEXT = "oversize"
-# COL_RETIRED_CONTEXT = "retired"
-
-# Bike-type codes. Must match check constraint in code table TYPES.CODE
-# REGULAR = "R"
-# OVERSIZE = "O"
 
 
 class DBError(Exception):
     pass
-
-
-# @dataclass
-# class DayStats:
-#     # Summary stats & such for one day.
-#     # This makes up most of a record for a DAY row,
-#     date: str
-#     regular_parked: int = 0
-#     oversize_parked: int = 0
-#     total_parked: int = 0
-#     total_leftover: int = 0
-#     max_regular_num: int = 0
-#     max_regular_time: VTime = ""
-#     max_oversize_num: int = 0
-#     max_oversize_time: VTime = ""
-#     max_total_num: int = 0
-#     max_total_time: VTime = ""
-#     time_open: VTime = ""
-#     time_close: VTime = ""
-#     weekday: int = None
-#     registrations: int = 0
 
 
 @dataclass
@@ -238,26 +168,6 @@ class FileInfo:
             else:
                 print_first_line(error_msg)
 
-
-# def create_logtable(dbconx: sqlite3.Connection):
-#     """Creates the load-logging table in the database."""
-#     if args.verbose:
-#         print(f"Assuring table {TABLE_LOADS} exists.")
-#     error_msg = sql_exec_and_error(
-#         f"""CREATE TABLE IF NOT EXISTS
-#         {TABLE_LOADS} (
-#             {COL_DATE}  TEXT PRIMARY KEY NOT NULL,
-#             {COL_DATAFILE} TEXT NOT NULL,
-#             {COL_TIMESTAMP} TEXT NOT NULL,
-#             {COL_FINGERPRINT} TEXT NOT NULL,
-#             {COL_BATCH} TEXT NOT NULL
-#         );""",
-#         dbconx,
-#     )
-#     if error_msg:
-#         Statuses.set_bad(f"    SQL error creating datafile_loads: {error_msg}")
-#         dbconx.close()
-#         sys.exit(1)
 
 
 def is_linux() -> bool:
@@ -558,42 +468,6 @@ def insert_into_day(
     return day_id
 
 
-# def day_tags_context_into_db(
-#     file_info: FileInfo,
-#     day: OldTrackerDay,
-#     day_totals: DayStats,
-#     batch: str,
-#     dbconx: sqlite3.Connection,
-# ) -> bool:
-#     """Load tags context into database."""
-
-#     if args.verbose:
-#         print("   Adding lists of retired, regular and oversize tags to database.")
-
-#     regular_tags = ",".join(sorted(list(day.regular)))
-#     oversize_tags = ",".join(sorted(list(day.oversize)))
-#     retired_tags = ",".join(sorted(list(day.retired)))
-
-#     sql_error = sql_exec_and_error(
-#         f"""INSERT OR REPLACE INTO {TABLE_TAGS_CONTEXT} (
-#                 {COL_DATE},
-#                 {COL_REGULAR_CONTEXT},
-#                 {COL_OVERSIZE_CONTEXT},
-#                 {COL_RETIRED_CONTEXT}
-#             ) VALUES (
-#                 '{day_totals.date}',
-#                 '{regular_tags}',
-#                 '{oversize_tags}',
-#                 '{retired_tags}'
-#             );""",
-#         dbconx,
-#     )
-#     # Did it work? (No error message means success.)
-#     if sql_error:
-#         file_info.set_bad(f"SQL error adding to {TABLE_TAGS_CONTEXT}: {sql_error}")
-#         return False
-
-#     return True
 
 
 def insert_into_visit(

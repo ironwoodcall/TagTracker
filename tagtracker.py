@@ -248,28 +248,6 @@ def midnight_passed(today_is: str) -> bool:
         return False
     return True
 
-
-# def get_taglists_from_old_config(old_config_file: str) -> td.OldTrackerDay:
-#     """Read tag lists (oversize, etc) from tag config file."""
-#     # Lists of normal, oversize, retired tags
-#     # Return a OldTrackerDay object, though its bikes_in/out are meaningless.
-#     errs = []
-#     day = df.read_datafile(old_config_file, errs)
-#     if errs:
-#         print(f"Errors in file, {errs=}")
-#         error_exit()
-#     pr.iprint()
-#     pr.iprint(
-#         f"Using tag configurations from deprecated '{old_config_file}' configuration file.",
-#         style=k.ERROR_STYLE,
-#     )
-#     pr.iprint(
-#         "Define tag configurations in client_local_config.py.",
-#         style=k.ERROR_STYLE,
-#     )
-#     return day
-
-
 def set_up_today() -> TrackerDay:
     """Initialize today's tracking data."""
 

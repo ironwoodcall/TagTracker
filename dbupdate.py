@@ -34,6 +34,7 @@ import sqlite3
 
 import common.tt_dbutil as db
 import common.tt_util as ut
+
 # from common.tt_time import VTime
 
 
@@ -181,102 +182,6 @@ def get_wx_changes(
 
 
 # -------------------
-# def read_sun_data(source_csv: str) -> dict[str, NewVals]:
-#     """Get sunset data from NRCan data file for given range of dates.
-
-#     Using whole-year text file produced from solar calculator at
-#     https://nrc.canada.ca/en/research-development/products-services/software-applications/sun-calculator/
-
-#     Fields of interest:
-#         0: Data as "Mmm D YYYY"
-#         5: sunset
-#         6: civilian twilight
-#         7: nautical twilight
-
-#     """
-
-#     MONTHS = { #pylint:disable=invalid-name
-#         "Jan": "01",
-#         "Feb": "02",
-#         "Mar": "03",
-#         "Apr": "04",
-#         "May": "05",
-#         "Jun": "06",
-#         "Jul": "07",
-#         "Aug": "08",
-#         "Sep": "09",
-#         "Oct": "10",
-#         "Nov": "11",
-#         "Dec": "12",
-#     }
-
-#     results = {}
-#     with open(source_csv, "r", newline="", encoding="utf-8") as csvfile:
-#         for row in csv.reader(csvfile):
-#             if not row or not row[0]:
-#                 if args.verbose:
-#                     print(f"discarding sun csv row {row}")
-#                 continue
-#             # Break first element into date elements
-#             datebits = row[0].split()
-#             if len(datebits) != 3:
-#                 if args.verbose:
-#                     print(f"discarding bad date in sun csv row {row}")
-#                 continue
-#             maybedate = f"{datebits[2]}-{MONTHS[datebits[0]]}-{('0'+datebits[1])[-2:]}"
-#             thisdate = ut.date_str(maybedate)
-#             if not thisdate:
-#                 continue
-#             if args.verbose:
-#                 print(f"have date: {thisdate}")
-#             results[thisdate] = NewVals(
-#                 sunset=VTime(oneval(row, 6)),
-#             )
-#         if args.verbose:
-#             [ # pylint:disable=expression-not-assigned
-#                 print(f"{d}: {s.sunset}") for d, s in results.items()
-#             ]
-#     return results
-
-
-# def get_sun_changes(
-#     ttdb: sqlite3.Connection,
-#     source_csv: str,
-#     force: str,
-#     onedate: str,
-# ) -> list[str]:
-#     """Get SQL statements of changes from NRCan source."""
-
-#     where = f" where date = '{onedate}' " if onedate else ""
-#     db_data = db.db_fetch(
-#         ttdb,
-#         "select " "   date, sunset " "from day " f"{where}" "order by date",
-#     )
-#     if not db_data:
-#         return []
-#     if args.verbose:
-#         for row in db_data:
-#             print(f"{row.date=};{row.sunset=}")
-#     new = read_sun_data(source_csv)
-
-#     sqls = []
-#     for existing in db_data:
-#         if onedate and onedate != existing.date:
-#             continue
-
-#         if (
-#             (force or existing.sunset is None)
-#             and existing.date in new
-#             and new[existing.date].sunset is not None
-#         ):
-#             sqls.append(
-#                 f"update day set sunset = '{new[existing.date].sunset}' "
-#                 f"where date = '{existing.date}';"
-#             )
-#     return sqls
-
-
-# -------------------
 
 
 class ProgArgs:
@@ -395,44 +300,7 @@ if args.weather_csv:
         db.db_update(database, sql, commit=False)
     db.db_commit(database)
 
-# sun_changes = []
-# if args.sun_csv:
-#     if args.verbose:
-#         print("SUN\n")
-#     sun_changes: list[str] = get_sun_changes(
-#         database,
-#         args.sun_csv,
-#         args.force,
-#         args.onedate,
-#     )
-#     for sql in sun_changes:
-#         if args.verbose:
-#             print(sql)
-#         db.db_update(database, sql, commit=False)
-#     db.db_commit(database)
-
-# day_end_changes = []
-# if args.day_end_csv:
-#     if args.verbose:
-#         print("\nDAY END\n")
-#     day_end_changes: list[str] = get_day_end_changes(
-#         database,
-#         args.day_end_csv,
-#         args.force,
-#         args.onedate,
-#     )
-#     for sql in day_end_changes:
-#         if args.verbose:
-#             print(sql)
-#         db.db_update(database, sql, commit=False)
-#     db.db_commit(database)
 
 print(f"Updated database '{args.database_file}':")
 if args.weather_csv:
     print(f"   {len(weather_changes):3d} weather updates from '{args.weather_csv}'")
-# if args.sun_csv:
-#     print(f"   {len(sun_changes):3d} sun updates from '{args.sun_csv}'")
-# if args.day_end_csv:
-#     print(
-#         f"   {len(day_end_changes):3d} day_end updates from '{args.day_end_csv}'"
-#     )
