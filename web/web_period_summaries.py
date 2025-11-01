@@ -370,15 +370,15 @@ def _one_daterange_summary_row(pd: _DateRangeRow, pages_back: int):
     """Print one table row in a dateranges table."""
 
     # Calculate links to day detail for days of maximum values
-    max_all_bikes_link = cc.selfref(cc.WHAT_ONE_DAY, qdate=pd.when_max.all_bikes)
+    max_all_bikes_link = cc.selfref(cc.WHAT_ONE_DAY, start_date=pd.when_max.all_bikes)
     max_regular_bikes_link = cc.selfref(
-        cc.WHAT_ONE_DAY, qdate=pd.when_max.regular_bikes
+        cc.WHAT_ONE_DAY, start_date=pd.when_max.regular_bikes
     )
     max_oversize_bikes_link = cc.selfref(
-        cc.WHAT_ONE_DAY, qdate=pd.when_max.oversize_bikes
+        cc.WHAT_ONE_DAY, start_date=pd.when_max.oversize_bikes
     )
-    max_fullest_link = cc.selfref(cc.WHAT_ONE_DAY, qdate=pd.when_max.fullest)
-    max_reg529_link = cc.selfref(cc.WHAT_ONE_DAY, qdate=pd.when_max.reg529)
+    max_fullest_link = cc.selfref(cc.WHAT_ONE_DAY, start_date=pd.when_max.fullest)
+    max_reg529_link = cc.selfref(cc.WHAT_ONE_DAY, start_date=pd.when_max.reg529)
 
     TD = "<td  style='text-align: right;'>"
     print(

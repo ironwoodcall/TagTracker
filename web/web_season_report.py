@@ -408,10 +408,10 @@ def totals_table(conn: sqlite3.Connection):
         attach_commuter_metric(day_totals[key], key, key)
 
     most_parked_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_parked_combined_date
+        what=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_parked_combined_date
     )
     fullest_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY, qdate=ytd_totals.max_fullest_combined_date
+        what=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_fullest_combined_date
     )
 
     row_defs = [
@@ -548,10 +548,10 @@ def totals_table(conn: sqlite3.Connection):
     for day in display_day_keys:
         if day == today:
             daylabel = "Today"
-            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
+            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, start_date="today")
         else:
             daylabel = day
-            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=day)
+            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=day)
 
         header_html += (
             f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
@@ -642,7 +642,7 @@ def main_web_page(ttdb: sqlite3.Connection):
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
-    today_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate="today")
+    today_link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date="today")
     summaries_link = cc.selfref(what=cc.WHAT_DATERANGE)
     compare_link = cc.selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
     download_csv_link = cc.make_url("tt_download", what=cc.WHAT_DOWNLOAD_CSV)
@@ -982,7 +982,7 @@ def season_detail(
 
     for row in all_days:
         row: DayTotals
-        date_link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date)
+        date_link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=row.date)
         reg_str = "" if row.bikes_registered is None else f"{row.bikes_registered}"
         temp_str = "" if row.max_temperature is None else f"{row.max_temperature:0.1f}"
         precip_str = "" if row.precipitation is None else f"{row.precipitation:0.1f}"

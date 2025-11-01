@@ -181,6 +181,7 @@ def titleize(title: str = "", subtitle: str = "") -> str:
 
 def called_by_self() -> bool:
     """Return True if this script was called by itself."""
+    # FIXME: belongs in CGIManager
     referer = os.environ.get("HTTP_REFERER")
     if not referer:
         return False
@@ -298,7 +299,6 @@ class ReportParameters:
 
     what_report: str = None
     clock: VTime = None
-    qdate: str = None
     start_date: str = None
     end_date: str = None
     dow: str = None
@@ -432,7 +432,6 @@ class ReportParameters:
     _property_type_checks = {
         "what_report": _set_as_what,
         "clock": _set_as_time,
-        "qdate": _set_as_date,
         "start_date": _set_as_date,
         "end_date": _set_as_date,
         "dow": _set_as_dow,
@@ -449,7 +448,6 @@ class ReportParameters:
         self,
         maybe_what_report: str = None,
         maybe_clock: VTime = None,
-        maybe_qdate: str = None,
         maybe_start_date: str = None,
         maybe_end_date: str = None,
         maybe_dow: str = None,
@@ -494,7 +492,6 @@ class CGIManager:
         # cgi tag --> class property name
         "rpt": "what_report",
         "clock": "clock",
-        "date": "qdate",
         "start_date": "start_date",
         "end_date": "end_date",
         "dow": "dow",
@@ -582,6 +579,7 @@ class CGIManager:
 def _resolve_script_path(script_name: str) -> str:
     """Return a sanitized script path for links within the same host."""
 
+    # FIXME: move to CGIManager.
     current_script = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
     if not script_name:
         return current_script
@@ -601,7 +599,6 @@ def make_url(
     script_name: str,
     *,
     what: str = "",
-    qdate: str = "",
     clock: str = "",
     tag: str = "",
     qdow: str = "",
@@ -620,7 +617,6 @@ def make_url(
 
     params = ReportParameters(
         maybe_what_report=what,
-        maybe_qdate=qdate,
         maybe_clock=clock,
         maybe_tag=tag,
         maybe_dow=qdow,
@@ -641,7 +637,6 @@ def make_url(
 
 def selfref(
     what: str = "",
-    qdate: str = "",
     clock: str = "",
     tag: str = "",
     qdow: str = "",
@@ -656,11 +651,11 @@ def selfref(
 ) -> str:
     """Return a self-reference with the given parameters."""
 
+    # FIXME: move to CGIManager
     script_name = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
     return make_url(
         script_name,
         what=what,
-        qdate=qdate,
         clock=clock,
         tag=tag,
         qdow=qdow,

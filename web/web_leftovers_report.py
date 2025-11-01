@@ -68,7 +68,7 @@ def leftovers_report(ttdb: sqlite3.Connection):
     )
 
     for row in rows:
-        link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=row.date, qsort=cc.SORT_TAG)
+        link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=row.date, qsort=cc.SORT_TAG)
         style = f"style='{colors.css_bg_fg(abs(row.difference))}'"
         print(
             f"<tr><td style='{colors.css_bg_fg(abs(row.difference))}'><a href='{link}'>{row.date}</a></td><td {style}>{row.calculated}</td><td {style}>{row.reported}</td></tr>"

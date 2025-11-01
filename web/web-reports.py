@@ -240,13 +240,11 @@ params = cc.CGIManager.cgi_to_params()
 params.what_report = params.what_report or cc.WHAT_SUMMARY
 params.pages_back = params.pages_back or 0
 what = params.what_report
-maybedate = params.qdate
 tag = params.tag
 dow_parameter = params.dow
 sort_by = params.sort_by
 sort_direction = params.sort_direction
 pages_back = params.pages_back
-qdate = params.qdate
 
 requested_start = params.start_date
 requested_end = params.end_date
@@ -374,7 +372,7 @@ elif what == cc.WHAT_ONE_DAY:
     one_day_tags_report(
         database,
         orgsite_id=ORGSITE_ID,
-        whatday=qdate,
+        whatday=params.start_date,
         sort_by=sort_by,
         pages_back=pages_back,
     )
@@ -386,7 +384,6 @@ elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
         end_date=date_end,
         restrict_to_single_day=True,
     )
-
 elif what == cc.WHAT_AUDIT:
     web_audit_report(
         database, orgsite_id=1,

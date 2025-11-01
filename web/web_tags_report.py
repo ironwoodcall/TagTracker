@@ -197,7 +197,7 @@ def one_tag_history_report(ttdb: sqlite3.Connection, maybe_tag: k.MaybeTag) -> N
         print("<tr><th>Date</th><th>BikeIn</th><th>BikeOut</th></tr>")
         for row in rows:
             date,time_in,time_out = row[0],VTime(row[1]),VTime(row[2])
-            link = cc.selfref(what=cc.WHAT_ONE_DAY, qdate=date)
+            link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=date)
             print(
                 f"<tr><td>"
                 f"<a href='{link}'>{date}</a>"

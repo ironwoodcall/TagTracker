@@ -102,7 +102,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                 """
         link = cc.selfref(
             what=cc.WHAT_ONE_DAY,
-            qdate=target,
+            start_date=target,
             pages_back=cc.increment_pages_back(pages_back),
         )
         return f"""
@@ -120,7 +120,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                 """
         link = cc.selfref(
             what=cc.WHAT_ONE_DAY,
-            qdate="today",
+            start_date="today",
             pages_back=cc.increment_pages_back(pages_back),
         )
         return f"""
@@ -758,25 +758,25 @@ def visits_table(
 
     link_sort_time = cc.selfref(
         what=cc.WHAT_ONE_DAY,
-        qdate=thisday,
+        start_date=thisday,
         qsort=cc.SORT_TIME_IN,
         pages_back=cc.increment_pages_back(pages_back),
     )
     link_sort_time_out = cc.selfref(
         what=cc.WHAT_ONE_DAY,
-        qdate=thisday,
+        start_date=thisday,
         qsort=cc.SORT_TIME_OUT,
         pages_back=cc.increment_pages_back(pages_back),
     )
     link_sort_tag = cc.selfref(
         what=cc.WHAT_ONE_DAY,
-        qdate=thisday,
+        start_date=thisday,
         qsort=cc.SORT_TAG,
         pages_back=cc.increment_pages_back(pages_back),
     )
     link_sort_duration = cc.selfref(
         what=cc.WHAT_ONE_DAY,
-        qdate=thisday,
+        start_date=thisday,
         qsort=cc.SORT_DURATION,
         pages_back=cc.increment_pages_back(pages_back),
     )
