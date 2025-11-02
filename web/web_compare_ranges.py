@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import html
 import math
 import sqlite3
@@ -392,12 +393,14 @@ def _render_compare_filter_form(
     selection_a: DateDowSelection,
     selection_b: DateDowSelection,
     *,
+    field_names: tuple[dict[str, str], dict[str, str]],
     submit_label: str = "Apply filters",
     options: Sequence = DEFAULT_DOW_OPTIONS,
     hidden_fields: str = "",
 ) -> str:
     """Render the combined Period A / Period B filter form."""
 
+    field_names_tuple = tuple(field_names)
     options_tuple = tuple(options)
 
     form_style = "border: 1px solid black; padding: 12px 18px; display: inline-block;"
@@ -407,13 +410,16 @@ def _render_compare_filter_form(
         "<div style='display:flex; gap:2rem; justify-content:center; align-items:flex-start;'>",
     ]
 
-    for heading, selection, suffix in (
-        ("Period A", selection_a, ""),
-        ("Period B", selection_b, "2"),
+    for heading, selection, names in (
+        ("Period A", selection_a, field_names_tuple[0]),
+        ("Period B", selection_b, field_names_tuple[1]),
     ):
-        start_field = f"start_date{suffix}"
-        end_field = f"end_date{suffix}"
-        dow_field = f"dow{suffix}"
+        start_field = names["start"]
+        end_field = names["end"]
+        dow_field = names["dow"]
+        escaped_start_field = html.escape(start_field)
+        escaped_end_field = html.escape(end_field)
+        escaped_dow_field = html.escape(dow_field)
 
         start_value = html.escape(selection.start_date)
         end_value = html.escape(selection.end_date)
@@ -423,11 +429,11 @@ def _render_compare_filter_form(
             f"<h3 style='margin:0 0 0.75rem 0; text-align:center;'>{heading}</h3>",
             "<div style='display:grid; grid-template-columns:auto auto;"
             " column-gap:0.5rem; row-gap:0.5rem; align-items:center;'>",
-            f'<label for="{start_field}">Start date:</label>',
-            f'<input type="date" id="{start_field}" name="{start_field}" '
+            f'<label for="{escaped_start_field}">Start date:</label>',
+            f'<input type="date" id="{escaped_start_field}" name="{escaped_start_field}" '
             f'value="{start_value}" required pattern="{DATE_PATTERN}">',
-            f'<label for="{end_field}">End date:</label>',
-            f'<input type="date" id="{end_field}" name="{end_field}" '
+            f'<label for="{escaped_end_field}">End date:</label>',
+            f'<input type="date" id="{escaped_end_field}" name="{escaped_end_field}" '
             f'value="{end_value}" required pattern="{DATE_PATTERN}">',
         ]
 
@@ -442,8 +448,8 @@ def _render_compare_filter_form(
         select_markup = "\n                ".join(options_html)
         column_bits.extend(
             [
-                f'<label for="{dow_field}">Day of week:</label>',
-                f'<select id="{dow_field}" name="{dow_field}">'
+                f'<label for="{escaped_dow_field}">Day of week:</label>',
+                f'<select id="{escaped_dow_field}" name="{escaped_dow_field}">'
                 f"\n                {select_markup}\n            </select>",
                 "</div>",
                 "</div>",
@@ -524,17 +530,29 @@ def compare_ranges(
     if not isinstance(resolved_pages_back, int):
         resolved_pages_back = 1
 
-    base_updates = {
-        "what": cc.WHAT_COMPARE_RANGES,
-        "start_date": resolved_start_a,
-        "end_date": resolved_end_a,
-        "start_date2": resolved_start_b,
-        "end_date2": resolved_end_b,
-        "dow": resolved_dow_a,
-        "dow2": resolved_dow_b,
-        "back": resolved_pages_back,
+    field_names_a = {
+        "start": cc.CGIManager.param_name("start_date"),
+        "end": cc.CGIManager.param_name("end_date"),
+        "dow": cc.CGIManager.param_name("dow"),
     }
-    normalized_updates = _normalize_query_params(base_updates)
+    field_names_b = {
+        "start": cc.CGIManager.param_name("start_date2"),
+        "end": cc.CGIManager.param_name("end_date2"),
+        "dow": cc.CGIManager.param_name("dow2"),
+    }
+
+    params.what_report = cc.WHAT_COMPARE_RANGES
+    params.start_date = resolved_start_a
+    params.end_date = resolved_end_a
+    params.start_date2 = resolved_start_b
+    params.end_date2 = resolved_end_b
+    params.dow = resolved_dow_a
+    params.dow2 = resolved_dow_b
+    params.pages_back = cc.increment_pages_back(resolved_pages_back)
+
+    query_params = cc.CGIManager.params_to_query_mapping(params)
+    # query_params["back"] = resolved_pages_back
+    normalized_updates = _normalize_query_params(query_params)
 
     nav_pages_back = resolved_pages_back
 
@@ -571,7 +589,14 @@ def compare_ranges(
 
     form_action = self_url.split("?", 1)[0]
 
-    excluded = {"start_date", "end_date", "dow", "start_date2", "end_date2", "dow2"}
+    excluded = {
+        field_names_a["start"].lower(),
+        field_names_a["end"].lower(),
+        field_names_a["dow"].lower(),
+        field_names_b["start"].lower(),
+        field_names_b["end"].lower(),
+        field_names_b["dow"].lower(),
+    }
     hidden_params = {
         key: [value]
         for key, value in normalized_updates.items()
@@ -584,6 +609,7 @@ def compare_ranges(
             form_action,
             selection_a,
             selection_b,
+            field_names=(field_names_a, field_names_b),
             submit_label="Apply filters",
             options=options_tuple,
             hidden_fields=hidden_fields,

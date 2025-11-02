@@ -238,7 +238,7 @@ if os.getenv("TAGTRACKER_DEBUG"):
 
 params = cc.CGIManager.cgi_to_params()
 params.what_report = params.what_report or cc.WHAT_SUMMARY
-params.pages_back = params.pages_back or 0
+params.pages_back = params.pages_back or 1
 what = params.what_report
 tag = params.tag
 dow_parameter = params.dow
