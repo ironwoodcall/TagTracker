@@ -97,7 +97,7 @@ WHAT_VALID_VALUES = {
     WHAT_DATERANGE_CUSTOM,
     WHAT_ESTIMATE_VERBOSE,
     WHAT_DOWNLOAD_CSV,
-    WHAT_DOWNLOAD_DB
+    WHAT_DOWNLOAD_DB,
 }
 
 # These constants are used to manage how report columns are sorted.
@@ -178,22 +178,6 @@ def titleize(title: str = "", subtitle: str = "") -> str:
     return content
 
 
-def called_by_self() -> bool:
-    """Return True if this script was called by itself."""
-    # FIXME: belongs in CGIManager
-    referer = os.environ.get("HTTP_REFERER")
-    if not referer:
-        return False
-    base_url = referer.split("?", 1)[0]
-
-    request_scheme = os.environ.get("REQUEST_SCHEME")
-    http_host = os.environ.get("HTTP_HOST")
-    script_name = os.environ.get("SCRIPT_NAME")
-    expected_url = f"{request_scheme}://{http_host}{script_name}"
-
-    return expected_url == base_url
-
-
 def main_page_button() -> str:
     """Make a button to take a person to the main page."""
     target = selfref()
@@ -214,7 +198,7 @@ def main_and_back_buttons(pages_back: int) -> str:
         return ""
     if isinstance(pages_back, int) and pages_back > wcfg.MAX_PAGES_BACK:
         return main_page_button()
-    if called_by_self() and pages_back > 0:
+    if CGIManager.called_by_self() and pages_back > 0:
         return back_button(pages_back)
     else:
         return main_page_button()
@@ -296,7 +280,7 @@ def resolve_date_range(
 class ReportParameters:
     """A bundle containing all the reporting parameters (that would be in URL)."""
 
-    what_report: str | None = field(default=None, metadata={"cgi": "requested_report"})
+    what_report: str | None = field(default=None, metadata={"cgi": "what_report_request"})
     clock: VTime | None = field(default=None, metadata={"cgi": "clock"})
     start_date: str | None = field(default=None, metadata={"cgi": "start_date"})
     end_date: str | None = field(default=None, metadata={"cgi": "end_date"})
@@ -485,7 +469,6 @@ class ReportParameters:
         maybe_tag: TagID = None,
         maybe_pages_back: int = None,
         # pylint:enable=unused-argument
-
     ):
         for arg_name, value in locals().items():
             if arg_name == "self" or not value:
@@ -520,11 +503,6 @@ class CGIManager:
     )
 
     @classmethod
-    def param_name(cls, property_name: str) -> str:
-        """Return the CGI parameter name associated with ``property_name``."""
-        return ReportParameters.cgi_name(property_name)
-
-    @classmethod
     def _validate_query_params(cls, query_parms: dict[str, list[str]]) -> None:
         """Ensure all provided query parameter values only contain allowed characters."""
         for key, values in query_parms.items():
@@ -536,6 +514,25 @@ class CGIManager:
                         f"Invalid characters in parameter '{ut.untaint(str(key))}'"
                     )
 
+    @classmethod
+    def param_name(cls, property_name: str) -> str:
+        """Return the CGI parameter name associated with ``property_name``."""
+        return ReportParameters.cgi_name(property_name)
+
+    @staticmethod
+    def called_by_self() -> bool:
+        """Return True if this script was called by itself."""
+        referer = os.environ.get("HTTP_REFERER")
+        if not referer:
+            return False
+        base_url = referer.split("?", 1)[0]
+
+        request_scheme = os.environ.get("REQUEST_SCHEME")
+        http_host = os.environ.get("HTTP_HOST")
+        script_name = os.environ.get("SCRIPT_NAME")
+        expected_url = f"{request_scheme}://{http_host}{script_name}"
+
+        return expected_url == base_url
 
     @classmethod
     def cgi_to_params(cls) -> ReportParameters:
@@ -547,7 +544,7 @@ class CGIManager:
 
         for cgi_name, values in param_dict.items():
             if cgi_name not in cgi_to_attr:
-                continue
+                error_out(f"Unrecognized URL parameter '{cgi_name}'")
 
             target_property = cgi_to_attr[cgi_name]
 
@@ -756,7 +753,6 @@ def style() -> str:
     return style_str
 
 
-
 def bad_date(bad_date_str: str = ""):
     """Print message about bad date & exit."""
     error_out(
@@ -874,7 +870,6 @@ def fetch_daily_visit_data(ttdb: sqlite3.Connection, in_or_out: str) -> list[db.
         group by date,block;
     """
     return db.db_fetch(ttdb, sel)
-
 
 
 def html_head(

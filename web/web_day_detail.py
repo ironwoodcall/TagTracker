@@ -170,7 +170,7 @@ def one_day_tags_report(
 
     print(cc.titleize(f"{day_str}, {thisday} (detail)"))
 
-    if not cc.called_by_self():
+    if not cc.CGIManager.called_by_self():
         pages_back = cc.NAV_MAIN_BUTTON
 
     print(_nav_buttons(ttdb, orgsite_id, thisday, pages_back))

@@ -67,7 +67,7 @@ def web_audit_report(
     print("""<meta name="format-detection" content="telephone=no"/>""")
     print(cc.titleize("Attendant audit report",f"As at {as_of_time.tidy} {thisday}"))
     # Only put a "Back" button if this was called from itself
-    if cc.called_by_self():
+    if cc.CGIManager.called_by_self():
         print(f"{cc.back_button(1)}<br><br>")
         # print(f"{cc.main_and_back_buttons(pages_back=pages_back)}<br><br>")
 
