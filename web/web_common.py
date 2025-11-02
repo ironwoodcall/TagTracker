@@ -29,7 +29,6 @@ from dataclasses import dataclass, field, fields
 import copy
 import urllib
 from datetime import datetime, timedelta
-from typing import Any, Mapping
 
 
 from web.web_base_config import SITE_NAME
@@ -65,7 +64,7 @@ WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
 WHAT_SUMMARY_FREQUENCIES = "SQ"
 WHAT_AUDIT = "Au"
-WHAT_COMPARE_RANGES = "cr"
+WHAT_COMPARE_RANGES = "Cmp"
 WHAT_DATERANGE = "P"
 WHAT_DATERANGE_FOREVER = "pF"
 WHAT_DATERANGE_YEAR = "pY"
@@ -295,20 +294,46 @@ def resolve_date_range(
 
 @dataclass
 class ReportParameters:
-    """A bundle contaioning all the reporting parameters (that would be in URL)."""
+    """A bundle containing all the reporting parameters (that would be in URL)."""
 
-    what_report: str = None
-    clock: VTime = None
-    start_date: str = None
-    end_date: str = None
-    dow: str = None
-    start_date2: str = None
-    end_date2: str = None
-    dow2: str = None
-    sort_by: str = None
-    sort_direction: str = None
-    tag: TagID = None
-    pages_back: int = None
+    what_report: str | None = field(default=None, metadata={"cgi": "requested_report"})
+    clock: VTime | None = field(default=None, metadata={"cgi": "clock"})
+    start_date: str | None = field(default=None, metadata={"cgi": "start_date"})
+    end_date: str | None = field(default=None, metadata={"cgi": "end_date"})
+    dow: str | None = field(default=None, metadata={"cgi": "dow"})
+    start_date2: str | None = field(default=None, metadata={"cgi": "start_date2"})
+    end_date2: str | None = field(default=None, metadata={"cgi": "end_date2"})
+    dow2: str | None = field(default=None, metadata={"cgi": "dow2"})
+    sort_by: str | None = field(default=None, metadata={"cgi": "sort_by"})
+    sort_direction: str | None = field(default=None, metadata={"cgi": "sort_direction"})
+    tag: TagID | None = field(default=None, metadata={"cgi": "tag"})
+    pages_back: int | None = field(default=None, metadata={"cgi": "pages_back"})
+
+    @classmethod
+    def _cgi_maps(cls) -> tuple[dict[str, str], dict[str, str]]:
+        """Return (attr->cgi, cgi->attr) lookups for CGI serialization."""
+        attr_to_cgi: dict[str, str] = {}
+        cgi_to_attr: dict[str, str] = {}
+        for param in fields(cls):
+            cgi_name = param.metadata.get("cgi")
+            if cgi_name:
+                attr_to_cgi[param.name] = cgi_name
+                cgi_to_attr[cgi_name] = param.name
+        return attr_to_cgi, cgi_to_attr
+
+    @classmethod
+    def cgi_name(cls, attr_name: str) -> str:
+        """Return the CGI parameter name for the given ReportParameters attribute."""
+        attr_to_cgi, _ = cls._cgi_maps()
+        if attr_name not in attr_to_cgi:
+            raise AttributeError(f"Unknown ReportParameters field '{attr_name}'")
+        return attr_to_cgi[attr_name]
+
+    @classmethod
+    def cgi_items(cls) -> tuple[tuple[str, str], ...]:
+        """Return (cgi_name, attr_name) pairs for CGI-aware fields."""
+        _, cgi_to_attr = cls._cgi_maps()
+        return tuple(cgi_to_attr.items())
 
     def _set_as_what(self, property_name, maybe_value):
         """Assigns maybe_value to self.{property_name} if valid. Errors out if not."""
@@ -446,6 +471,7 @@ class ReportParameters:
 
     def __init__(
         self,
+        # pylint:disable=unused-argument
         maybe_what_report: str = None,
         maybe_clock: VTime = None,
         maybe_start_date: str = None,
@@ -458,6 +484,8 @@ class ReportParameters:
         maybe_sort_direction: str = None,
         maybe_tag: TagID = None,
         maybe_pages_back: int = None,
+        # pylint:enable=unused-argument
+
     ):
         for arg_name, value in locals().items():
             if arg_name == "self" or not value:
@@ -486,30 +514,15 @@ class ReportParameters:
 class CGIManager:
     """Owns interactions with CGI variables."""
 
-    # Map of CGI Query tags to ReportParameters property names.
-    # Anything not in this dict will be ignored.
-    _cgi_to_class = {
-        # cgi tag --> class property name
-        "rpt": "what_report",
-        "clock": "clock",
-        "start_date": "start_date",
-        "end_date": "end_date",
-        "dow": "dow",
-        "start_date2": "start_date2",
-        "end_date2": "end_date2",
-        "dow2": "dow2",
-        "sort_by": "sort_by",
-        "sort_direction": "sort_direction",
-        "tag": "tag",
-        "pages_back": "pages_back",
-    }
-    # This is the reverse dictionary for *building* a vgi query string
-    _class_to_cgi = {v: k for k, v in _cgi_to_class.items()}
-
     # Query parameter sanitizing
     SAFE_QUERY_CHRS = frozenset(
         " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:,-"
     )
+
+    @classmethod
+    def param_name(cls, property_name: str) -> str:
+        """Return the CGI parameter name associated with ``property_name``."""
+        return ReportParameters.cgi_name(property_name)
 
     @classmethod
     def _validate_query_params(cls, query_parms: dict[str, list[str]]) -> None:
@@ -530,12 +543,13 @@ class CGIManager:
         cls._validate_query_params(param_dict)
 
         params = ReportParameters()
+        cgi_to_attr = dict(ReportParameters.cgi_items())
 
         for cgi_name, values in param_dict.items():
-            if cgi_name not in cls._cgi_to_class:
+            if cgi_name not in cgi_to_attr:
                 continue
 
-            target_property = cls._cgi_to_class[cgi_name]
+            target_property = cgi_to_attr[cgi_name]
 
             if not values:
                 continue
@@ -555,16 +569,27 @@ class CGIManager:
     def params_to_query_str(cls, params: ReportParameters) -> str:
         """Return the parameter string for an URL to the current script using
         the parameters in params."""
-        if params is None:
+        mapping = cls.params_to_query_mapping(params)
+        if not mapping:
             return ""
 
-        segments: list[str] = []
-        for attr_name, cgi_name in cls._class_to_cgi.items():
+        segments = [f"{key}={value}" for key, value in mapping.items()]
+        return f"?{'&'.join(segments)}"
+
+    @classmethod
+    def params_to_query_mapping(cls, params: ReportParameters) -> dict[str, str]:
+        """Return a dict mapping CGI parameter names to their serialized values."""
+        if params is None:
+            return {}
+
+        mapping: dict[str, str] = {}
+        attr_to_cgi, _ = ReportParameters._cgi_maps()
+        for attr_name, cgi_name in attr_to_cgi.items():
             value = getattr(params, attr_name, None)
             if value in (None, ""):
                 continue
-            segments.append(f"{cgi_name}={value}")
-        return f"?{'&'.join(segments)}"
+            mapping[cgi_name] = str(value)
+        return mapping
 
     @classmethod
     def selfref(cls, params: ReportParameters) -> str:
