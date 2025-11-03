@@ -26,7 +26,6 @@ import sqlite3
 import sys
 import os
 import time
-from datetime import date, timedelta
 import html
 from pathlib import Path
 
@@ -52,6 +51,7 @@ import common.tt_dbutil as db
 # import tt_tag_inv
 # import tt_printer as pr
 from web_estimator import Estimator
+from web_daterange_selector import DateDowSelection
 
 
 def web_audit_report(
@@ -239,18 +239,6 @@ if os.getenv("TAGTRACKER_DEBUG"):
 params = cc.CGIManager.cgi_to_params()
 params.what_report = params.what_report or cc.WHAT_SUMMARY
 params.pages_back = params.pages_back or 1
-what = params.what_report
-tag = params.tag
-dow_parameter = params.dow
-sort_by = params.sort_by
-sort_direction = params.sort_direction
-pages_back = params.pages_back
-
-requested_start = params.start_date
-requested_end = params.end_date
-requested_start2 = params.start_date2
-requested_end2 = params.end_date2
-dow_parameter2 = params.dow2
 
 TagID.uc(wcfg.TAGS_UPPERCASE)
 
@@ -267,128 +255,112 @@ k.set_html_style()
 
 cc.html_head()
 
-if not what:
+if not params.what_report:
     sys.exit()
 
 
 if params.what_report == cc.WHAT_COMPARE_RANGES:
-    today_str = ut.date_str("today")
-    try:
-        today_date = date.fromisoformat(today_str)
-    except ValueError:
-        today_date = date.today()
+    prior_start, prior_end = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_PREVIOUS_MONTH_PRIOR_YEAR
+    )
+    recent_start, recent_end = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_PREVIOUS_MONTH
+    )
+    params.start_date = params.start_date or prior_start
+    params.end_date = params.end_date or prior_end
+    params.start_date2 = params.start_date2 or recent_start
+    params.end_date2 = params.end_date2 or recent_end
 
-    current_month_start = date(today_date.year, today_date.month, 1)
-    last_month_end = current_month_start - timedelta(days=1)
-    last_month_start = date(last_month_end.year, last_month_end.month, 1)
-
-    def _month_end(start_day: date) -> date:
-        """Return the final day of the month containing ``start_day``."""
-        if start_day.month == 12:
-            next_month_start = date(start_day.year + 1, 1, 1)
-        else:
-            next_month_start = date(start_day.year, start_day.month + 1, 1)
-        return next_month_start - timedelta(days=1)
-
-    period_b_start_default = last_month_start.isoformat()
-    period_b_end_default = last_month_end.isoformat()
-
-    prev_year_start = date(last_month_start.year - 1, last_month_start.month, 1)
-    prev_year_end = _month_end(prev_year_start)
-
-    period_a_start_default = prev_year_start.isoformat()
-    period_a_end_default = prev_year_end.isoformat()
-
-    if not requested_start:
-        requested_start = period_a_start_default
-    if not requested_end:
-        requested_end = period_a_end_default
-    if not requested_start2:
-        requested_start2 = period_b_start_default
-    if not requested_end2:
-        requested_end2 = period_b_end_default
-
-date_start, date_end, _default_start_date, _default_end_date = cc.resolve_date_range(
+params.start_date, params.end_date, _default_start_date, _default_end_date = cc.resolve_date_range(
     database,
     orgsite_id=ORGSITE_ID,
-    start_date=requested_start,
-    end_date=requested_end,
+    start_date=params.start_date or "",
+    end_date=params.end_date or "",
 )
 
-date_start2, date_end2, _default_start_date2, _default_end_date2 = cc.resolve_date_range(
-    database,
-    orgsite_id=ORGSITE_ID,
-    start_date=requested_start2,
-    end_date=requested_end2,
-)
+if params.what_report == cc.WHAT_COMPARE_RANGES:
+    (
+        params.start_date2,
+        params.end_date2,
+        _default_start_date2,
+        _default_end_date2,
+    ) = cc.resolve_date_range(
+        database,
+        orgsite_id=ORGSITE_ID,
+        start_date=params.start_date2 or "",
+        end_date=params.end_date2 or "",
+    )
+else:
+    params.start_date2 = params.start_date2 or ""
+    params.end_date2 = params.end_date2 or ""
 
 
-if what == cc.WHAT_TAG_HISTORY:
-    web_tags_report.one_tag_history_report(database, tag)
-elif what == cc.WHAT_BLOCKS:
+if params.what_report == cc.WHAT_TAG_HISTORY:
+    web_tags_report.one_tag_history_report(database, params.tag)
+elif params.what_report == cc.WHAT_BLOCKS:
     web_block_report.blocks_report(
         database,
-        iso_dow=dow_parameter,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
+        iso_dow=params.dow,
+        pages_back=params.pages_back,
+        start_date=params.start_date,
+        end_date=params.end_date,
     )
-elif what == cc.WHAT_DETAIL:
+elif params.what_report == cc.WHAT_DETAIL:
     web_season_report.season_detail(
         database,
-        sort_by=sort_by,
-        sort_direction=sort_direction,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
-        dow_parameter=dow_parameter,
+        sort_by=params.sort_by,
+        sort_direction=params.sort_direction,
+        pages_back=params.pages_back,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        dow_parameter=params.dow,
     )
-elif what == cc.WHAT_SUMMARY:
+elif params.what_report == cc.WHAT_SUMMARY:
     web_season_report.main_web_page(database)
-elif what == cc.WHAT_SUMMARY_FREQUENCIES:
+elif params.what_report == cc.WHAT_SUMMARY_FREQUENCIES:
     web_season_report.season_frequencies_report(
         database,
-        dow_parameter=dow_parameter,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
+        dow_parameter=params.dow,
+        pages_back=params.pages_back,
+        start_date=params.start_date,
+        end_date=params.end_date,
     )
-elif what == cc.WHAT_COMPARE_RANGES:
+elif params.what_report == cc.WHAT_COMPARE_RANGES:
     web_compare_ranges.compare_ranges(
         database,
         params=params,
-        pages_back=pages_back,
-        start_date_a=date_start,
-        end_date_a=date_end,
-        dow_a=dow_parameter,
-        start_date_b=date_start2,
-        end_date_b=date_end2,
-        dow_b=dow_parameter2,
+        pages_back=params.pages_back,
+        start_date_a=params.start_date,
+        end_date_a=params.end_date,
+        dow_a=params.dow or "",
+        start_date_b=params.start_date2,
+        end_date_b=params.end_date2,
+        dow_b=params.dow2 or "",
         # query_params=compare_query_params,
     )
-elif what == cc.WHAT_TAGS_LOST:
+elif params.what_report == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
-elif what == cc.WHAT_ONE_DAY:
+elif params.what_report == cc.WHAT_ONE_DAY:
     one_day_tags_report(
         database,
         orgsite_id=ORGSITE_ID,
         whatday=params.start_date,
-        sort_by=sort_by,
-        pages_back=pages_back,
+        sort_by=params.sort_by,
+        pages_back=params.pages_back,
     )
-elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
+elif params.what_report == cc.WHAT_ONE_DAY_FREQUENCIES:
     web_season_report.season_frequencies_report(
         database,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
+        pages_back=params.pages_back,
+        start_date=params.start_date,
+        end_date=params.end_date,
         restrict_to_single_day=True,
     )
-elif what == cc.WHAT_AUDIT:
+elif params.what_report == cc.WHAT_AUDIT:
     web_audit_report(
         database, orgsite_id=1,
     )  # FIXME: orgsite_id
-elif what in [
+elif params.what_report in [
     cc.WHAT_DATERANGE,
     cc.WHAT_DATERANGE_WEEK,
     cc.WHAT_DATERANGE_MONTH,
@@ -397,13 +369,17 @@ elif what in [
     cc.WHAT_DATERANGE_CUSTOM,
 ]:
     web_period_summaries.daterange_summary(
-        database, what, start_date=date_start, end_date=date_end, pages_back=pages_back
+        database,
+        params.what_report,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        pages_back=params.pages_back,
     )
-elif what == cc.WHAT_ESTIMATE_VERBOSE:
+elif params.what_report == cc.WHAT_ESTIMATE_VERBOSE:
     web_est_wrapper()
 
 else:
-    cc.error_out(f"Unknown request: {ut.untaint(what)}")
+    cc.error_out(f"Unknown request: {ut.untaint(params.what_report)}")
     sys.exit(1)
 
 
