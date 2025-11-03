@@ -694,11 +694,11 @@ def main_web_page(ttdb: sqlite3.Connection):
     )
     print(
         f"""
-        <button onclick="window.location.href='{detail_link}'"
+        <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
-          <b>Daily<br>Summaries</b></button>
+          <b>Date Range<br>Graphs</b></button>
         &nbsp;&nbsp;
-          """
+        """
     )
     print(
         f"""
@@ -710,26 +710,25 @@ def main_web_page(ttdb: sqlite3.Connection):
     )
     print(
         f"""
-        <button onclick="window.location.href='{blocks_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Half-Hourly<br>Activity</b></button>
-        &nbsp;&nbsp;
-        """
-    )
-    print(
-        f"""
         <button onclick="window.location.href='{compare_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Date Range<br>Comparison</b></button>
         &nbsp;&nbsp;
         """
     )
-
     print(
         f"""
-        <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
+        <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Date Range<br>Graphs</b></button>
+          <b>Daily<br>Summaries</b></button>
+        &nbsp;&nbsp;
+          """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{blocks_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Half-Hourly<br>Activity</b></button>
         &nbsp;&nbsp;
         """
     )
