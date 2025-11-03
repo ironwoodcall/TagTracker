@@ -245,7 +245,7 @@ def compare_ranges(
 
     nav_pages_back = resolved_pages_back
 
-    title = cc.titleize("Compare date ranges")
+    title = cc.titleize("Date range comparison")
     print(title)
     print(f"{cc.main_and_back_buttons(nav_pages_back)}<br><br>")
 
