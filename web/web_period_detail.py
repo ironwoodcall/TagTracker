@@ -39,7 +39,7 @@ def period_detail(
 
     nav_pages_back = resolved_pages_back
 
-    title = cc.titleize("Period detail")
+    title = cc.titleize("Date range detail")
     print(title)
     print(f"{cc.main_and_back_buttons(nav_pages_back)}<br><br>")
 
@@ -49,6 +49,16 @@ def period_detail(
         end_date=resolved_end,
         qdow=resolved_dow,
         pages_back=params.pages_back,
+    )
+    compare_url = cc.selfref(
+        what=cc.WHAT_COMPARE_RANGES,
+        start_date=resolved_start,
+        end_date=resolved_end,
+        start_date2=resolved_start,
+        end_date2=resolved_end,
+        qdow=resolved_dow,
+        dow2=resolved_dow,
+        pages_back=1,
     )
     widget = build_date_dow_filter_widget(
         self_url,
@@ -63,8 +73,10 @@ def period_detail(
     params.end_date = selection.end_date
     params.dow = selection.dow_value
 
+
     print(widget.html)
-    print("<br>")
+    # print("<br>")
+    print(f"<p>You can also <a href='{compare_url}'>compare this to another date range</a></p>")
 
     description = selection.description(widget.options)
 
