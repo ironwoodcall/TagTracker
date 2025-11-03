@@ -822,8 +822,8 @@ def compare_ranges(
         "<th colspan=2 style='text-align:left;'>Item</th>"
         "<th style='text-align:right;'>Period A</th>"
         "<th style='text-align:right;'>Period B</th>"
-        "<th style='text-align:right;'>Delta</th>"
-        "<th style='text-align:right;'>%Delta</th>"
+        "<th style='text-align:right;'>Δ</th>"
+        "<th style='text-align:right;'>%Δ</th>"
         "</tr>"
     )
 
