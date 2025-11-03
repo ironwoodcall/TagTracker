@@ -63,6 +63,9 @@ class PeriodMetrics:
     mean_bikes_left_per_day: float | None = None
     commuters: int | None = None
     commuters_per_day: float | None = None
+    median_commuters_per_day: float | None = None
+    mean_most_bikes_per_day: float | None = None
+    median_most_bikes_per_day: float | None = None
 
 
 def _parse_dow_tokens(dow_value: str) -> set[int]:
@@ -232,6 +235,16 @@ def aggregate_period(
         (getattr(day, "num_parked_oversize", 0) or 0) for day in days
     )
 
+    daily_maximums = [
+        (getattr(day, "num_fullest_combined", 0) or 0) for day in days
+    ]
+    if daily_maximums:
+        metrics.mean_most_bikes_per_day = mean(daily_maximums)
+        metrics.median_most_bikes_per_day = median(daily_maximums)
+    else:
+        metrics.mean_most_bikes_per_day = None
+        metrics.median_most_bikes_per_day = None
+
     day_where_clauses = ["orgsite_id = ?"]
     params: list[Any] = [1]
     if start_date:
@@ -263,6 +276,24 @@ def aggregate_period(
         metrics.longest_visit_minutes = None
         metrics.mean_visit_minutes = None
         metrics.median_visit_minutes = None
+
+    daily_commuter_counts: list[float] = []
+    if days and CommuterHumpAnalyzer is not None:
+        commuter_weekdays = tuple(sorted(allowed)) if allowed else tuple(range(1, 8))
+        for day in days:
+            commuter_count, _ = _fetch_commuter_metrics(
+                ttdb,
+                getattr(day, "date", ""),
+                getattr(day, "date", ""),
+                commuter_weekdays,
+            )
+            if commuter_count is None:
+                continue
+            daily_commuter_counts.append(float(commuter_count))
+    if daily_commuter_counts:
+        metrics.median_commuters_per_day = median(daily_commuter_counts)
+        if metrics.commuters_per_day is None:
+            metrics.commuters_per_day = mean(daily_commuter_counts)
 
     return metrics
 
@@ -407,7 +438,7 @@ METRIC_ROWS: Tuple[MetricRow, ...] = (
     },
     {
         "label": "Mean visits <b>per day</b> (all bike types):",
-        "row_span": 10,
+        "row_span": 13,
         "row_span_color": "#d6d8ce",
         "attr": "mean_bikes_per_day_combined",
         "value_fmt": lambda value: format_float(value, decimals=1),
@@ -450,7 +481,25 @@ METRIC_ROWS: Tuple[MetricRow, ...] = (
         "delta_fmt": lambda delta: format_float_delta(delta, decimals=1),
     },
     {
-        "label": "Bikes left on-site <b>per day</b>:",
+        "label": "&nbsp;&nbsp;&nbsp;Commuter portion:",
+        "attr": "median_commuters_per_day",
+        "value_fmt": lambda value: format_float(value, decimals=1),
+        "delta_fmt": lambda delta: format_float_delta(delta, decimals=1),
+    },
+    {
+        "label": "Max bikes on-site <b>per day</b> (mean):",
+        "attr": "mean_most_bikes_per_day",
+        "value_fmt": lambda value: format_float(value, decimals=1),
+        "delta_fmt": lambda delta: format_float_delta(delta, decimals=1),
+    },
+    {
+        "label": "Max bikes on-site <b>per day</b> (median):",
+        "attr": "median_most_bikes_per_day",
+        "value_fmt": lambda value: format_float(value, decimals=1),
+        "delta_fmt": lambda delta: format_float_delta(delta, decimals=1),
+    },
+    {
+        "label": "Bikes <i>left</i> on-site <b>per day</b>:",
         "attr": "mean_bikes_left_per_day",
         "value_fmt": lambda value: format_float(value, decimals=1),
         "delta_fmt": lambda delta: format_float_delta(delta, decimals=1),
