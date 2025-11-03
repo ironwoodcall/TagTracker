@@ -228,7 +228,7 @@ def print_the_html(
         """Make a thicker vertical cell border to mark off sets of blocks."""
         return "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
 
-    title = cc.titleize("Time block summaries",filter_description)
+    title = cc.titleize("Half-hourly activity",filter_description)
     # if filter_description:
     #     title = f"{title} ({html.escape(filter_description)})"
     print(f"{title}")
@@ -266,11 +266,13 @@ def print_the_html(
         <td style='vertical-align: top; text-align: left; width: auto;'>
             <div style="max-width: 25ch; text-align: left;">
                 <p>
-                    Time block summaries outline patterns of activity for each date, in half-hour segments.
+                    The half-hourly activity summary shows <i>patterns</i> of activity
+                    for each date, in half-hour segments.
                 </p>
                 <p>
-                    The colour grid highlights how inbound and outbound activity shifts through the day,
-                    while the marker legend tracks the number of bikes onsite.
+                    The colour grid highlights how inbound and outbound activity
+                    shifts through the day, while the marker legend shows the
+                    number of bikes onsite.
                 </p>
                 <p>
                     Click on any square to get more information about that half hour.
