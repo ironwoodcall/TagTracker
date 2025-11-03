@@ -384,7 +384,12 @@ def totals_table(conn: sqlite3.Connection):
     )
     prev_12mo_totals = fetch_totals(prev_12mo_start_iso, prev_12mo_end_iso)
 
-    # FIXME: this iswhere to pt the prior_ytd_compare link definition
+    ytd_summary_link = cc.selfref(
+        what=cc.WHAT_DATERANGE,
+        start_date=ytd_start_iso,
+        end_date=ytd_end_iso,
+        pages_back=1,
+    )
     prior_ytd_compare_link = cc.selfref(
         what=cc.WHAT_COMPARE_RANGES,
         start_date=prior_ytd_start_iso,
@@ -544,7 +549,8 @@ def totals_table(conn: sqlite3.Connection):
         "<th colspan=3 class='heavy-right' style='text-align:center;'>This year</th>"
         "<th colspan=5>Recent days</th></tr>"
         # f"  <tr><th>{selected_year_str} Summary</th>"
-        f"<th style='text-align:center;'>YTD<br>{selected_year_str}</th>"
+        f"<th style='text-align:center;'><a href='{ytd_summary_link}'>"
+        f"YTD<br>{selected_year_str}</a></th>"
         f"<th style='text-align:center'><a href='{prior_ytd_compare_link}'>%Δ<br>YTD</a></th>"
         "<th style='text-align:center;border-right: 2px solid gray;'>"
         f"<a href='{prior_12mo_compare_link}'>%Δ<br>12mo</a></th>"
