@@ -40,6 +40,7 @@ import web_season_report
 import web_tags_report
 import web_period_summaries
 import web_compare_ranges
+import web_period_detail
 import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
@@ -360,6 +361,15 @@ elif params.what_report == cc.WHAT_AUDIT:
     web_audit_report(
         database, orgsite_id=1,
     )  # FIXME: orgsite_id
+elif params.what_report == cc.WHAT_DATERANGE_DETAIL:
+    web_period_detail.period_detail(
+        database,
+        params=params,
+        pages_back=params.pages_back,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        dow=params.dow or "",
+    )
 elif params.what_report in [
     cc.WHAT_DATERANGE,
     cc.WHAT_DATERANGE_WEEK,

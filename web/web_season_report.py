@@ -652,6 +652,7 @@ def main_web_page(ttdb: sqlite3.Connection):
     """Print super-brief summary report of the current year."""
 
     detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
+    period_detail_link = cc.selfref(what=cc.WHAT_DATERANGE_DETAIL, pages_back=1)
     blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
     tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
     today_link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date="today")
@@ -682,6 +683,14 @@ def main_web_page(ttdb: sqlite3.Connection):
           <b>Today<br>Detail</b></button>
         &nbsp;&nbsp;
         """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{period_detail_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Period<br>Detail</b></button>
+        &nbsp;&nbsp;
+          """
     )
     print(
         f"""
