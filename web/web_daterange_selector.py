@@ -136,12 +136,12 @@ def find_dow_option(
 class DateDowSelection:
     """User-specified date range and optional day-of-week filter selection."""
 
-    RANGE_YTD = 'ytd'
-    RANGE_YTD_PRIOR_YEAR = 'ytd-prior-year'
-    RANGE_PREVIOUS_MONTH = 'prev-month'
-    RANGE_PREVIOUS_MONTH_PRIOR_YEAR = 'prev-month-prior-year'
-    RANGE_LAST_12MONTHS = 'last-12-months'
-    RANGE_LAST_12MONTHS_PRIOR_YEAR = 'last-12-months-prior-year'
+    RANGE_YTD = "ytd"
+    RANGE_YTD_PRIOR_YEAR = "ytd-prior-year"
+    RANGE_PREVIOUS_MONTH = "prev-month"
+    RANGE_PREVIOUS_MONTH_PRIOR_YEAR = "prev-month-prior-year"
+    RANGE_LAST_12MONTHS = "last-12-months"
+    RANGE_LAST_12MONTHS_PRIOR_YEAR = "last-12-months-prior-year"
 
     start_date: str
     end_date: str
@@ -152,7 +152,7 @@ class DateDowSelection:
         cls,
         preset: str,
         *,
-        today: date | None = None,
+        today: str | None = None,
     ) -> tuple[str, str]:
         """
         Return (start_date, end_date) ISO strings for a preset range.
@@ -162,7 +162,10 @@ class DateDowSelection:
             today: Reference date for relative calculations; defaults to ``date.today()``.
         """
 
-        reference = today or date.today()
+        reference = today or ut.date_str("today")
+        if not reference:
+            cc.error_out(f"Bad date parameter '{today=}'.")
+        reference = date.fromisoformat(reference)
 
         def iso(dt: date) -> str:
             return dt.strftime("%Y-%m-%d")
@@ -357,9 +360,7 @@ def build_date_dow_filter_widget(
     if include_day_filter:
         excluded_names.add(dow_field.lower())
     filtered_params = {
-        k: v
-        for k, v in query_params.items()
-        if k.lower() not in excluded_names
+        k: v for k, v in query_params.items() if k.lower() not in excluded_names
     }
     hidden_fields = _render_hidden_fields(filtered_params)
 
