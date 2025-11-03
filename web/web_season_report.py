@@ -25,14 +25,14 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 # import html
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 from functools import lru_cache
 import common.tt_util as ut
 import web_common as cc
 import datacolors as dc
 import web_histogram
 from web.web_base_config import HIST_FIXED_Y_AXIS_DURATION
-from web_daterange_selector import build_date_dow_filter_widget
+from web_daterange_selector import build_date_dow_filter_widget, DateDowSelection
 from web.web_histogram_data import ArrivalDepartureMatrix
 import common.tt_dbutil as db
 from common.tt_time import VTime
@@ -277,26 +277,16 @@ def totals_table(conn: sqlite3.Connection):
             return "0.0%"
         return f"{change:+.1f}%"
 
-    def subtract_year_safe(day: date) -> date:
-        """Return the same calendar day in the prior year, clamping as needed."""
-        target_year = day.year - 1
-        day_num = day.day
-        month_num = day.month
-        while day_num > 0:
-            try:
-                return date(target_year, month_num, day_num)
-            except ValueError:
-                day_num -= 1
-        return date(target_year, month_num, 1)
-
-    def fetch_totals(start_day: date, end_day: date) -> db.MultiDayTotals:
-        if start_day > end_day:
-            start_day = end_day
+    def fetch_totals(start_iso: str, end_iso: str) -> db.MultiDayTotals:
+        """Fetch totals between two ISO-formatted dates (inclusive)."""
+        if not start_iso or not end_iso:
+            return db.MultiDayTotals()
+        ordered_start, ordered_end = sorted((start_iso, end_iso))
         return db.MultiDayTotals.fetch_from_db(
             conn=conn,
             orgsite_id=1,
-            start_date=start_day.isoformat(),
-            end_date=end_day.isoformat(),
+            start_date=ordered_start,
+            end_date=ordered_end,
         )
 
     def totals_attr(name: str):
@@ -352,15 +342,13 @@ def totals_table(conn: sqlite3.Connection):
             commuter_mean_per_day(ordered_start, ordered_end),
         )
 
-    today = ut.date_str("today")
-    today_date = date.fromisoformat(today)
-    selected_year = today_date.year
-    selected_year_str = str(selected_year)
+    today_iso = ut.date_str("today")
+    selected_year_str = today_iso[:4]
     day_totals = {}
 
     # Fetching day totals for each day
     for i in range(6, -1, -1):  # Collect in reverse order
-        d = ut.date_offset(today, -i)
+        d = ut.date_offset(today_iso, -i)
         day_totals[d] = db.MultiDayTotals.fetch_from_db(
             conn=conn, orgsite_id=1, start_date=d, end_date=d
         )
@@ -370,40 +358,56 @@ def totals_table(conn: sqlite3.Connection):
 
     today_remaining_combined = 0
     # Track bikes currently onsite today so "Bikes left" can exclude them from current-period totals.
-    today_totals = day_totals.get(today)
+    today_totals = day_totals.get(today_iso)
     if today_totals:
         today_remaining_value = getattr(today_totals, "total_remaining_combined", 0)
         if today_remaining_value:
             today_remaining_combined = today_remaining_value
 
-    start_of_year = date(selected_year, 1, 1)
+    ytd_start_iso, ytd_end_iso = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_YTD,
+    )
+    ytd_totals = fetch_totals(ytd_start_iso, ytd_end_iso)
 
-    # Fetch data for YTD
-    ytd_totals = fetch_totals(start_of_year, today_date)
+    prior_ytd_start_iso, prior_ytd_end_iso = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_YTD_PRIOR_YEAR,
+    )
+    prior_ytd_totals = fetch_totals(prior_ytd_start_iso, prior_ytd_end_iso)
 
-    one_year_ago = subtract_year_safe(today_date)
-    prior_year_start = date(selected_year - 1, 1, 1)
-    if prior_year_start > one_year_ago:
-        prior_year_start = one_year_ago
-    prior_ytd_totals = fetch_totals(prior_year_start, one_year_ago)
+    current_12mo_start_iso, current_12mo_end_iso = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_LAST_12MONTHS,
+    )
+    current_12mo_totals = fetch_totals(current_12mo_start_iso, current_12mo_end_iso)
+
+    prev_12mo_start_iso, prev_12mo_end_iso = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_LAST_12MONTHS_PRIOR_YEAR,
+    )
+    prev_12mo_totals = fetch_totals(prev_12mo_start_iso, prev_12mo_end_iso)
+
     # FIXME: this iswhere to pt the prior_ytd_compare link definition
-    prior_ytd_compare_link = cc.selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
+    prior_ytd_compare_link = cc.selfref(
+        what=cc.WHAT_COMPARE_RANGES,
+        start_date=prior_ytd_start_iso,
+        end_date=prior_ytd_end_iso,
+        start_date2=ytd_start_iso,
+        end_date2=ytd_end_iso,
+        pages_back=1,
+    )
+    prior_12mo_compare_link = cc.selfref(
+        what=cc.WHAT_COMPARE_RANGES,
+        start_date=prev_12mo_start_iso,
+        end_date=prev_12mo_end_iso,
+        start_date2=current_12mo_start_iso,
+        end_date2=current_12mo_end_iso,
+        pages_back=1,
+    )
 
-    current_12mo_start = one_year_ago + timedelta(days=1)
-    if current_12mo_start > today_date:
-        current_12mo_start = today_date
-    current_12mo_totals = fetch_totals(current_12mo_start, today_date)
-
-    prev_12mo_end = one_year_ago
-    prev_12mo_start = subtract_year_safe(current_12mo_start)
-    if prev_12mo_start > prev_12mo_end:
-        prev_12mo_start = prev_12mo_end
-    prev_12mo_totals = fetch_totals(prev_12mo_start, prev_12mo_end)
-
-    attach_commuter_metric(ytd_totals, start_of_year, today_date)
-    attach_commuter_metric(prior_ytd_totals, prior_year_start, one_year_ago)
-    attach_commuter_metric(current_12mo_totals, current_12mo_start, today_date)
-    attach_commuter_metric(prev_12mo_totals, prev_12mo_start, prev_12mo_end)
+    attach_commuter_metric(ytd_totals, ytd_start_iso, ytd_end_iso)
+    attach_commuter_metric(prior_ytd_totals, prior_ytd_start_iso, prior_ytd_end_iso)
+    attach_commuter_metric(
+        current_12mo_totals, current_12mo_start_iso, current_12mo_end_iso
+    )
+    attach_commuter_metric(prev_12mo_totals, prev_12mo_start_iso, prev_12mo_end_iso)
     for key in display_day_keys:
         attach_commuter_metric(day_totals[key], key, key)
 
@@ -536,17 +540,17 @@ def totals_table(conn: sqlite3.Connection):
 
     # Table header
     header_html = (
-        # "<tr><th rowspan=2 style='text-align:center;border-right: 2px solid gray;'>Summary</th>"
         "<tr><th rowspan='2' class='heavy-right' style='text-align:center;'>Summary</th>"
         "<th colspan=3 class='heavy-right' style='text-align:center;'>This year</th>"
         "<th colspan=5>Recent days</th></tr>"
         # f"  <tr><th>{selected_year_str} Summary</th>"
         f"<th style='text-align:center;'>YTD<br>{selected_year_str}</th>"
-        "<th style='text-align:center'>%Δ<br>YTD</th>"
-        "<th style='text-align:center;border-right: 2px solid gray;'>%Δ<br>12mo</th>"
+        f"<th style='text-align:center'><a href='{prior_ytd_compare_link}'>%Δ<br>YTD</a></th>"
+        "<th style='text-align:center;border-right: 2px solid gray;'>"
+        f"<a href='{prior_12mo_compare_link}'>%Δ<br>12mo</a></th>"
     )
     for day in display_day_keys:
-        if day == today:
+        if day == today_iso:
             daylabel = "Today"
             daylink = cc.selfref(what=cc.WHAT_ONE_DAY, start_date="today")
         else:
@@ -630,7 +634,9 @@ def totals_table(conn: sqlite3.Connection):
     total_columns = 4 + len(display_day_keys)
     print(
         f"<tr><td colspan='{total_columns}'>"
-        "<i>%ΔYTD compares YTD to same period last year; %Δ12mo compares most recent 12 months to 12 months before that.</i></td></tr>"
+        f"<i>%ΔYTD compares <a href='{prior_ytd_compare_link}'>YTD to same period last year</a>; "
+        f"%Δ12mo compares <a href='{prior_12mo_compare_link}'>most recent 12 months to 12 months before that</a>."
+        "</i></td></tr>"
     )
 
     print("</table>")
