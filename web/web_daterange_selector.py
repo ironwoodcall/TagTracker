@@ -20,8 +20,10 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import calendar
 from dataclasses import dataclass
 import html
+from datetime import date, timedelta
 from typing import Iterable, Sequence
 import urllib.parse
 
@@ -134,9 +136,79 @@ def find_dow_option(
 class DateDowSelection:
     """User-specified date range and optional day-of-week filter selection."""
 
+    RANGE_YTD = 'ytd'
+    RANGE_YTD_PRIOR_YEAR = 'ytd-prior-year'
+    RANGE_PREVIOUS_MONTH = 'prev-month'
+    RANGE_PREVIOUS_MONTH_PRIOR_YEAR = 'prev-month-prior-year'
+    RANGE_LAST_12MONTHS = 'last-12-months'
+    RANGE_LAST_12MONTHS_PRIOR_YEAR = 'last-12-months-prior-year'
+
     start_date: str
     end_date: str
     dow_value: str = ""
+
+    @classmethod
+    def date_range_for(
+        cls,
+        preset: str,
+        *,
+        today: date | None = None,
+    ) -> tuple[str, str]:
+        """
+        Return (start_date, end_date) ISO strings for a preset range.
+
+        Args:
+            preset: One of the ``RANGE_*`` constants defined on this class.
+            today: Reference date for relative calculations; defaults to ``date.today()``.
+        """
+
+        reference = today or date.today()
+
+        def iso(dt: date) -> str:
+            return dt.strftime("%Y-%m-%d")
+
+        def shift_year(value: date, years: int) -> date:
+            target_year = value.year + years
+            last_day = calendar.monthrange(target_year, value.month)[1]
+            adjusted_day = min(value.day, last_day)
+            return value.replace(year=target_year, day=adjusted_day)
+
+        if preset == cls.RANGE_YTD:
+            range_start = date(reference.year, 1, 1)
+            range_end = reference
+        elif preset == cls.RANGE_YTD_PRIOR_YEAR:
+            range_start = date(reference.year - 1, 1, 1)
+            range_end = shift_year(reference, -1)
+        elif preset == cls.RANGE_PREVIOUS_MONTH:
+            first_of_month = reference.replace(day=1)
+            range_end = first_of_month - timedelta(days=1)
+            range_start = range_end.replace(day=1)
+        elif preset == cls.RANGE_PREVIOUS_MONTH_PRIOR_YEAR:
+            first_of_month = reference.replace(day=1)
+            prior_month_end = first_of_month - timedelta(days=1)
+            prior_month_start = prior_month_end.replace(day=1)
+            range_start = shift_year(prior_month_start, -1)
+            range_end = shift_year(prior_month_end, -1)
+        elif preset == cls.RANGE_LAST_12MONTHS:
+            one_year_prior = shift_year(reference, -1)
+            range_start = one_year_prior + timedelta(days=1)
+            if range_start > reference:
+                range_start = reference
+            range_end = reference
+        elif preset == cls.RANGE_LAST_12MONTHS_PRIOR_YEAR:
+            one_year_prior = shift_year(reference, -1)
+            current_start = one_year_prior + timedelta(days=1)
+            if current_start > reference:
+                current_start = reference
+            previous_start = shift_year(current_start, -1)
+            if previous_start > one_year_prior:
+                previous_start = one_year_prior
+            range_start = previous_start
+            range_end = one_year_prior
+        else:
+            cc.error_out(f"Bad preset call for date range math, '{preset}'")
+
+        return iso(range_start), iso(range_end)
 
     def option(self, options: Sequence[DowOption] = DEFAULT_DOW_OPTIONS) -> DowOption:
         """Return the dropdown option that matches the stored day-of-week value."""
