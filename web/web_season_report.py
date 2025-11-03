@@ -680,7 +680,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Today<br>Detail</b></button>
+          <b>Single Day<br>Detail</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -688,7 +688,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{period_detail_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Period<br>Detail</b></button>
+          <b>Date Range<br>Detail</b></button>
         &nbsp;&nbsp;
           """
     )
@@ -704,7 +704,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{summaries_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Period<br>Summaries</b></button>
+          <b>Date Range<br>Summaries</b></button>
         &nbsp;&nbsp;
           """
     )
@@ -712,7 +712,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Time Block<br>Summaries</b></button>
+          <b>Half-Hourly<br>Activity</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -720,7 +720,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{compare_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Compare<br>Date Ranges</b></button>
+          <b>Date Range<br>Comparison</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -729,7 +729,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
-          <b>Summary<br>Graphs</b></button>
+          <b>Date Range<br>Graphs</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -737,7 +737,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Inventory<br>of Tags</b></button>
+          <b>Bike Tag<br>Inventory</b></button>
         &nbsp;&nbsp;
           """
     )
@@ -746,11 +746,11 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
     <button onclick="window.location.href='{download_csv_link}'"
         style="padding: 10px; display: inline-block; background-color: #ddd; border: 1px solid #aaa;">
-      <b>Download<br>CSV</b></button>
+      <b>CSV Data<br>Download</b></button>
     &nbsp;&nbsp;
     <button onclick="window.location.href='{download_db_link}'"
         style="padding: 10px; display: inline-block; background-color: #ddd; border: 1px solid #aaa;">
-      <b>Download<br>Database</b></button>
+      <b>Full Database<br>Download</b></button>
     <br><br>
       """
     )
