@@ -26,9 +26,11 @@ import os
 import sys
 import datetime
 import re
+
 # import collections
 import random
 import string
+
 # from pathlib import Path
 from collections import defaultdict
 
@@ -168,7 +170,7 @@ def dow_str(iso_dow_or_date: int, dow_str_len: int = 0) -> str:
 
     If dow_len is not specified then returns whole dow name.
     """
-    if isinstance(iso_dow_or_date,str):
+    if isinstance(iso_dow_or_date, str):
         iso_dow_or_date = dow_int(iso_dow_or_date)
     iso_dow = str(iso_dow_or_date)
     dow_str_len = dow_str_len if dow_str_len else 99
@@ -193,10 +195,11 @@ def most_recent_dow(iso_day) -> str:
     most_recent_date = current_date - datetime.timedelta(days=day_difference)
     return most_recent_date.strftime("%Y-%m-%d")
 
-def date_offset(date:str, offset:int) -> str:
+
+def date_offset(date: str, offset: int) -> str:
     """Get a date before or after the given date."""
     # Convert input date string to datetime object
-    input_date = datetime.datetime.strptime(date, '%Y-%m-%d')
+    input_date = datetime.datetime.strptime(date, "%Y-%m-%d")
 
     # Calculate the offset
     delta = datetime.timedelta(days=offset)
@@ -205,7 +208,7 @@ def date_offset(date:str, offset:int) -> str:
     result_date = input_date + delta
 
     # Convert result date back to string in the same format
-    result_date_str = result_date.strftime('%Y-%m-%d')
+    result_date_str = result_date.strftime("%Y-%m-%d")
 
     return result_date_str
 
@@ -290,18 +293,6 @@ def taglists_by_colour(unsorted: tuple[TagID]) -> list[list[TagID]]:
     return outerlist
 
 
-
-    # prefixed_tags = dict(
-    #     zip([tag.prefix for tag in unsorted], [[] for _ in range(0, 100)])
-    # )
-    # for tag in unsorted:
-    #     prefixed_tags[tag.prefix].append(tag)
-    # outerlist = []
-    # for prefix in sorted(prefixed_tags.keys()):
-    #     outerlist.append(sorted(prefixed_tags[prefix]))
-    # return outerlist
-
-
 def tagnums_by_prefix(tags: list[TagID]) -> dict[str, list[int]]:
     """Return a dict of tag prefixes with lists of associated tag numbers."""
     prefixes = {}
@@ -325,6 +316,7 @@ def splitline(inp: str) -> list[str]:
     # Reject any blank members of the list.
     tokens = [x for x in tokens if x]
     return tokens
+
 
 def untaint(tainted: str) -> str:
     """Remove any suspicious characters from a possibly tainted string."""
@@ -379,103 +371,6 @@ def line_wrapper(
     return lines
 
 
-
-# def time_distribution(
-#     times_list: list[str],
-#     start_time: str = None,
-#     end_time: str = None,
-#     category_width: int = 30,
-# ) -> dict[str, int]:
-#     """Make frequency distribution for list of HH:MM strings."""
-
-#     def _to_minutes(raw_value):
-#         if raw_value is None:
-#             return None
-#         if isinstance(raw_value, (int, float)):
-#             minutes_val = int(raw_value)
-#             return minutes_val if minutes_val >= 0 else None
-#         raw_str = str(raw_value).strip()
-#         if not raw_str:
-#             return None
-#         if raw_str.isdigit():
-#             minutes_val = int(raw_str)
-#             return minutes_val if minutes_val >= 0 else None
-#         if ":" not in raw_str:
-#             return None
-#         parts = raw_str.split(":")
-#         if len(parts) < 2:
-#             return None
-#         hours_str, minutes_str = parts[0], parts[1]
-#         if not (hours_str.isdigit() and minutes_str.isdigit()):
-#             return None
-#         hours = int(hours_str)
-#         minutes = int(minutes_str[:2])
-#         if minutes > 59:
-#             return None
-#         total_minutes = hours * 60 + minutes
-#         return total_minutes if total_minutes >= 0 else None
-
-#     minute_values = []
-#     for raw_time in times_list:
-#         minutes_val = _to_minutes(raw_time)
-#         if minutes_val is None:
-#             continue
-#         minute_values.append(minutes_val)
-
-#     if not minute_values:
-#         return {}
-
-#     freq = collections.Counter(
-#         (minutes_val // category_width) * category_width for minutes_val in minute_values
-#     )
-
-#     start_minutes = (
-#         _to_minutes(start_time)
-#         if start_time is not None
-#         else min(minute_values)
-#     )
-#     end_minutes = (
-#         _to_minutes(end_time)
-#         if end_time is not None
-#         else max(minute_values)
-#     )
-
-#     if start_minutes is None or end_minutes is None:
-#         return {}
-
-#     if end_minutes < start_minutes:
-#         start_minutes, end_minutes = end_minutes, start_minutes
-
-#     start_bucket = (start_minutes // category_width) * category_width
-#     end_bucket = (end_minutes // category_width) * category_width
-
-#     categories = {
-#         bucket_start: 0
-#         for bucket_start in range(start_bucket, end_bucket + category_width, category_width)
-#     }
-
-#     have_unders = have_overs = False
-#     for bucket_start, bucket_count in freq.items():
-#         if bucket_start in categories:
-#             categories[bucket_start] = bucket_count
-#         elif bucket_start < start_bucket:
-#             categories[start_bucket] += bucket_count
-#             have_unders = True
-#         elif bucket_start > end_bucket:
-#             categories[end_bucket] += bucket_count
-#             have_overs = True
-
-#     categories_str = {VTime(bucket_start).tidy: count for bucket_start, count in categories.items()}
-#     if have_unders:
-#         start_label = VTime(start_bucket).tidy
-#         categories_str[f"{start_label}-"] = categories_str.pop(start_label, 0)
-#     if have_overs:
-#         end_label = VTime(end_bucket).tidy
-#         categories_str[f"{end_label}+"] = categories_str.pop(end_label, 0)
-
-#     return {key: categories_str[key] for key in sorted(categories_str.keys())}
-
-
 def random_string(length):
     """Create a random alphaetic string of a given length."""
     return "".join(random.choice(string.ascii_letters) for _ in range(length))
@@ -506,6 +401,7 @@ def writable_dir(filepath: str) -> bool:
             return False
     else:
         return False
+
 
 def is_int(obj, *, strict=False) -> bool:
     """Tests whether s represents a (positive or negative) integer.

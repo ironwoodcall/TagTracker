@@ -154,27 +154,6 @@ class BikeTag:
                     f"its check-out time ({latest_visit_time_out})."
                 )
 
-        # # Any check in must be later than (previous) check-out
-        # if (
-        #     self.status == self.IN_USE
-        #     and latest_visit_time_out
-        #     and bike_time < latest_visit_time_out
-        # ) or (
-        #     self.status == self.DONE
-        #     and latest_visit_time_out
-        #     and bike_time >= latest_visit_time_out
-        # ):
-        #     return (
-        #         f"Proposed check-in time {bike_time} for tag {self.tagid} is earlier than "
-        #         f"previous visit's check-out time ({latest_visit_time_out})."
-        #     )
-        # # and >= any previous check-out and <= any current visit's check-out
-        # if bike_time < self.previous_check_out():
-        #     return (
-        #         f"Requested check-in time {bike_time} for tag {self.tagid} is earlier than "
-        #         f"previous visit's check-out time ({self.previous_check_out()})."
-        #     )
-
         # No problems found!
         return ""
 
@@ -379,23 +358,3 @@ class BikeTag:
                 continue
             return visit.time_out
         return False
-
-        # # Iterate over visits to determine the status at the given time
-        # for i, visit in enumerate(self.visits):
-        #     if visit.time_in <= as_of_when:
-        #         # If there's no time_out, the status is IN_USE
-        #         if not visit.time_out:
-        #             return self.IN_USE
-
-        #         # If time_out is after or equal to as_of_when, check further conditions
-        #         if visit.time_out >= as_of_when:
-        #             # If it's the last visit, the status is DONE
-        #             if i == len(self.visits) - 1:
-        #                 return self.DONE
-
-        #             # If the next visit's time_in is after as_of_when, the status is DONE
-        #             if as_of_when < self.visits[i + 1].time_in:
-        #                 return self.DONE
-
-        # # If no conditions match, return the default status (assuming IN_USE as default)
-        # return self.IN_USE

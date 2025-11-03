@@ -27,9 +27,6 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 import re
 import json
 
-# import jsonschema
-# from jsonschema import validate
-
 import client_base_config as cfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
@@ -39,8 +36,6 @@ from common.tt_constants import REGULAR, OVERSIZE, UNKNOWN, RETIRED
 from common.tt_bikevisit import BikeVisit
 from tt_registrations import Registrations
 import tt_notes as n
-
-# from tt_notes_manager import NotesManager
 
 # Define constants for the string literals
 TOKEN_TAGID = "tagid"
@@ -272,15 +267,15 @@ class TrackerDay:
 
         # For each note today, add a ref into any visits it applies to
         for note in self.notes.notes:
-            ut.squawk(f"note {note.text=}",cfg.DEBUG)
-            note:n.Note
+            ut.squawk(f"note {note.text=}", cfg.DEBUG)
+            note: n.Note
             for tag in note.tags:
                 # Find Visit for this tag
                 biketag = self.biketags.get(tag)
                 if not biketag:
                     continue
                 visit = biketag.find_visit(note.created_at)
-                ut.squawk(f"   {tag=},{visit=}",cfg.DEBUG)
+                ut.squawk(f"   {tag=},{visit=}", cfg.DEBUG)
                 if visit:
                     visit.attached_notes.append(note)
 
@@ -304,25 +299,28 @@ class TrackerDay:
         num_deleted = 0
         num_recovered = 0
         usable_tags = self.regular_tagids | self.oversize_tagids
-        now = VTime('now')
+        now = VTime("now")
 
-        ut.squawk(f"entering harmonize_notes, {len(usable_tags)=}",cfg.DEBUG)
+        ut.squawk(f"entering harmonize_notes, {len(usable_tags)=}", cfg.DEBUG)
         for note in self.notes.notes:
             note: n.Note
-            ut.squawk(f"Note {note.status} {note.created_at} {note.tags}, {note.text}",cfg.DEBUG)
+            ut.squawk(
+                f"Note {note.status} {note.created_at} {note.tags}, {note.text}",
+                cfg.DEBUG,
+            )
             if not note.tags or note.status in n.NOTE_GROUP_HAND:
                 continue
 
             # Only consider tags that are eligible for use today.
             tags_to_check = [tag for tag in note.tags if tag in usable_tags]
             if not tags_to_check:
-                ut.squawk("   No usable tags in list",cfg.DEBUG)
+                ut.squawk("   No usable tags in list", cfg.DEBUG)
                 continue
 
             # Determine whether any referenced tag is mid-visit when the note was created.
             has_tag_in_open_visit = False
             for tag in tags_to_check:
-                ut.squawk(f"   Tag {tag}",cfg.DEBUG)
+                ut.squawk(f"   Tag {tag}", cfg.DEBUG)
                 biketag = self.biketags.get(tag)
                 if not biketag:
                     continue
@@ -330,18 +328,18 @@ class TrackerDay:
                 if this_visit is None:
                     continue
                 if not this_visit.time_out or this_visit.time_out > now:
-                    ut.squawk("      is within a visit",cfg.DEBUG)
+                    ut.squawk("      is within a visit", cfg.DEBUG)
                     has_tag_in_open_visit = True
                     break
-                ut.squawk("      is NOT within a visit",cfg.DEBUG)
+                ut.squawk("      is NOT within a visit", cfg.DEBUG)
 
             if note.status in n.NOTE_GROUP_ACTIVE and not has_tag_in_open_visit:
-                ut.squawk("   can auto-delete",cfg.DEBUG)
+                ut.squawk("   can auto-delete", cfg.DEBUG)
                 # Active note with no ongoing visits: auto-delete.
                 note.delete(by_hand=False)
                 num_deleted += 1
             elif note.status in n.NOTE_GROUP_INACTIVE and has_tag_in_open_visit:
-                ut.squawk("   can auto-recover",cfg.DEBUG)
+                ut.squawk("   can auto-recover", cfg.DEBUG)
                 # Inactive note tied to an active visit: auto-recover.
                 note.recover(by_hand=False)
                 num_recovered += 1
@@ -378,18 +376,6 @@ class TrackerDay:
             ):
                 # This bike tag can now be available.
                 biketag.status = BikeTag.UNUSED
-
-        # tagids_in_use = sorted({v.tagid for v in self.all_visits()})
-
-        # for tagid in tagids_in_use:
-        #     biketag: BikeTag = self.biketags[tagid]
-
-        #     if biketag.bike_type == OVERSIZE:
-        #         self.oversize_tagids.add(tagid)
-        #         self._remove_tag_from_other_sets(tagid, exclude_set=self.oversize_tagids)
-        #     elif biketag.bike_type == REGULAR:
-        #         self.regular_tagids.add(tagid)
-        #         self._remove_tag_from_other_sets(tagid, exclude_set=self.regular_tagids)
 
         # Look at the retired tagids (from config).
         # Change any unused usable tags now marked retired to status retired.
@@ -526,16 +512,6 @@ class TrackerDay:
             <= inout_time.num
             <= self.time_closed.num + self.OPERATING_HOURS_TOLERANCE
         )
-
-    # @staticmethod
-    # def guess_tag_type(tag: TagID) -> str:
-    #     """Guess the type of tag (R=regular or O=oversize)."""
-    #     colour = TagID(tag).colour.lower()
-    #     if colour in ["o", "p", "w", "g"]:
-    #         return "R"
-    #     if colour in ["b"]:
-    #         return "O"
-    #     return ""
 
     def fill_default_bits(
         self,
@@ -998,45 +974,3 @@ class TrackerDay:
         from tt_dump import build_dump  # Lazy import to avoid circular dependency
 
         return build_dump(today=self, detailed=detailed)
-
-
-# def new_to_old(new: TrackerDay) -> OldTrackerDay:
-#     """Perform a lossy conversion from new to old.
-
-#     Some visits may be lost in th process, as this will
-#     use only the most recent visit for any tag.
-#     """
-#     return None
-
-
-# def old_to_new(old: OldTrackerDay) -> TrackerDay:
-#     """Convert an old Trackerday to a new one."""
-
-#     new = TrackerDay("")
-#     new.date = old.date
-#     new.time_open = old.time_open
-#     new.time_closed = old.time_closed
-#     new.registrations = Registrations(old.registrations)
-#     from tt_notes import NotesManager
-#     new.notes = NotesManager(old.notes)
-#     # Tag reference lists
-#     new.regular_tagids = old.regular
-#     new.oversize_tagids = old.oversize
-#     new.retired_tagids = old.retired
-#     # Biketags dict
-#     for t in new.regular_tagids:
-#         new.biketags[t] = BikeTag(t, REGULAR)
-#     for t in new.oversize_tagids:
-#         new.biketags[t] = BikeTag(t, OVERSIZE)
-#     for t in new.retired_tagids:
-#         if t not in new.biketags:
-#             new.biketags[t] = BikeTag(t, UNKNOWN)
-#         new.biketags[t].status = BikeTag.RETIRED
-
-#     # Add visits to the tags
-#     for tagid, time_in in old.bikes_in.items():
-#         new.biketags[tagid].start_visit(time_in)
-#     for tagid, time_out in old.bikes_out.items():
-#         new.biketags[tagid].finish_visit(time_out)
-
-#     return new

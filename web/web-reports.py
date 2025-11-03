@@ -25,7 +25,6 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 import sqlite3
 import sys
 import os
-import urllib.parse
 import time
 from datetime import date, timedelta
 import html
@@ -68,7 +67,7 @@ def web_audit_report(
     print("""<meta name="format-detection" content="telephone=no"/>""")
     print(cc.titleize("Attendant audit report",f"As at {as_of_time.tidy} {thisday}"))
     # Only put a "Back" button if this was called from itself
-    if cc.called_by_self():
+    if cc.CGIManager.called_by_self():
         print(f"{cc.back_button(1)}<br><br>")
         # print(f"{cc.main_and_back_buttons(pages_back=pages_back)}<br><br>")
 
@@ -206,9 +205,10 @@ def web_est_wrapper() -> None:
 
 # Query parameter sanitizing ---------------------------------------------------------------
 SAFE_QUERY_CHARS = frozenset(
-    " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-:"
+    " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:,-"
 )
 
+# FIXME: Remove once moved to CGIManager
 
 def validate_query_params(query_parms: dict[str, list[str]]) -> None:
     """Ensure all provided query parameter values only contain allowed characters."""
@@ -232,30 +232,25 @@ ORGSITE_ID = 1  # FIXME hardwired. (This one uc so sub-functions can't read orgs
 
 print("Content-type: text/html\n\n\n")
 
-# Parse query parameters from the URL if present
-QUERY_STRING = ut.untaint(os.environ.get("QUERY_STRING", ""))
 if os.getenv("TAGTRACKER_DEBUG"):
     print("<pre style='color:red'>\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n" "</pre>")
-query_params = urllib.parse.parse_qs(QUERY_STRING)
-validate_query_params(query_params)
-what = query_params.get("what", [""])[0]
-what = what if what else cc.WHAT_SUMMARY
-maybedate = query_params.get("date", [""])[0]
-maybetime = query_params.get("time", [""])[0]
-tag = query_params.get("tag", [""])[0]
-text = query_params.get("text", [""])[0]
-dow_parameter = query_params.get("dow", [""])[0]
-# if dow_parameter and dow_parameter not in [str(i) for i in range(1, 8)]:
-#    cc.error_out(f"bad iso dow, need 1..7, not '{ut.untaint(dow_parameter)}'")
-# if not dow_parameter:
-#     # If no day of week, set it to today. FIXME: why? Disablling this.
-#     dow_parameter = str(
-#         datetime.datetime.strptime(ut.date_str("today"), "%Y-%m-%d").strftime("%u")
-#     )
-sort_by = query_params.get("sort", [""])[0]
-sort_direction = query_params.get("dir", [""])[0]
-pages_back: str = query_params.get("back", "1")[0]
-pages_back: int = int(pages_back) if ut.is_int(pages_back) else 0
+
+
+params = cc.CGIManager.cgi_to_params()
+params.what_report = params.what_report or cc.WHAT_SUMMARY
+params.pages_back = params.pages_back or 1
+what = params.what_report
+tag = params.tag
+dow_parameter = params.dow
+sort_by = params.sort_by
+sort_direction = params.sort_direction
+pages_back = params.pages_back
+
+requested_start = params.start_date
+requested_end = params.end_date
+requested_start2 = params.start_date2
+requested_end2 = params.end_date2
+dow_parameter2 = params.dow2
 
 TagID.uc(wcfg.TAGS_UPPERCASE)
 
@@ -269,31 +264,14 @@ if not database:
 # pr.COLOUR_ACTIVE = True
 k.set_html_style()
 
-# Date will be 'today' or 'yesterday' or ...
-# Time of day will be 24:00 unless it's today (or specified)
-qdate = ut.date_str(maybedate)
-if not maybetime:
-    if qdate == ut.date_str("today"):
-        qtime = VTime("now")
-    else:
-        qtime = VTime("24:00")
-else:
-    qtime = VTime(maybetime)
-if not qtime:
-    cc.error_out(f"Bad time: '{ut.untaint(maybetime)}")
 
 cc.html_head()
 
 if not what:
     sys.exit()
 
-requested_start = query_params.get("start_date", [""])[0]
-requested_end = query_params.get("end_date", [""])[0]
-requested_start2 = query_params.get("start_date2", [""])[0]
-requested_end2 = query_params.get("end_date2", [""])[0]
-dow_parameter2 = query_params.get("dow2", [""])[0]
 
-if what == cc.WHAT_COMPARE_RANGES:
+if params.what_report == cc.WHAT_COMPARE_RANGES:
     today_str = ut.date_str("today")
     try:
         today_date = date.fromisoformat(today_str)
@@ -355,14 +333,6 @@ elif what == cc.WHAT_BLOCKS:
         start_date=date_start,
         end_date=date_end,
     )
-elif what == cc.WHAT_BLOCKS_DOW:
-    web_block_report.blocks_report(
-        database,
-        dow_parameter,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
-    )
 elif what == cc.WHAT_DETAIL:
     web_season_report.season_detail(
         database,
@@ -386,6 +356,7 @@ elif what == cc.WHAT_SUMMARY_FREQUENCIES:
 elif what == cc.WHAT_COMPARE_RANGES:
     web_compare_ranges.compare_ranges(
         database,
+        params=params,
         pages_back=pages_back,
         start_date_a=date_start,
         end_date_a=date_end,
@@ -393,6 +364,7 @@ elif what == cc.WHAT_COMPARE_RANGES:
         start_date_b=date_start2,
         end_date_b=date_end2,
         dow_b=dow_parameter2,
+        # query_params=compare_query_params,
     )
 elif what == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
@@ -400,7 +372,7 @@ elif what == cc.WHAT_ONE_DAY:
     one_day_tags_report(
         database,
         orgsite_id=ORGSITE_ID,
-        whatday=qdate,
+        whatday=params.start_date,
         sort_by=sort_by,
         pages_back=pages_back,
     )
@@ -412,11 +384,6 @@ elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
         end_date=date_end,
         restrict_to_single_day=True,
     )
-
-# elif what == cc.WHAT_DATAFILE:
-#     datafile(database, qdate)
-# elif what == cc.WHAT_DATA_ENTRY:
-#     one_day_data_entry_reports(database, qdate)
 elif what == cc.WHAT_AUDIT:
     web_audit_report(
         database, orgsite_id=1,

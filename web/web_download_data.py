@@ -6,13 +6,17 @@ import shutil
 import sqlite3
 import sys
 import tempfile
-import urllib.parse
+# import urllib.parse
 from pathlib import Path
 from typing import Optional
 import zipfile
 from datetime import datetime
 
+sys.path.append("../")
+sys.path.append("./")
+
 from web_base_config import DB_FILENAME, DATA_OWNER
+import web_common as cc
 
 CSV_ARCHIVE_NAME = "bikedata-csv.zip"
 DB_ARCHIVE_NAME = "bikedata-db.zip"
@@ -44,27 +48,6 @@ def debug(message: str) -> None:
     sys.stderr.flush()
 
 
-def parse_format() -> Optional[str]:
-    """Return requested download format or None if invalid."""
-    query_string = os.environ.get("QUERY_STRING", "")
-    params = urllib.parse.parse_qs(query_string)
-    debug(f"query_string='{query_string}' params={params}")
-    requested = params.get("what", [""])[0].strip().lower()  # do not change
-    if requested not in {"csv", "db"}:
-        debug(f"invalid format requested='{requested}'")
-        return None
-    debug(f"format resolved='{requested}'")
-    return requested
-
-
-def emit_error(message: str) -> None:
-    debug(f"emit_error: {message}")
-    sys.stdout.write("Status: 400 Bad Request\r\n")
-    sys.stdout.write("Content-Type: text/plain; charset=utf-8\r\n")
-    sys.stdout.write("\r\n")
-    sys.stdout.write(f"{message}\n")
-    sys.exit(0)
-
 
 def write_data_owner(readme_file) -> None:
     if isinstance(DATA_OWNER, list):
@@ -84,10 +67,10 @@ def write_readme(directory: str) -> None:
 
 def send_csv_archive() -> None:
     if DB_PATH is None:
-        emit_error("Database path is not configured.")
+        cc.error_out("Database path is not configured.")
 
     if not DB_PATH.exists():
-        emit_error(f"Database file '{DB_PATH}' not found.")
+        cc.error_out(f"Database file '{DB_PATH}' not found.")
 
     sys.stdout.write("Content-Type: application/zip\r\n")
     sys.stdout.write(
@@ -146,10 +129,10 @@ def send_csv_archive() -> None:
 
 def send_database() -> None:
     if DB_PATH is None:
-        emit_error("Database path is not configured.")
+        cc.error_out("Database path is not configured.")
 
     if not DB_PATH.exists():
-        emit_error(f"Database file '{DB_PATH}' not found.")
+        cc.error_out(f"Database file '{DB_PATH}' not found.")
 
     sys.stdout.write("Content-Type: application/zip\r\n")
     sys.stdout.write(f"Content-Disposition: attachment; filename={DB_ARCHIVE_NAME}\r\n")
@@ -175,18 +158,14 @@ def send_database() -> None:
 
 
 def main() -> None:
-    requested_format = parse_format()
-    if requested_format is None:
-        emit_error(
-            "Invalid 'what' format parameter. Use 'csv' or 'db'."
-        )  # do not change
-
+    requested_format = cc.CGIManager().cgi_to_params().what_report
     debug(f"main dispatching format='{requested_format}'")
-    if requested_format == "db":
+    if requested_format == cc.WHAT_DOWNLOAD_DB:
         send_database()
-    else:
+    elif requested_format == cc.WHAT_DOWNLOAD_CSV:
         send_csv_archive()
-
+    else:
+        cc.error_out(f"Invalid download request '{requested_format}'.")
 
 if __name__ == "__main__":
     try:

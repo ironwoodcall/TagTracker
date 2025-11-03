@@ -21,10 +21,12 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 """
 
 import re
+
 # import common.tt_constants as k
 import common.tt_util as ut
 import common.tt_time as tt_time
 import client_base_config as cfg
+
 # import tt_printer as pr
 
 # from common.tt_trackerday import TrackerDay
@@ -91,7 +93,10 @@ class Note:
 
         self.unpack(init_str)
         self.tags = scan_for_tags(text=self.text, oktags=oktags)
-        ut.squawk(f"{','.join(self.tags)=}; '{self.status=}','{self.created_at}','{self.text}'",cfg.DEBUG)
+        ut.squawk(
+            f"{','.join(self.tags)=}; '{self.status=}','{self.created_at}','{self.text}'",
+            cfg.DEBUG,
+        )
 
     def unpack(self, packed: str) -> None:
         """Unpack a note string into object attributes."""
@@ -127,13 +132,13 @@ class Note:
         time_str = str(self.created_at)  # relies on VTime.__str__()
         return f"{self.status}|{time_str}|{self.text}"
 
-    def delete(self, by_hand:bool) -> None:
+    def delete(self, by_hand: bool) -> None:
         if by_hand:
             self.status = NOTE_HAND_DELETED
         else:
             self.status = NOTE_AUTO_DELETED
 
-    def recover(self, by_hand:bool) -> None:
+    def recover(self, by_hand: bool) -> None:
         if by_hand:
             self.status = NOTE_HAND_RECOVERED
         else:
@@ -141,36 +146,7 @@ class Note:
 
     def pretty(self) -> str:
         pretty_text = f"{self.created_at} {self.text}"
-        # for t in self.tags:
-        #     pretty_text = f"{pretty_text}; {t.tagid} {t.status} {len(t.visits)} visits"
         return pretty_text
-
-    # def can_auto_delete(self) -> bool:
-    #     """Returns True if ok to auto-delete this note.
-    #     Can delete if
-    #         note has >= 1 tag reference
-    #         each visit for that tag whose visit includes created_at is
-    #                 finished at least ~10 minutes in the past
-    #         note was not maunally undeleted
-    #     """
-    #     if self.status == NOTE_HAND_RECOVERED:
-    #         return False
-    #     if len(self.tags) < 1:
-    #         return False
-    #     now = tt_time.VTime("now").num
-    #     for tag in self.tags:
-    #         tag: BikeTag
-    #         end: tt_time.VTime
-    #         end = tag.visit_finished_at(self.created_at)
-    #         if not end:  # Visit is ongoing
-    #             return False
-    #         # If created eactly at checkout time, it's probably
-    #         # a note for a tag that was immediately reused.
-    #         if end.num == self.created_at:
-    #             return False
-    #         if (now - end.num) < cfg.NOTE_AUTODELETE_DELAY:
-    #             return False
-    #     return True
 
 
 def scan_for_tags(text: str, oktags: list[TagID] = None) -> list[TagID]:
@@ -215,26 +191,6 @@ class NotesManager:
         for one_note in notes_list:
             self.add(one_note)
 
-    # def autodelete(self, give_message: bool = True) -> int:
-    #     """Tries to autodelete notes.
-
-    #     Returns number of notes deleted.
-    #     Optionally gives a message if any deleted.
-    #     """
-    #     deleted = 0
-    #     # Consider only active/recovered notes for auto-delete checks
-    #     for note in self.active_notes():
-    #         if note.status == NOTE_ACTIVE and note.can_auto_delete():
-    #             note.delete()
-    #             deleted += 1
-    #     if deleted and give_message:
-    #         pr.iprint()
-    #         pr.iprint(
-    #             f"Deleted {deleted} expired {ut.plural(deleted,'note')}.",
-    #             style=k.SUBTITLE_STYLE,
-    #         )
-    #     return deleted
-
     def dump(self):
         """Print out the notes."""
         for line in self.notes:
@@ -247,9 +203,7 @@ class NotesManager:
 
     def active_notes(self) -> list:
         """Return sorted list of active/recovered notes."""
-        sublist = [
-            n for n in self.notes if n.status in NOTE_GROUP_ACTIVE
-        ]
+        sublist = [n for n in self.notes if n.status in NOTE_GROUP_ACTIVE]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
 
@@ -258,5 +212,3 @@ class NotesManager:
         sublist = [n for n in self.notes if n.status in NOTE_GROUP_INACTIVE]
         sublist.sort(key=lambda n: n.created_at)
         return sublist
-
-

@@ -82,7 +82,9 @@ def tag_inventory_matrix(
 
     as_of_when = VTime(as_of_when or "now")
     pr.iprint()
-    pr.iprint(f"Tags status {rep.time_description(as_of_when,day=day)}", style=k.TITLE_STYLE)
+    pr.iprint(
+        f"Tags status {rep.time_description(as_of_when,day=day)}", style=k.TITLE_STYLE
+    )
     pr.iprint(
         f"Key: '{TAG_INV_AVAILABLE[0]}'=Unused today; "
         f"'{TAG_INV_BIKE_IN[0]}'=Bike In; "
@@ -150,49 +152,6 @@ def tag_inventory_matrix(
 
     _index_line(max_tag_num)
     pr.iprint()
-
-
-# def colours_report(day: OldTrackerDay) -> None:
-#     """List colours in use."""
-#     type_names = {
-#         k.UNKNOWN: "None",
-#         k.REGULAR: "Regular",
-#         k.OVERSIZE: "Oversize",
-#         k.MIXED: "Mixed",
-#     }
-
-#     # Make a dict of the colour letters that's all lowercase
-#     colours = {k.lower(): v for k, v in day.colour_letters.items()}
-#     # Dict of bike types for tags: UNKNOWN, OVERSIZE, REGULAR or MIXED
-#     tag_type = dict(
-#         zip(list(day.colour_letters.keys()), [k.UNKNOWN for _ in range(0, 100)])
-#     )
-#     # Dictionary of how many tags are of each colour.
-#     tag_count = dict(zip(list(day.colour_letters.keys()), [0 for _ in range(0, 100)]))
-#     # Count and categorize the tags (all available for use)
-#     for tag in day.all_usable_tags():
-#         code = tag.colour.lower()
-#         if code not in colours:
-#             ut.squawk(f"bad colour for {tag}: '{code}' in colours_report()")
-#             continue
-#         # Tag type
-#         btype = k.REGULAR if tag in day.regular else k.OVERSIZE
-#         if tag_type[code] == k.UNKNOWN:
-#             tag_type[code] = btype
-#         elif tag_type[code] != btype:
-#             tag_type[code] = k.MIXED
-#         # Tag count
-#         tag_count[code] += 1
-
-#     pr.iprint()
-#     pr.iprint("Code Colour   Bike type  Count", style=k.SUBTITLE_STYLE)
-#     for code in sorted(colours):
-#         name = colours[code].title()
-#         code_str = code.upper() if TagID.uc() else code
-#         pr.iprint(
-#             f" {code_str:>2}  {name:8} {type_names[tag_type[code]]:8}  "
-#             f"{tag_count[code]:4d} tags"
-#         )
 
 
 def retired_report(day: TrackerDay) -> None:
