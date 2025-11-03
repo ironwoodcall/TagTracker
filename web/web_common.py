@@ -30,7 +30,6 @@ import copy
 import urllib
 from datetime import datetime, timedelta
 
-
 from web.web_base_config import SITE_NAME
 import web.web_base_config as wcfg
 
@@ -42,10 +41,6 @@ import common.tt_util as ut
 from common.tt_daysummary import DayTotals
 from common.get_version import get_version_info
 
-# from common.tt_trackerday import TrackerDay
-# from common.tt_daysummary import DaySummary, PeriodDetail, MomentDetail, DayTotals
-
-
 # Set up debugging .. maybe
 if "TAGTRACKER_DEBUG" in os.environ:
     import cgitb
@@ -53,6 +48,10 @@ if "TAGTRACKER_DEBUG" in os.environ:
     cgitb.enable()
 
 
+# Caution: the 'audit' CGI script hard-code sets its CGI query string
+# with the parameter name and parameter value for the audit report.
+# Changes made of those here need to be reflected in the CGI script.
+WHAT_AUDIT = "Au"  # See note above.
 WHAT_OVERVIEW = "Ov"
 WHAT_BLOCKS = "Blk"
 WHAT_OVERVIEW_DOW = "OvD"
@@ -63,7 +62,6 @@ WHAT_TAG_HISTORY = "TH"
 WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
 WHAT_SUMMARY_FREQUENCIES = "SQ"
-WHAT_AUDIT = "Au"
 WHAT_COMPARE_RANGES = "Cmp"
 WHAT_DATERANGE = "P"
 WHAT_DATERANGE_FOREVER = "pF"
@@ -280,7 +278,10 @@ def resolve_date_range(
 class ReportParameters:
     """A bundle containing all the reporting parameters (that would be in URL)."""
 
-    what_report: str | None = field(default=None, metadata={"cgi": "what_report_request"})
+    # Caution: the 'audit' CGI script hard-code sets its CGI query string
+    # with the parameter name and parameter value for the audit report.
+    # Changes made of those here need to be reflected in the CGI script.
+    what_report: str | None = field(default=None, metadata={"cgi": "what"})
     clock: VTime | None = field(default=None, metadata={"cgi": "clock"})
     start_date: str | None = field(default=None, metadata={"cgi": "start_date"})
     end_date: str | None = field(default=None, metadata={"cgi": "end_date"})
