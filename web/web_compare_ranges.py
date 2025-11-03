@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import copy
 import html
 import math
 import sqlite3
