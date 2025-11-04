@@ -527,7 +527,6 @@ def blocks_report(
 
     self_url = cc.CGIManager.selfref(
         what_report=cc.WHAT_BLOCKS,
-        #dow=normalized_dow if normalized_dow else None,
         start_date=start_date,
         end_date=end_date,
         pages_back=cc.increment_pages_back(params.pages_back),
