@@ -756,58 +756,53 @@ def main_web_page(ttdb: sqlite3.Connection):
 
 def season_detail(
     ttdb: sqlite3.Connection,
-    sort_by=None,
-    sort_direction=None,
-    pages_back: int = 1,
-    start_date: str = "",
-    end_date: str = "",
-    dow_parameter: str = "",
+    params:cc.ReportParameters,
 ):
     """A summary in which each row is one day."""
 
-    requested_start = "" if start_date in ("", "0000-00-00") else start_date
-    requested_end = "" if end_date in ("", "9999-99-99") else end_date
+    requested_start = "" if params.start_date in ("", "0000-00-00") else params.start_date
+    requested_end = "" if params.end_date in ("", "9999-99-99") else params.end_date
 
     db_start_date, db_end_date = db.fetch_date_range_limits(
         ttdb,
         orgsite_id=1,
     )
 
-    start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
+    params.start_date, params.end_date, _default_start, _default_end = cc.resolve_date_range(
         ttdb,
         start_date=requested_start,
         end_date=requested_end,
         db_limits=(db_start_date, db_end_date),
     )
 
-    sort_by = sort_by if sort_by else cc.SORT_DATE
-    sort_direction = sort_direction if sort_direction else cc.ORDER_REVERSE
+    sort_by = params.sort_by if params.sort_by else cc.SORT_DATE
+    sort_direction = params.sort_direction if params.sort_direction else cc.ORDER_REVERSE
 
     filter_base_url = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=sort_by,
         qdir=sort_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+        qdow=params.dow,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     filter_widget = build_date_dow_filter_widget(
         filter_base_url,
-        start_date=start_date,
-        end_date=end_date,
-        selected_dow=dow_parameter,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        selected_dow=params.dow,
     )
-    dow_parameter = filter_widget.selection.dow_value
+    params.dow = filter_widget.selection.dow_value
     filter_description = filter_widget.description()
 
     all_days = cc.get_days_data(
-        ttdb=ttdb, min_date=start_date, max_date=end_date
+        ttdb=ttdb, min_date=params.start_date, max_date=params.end_date
     )  # FIXME: needs to use orgsite_id
-    if dow_parameter:
+    if params.dow:
         allowed_dows = {
             int(token)
-            for token in dow_parameter.split(",")
+            for token in params.dow.split(",")
             if token and token.isdigit()
         }
         all_days = [
@@ -908,7 +903,7 @@ def season_detail(
         max_precip_colour.add_config(max_precip_value, "azure")
 
     print(f"{cc.titleize('Daily summaries', filter_widget.description())}")
-    print(f"{cc.main_and_back_buttons(pages_back)}<br>")
+    print(f"{cc.main_and_back_buttons(params.pages_back)}<br>")
     print("<br>")
     print(filter_widget.html)
     print("<br><br>")
@@ -917,55 +912,55 @@ def season_detail(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DATE,
         qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+        qdow=params.dow,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     sort_parked_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_PARKED,
         qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+        qdow=params.dow,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     sort_fullness_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_FULLNESS,
         qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+        qdow=params.dow,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     sort_leftovers_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_LEFTOVERS,
         qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+        qdow=params.dow,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     sort_precipitation_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_PRECIPITATAION,
         qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+        qdow=params.dow,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     sort_temperature_link = cc.selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_TEMPERATURE,
         qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+        qdow=params.dow,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     # mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
 

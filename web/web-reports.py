@@ -306,12 +306,7 @@ elif params.what_report == cc.WHAT_BLOCKS:
 elif params.what_report == cc.WHAT_DETAIL:
     web_season_report.season_detail(
         database,
-        sort_by=params.sort_by,
-        sort_direction=params.sort_direction,
-        pages_back=params.pages_back,
-        start_date=params.start_date,
-        end_date=params.end_date,
-        dow_parameter=params.dow,
+        params,
     )
 elif params.what_report == cc.WHAT_SUMMARY:
     web_season_report.main_web_page(database)
