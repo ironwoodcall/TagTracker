@@ -48,6 +48,7 @@ HIGHLIGHT_MARKER = chr(0x2B24)  # chr(0x25cf) #chr(0x25AE)  # chr(0x25a0)#chr(0x
 # Uses precomputed block summaries stored in the BLOCK table rather than
 # rebuilding them from raw visit rows.
 
+
 class _OneBlock:
     """Data about a single timeblock."""
 
@@ -112,7 +113,7 @@ def _process_iso_dow(
             else:
                 option = find_dow_option(",".join(str(v) for v in validated))
                 if option.value:
-                    title_bit = f"{option.title_suffix} "
+                    title_bit = f"{option.title_bit} "
                 else:
                     title_names = ", ".join(ut.dow_str(v) for v in validated)
                     title_bit = f"{title_names} "
@@ -228,7 +229,7 @@ def print_the_html(
         """Make a thicker vertical cell border to mark off sets of blocks."""
         return "<td style='width:auto;border: 2px solid rgb(200,200,200);padding: 0px 0px;'></td>"
 
-    title = cc.titleize("Half-hourly activity",filter_description)
+    title = cc.titleize("Half-hourly activity", filter_description)
     # if filter_description:
     #     title = f"{title} ({html.escape(filter_description)})"
     print(f"{title}")
@@ -257,9 +258,13 @@ def print_the_html(
         bg_color="grey",  # bg_color=xy_colors.get_color(0,0).html_color
         num_columns=20,
     )
-    print("<table style='border-collapse: separate; border-spacing: 16px; width: auto;'>")
+    print(
+        "<table style='border-collapse: separate; border-spacing: 16px; width: auto;'>"
+    )
     print("<tr>")
-    print(f"<td style='vertical-align: top; text-align: left; width: auto;'>{xy_tab}</td>")
+    print(
+        f"<td style='vertical-align: top; text-align: left; width: auto;'>{xy_tab}</td>"
+    )
     print(
         """
 
@@ -366,7 +371,9 @@ def print_the_html(
     for date in sorted(tabledata.keys(), reverse=True):
         dayname = ut.date_str(date, dow_str_len=3)
         thisday: _OneDay = tabledata[date]
-        tags_report_link = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date=date)
+        tags_report_link = cc.CGIManager.selfref(
+            what_report=cc.WHAT_ONE_DAY, start_date=date
+        )
         print("<tr style='text-align: center; width: 15px;padding: 0px 3px;'>")
         print(f"<td style=width:auto;><a href='{tags_report_link}'>{date}</a></td>")
         print(f"<td style=width:auto;>{dayname}</td>")
@@ -409,7 +416,9 @@ def print_the_html(
             else:
                 marker = NORMAL_MARKER
 
-            tooltip_lines = [line.strip() for line in cell_title.split("\n") if line.strip()]
+            tooltip_lines = [
+                line.strip() for line in cell_title.split("\n") if line.strip()
+            ]
             tooltip_text = "\n".join(tooltip_lines)
             tooltip_attr = html.escape(tooltip_text, quote=True) if tooltip_text else ""
             tooltip_html = "".join(
@@ -496,8 +505,7 @@ def print_the_html(
 
 def blocks_report(
     ttdb: sqlite3.Connection,
-    params:cc.ReportParameters,
-    pages_back: int = 1,
+    params: cc.ReportParameters,
 ):
     """Print block-by-block colors report for all days
 
@@ -517,10 +525,9 @@ def blocks_report(
     selected_option = find_dow_option(params.dow)
     normalized_dow = selected_option.value
 
-    target_what = cc.WHAT_BLOCKS
-    self_url = cc.old_selfref(
-        what=target_what,
-        qdow=normalized_dow if normalized_dow else None,
+    self_url = cc.CGIManager.selfref(
+        what_report=cc.WHAT_BLOCKS,
+        #dow=normalized_dow if normalized_dow else None,
         start_date=start_date,
         end_date=end_date,
         pages_back=cc.increment_pages_back(params.pages_back),
@@ -543,8 +550,8 @@ def blocks_report(
     filter_description = filter_widget.description()
     date_filter_html = filter_widget.html
 
-    dayrows:list[db.DBRow] = _fetch_day_data(ttdb, day_where_clause)
-    blockrows:list[db.DBRow] = _fetch_block_rows(ttdb, day_where_clause)
+    dayrows: list[db.DBRow] = _fetch_day_data(ttdb, day_where_clause)
+    blockrows: list[db.DBRow] = _fetch_block_rows(ttdb, day_where_clause)
 
     # range_label = f"({start_date} to {end_date})" if start_date or end_date else ""
 
