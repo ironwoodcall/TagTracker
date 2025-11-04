@@ -52,11 +52,7 @@ BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 def season_frequencies_report(
     ttdb: sqlite3.Connection,
-    dow_parameter: str = "",
-    title_bit: str = "",
-    pages_back: int = 0,
-    start_date: str = "",
-    end_date: str = "",
+    params: cc.ReportParameters,*,
     restrict_to_single_day: bool = False,
 ):
     """Web page showing histograms of visit frequency distributions.
@@ -66,6 +62,12 @@ def season_frequencies_report(
     """
 
     orgsite_id = 1  # FIXME: orgsite_id hardcoded
+    title_bit = ""
+
+    dow_parameter = params.dow
+    pages_back = params.pages_back
+    start_date = params.start_date
+    end_date = params.end_date
 
     # Fetch date range limits from the database
     db_start_date, db_end_date = db.fetch_date_range_limits(
@@ -212,7 +214,7 @@ def season_frequencies_report(
     if title_bit:
         arrival_duration_title = f"{arrival_duration_title} ({title_bit})"
     arrival_duration_title = f"<h2>{arrival_duration_title}</h2>"
-    arrival_duration_subtitle = "Data is normalized by average of whole-matrix and per-column maximums. Click on individual cells for exact values."
+    arrival_duration_subtitle = "Data colour is normalized by average of whole-matrix and per-column maximums, darker means more visits. Click on individual cells for exact values."
 
     print(
         web_histogram.arrival_duration_hist_table(

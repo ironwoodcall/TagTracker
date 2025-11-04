@@ -306,13 +306,7 @@ elif params.what_report == cc.WHAT_DETAIL:
 elif params.what_report == cc.WHAT_SUMMARY:
     web_season_report.main_web_page(database)
 elif params.what_report == cc.WHAT_SUMMARY_FREQUENCIES:
-    web_season_report.season_frequencies_report(
-        database,
-        dow_parameter=params.dow,
-        pages_back=params.pages_back,
-        start_date=params.start_date,
-        end_date=params.end_date,
-    )
+    web_season_report.season_frequencies_report(database, params)
 elif params.what_report == cc.WHAT_COMPARE_RANGES:
     web_compare_ranges.compare_ranges(
         database,
@@ -337,11 +331,7 @@ elif params.what_report == cc.WHAT_ONE_DAY:
     )
 elif params.what_report == cc.WHAT_ONE_DAY_FREQUENCIES:
     web_season_report.season_frequencies_report(
-        database,
-        pages_back=params.pages_back,
-        start_date=params.start_date,
-        end_date=params.end_date,
-        restrict_to_single_day=True,
+        database, params, restrict_to_single_day=True
     )
 elif params.what_report == cc.WHAT_AUDIT:
     web_audit_report(database, orgsite_id=1)  # FIXME: orgsite_id
