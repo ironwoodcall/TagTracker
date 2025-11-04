@@ -98,10 +98,12 @@ def web_audit_report(
     print("<table class='general_table' style='max-width:22rem;margin-bottom:1.5rem;'>")
     print(f"<tr><th>Bikes currently on-site</th><th><b>{total_onsite}</b></th></tr>")
     print(
-        f"<tr><td>&nbsp;&nbsp;&nbsp;Regular bikes</td><td style='text-align:right;'>{regular_onsite}</td></tr>"
+        "<tr><td>&nbsp;&nbsp;&nbsp;Regular bikes</td>"
+        f"<td style='text-align:right;'>{regular_onsite}</td></tr>"
     )
     print(
-        f"<tr><td>&nbsp;&nbsp;&nbsp;Oversize bikes</td><td style='text-align:right;'>{oversize_onsite}</td></tr>"
+        "<tr><td>&nbsp;&nbsp;&nbsp;Oversize bikes</td>"
+        f"<td style='text-align:right;'>{oversize_onsite}</td></tr>"
     )
     # print(
     #     "<tr><td><b>Total bikes</b></td><td style='text-align:right;'>"
