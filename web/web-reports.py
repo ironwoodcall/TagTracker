@@ -47,6 +47,7 @@ from common.tt_time import VTime
 import common.tt_util as ut
 import common.tt_constants as k
 import common.tt_dbutil as db
+
 # import tt_reports as rep
 # import tt_audit_report as aud
 # import tt_tag_inv
@@ -64,9 +65,8 @@ def web_audit_report(
     as_of_time = VTime("now")
     thisday = ut.date_str("today")
 
-
     print("""<meta name="format-detection" content="telephone=no"/>""")
-    print(cc.titleize("Attendant audit report",f"As at {as_of_time.tidy} {thisday}"))
+    print(cc.titleize("Attendant audit report", f"As at {as_of_time.tidy} {thisday}"))
     # Only put a "Back" button if this was called from itself
     if cc.CGIManager.called_by_self():
         print(f"{cc.back_button(1)}<br><br>")
@@ -83,7 +83,6 @@ def web_audit_report(
 
     day = db.db2day(ttdb=ttdb, day_id=day_id)
 
-
     tags_in_use = day.tags_in_use(as_of_when=as_of_time)
     regular_onsite = 0
     oversize_onsite = 0
@@ -98,8 +97,7 @@ def web_audit_report(
     total_onsite = regular_onsite + oversize_onsite
 
     print(
-        "<table class='general_table' "
-        "style='max-width:22rem;margin-bottom:1.5rem;'>"
+        "<table class='general_table' " "style='max-width:22rem;margin-bottom:1.5rem;'>"
     )
     print(f"<tr><th>Bikes currently on-site</th><th><b>{total_onsite}</b></th></tr>")
     print(
@@ -119,8 +117,7 @@ def web_audit_report(
         "border:1px solid #666;font-family:monospace;font-size:1.5em;"
     )
     cell_style = (
-        "style='border:0;padding:4px 6px;white-space:nowrap;"
-        "text-align:center;'"
+        "style='border:0;padding:4px 6px;white-space:nowrap;" "text-align:center;'"
     )
     retired_marker = "&bullet;"
 
@@ -144,7 +141,7 @@ def web_audit_report(
             if rows_rendered and colour_code != previous_colour:
                 print(
                     f"<tr><td colspan='{total_columns}' style='border:0;padding:4px 0;'>"
-                    "<hr style=\"border:0;border-top:1px solid #999;margin:0;\"></td></tr>"
+                    '<hr style="border:0;border-top:1px solid #999;margin:0;"></td></tr>'
                 )
             cells = [f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>"]
             for i in range(max_seq + 1):
@@ -156,9 +153,13 @@ def web_audit_report(
                 else:
                     cell_value = "&nbsp;&nbsp;"
                 cells.append(f"<td {cell_style}>{cell_value}</td>")
-            cells.append(f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>")
+            cells.append(
+                f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>"
+            )
             row_bg_colour = "#f4f4f4" if rows_rendered % 2 else "#ffffff"
-            row_style = f" style='background-color:{row_bg_colour};'" if row_bg_colour else ""
+            row_style = (
+                f" style='background-color:{row_bg_colour};'" if row_bg_colour else ""
+            )
             print(f"<tr{row_style}>" + "".join(cells) + "</tr>")
             rows_rendered += 1
             previous_colour = colour_code
@@ -196,7 +197,9 @@ def web_est_wrapper() -> None:
     for line in est.result_msg(as_html=True):
         print(line)
 
-    models_path = Path(__file__).resolve().parent.parent / "docs" / "estimator_models.txt"
+    models_path = (
+        Path(__file__).resolve().parent.parent / "docs" / "estimator_models.txt"
+    )
     if models_path.is_file():
         print("<h3>Background on the models</h3><pre>")
         with models_path.open(encoding="utf-8") as models_file:
@@ -210,6 +213,7 @@ SAFE_QUERY_CHARS = frozenset(
 )
 
 # FIXME: Remove once moved to CGIManager
+
 
 def validate_query_params(query_parms: dict[str, list[str]]) -> None:
     """Ensure all provided query parameter values only contain allowed characters."""
@@ -272,11 +276,13 @@ if params.what_report == cc.WHAT_COMPARE_RANGES:
     params.start_date2 = params.start_date2 or recent_start
     params.end_date2 = params.end_date2 or recent_end
 
-params.start_date, params.end_date, _default_start_date, _default_end_date = cc.resolve_date_range(
-    database,
-    orgsite_id=ORGSITE_ID,
-    start_date=params.start_date or "",
-    end_date=params.end_date or "",
+(params.start_date, params.end_date, _default_start_date, _default_end_date) = (
+    cc.resolve_date_range(
+        database,
+        orgsite_id=ORGSITE_ID,
+        start_date=params.start_date or "",
+        end_date=params.end_date or "",
+    )
 )
 
 if params.what_report == cc.WHAT_COMPARE_RANGES:
@@ -299,13 +305,7 @@ else:
 if params.what_report == cc.WHAT_TAG_HISTORY:
     web_tags_report.one_tag_history_report(database, params.tag)
 elif params.what_report == cc.WHAT_BLOCKS:
-    web_block_report.blocks_report(
-        database,
-        iso_dow=params.dow,
-        pages_back=params.pages_back,
-        start_date=params.start_date,
-        end_date=params.end_date,
-    )
+    web_block_report.blocks_report(database, params)
 elif params.what_report == cc.WHAT_DETAIL:
     web_season_report.season_detail(
         database,
@@ -359,7 +359,8 @@ elif params.what_report == cc.WHAT_ONE_DAY_FREQUENCIES:
     )
 elif params.what_report == cc.WHAT_AUDIT:
     web_audit_report(
-        database, orgsite_id=1,
+        database,
+        orgsite_id=1,
     )  # FIXME: orgsite_id
 elif params.what_report == cc.WHAT_DATERANGE_DETAIL:
     web_period_detail.period_detail(

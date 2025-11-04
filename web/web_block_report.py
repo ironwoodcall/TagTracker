@@ -496,10 +496,8 @@ def print_the_html(
 
 def blocks_report(
     ttdb: sqlite3.Connection,
-    iso_dow: str | int = "",
+    params:cc.ReportParameters,
     pages_back: int = 1,
-    start_date: str = "",
-    end_date: str = "",
 ):
     """Print block-by-block colors report for all days
 
@@ -513,11 +511,11 @@ def blocks_report(
     start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
         ttdb,
         orgsite_id=orgsite_id,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=params.start_date,
+        end_date=params.end_date,
     )
 
-    selected_option = find_dow_option(iso_dow)
+    selected_option = find_dow_option(params.dow)
     normalized_dow = selected_option.value
 
     target_what = cc.WHAT_BLOCKS
@@ -526,7 +524,7 @@ def blocks_report(
         qdow=normalized_dow if normalized_dow else None,
         start_date=start_date,
         end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     filter_widget = build_date_dow_filter_widget(
         self_url,
@@ -558,7 +556,7 @@ def blocks_report(
 
     if not dayrows:
         print(f"<h1>{heading}</h1>")
-        print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
+        print(f"{cc.main_and_back_buttons(params.pages_back)}<br><br>")
         if date_filter_html:
             print(date_filter_html)
         if filter_description:
@@ -571,7 +569,7 @@ def blocks_report(
 
     if not blockrows:
         print(f"<h1>{heading}</h1>")
-        print(f"{cc.main_and_back_buttons(pages_back)}<br><br>")
+        print(f"{cc.main_and_back_buttons(params.pages_back)}<br><br>")
         if date_filter_html:
             print(date_filter_html)
         if filter_description:
@@ -601,7 +599,7 @@ def blocks_report(
         block_parked_colors,
         day_total_bikes_colors,
         day_full_colors,
-        pages_back,
+        params.pages_back,
         # page_title_prefix=title_bit,
         date_filter_html=date_filter_html,
         # date_range_label=range_label,
