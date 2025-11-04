@@ -18,21 +18,12 @@ def period_detail(
 ) -> None:
     """Render the single-period detail report."""
 
-    resolved_start = params.start_date
-    resolved_end = params.end_date
-    resolved_dow = params.dow
-    resolved_pages_back = params.pages_back or 1
-
     params.what_report = cc.WHAT_DATERANGE_DETAIL
-    params.start_date = resolved_start
-    params.end_date = resolved_end
-    params.dow = resolved_dow
     params.start_date2 = ""
     params.end_date2 = ""
     params.dow2 = ""
-    params.pages_back = cc.increment_pages_back(resolved_pages_back)
-
-    nav_pages_back = resolved_pages_back
+    nav_pages_back = params.pages_back if params.pages_back else 1
+    params.pages_back = cc.increment_pages_back(nav_pages_back)
 
     title = cc.titleize("Date range detail")
     print(title)
@@ -44,16 +35,16 @@ def period_detail(
     compare_url = cc.CGIManager.selfref(
         params=params,
         what_report=cc.WHAT_COMPARE_RANGES,
-        start_date2=resolved_start,
-        end_date2=resolved_end,
-        dow2=resolved_dow,
+        start_date2=params.start_date,
+        end_date2=params.end_date,
+        dow2=params.dow,
         pages_back=1,
     )
     widget = build_date_dow_filter_widget(
         self_url,
-        start_date=resolved_start,
-        end_date=resolved_end,
-        selected_dow=resolved_dow,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        selected_dow=params.dow,
         include_day_filter=True,
         submit_label="Apply filters",
     )
@@ -113,4 +104,3 @@ def period_detail(
         )
 
     print("</table>")
-
