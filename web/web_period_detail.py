@@ -43,20 +43,14 @@ def period_detail(
     print(title)
     print(f"{cc.main_and_back_buttons(nav_pages_back)}<br><br>")
 
-    self_url = cc.old_selfref(
-        what=cc.WHAT_DATERANGE_DETAIL,
-        start_date=resolved_start,
-        end_date=resolved_end,
-        qdow=resolved_dow,
-        pages_back=params.pages_back,
+    self_url = cc.CGIManager.selfref(
+        params=params,
     )
-    compare_url = cc.old_selfref(
-        what=cc.WHAT_COMPARE_RANGES,
-        start_date=resolved_start,
-        end_date=resolved_end,
+    compare_url = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_COMPARE_RANGES,
         start_date2=resolved_start,
         end_date2=resolved_end,
-        qdow=resolved_dow,
         dow2=resolved_dow,
         pages_back=1,
     )
