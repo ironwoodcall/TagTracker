@@ -308,17 +308,7 @@ elif params.what_report == cc.WHAT_SUMMARY:
 elif params.what_report == cc.WHAT_SUMMARY_FREQUENCIES:
     web_season_report.season_frequencies_report(database, params)
 elif params.what_report == cc.WHAT_COMPARE_RANGES:
-    web_compare_ranges.compare_ranges(
-        database,
-        params=params,
-        pages_back=params.pages_back,
-        start_date_a=params.start_date,
-        end_date_a=params.end_date,
-        dow_a=params.dow or "",
-        start_date_b=params.start_date2,
-        end_date_b=params.end_date2,
-        dow_b=params.dow2 or "",
-    )
+    web_compare_ranges.compare_ranges(database, params=params)
 elif params.what_report == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
 elif params.what_report == cc.WHAT_ONE_DAY:

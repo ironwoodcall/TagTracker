@@ -43,6 +43,7 @@ def _normalize_query_params(params: Mapping[str, Any]) -> dict[str, str]:
         normalized[str(key)] = coerced
     return normalized
 
+
 def _percent_to_color(percent_value: float | None) -> str:
     """
     Return a hex colour representing the given percent change.
@@ -198,15 +199,16 @@ def compare_ranges(
     ttdb: sqlite3.Connection,
     *,
     params: cc.ReportParameters,
-    pages_back: int = 1,
-    start_date_a: str = "",
-    end_date_a: str = "",
-    dow_a: str = "",
-    start_date_b: str = "",
-    end_date_b: str = "",
-    dow_b: str = "",
 ) -> None:
     """Render the comparison report between two date ranges."""
+
+    pages_back = params.pages_back
+    start_date_a = params.start_date
+    end_date_a = params.end_date
+    dow_a = params.dow
+    start_date_b = params.start_date2
+    end_date_b = params.end_date2
+    dow_b = params.dow2
 
     resolved_start_a = start_date_a or ""
     resolved_end_a = end_date_a or ""
@@ -263,18 +265,7 @@ def compare_ranges(
         dow_value=find_dow_option(resolved_dow_b, options_tuple).value,
     )
 
-
-    self_url = cc.CGIManager.selfref(
-        what_report=cc.WHAT_COMPARE_RANGES,
-        start_date=resolved_start_a,
-        end_date=resolved_end_a,
-        start_date2=resolved_start_b,
-        end_date2=resolved_end_b,
-        dow=resolved_dow_a,
-        dow2=resolved_dow_b,
-        pages_back=cc.increment_pages_back(resolved_pages_back),
-    )
-
+    self_url = cc.CGIManager.selfref(params=params, what_report=cc.WHAT_COMPARE_RANGES)
 
     form_action = self_url.split("?", 1)[0]
 
@@ -376,7 +367,9 @@ def compare_ranges(
 
         print(f"<tr {row_class}>")
         if row_span:
-            print(f"<td rowspan={row_span} class='heavy-bottom' {row_span_style}>&nbsp;</td>")
+            print(
+                f"<td rowspan={row_span} class='heavy-bottom' {row_span_style}>&nbsp;</td>"
+            )
         print(
             f"<td style='text-align:left;'>{row['label']}</td>"
             f"<td style='text-align:right;'>{formatted_a}</td>"
