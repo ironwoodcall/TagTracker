@@ -264,13 +264,13 @@ def compare_ranges(
     )
 
 
-    self_url = cc.old_selfref(
-        what=cc.WHAT_COMPARE_RANGES,
+    self_url = cc.CGIManager.selfref(
+        what_report=cc.WHAT_COMPARE_RANGES,
         start_date=resolved_start_a,
         end_date=resolved_end_a,
         start_date2=resolved_start_b,
         end_date2=resolved_end_b,
-        qdow=resolved_dow_a,
+        dow=resolved_dow_a,
         dow2=resolved_dow_b,
         pages_back=cc.increment_pages_back(resolved_pages_back),
     )
