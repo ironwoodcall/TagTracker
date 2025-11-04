@@ -36,7 +36,7 @@ DATERANGE_NAMES = {
     cc.WHAT_DATERANGE_MONTH: "months",
     cc.WHAT_DATERANGE_QUARTER: "quarters",
     cc.WHAT_DATERANGE_YEAR: "years",
-    cc.WHAT_DATERANGE_FOREVER: "whole period",
+    cc.WHAT_DATERANGE_FOREVER: "whole date range",
 }
 
 
@@ -111,17 +111,16 @@ class _DateRangeRow:
 
 def daterange_summary(
     ttdb,
-    daterange_type: str = "",
-    start_date: str = "",
-    end_date: str = "",
-    pages_back: int = 1,
+    params:cc.ReportParameters,
 ):
-    """Present a daterange summary page for a given daterange_type etc.
+    """Present a daterange summary page of all the date range types."""
 
-    If no daterange_type or just WHAT_DATERANGE, does them all.
-    """
-
+    daterange_type = "" # FIXME this concept no longer needed in this fn
     orgsite_id = 1  # FIXME hardcoded orgsite_id
+
+    start_date = params.start_date
+    end_date = params.end_date
+    pages_back = params.pages_back
 
     # Fetch date range limits from the database
     db_start_date, db_end_date = db.fetch_date_range_limits(ttdb, orgsite_id=orgsite_id)
