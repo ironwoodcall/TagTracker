@@ -142,10 +142,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
 
 def one_day_tags_report(
     ttdb: sqlite3.Connection,
-    orgsite_id: int,
-    whatday: str = "",
-    sort_by: str = "",
-    pages_back: int = 1,
+    params:cc.ReportParameters,
 ):
     @dataclass
     class _VisitRow:
@@ -157,9 +154,14 @@ def one_day_tags_report(
         time_out: str = ""
         duration: int = None
 
-    thisday = ut.date_str(whatday)
+    orgsite_id = 1 # FIXME remove eventually
+
+    sort_by = params.sort_by
+    pages_back = params.pages_back
+
+    thisday = ut.date_str(params.start_date)
     if not thisday:
-        cc.bad_date(whatday)
+        cc.bad_date(params.start_date)
     is_today = bool(thisday == ut.date_str("today"))
     if is_today:
         day_str = "Today"

@@ -35,7 +35,7 @@ sys.path.append("./")
 # pylint:disable=wrong-import-position
 import web_common as cc
 import web_block_report
-from web_day_detail import one_day_tags_report
+import web_day_detail
 import web_season_report
 import web_tags_report
 import web_period_summaries
@@ -312,13 +312,7 @@ elif params.what_report == cc.WHAT_COMPARE_RANGES:
 elif params.what_report == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
 elif params.what_report == cc.WHAT_ONE_DAY:
-    one_day_tags_report(
-        database,
-        orgsite_id=ORGSITE_ID,
-        whatday=params.start_date,
-        sort_by=params.sort_by,
-        pages_back=params.pages_back,
-    )
+    web_day_detail.one_day_tags_report(database, params)
 elif params.what_report == cc.WHAT_ONE_DAY_FREQUENCIES:
     web_season_report.season_frequencies_report(
         database, params, restrict_to_single_day=True
