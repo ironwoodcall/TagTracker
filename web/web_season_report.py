@@ -124,7 +124,7 @@ def season_frequencies_report(
     if restrict_to_single_day:
         normalized_dow = ""
     else:
-        self_url = cc.selfref(
+        self_url = cc.old_selfref(
             what=cc.WHAT_SUMMARY_FREQUENCIES,
             qdow=dow_parameter,
             start_date=start_date,
@@ -383,13 +383,13 @@ def totals_table(conn: sqlite3.Connection):
     )
     prev_12mo_totals = fetch_totals(prev_12mo_start_iso, prev_12mo_end_iso)
 
-    ytd_summary_link = cc.selfref(
+    ytd_summary_link = cc.old_selfref(
         what=cc.WHAT_DATERANGE,
         start_date=ytd_start_iso,
         end_date=ytd_end_iso,
         pages_back=1,
     )
-    prior_ytd_compare_link = cc.selfref(
+    prior_ytd_compare_link = cc.old_selfref(
         what=cc.WHAT_COMPARE_RANGES,
         start_date=prior_ytd_start_iso,
         end_date=prior_ytd_end_iso,
@@ -397,7 +397,7 @@ def totals_table(conn: sqlite3.Connection):
         end_date2=ytd_end_iso,
         pages_back=1,
     )
-    prior_12mo_compare_link = cc.selfref(
+    prior_12mo_compare_link = cc.old_selfref(
         what=cc.WHAT_COMPARE_RANGES,
         start_date=prev_12mo_start_iso,
         end_date=prev_12mo_end_iso,
@@ -415,10 +415,10 @@ def totals_table(conn: sqlite3.Connection):
     for key in display_day_keys:
         attach_commuter_metric(day_totals[key], key, key)
 
-    most_parked_link = cc.selfref(
+    most_parked_link = cc.old_selfref(
         what=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_parked_combined_date
     )
-    fullest_link = cc.selfref(
+    fullest_link = cc.old_selfref(
         what=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_fullest_combined_date
     )
 
@@ -557,10 +557,10 @@ def totals_table(conn: sqlite3.Connection):
     for day in display_day_keys:
         if day == today_iso:
             daylabel = "Today"
-            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, start_date="today")
+            daylink = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date="today")
         else:
             daylabel = day
-            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=day)
+            daylink = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date=day)
 
         header_html += (
             f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
@@ -650,15 +650,15 @@ def totals_table(conn: sqlite3.Connection):
 def main_web_page(ttdb: sqlite3.Connection):
     """Print super-brief summary report of the current year."""
 
-    detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
-    period_detail_link = cc.selfref(what=cc.WHAT_DATERANGE_DETAIL, pages_back=1)
-    blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
-    tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
-    today_link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date="today")
-    summaries_link = cc.selfref(what=cc.WHAT_DATERANGE)
-    compare_link = cc.selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
-    download_csv_link = cc.make_url("tt_download", what=cc.WHAT_DOWNLOAD_CSV)
-    download_db_link = cc.make_url("tt_download", what=cc.WHAT_DOWNLOAD_DB)
+    detail_link = cc.old_selfref(what=cc.WHAT_DETAIL, pages_back=1)
+    period_detail_link = cc.old_selfref(what=cc.WHAT_DATERANGE_DETAIL, pages_back=1)
+    blocks_link = cc.old_selfref(what=cc.WHAT_BLOCKS, pages_back=1)
+    tags_link = cc.old_selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
+    today_link = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date="today")
+    summaries_link = cc.old_selfref(what=cc.WHAT_DATERANGE)
+    compare_link = cc.old_selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
+    download_csv_link = cc.old_make_url("tt_download", what=cc.WHAT_DOWNLOAD_CSV)
+    download_db_link = cc.old_make_url("tt_download", what=cc.WHAT_DOWNLOAD_DB)
 
     print(f"{cc.titleize('')}<br>")
     print("<div style='display:inline-block'>")
@@ -693,7 +693,7 @@ def main_web_page(ttdb: sqlite3.Connection):
     )
     print(
         f"""
-        <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
+        <button onclick="window.location.href='{cc.old_selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
             style="padding: 10px; display: inline-block;">
           <b>Date Range<br>Graphs</b></button>
         &nbsp;&nbsp;
@@ -778,7 +778,7 @@ def season_detail(
     sort_by = params.sort_by if params.sort_by else cc.SORT_DATE
     sort_direction = params.sort_direction if params.sort_direction else cc.ORDER_REVERSE
 
-    filter_base_url = cc.selfref(
+    filter_base_url = cc.old_selfref(
         cc.WHAT_DETAIL,
         qsort=sort_by,
         qdir=sort_direction,
@@ -908,7 +908,7 @@ def season_detail(
     print(filter_widget.html)
     print("<br><br>")
 
-    sort_date_link = cc.selfref(
+    sort_date_link = cc.old_selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_DATE,
         qdir=other_direction,
@@ -917,7 +917,7 @@ def season_detail(
         end_date=params.end_date,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_parked_link = cc.selfref(
+    sort_parked_link = cc.old_selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_PARKED,
         qdir=other_direction,
@@ -926,7 +926,7 @@ def season_detail(
         end_date=params.end_date,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_fullness_link = cc.selfref(
+    sort_fullness_link = cc.old_selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_FULLNESS,
         qdir=other_direction,
@@ -935,7 +935,7 @@ def season_detail(
         end_date=params.end_date,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_leftovers_link = cc.selfref(
+    sort_leftovers_link = cc.old_selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_LEFTOVERS,
         qdir=other_direction,
@@ -944,7 +944,7 @@ def season_detail(
         end_date=params.end_date,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_precipitation_link = cc.selfref(
+    sort_precipitation_link = cc.old_selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_PRECIPITATAION,
         qdir=other_direction,
@@ -953,7 +953,7 @@ def season_detail(
         end_date=params.end_date,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_temperature_link = cc.selfref(
+    sort_temperature_link = cc.old_selfref(
         cc.WHAT_DETAIL,
         qsort=cc.SORT_TEMPERATURE,
         qdir=other_direction,
@@ -962,7 +962,7 @@ def season_detail(
         end_date=params.end_date,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    # mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
+    # mismatches_link = cc.old_selfref(cc.WHAT_MISMATCH)
 
     print("<table class='general_table'>")
     print(f"<tr><th colspan=12><br>{sort_msg}<br>&nbsp;</th></tr>")
@@ -995,7 +995,7 @@ def season_detail(
 
     for row in all_days:
         row: DayTotals
-        date_link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=row.date)
+        date_link = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date=row.date)
         reg_str = "" if row.bikes_registered is None else f"{row.bikes_registered}"
         temp_str = "" if row.max_temperature is None else f"{row.max_temperature:0.1f}"
         precip_str = "" if row.precipitation is None else f"{row.precipitation:0.1f}"

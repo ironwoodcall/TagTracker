@@ -178,42 +178,6 @@ def titleize(title: str = "", subtitle: str = "") -> str:
     return content
 
 
-def main_page_button() -> str:
-    """Make a button to take a person to the main page."""
-    target = selfref()
-    button = f"<button onclick=window.location.href='{target}';>Main</button>"
-    return button
-
-
-def back_button(pages_back: int) -> str:
-    """Make the 'back' button."""
-    return f"<button onclick='goBack({pages_back})'>Back</button>"
-
-
-def main_and_back_buttons(pages_back: int) -> str:
-    """Make a button that is  the main_page_button(), back_button(), or nothing."""
-    if pages_back == NAV_MAIN_BUTTON:
-        return main_page_button()
-    if pages_back == NAV_NO_BUTTON:
-        return ""
-    if isinstance(pages_back, int) and pages_back > wcfg.MAX_PAGES_BACK:
-        return main_page_button()
-    if CGIManager.called_by_self() and pages_back > 0:
-        return back_button(pages_back)
-    else:
-        return main_page_button()
-
-
-def increment_pages_back(pages_back: int) -> int:
-    """Increments pages_back but without altering any
-    of the pages_back magic values
-    """
-    if pages_back in (NAV_MAIN_BUTTON, NAV_NO_BUTTON):
-        return pages_back
-    else:
-        return pages_back + 1
-
-
 def resolve_date_range(
     ttdb: sqlite3.Connection,
     *,
@@ -589,14 +553,20 @@ class CGIManager:
             mapping[cgi_name] = str(value)
         return mapping
 
-    @classmethod
-    def selfref(cls, params: ReportParameters) -> str:
-        pass
 
     @classmethod
-    def make_url(cls, params: ReportParameters) -> str:
+    def make_url(cls, script_name:str, params: ReportParameters) -> str:
         """Return a URL for the given script on this host with the provided parameters."""
-        pass
+
+        target = _resolve_script_path(script_name)
+        query = CGIManager.params_to_query_str(params)
+        return f"{target}{query}"
+
+    @classmethod
+    def selfref(cls, params: ReportParameters) -> str:
+        """Return a self-reference with the given parameters."""
+        script_name = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
+        return cls.make_url(script_name,params)
 
 
 def _resolve_script_path(script_name: str) -> str:
@@ -618,7 +588,7 @@ def _resolve_script_path(script_name: str) -> str:
     return f"{base_dir}/{clean_name}"
 
 
-def make_url(
+def old_make_url(
     script_name: str,
     *,
     what: str = "",
@@ -635,9 +605,6 @@ def make_url(
     pages_back=None,
 ) -> str:
     """Return a URL for the given script on this host with the provided parameters."""
-
-    target = _resolve_script_path(script_name)
-
     params = ReportParameters(
         maybe_what_report=what,
         maybe_clock=clock,
@@ -652,13 +619,10 @@ def make_url(
         maybe_dow2=dow2,
         maybe_pages_back=pages_back,
     )
-    # print(params.dump())
-    query = CGIManager.params_to_query_str(params)
-    # print(f"<pre>{query=}</pre>")
-    return f"{target}{query}"
+    return CGIManager.make_url(script_name,params)
 
 
-def selfref(
+def old_selfref(
     what: str = "",
     clock: str = "",
     tag: str = "",
@@ -676,7 +640,7 @@ def selfref(
 
     # FIXME: move to CGIManager
     script_name = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
-    return make_url(
+    return old_make_url(
         script_name,
         what=what,
         clock=clock,
@@ -913,3 +877,40 @@ def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
     print(db.db_latest(ttdb))
 
     print(f"TagTracker version {get_version_info()}")
+
+
+def main_page_button() -> str:
+    """Make a button to take a person to the main page."""
+    target = CGIManager.selfref(None)
+    button = f"<button onclick=window.location.href='{target}';>Main</button>"
+    return button
+
+
+def back_button(pages_back: int) -> str:
+    """Make the 'back' button."""
+    return f"<button onclick='goBack({pages_back})'>Back</button>"
+
+
+def main_and_back_buttons(pages_back: int) -> str:
+    """Make a button that is  the main_page_button(), back_button(), or nothing."""
+    if pages_back == NAV_MAIN_BUTTON:
+        return main_page_button()
+    if pages_back == NAV_NO_BUTTON:
+        return ""
+    if isinstance(pages_back, int) and pages_back > wcfg.MAX_PAGES_BACK:
+        return main_page_button()
+    if CGIManager.called_by_self() and pages_back > 0:
+        return back_button(pages_back)
+    else:
+        return main_page_button()
+
+
+def increment_pages_back(pages_back: int) -> int:
+    """Increments pages_back but without altering any
+    of the pages_back magic values
+    """
+    if pages_back in (NAV_MAIN_BUTTON, NAV_NO_BUTTON):
+        return pages_back
+    else:
+        return pages_back + 1
+

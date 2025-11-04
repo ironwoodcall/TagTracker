@@ -366,7 +366,7 @@ def print_the_html(
     for date in sorted(tabledata.keys(), reverse=True):
         dayname = ut.date_str(date, dow_str_len=3)
         thisday: _OneDay = tabledata[date]
-        tags_report_link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=date)
+        tags_report_link = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date=date)
         print("<tr style='text-align: center; width: 15px;padding: 0px 3px;'>")
         print(f"<td style=width:auto;><a href='{tags_report_link}'>{date}</a></td>")
         print(f"<td style=width:auto;>{dayname}</td>")
@@ -518,7 +518,7 @@ def blocks_report(
     normalized_dow = selected_option.value
 
     target_what = cc.WHAT_BLOCKS
-    self_url = cc.selfref(
+    self_url = cc.old_selfref(
         what=target_what,
         qdow=normalized_dow if normalized_dow else None,
         start_date=start_date,

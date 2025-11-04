@@ -264,7 +264,7 @@ def compare_ranges(
     )
 
 
-    self_url = cc.selfref(
+    self_url = cc.old_selfref(
         what=cc.WHAT_COMPARE_RANGES,
         start_date=resolved_start_a,
         end_date=resolved_end_a,

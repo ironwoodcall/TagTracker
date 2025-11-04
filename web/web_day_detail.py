@@ -100,7 +100,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                     style="opacity: 0.5; cursor: not-allowed;">
                 {label}</button>
                 """
-        link = cc.selfref(
+        link = cc.old_selfref(
             what=cc.WHAT_ONE_DAY,
             start_date=target,
             pages_back=cc.increment_pages_back(pages_back),
@@ -118,7 +118,7 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                     style="opacity: 0.5; cursor: not-allowed;">
                 {label}</button>
                 """
-        link = cc.selfref(
+        link = cc.old_selfref(
             what=cc.WHAT_ONE_DAY,
             start_date="today",
             pages_back=cc.increment_pages_back(pages_back),
@@ -324,7 +324,7 @@ def day_activity_histogram(ttdb: sqlite3.Connection, today: str) -> str:
     """Return a mini activity histogram for the one day view."""
 
     orgsite_id = 1  # FIXME hardcoded orgsite_id
-    graph_link = cc.selfref(
+    graph_link = cc.old_selfref(
         what=cc.WHAT_ONE_DAY_FREQUENCIES,
         start_date=today,
         end_date=today,
@@ -426,7 +426,7 @@ def day_fullness_histogram(day_data: DayTotals, blocks) -> str:
 
     histogram_data = dict(ordered_pairs)
 
-    graph_link = cc.selfref(
+    graph_link = cc.old_selfref(
         what=cc.WHAT_ONE_DAY_FREQUENCIES,
         start_date=day_data.date if day_data else "",
         end_date=day_data.date if day_data else "",
@@ -756,25 +756,25 @@ def visits_table(
         sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
     sort_msg = f"(Sorted by {sort_msg}) "
 
-    link_sort_time = cc.selfref(
+    link_sort_time = cc.old_selfref(
         what=cc.WHAT_ONE_DAY,
         start_date=thisday,
         qsort=cc.SORT_TIME_IN,
         pages_back=cc.increment_pages_back(pages_back),
     )
-    link_sort_time_out = cc.selfref(
+    link_sort_time_out = cc.old_selfref(
         what=cc.WHAT_ONE_DAY,
         start_date=thisday,
         qsort=cc.SORT_TIME_OUT,
         pages_back=cc.increment_pages_back(pages_back),
     )
-    link_sort_tag = cc.selfref(
+    link_sort_tag = cc.old_selfref(
         what=cc.WHAT_ONE_DAY,
         start_date=thisday,
         qsort=cc.SORT_TAG,
         pages_back=cc.increment_pages_back(pages_back),
     )
-    link_sort_duration = cc.selfref(
+    link_sort_duration = cc.old_selfref(
         what=cc.WHAT_ONE_DAY,
         start_date=thisday,
         qsort=cc.SORT_DURATION,
@@ -815,7 +815,7 @@ def visits_table(
         duration = VTime(v.duration)
         print("<tr>")
         # Tag
-        tag_link = cc.selfref(what=cc.WHAT_TAG_HISTORY, tag=v.tag)
+        tag_link = cc.old_selfref(what=cc.WHAT_TAG_HISTORY, tag=v.tag)
         c = "color:auto;"
         # if v.next_time_in < time_in and time_out <= "" and not is_today:
         #     if v.tag[:1] == v.next_tag[:1]:
@@ -976,8 +976,8 @@ def summary_table(
     table_bits.append("</table><p></p>")
     prediction_bits = ""
     if is_today and est is not None and est.state != web_estimator.ERROR:
-        detail_link = cc.selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
-        audit_link = cc.selfref(what=cc.WHAT_AUDIT)
+        detail_link = cc.old_selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
+        audit_link = cc.old_selfref(what=cc.WHAT_AUDIT)
         result_html = "".join(est.result_msg(as_html=True))
         prediction_bits = (
             "<div style='margin-top:0.5em'>"
