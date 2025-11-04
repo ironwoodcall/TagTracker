@@ -687,9 +687,34 @@ def main_web_page(ttdb: sqlite3.Connection):
     )
     print(
         f"""
+        <button onclick="window.location.href='{detail_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Day by Day<br>Summaries</b></button>
+        &nbsp;&nbsp;
+          """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{blocks_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Day by Day<br>Activity</b></button>
+        &nbsp;&nbsp;
+        """
+    )
+    print("<br><br>")
+    print(
+        f"""
         <button onclick="window.location.href='{period_detail_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Date Range<br>Detail</b></button>
+        &nbsp;&nbsp;
+          """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{summaries_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Date Range<br>Summaries</b></button>
         &nbsp;&nbsp;
           """
     )
@@ -703,36 +728,13 @@ def main_web_page(ttdb: sqlite3.Connection):
     )
     print(
         f"""
-        <button onclick="window.location.href='{summaries_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Date Range<br>Summaries</b></button>
-        &nbsp;&nbsp;
-          """
-    )
-    print(
-        f"""
         <button onclick="window.location.href='{compare_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Date Range<br>Comparison</b></button>
         &nbsp;&nbsp;
         """
     )
-    print(
-        f"""
-        <button onclick="window.location.href='{detail_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Daily<br>Summaries</b></button>
-        &nbsp;&nbsp;
-          """
-    )
-    print(
-        f"""
-        <button onclick="window.location.href='{blocks_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Half-Hourly<br>Activity</b></button>
-        &nbsp;&nbsp;
-        """
-    )
+    print("<br><br>")  # "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
     print(
         f"""
         <button onclick="window.location.href='{tags_link}'"
@@ -741,7 +743,6 @@ def main_web_page(ttdb: sqlite3.Connection):
         &nbsp;&nbsp;
           """
     )
-    print("<br><br>")  # "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
     print(
         f"""
     <button onclick="window.location.href='{download_csv_link}'"
