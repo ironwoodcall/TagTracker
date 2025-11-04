@@ -81,7 +81,6 @@ def season_frequencies_report(
 
     start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
         ttdb,
-        orgsite_id=orgsite_id,
         start_date=requested_start,
         end_date=requested_end,
         db_limits=(db_start_date, db_end_date),
@@ -776,7 +775,6 @@ def season_detail(
 
     start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
         ttdb,
-        orgsite_id=1,
         start_date=requested_start,
         end_date=requested_end,
         db_limits=(db_start_date, db_end_date),

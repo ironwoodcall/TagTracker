@@ -510,7 +510,6 @@ def blocks_report(
 
     start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
         ttdb,
-        orgsite_id=orgsite_id,
         start_date=params.start_date,
         end_date=params.end_date,
     )

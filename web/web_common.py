@@ -217,7 +217,6 @@ def increment_pages_back(pages_back: int) -> int:
 def resolve_date_range(
     ttdb: sqlite3.Connection,
     *,
-    orgsite_id: int = 1,
     start_date: str = "",
     end_date: str = "",
     today: str = "today",
@@ -241,7 +240,6 @@ def resolve_date_range(
     if db_limits is None:
         db_start, db_end = db.fetch_date_range_limits(
             ttdb,
-            orgsite_id=orgsite_id,
         )
     else:
         db_start, db_end = db_limits

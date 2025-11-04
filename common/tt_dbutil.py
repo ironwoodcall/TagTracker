@@ -128,7 +128,7 @@ def fetch_orgsite_id(
     return this_id
 
 
-def fetch_date_range_limits(conn_or_cursor, orgsite_id: int) -> tuple[str, str]:
+def fetch_date_range_limits(conn_or_cursor, orgsite_id: int=1) -> tuple[str, str]:
     """Fetch the min and max date range for a given orgsite_id."""
 
     # Determine if the input is a connection or a cursor

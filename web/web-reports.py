@@ -97,7 +97,7 @@ def web_audit_report(
     total_onsite = regular_onsite + oversize_onsite
 
     print(
-        "<table class='general_table' " "style='max-width:22rem;margin-bottom:1.5rem;'>"
+        "<table class='general_table' style='max-width:22rem;margin-bottom:1.5rem;'>"
     )
     print(f"<tr><th>Bikes currently on-site</th><th><b>{total_onsite}</b></th></tr>")
     print(
@@ -117,7 +117,7 @@ def web_audit_report(
         "border:1px solid #666;font-family:monospace;font-size:1.5em;"
     )
     cell_style = (
-        "style='border:0;padding:4px 6px;white-space:nowrap;" "text-align:center;'"
+        "style='border:0;padding:4px 6px;white-space:nowrap;text-align:center;'"
     )
     retired_marker = "&bullet;"
 
@@ -279,7 +279,6 @@ if params.what_report == cc.WHAT_COMPARE_RANGES:
 (params.start_date, params.end_date, _default_start_date, _default_end_date) = (
     cc.resolve_date_range(
         database,
-        orgsite_id=ORGSITE_ID,
         start_date=params.start_date or "",
         end_date=params.end_date or "",
     )
@@ -293,14 +292,12 @@ if params.what_report == cc.WHAT_COMPARE_RANGES:
         _default_end_date2,
     ) = cc.resolve_date_range(
         database,
-        orgsite_id=ORGSITE_ID,
         start_date=params.start_date2 or "",
         end_date=params.end_date2 or "",
     )
 else:
     params.start_date2 = params.start_date2 or ""
     params.end_date2 = params.end_date2 or ""
-
 
 if params.what_report == cc.WHAT_TAG_HISTORY:
     web_tags_report.one_tag_history_report(database, params.tag)
@@ -337,7 +334,6 @@ elif params.what_report == cc.WHAT_COMPARE_RANGES:
         start_date_b=params.start_date2,
         end_date_b=params.end_date2,
         dow_b=params.dow2 or "",
-        # query_params=compare_query_params,
     )
 elif params.what_report == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
