@@ -15,18 +15,13 @@ def period_detail(
     ttdb: sqlite3.Connection,
     *,
     params: cc.ReportParameters,
-    pages_back: int = 1,
-    start_date: str = "",
-    end_date: str = "",
-    dow: str = "",
 ) -> None:
     """Render the single-period detail report."""
 
-    resolved_start = start_date or ""
-    resolved_end = end_date or ""
-    resolved_dow = dow or ""
-
-    resolved_pages_back = pages_back if isinstance(pages_back, int) else 1
+    resolved_start = params.start_date
+    resolved_end = params.end_date
+    resolved_dow = params.dow
+    resolved_pages_back = params.pages_back or 1
 
     params.what_report = cc.WHAT_DATERANGE_DETAIL
     params.start_date = resolved_start

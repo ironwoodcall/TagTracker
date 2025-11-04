@@ -319,14 +319,7 @@ elif params.what_report == cc.WHAT_ONE_DAY_FREQUENCIES:
 elif params.what_report == cc.WHAT_AUDIT:
     web_audit_report(database)
 elif params.what_report == cc.WHAT_DATERANGE_DETAIL:
-    web_period_detail.period_detail(
-        database,
-        params=params,
-        pages_back=params.pages_back,
-        start_date=params.start_date,
-        end_date=params.end_date,
-        dow=params.dow or "",
-    )
+    web_period_detail.period_detail(database, params=params)
 elif params.what_report == cc.WHAT_DATERANGE:
     web_period_summaries.daterange_summary(database, params=params)
 elif params.what_report == cc.WHAT_ESTIMATE_VERBOSE:
