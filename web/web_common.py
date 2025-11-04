@@ -553,9 +553,8 @@ class CGIManager:
             mapping[cgi_name] = str(value)
         return mapping
 
-
     @classmethod
-    def make_url(cls, script_name:str, params: ReportParameters) -> str:
+    def make_url(cls, script_name: str, params: ReportParameters) -> str:
         """Return a URL for the given script on this host with the provided parameters."""
 
         target = _resolve_script_path(script_name)
@@ -563,10 +562,60 @@ class CGIManager:
         return f"{target}{query}"
 
     @classmethod
-    def selfref(cls, params: ReportParameters) -> str:
-        """Return a self-reference with the given parameters."""
+    def selfref(
+        cls,
+        params: ReportParameters = None,
+        *,
+        what_report: str = "",
+        clock: str = "",
+        tag: str = "",
+        dow: str = "",
+        sort_by: str = "",
+        sort_direction: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        start_date2: str = "",
+        end_date2: str = "",
+        dow2: str = "",
+        pages_back: int | None = None,
+    ) -> str:
+        """Return a self-reference with the given parameters.
+
+        If additional parameters are given, they will override the equivalent
+        params properties; or if no params, a new ReportParameters will be
+        created with those values.
+        """
+
+        if params is None:
+            new_params = ReportParameters()
+        else:
+            new_params = copy.deepcopy(params)
+
+        overrides = {
+            "what_report": what_report,
+            "clock": clock,
+            "tag": tag,
+            "dow": dow,
+            "sort_by": sort_by,
+            "sort_direction": sort_direction,
+            "start_date": start_date,
+            "end_date": end_date,
+            "start_date2": start_date2,
+            "end_date2": end_date2,
+            "dow2": dow2,
+            "pages_back": pages_back,
+        }
+
+        for property_name, value in overrides.items():
+            if value is None:
+                continue
+            if isinstance(value, str) and value == "":
+                continue
+            new_params.set_property(property_name, value)
+
+        # Get the script name, return the new URL
         script_name = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
-        return cls.make_url(script_name,params)
+        return cls.make_url(script_name, new_params)
 
 
 def _resolve_script_path(script_name: str) -> str:
@@ -619,7 +668,7 @@ def old_make_url(
         maybe_dow2=dow2,
         maybe_pages_back=pages_back,
     )
-    return CGIManager.make_url(script_name,params)
+    return CGIManager.make_url(script_name, params)
 
 
 def old_selfref(
@@ -913,4 +962,3 @@ def increment_pages_back(pages_back: int) -> int:
         return pages_back
     else:
         return pages_back + 1
-
