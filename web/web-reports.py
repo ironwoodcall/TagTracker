@@ -58,7 +58,6 @@ from web_daterange_selector import DateDowSelection
 
 def web_audit_report(
     ttdb: sqlite3.Connection,
-    orgsite_id: int,
 ):
     """Print web audit report."""
 
@@ -74,7 +73,7 @@ def web_audit_report(
 
     # Find this day's day_id
     cursor = ttdb.cursor()
-    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=orgsite_id)
+    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=1)
     cursor.close()
 
     if not day_id:
@@ -318,7 +317,7 @@ elif params.what_report == cc.WHAT_ONE_DAY_FREQUENCIES:
         database, params, restrict_to_single_day=True
     )
 elif params.what_report == cc.WHAT_AUDIT:
-    web_audit_report(database, orgsite_id=1)  # FIXME: orgsite_id
+    web_audit_report(database)
 elif params.what_report == cc.WHAT_DATERANGE_DETAIL:
     web_period_detail.period_detail(
         database,
