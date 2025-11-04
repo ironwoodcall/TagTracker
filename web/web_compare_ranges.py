@@ -202,50 +202,21 @@ def compare_ranges(
 ) -> None:
     """Render the comparison report between two date ranges."""
 
-    pages_back = params.pages_back
-    start_date_a = params.start_date
-    end_date_a = params.end_date
-    dow_a = params.dow
-    start_date_b = params.start_date2
-    end_date_b = params.end_date2
-    dow_b = params.dow2
+    nav_pages_back = params.pages_back if isinstance(params.pages_back, int) else 1
+    params.pages_back = cc.increment_pages_back(nav_pages_back)
 
-    resolved_start_a = start_date_a or ""
-    resolved_end_a = end_date_a or ""
-    resolved_start_b = start_date_b or ""
-    resolved_end_b = end_date_b or ""
-    resolved_dow_a = dow_a or ""
-    resolved_dow_b = dow_b or ""
+    field_names = tuple(
+        {
+            "start": cc.CGIManager.param_name(f"start_date{suffix}"),
+            "end": cc.CGIManager.param_name(f"end_date{suffix}"),
+            "dow": cc.CGIManager.param_name(f"dow{suffix}"),
+        }
+        for suffix in ("", "2")
+    )
 
-    resolved_pages_back: int = pages_back
-    if not isinstance(resolved_pages_back, int):
-        resolved_pages_back = 1
-
-    field_names_a = {
-        "start": cc.CGIManager.param_name("start_date"),
-        "end": cc.CGIManager.param_name("end_date"),
-        "dow": cc.CGIManager.param_name("dow"),
-    }
-    field_names_b = {
-        "start": cc.CGIManager.param_name("start_date2"),
-        "end": cc.CGIManager.param_name("end_date2"),
-        "dow": cc.CGIManager.param_name("dow2"),
-    }
-
-    params.what_report = cc.WHAT_COMPARE_RANGES
-    params.start_date = resolved_start_a
-    params.end_date = resolved_end_a
-    params.start_date2 = resolved_start_b
-    params.end_date2 = resolved_end_b
-    params.dow = resolved_dow_a
-    params.dow2 = resolved_dow_b
-    params.pages_back = cc.increment_pages_back(resolved_pages_back)
-
-    query_params = cc.CGIManager.params_to_query_mapping(params)
-    # query_params["back"] = resolved_pages_back
-    normalized_updates = _normalize_query_params(query_params)
-
-    nav_pages_back = resolved_pages_back
+    normalized_updates = _normalize_query_params(
+        cc.CGIManager.params_to_query_mapping(params)
+    )
 
     title = cc.titleize("Date range comparison")
     print(title)
@@ -254,29 +225,23 @@ def compare_ranges(
     _print_instructions()
 
     options_tuple = tuple(DEFAULT_DOW_OPTIONS)
-    selection_a = DateDowSelection(
-        start_date=resolved_start_a,
-        end_date=resolved_end_a,
-        dow_value=find_dow_option(resolved_dow_a, options_tuple).value,
-    )
-    selection_b = DateDowSelection(
-        start_date=resolved_start_b,
-        end_date=resolved_end_b,
-        dow_value=find_dow_option(resolved_dow_b, options_tuple).value,
+    selection_a, selection_b = tuple(
+        DateDowSelection(
+            start_date=start,
+            end_date=end,
+            dow_value=find_dow_option(dow, options_tuple).value,
+        )
+        for start, end, dow in (
+            (params.start_date, params.end_date, params.dow),
+            (params.start_date2, params.end_date2, params.dow2),
+        )
     )
 
     self_url = cc.CGIManager.selfref(params=params, what_report=cc.WHAT_COMPARE_RANGES)
 
     form_action = self_url.split("?", 1)[0]
 
-    excluded = {
-        field_names_a["start"].lower(),
-        field_names_a["end"].lower(),
-        field_names_a["dow"].lower(),
-        field_names_b["start"].lower(),
-        field_names_b["end"].lower(),
-        field_names_b["dow"].lower(),
-    }
+    excluded = {value.lower() for names in field_names for value in names.values()}
     hidden_params = {
         key: [value]
         for key, value in normalized_updates.items()
@@ -289,7 +254,7 @@ def compare_ranges(
             form_action,
             selection_a,
             selection_b,
-            field_names=(field_names_a, field_names_b),
+            field_names=field_names,
             submit_label="Apply filters",
             options=options_tuple,
             hidden_fields=hidden_fields,
@@ -313,8 +278,6 @@ def compare_ranges(
         selection_b.dow_value,
     )
 
-    metric_rows = METRIC_ROWS
-
     print("<table class='general_table'>")
     description_row = (
         f"Period A: {html.escape(description_a or 'All data')}<br>"
@@ -337,7 +300,7 @@ def compare_ranges(
         "</tr>"
     )
 
-    for row in metric_rows:
+    for row in METRIC_ROWS:
         value_a = getattr(metrics_a, row["attr"])
         value_b = getattr(metrics_b, row["attr"])
         delta = None
