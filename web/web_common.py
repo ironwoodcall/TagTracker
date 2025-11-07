@@ -63,6 +63,7 @@ WHAT_DETAIL = "Dt"
 WHAT_SUMMARY = "Sm"
 WHAT_SUMMARY_FREQUENCIES = "SQ"
 WHAT_COMPARE_RANGES = "Cmp"
+WHAT_DATERANGE_DETAIL = "DDet"
 WHAT_DATERANGE = "P"
 WHAT_DATERANGE_FOREVER = "pF"
 WHAT_DATERANGE_YEAR = "pY"
@@ -87,15 +88,16 @@ WHAT_VALID_VALUES = {
     WHAT_AUDIT,
     WHAT_COMPARE_RANGES,
     WHAT_DATERANGE,
-    WHAT_DATERANGE_FOREVER,
-    WHAT_DATERANGE_YEAR,
-    WHAT_DATERANGE_QUARTER,
-    WHAT_DATERANGE_MONTH,
-    WHAT_DATERANGE_WEEK,
-    WHAT_DATERANGE_CUSTOM,
+    # WHAT_DATERANGE_FOREVER,
+    # WHAT_DATERANGE_YEAR,
+    # WHAT_DATERANGE_QUARTER,
+    # WHAT_DATERANGE_MONTH,
+    # WHAT_DATERANGE_WEEK,
+    # WHAT_DATERANGE_CUSTOM,
     WHAT_ESTIMATE_VERBOSE,
     WHAT_DOWNLOAD_CSV,
     WHAT_DOWNLOAD_DB,
+    WHAT_DATERANGE_DETAIL,
 }
 
 # These constants are used to manage how report columns are sorted.
@@ -176,46 +178,9 @@ def titleize(title: str = "", subtitle: str = "") -> str:
     return content
 
 
-def main_page_button() -> str:
-    """Make a button to take a person to the main page."""
-    target = selfref()
-    button = f"<button onclick=window.location.href='{target}';>Main</button>"
-    return button
-
-
-def back_button(pages_back: int) -> str:
-    """Make the 'back' button."""
-    return f"<button onclick='goBack({pages_back})'>Back</button>"
-
-
-def main_and_back_buttons(pages_back: int) -> str:
-    """Make a button that is  the main_page_button(), back_button(), or nothing."""
-    if pages_back == NAV_MAIN_BUTTON:
-        return main_page_button()
-    if pages_back == NAV_NO_BUTTON:
-        return ""
-    if isinstance(pages_back, int) and pages_back > wcfg.MAX_PAGES_BACK:
-        return main_page_button()
-    if CGIManager.called_by_self() and pages_back > 0:
-        return back_button(pages_back)
-    else:
-        return main_page_button()
-
-
-def increment_pages_back(pages_back: int) -> int:
-    """Increments pages_back but without altering any
-    of the pages_back magic values
-    """
-    if pages_back in (NAV_MAIN_BUTTON, NAV_NO_BUTTON):
-        return pages_back
-    else:
-        return pages_back + 1
-
-
 def resolve_date_range(
     ttdb: sqlite3.Connection,
     *,
-    orgsite_id: int = 1,
     start_date: str = "",
     end_date: str = "",
     today: str = "today",
@@ -239,7 +204,6 @@ def resolve_date_range(
     if db_limits is None:
         db_start, db_end = db.fetch_date_range_limits(
             ttdb,
-            orgsite_id=orgsite_id,
         )
     else:
         db_start, db_end = db_limits
@@ -590,13 +554,68 @@ class CGIManager:
         return mapping
 
     @classmethod
-    def selfref(cls, params: ReportParameters) -> str:
-        pass
+    def make_url(cls, script_name: str, params: ReportParameters) -> str:
+        """Return a URL for the given script on this host with the provided parameters."""
+
+        target = _resolve_script_path(script_name)
+        query = CGIManager.params_to_query_str(params)
+        return f"{target}{query}"
 
     @classmethod
-    def make_url(cls, params: ReportParameters) -> str:
-        """Return a URL for the given script on this host with the provided parameters."""
-        pass
+    def selfref(
+        cls,
+        params: ReportParameters = None,
+        *,
+        what_report: str = "",
+        clock: str = "",
+        tag: str = "",
+        dow: str = "",
+        sort_by: str = "",
+        sort_direction: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        start_date2: str = "",
+        end_date2: str = "",
+        dow2: str = "",
+        pages_back: int | None = None,
+    ) -> str:
+        """Return a self-reference with the given parameters.
+
+        If additional parameters are given, they will override the equivalent
+        params properties; or if no params, a new ReportParameters will be
+        created with those values.
+        """
+
+        if params is None:
+            new_params = ReportParameters()
+        else:
+            new_params = copy.deepcopy(params)
+
+        overrides = {
+            "what_report": what_report,
+            "clock": clock,
+            "tag": tag,
+            "dow": dow,
+            "sort_by": sort_by,
+            "sort_direction": sort_direction,
+            "start_date": start_date,
+            "end_date": end_date,
+            "start_date2": start_date2,
+            "end_date2": end_date2,
+            "dow2": dow2,
+            "pages_back": pages_back,
+        }
+
+        for property_name, value in overrides.items():
+            if value is None:
+                continue
+            if isinstance(value, str) and value == "":
+                continue
+            new_params.set_property(property_name, value)
+
+        # Get the script name, return the new URL
+        script_name = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
+        return cls.make_url(script_name, new_params)
 
 
 def _resolve_script_path(script_name: str) -> str:
@@ -616,82 +635,6 @@ def _resolve_script_path(script_name: str) -> str:
 
     base_dir = current_script.rsplit("/", 1)[0]
     return f"{base_dir}/{clean_name}"
-
-
-def make_url(
-    script_name: str,
-    *,
-    what: str = "",
-    clock: str = "",
-    tag: str = "",
-    qdow: str = "",
-    qsort: str = "",
-    qdir: str = "",
-    start_date: str = "",
-    end_date: str = "",
-    start_date2: str = "",
-    end_date2: str = "",
-    dow2: str = "",
-    pages_back=None,
-) -> str:
-    """Return a URL for the given script on this host with the provided parameters."""
-
-    target = _resolve_script_path(script_name)
-
-    params = ReportParameters(
-        maybe_what_report=what,
-        maybe_clock=clock,
-        maybe_tag=tag,
-        maybe_dow=qdow,
-        maybe_sort_by=qsort,
-        maybe_sort_direction=qdir,
-        maybe_start_date=start_date,
-        maybe_end_date=end_date,
-        maybe_start_date2=start_date2,
-        maybe_end_date2=end_date2,
-        maybe_dow2=dow2,
-        maybe_pages_back=pages_back,
-    )
-    # print(params.dump())
-    query = CGIManager.params_to_query_str(params)
-    # print(f"<pre>{query=}</pre>")
-    return f"{target}{query}"
-
-
-def selfref(
-    what: str = "",
-    clock: str = "",
-    tag: str = "",
-    qdow: str = "",
-    qsort: str = "",
-    qdir: str = "",
-    start_date: str = "",
-    end_date: str = "",
-    start_date2: str = "",
-    end_date2: str = "",
-    dow2: str = "",
-    pages_back=None,
-) -> str:
-    """Return a self-reference with the given parameters."""
-
-    # FIXME: move to CGIManager
-    script_name = ut.untaint(os.environ.get("SCRIPT_NAME", ""))
-    return make_url(
-        script_name,
-        what=what,
-        clock=clock,
-        tag=tag,
-        qdow=qdow,
-        qsort=qsort,
-        qdir=qdir,
-        start_date=start_date,
-        end_date=end_date,
-        start_date2=start_date2,
-        end_date2=end_date2,
-        dow2=dow2,
-        pages_back=pages_back,
-    )
-
 
 def style() -> str:
     """Return a CSS stylesheet as a string."""
@@ -913,3 +856,39 @@ def webpage_footer(ttdb: sqlite3.Connection, elapsed_time):
     print(db.db_latest(ttdb))
 
     print(f"TagTracker version {get_version_info()}")
+
+
+def main_page_button() -> str:
+    """Make a button to take a person to the main page."""
+    target = CGIManager.selfref(None)
+    button = f"<button onclick=window.location.href='{target}';>Main</button>"
+    return button
+
+
+def back_button(pages_back: int) -> str:
+    """Make the 'back' button."""
+    return f"<button onclick='goBack({pages_back})'>Back</button>"
+
+
+def main_and_back_buttons(pages_back: int) -> str:
+    """Make a button that is  the main_page_button(), back_button(), or nothing."""
+    if pages_back == NAV_MAIN_BUTTON:
+        return main_page_button()
+    if pages_back == NAV_NO_BUTTON:
+        return ""
+    if isinstance(pages_back, int) and pages_back > wcfg.MAX_PAGES_BACK:
+        return main_page_button()
+    if CGIManager.called_by_self() and pages_back > 0:
+        return back_button(pages_back)
+    else:
+        return main_page_button()
+
+
+def increment_pages_back(pages_back: int) -> int:
+    """Increments pages_back but without altering any
+    of the pages_back magic values
+    """
+    if pages_back in (NAV_MAIN_BUTTON, NAV_NO_BUTTON):
+        return pages_back
+    else:
+        return pages_back + 1

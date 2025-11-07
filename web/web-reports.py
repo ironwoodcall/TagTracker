@@ -26,7 +26,6 @@ import sqlite3
 import sys
 import os
 import time
-from datetime import date, timedelta
 import html
 from pathlib import Path
 
@@ -36,36 +35,37 @@ sys.path.append("./")
 # pylint:disable=wrong-import-position
 import web_common as cc
 import web_block_report
-from web_day_detail import one_day_tags_report
+import web_day_detail
 import web_season_report
 import web_tags_report
 import web_period_summaries
 import web_compare_ranges
+import web_period_detail
 import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
 import common.tt_constants as k
 import common.tt_dbutil as db
+
 # import tt_reports as rep
 # import tt_audit_report as aud
 # import tt_tag_inv
 # import tt_printer as pr
 from web_estimator import Estimator
+from web_daterange_selector import DateDowSelection
 
 
 def web_audit_report(
     ttdb: sqlite3.Connection,
-    orgsite_id: int,
 ):
     """Print web audit report."""
 
     as_of_time = VTime("now")
     thisday = ut.date_str("today")
 
-
     print("""<meta name="format-detection" content="telephone=no"/>""")
-    print(cc.titleize("Attendant audit report",f"As at {as_of_time.tidy} {thisday}"))
+    print(cc.titleize("Attendant audit report", f"As at {as_of_time.tidy} {thisday}"))
     # Only put a "Back" button if this was called from itself
     if cc.CGIManager.called_by_self():
         print(f"{cc.back_button(1)}<br><br>")
@@ -73,7 +73,7 @@ def web_audit_report(
 
     # Find this day's day_id
     cursor = ttdb.cursor()
-    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=orgsite_id)
+    day_id = db.fetch_day_id(cursor=cursor, date=thisday, maybe_orgsite_id=1)
     cursor.close()
 
     if not day_id:
@@ -81,7 +81,6 @@ def web_audit_report(
         return
 
     day = db.db2day(ttdb=ttdb, day_id=day_id)
-
 
     tags_in_use = day.tags_in_use(as_of_when=as_of_time)
     regular_onsite = 0
@@ -96,16 +95,15 @@ def web_audit_report(
             regular_onsite += 1
     total_onsite = regular_onsite + oversize_onsite
 
-    print(
-        "<table class='general_table' "
-        "style='max-width:22rem;margin-bottom:1.5rem;'>"
-    )
+    print("<table class='general_table' style='max-width:22rem;margin-bottom:1.5rem;'>")
     print(f"<tr><th>Bikes currently on-site</th><th><b>{total_onsite}</b></th></tr>")
     print(
-        f"<tr><td>&nbsp;&nbsp;&nbsp;Regular bikes</td><td style='text-align:right;'>{regular_onsite}</td></tr>"
+        "<tr><td>&nbsp;&nbsp;&nbsp;Regular bikes</td>"
+        f"<td style='text-align:right;'>{regular_onsite}</td></tr>"
     )
     print(
-        f"<tr><td>&nbsp;&nbsp;&nbsp;Oversize bikes</td><td style='text-align:right;'>{oversize_onsite}</td></tr>"
+        "<tr><td>&nbsp;&nbsp;&nbsp;Oversize bikes</td>"
+        f"<td style='text-align:right;'>{oversize_onsite}</td></tr>"
     )
     # print(
     #     "<tr><td><b>Total bikes</b></td><td style='text-align:right;'>"
@@ -118,8 +116,7 @@ def web_audit_report(
         "border:1px solid #666;font-family:monospace;font-size:1.5em;"
     )
     cell_style = (
-        "style='border:0;padding:4px 6px;white-space:nowrap;"
-        "text-align:center;'"
+        "style='border:0;padding:4px 6px;white-space:nowrap;text-align:center;'"
     )
     retired_marker = "&bullet;"
 
@@ -143,7 +140,7 @@ def web_audit_report(
             if rows_rendered and colour_code != previous_colour:
                 print(
                     f"<tr><td colspan='{total_columns}' style='border:0;padding:4px 0;'>"
-                    "<hr style=\"border:0;border-top:1px solid #999;margin:0;\"></td></tr>"
+                    '<hr style="border:0;border-top:1px solid #999;margin:0;"></td></tr>'
                 )
             cells = [f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>"]
             for i in range(max_seq + 1):
@@ -155,9 +152,13 @@ def web_audit_report(
                 else:
                     cell_value = "&nbsp;&nbsp;"
                 cells.append(f"<td {cell_style}>{cell_value}</td>")
-            cells.append(f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>")
+            cells.append(
+                f"<td {cell_style}><strong>{html.escape(prefix)}</strong></td>"
+            )
             row_bg_colour = "#f4f4f4" if rows_rendered % 2 else "#ffffff"
-            row_style = f" style='background-color:{row_bg_colour};'" if row_bg_colour else ""
+            row_style = (
+                f" style='background-color:{row_bg_colour};'" if row_bg_colour else ""
+            )
             print(f"<tr{row_style}>" + "".join(cells) + "</tr>")
             rows_rendered += 1
             previous_colour = colour_code
@@ -195,7 +196,9 @@ def web_est_wrapper() -> None:
     for line in est.result_msg(as_html=True):
         print(line)
 
-    models_path = Path(__file__).resolve().parent.parent / "docs" / "estimator_models.txt"
+    models_path = (
+        Path(__file__).resolve().parent.parent / "docs" / "estimator_models.txt"
+    )
     if models_path.is_file():
         print("<h3>Background on the models</h3><pre>")
         with models_path.open(encoding="utf-8") as models_file:
@@ -209,6 +212,7 @@ SAFE_QUERY_CHARS = frozenset(
 )
 
 # FIXME: Remove once moved to CGIManager
+
 
 def validate_query_params(query_parms: dict[str, list[str]]) -> None:
     """Ensure all provided query parameter values only contain allowed characters."""
@@ -239,18 +243,6 @@ if os.getenv("TAGTRACKER_DEBUG"):
 params = cc.CGIManager.cgi_to_params()
 params.what_report = params.what_report or cc.WHAT_SUMMARY
 params.pages_back = params.pages_back or 1
-what = params.what_report
-tag = params.tag
-dow_parameter = params.dow
-sort_by = params.sort_by
-sort_direction = params.sort_direction
-pages_back = params.pages_back
-
-requested_start = params.start_date
-requested_end = params.end_date
-requested_start2 = params.start_date2
-requested_end2 = params.end_date2
-dow_parameter2 = params.dow2
 
 TagID.uc(wcfg.TAGS_UPPERCASE)
 
@@ -267,143 +259,76 @@ k.set_html_style()
 
 cc.html_head()
 
-if not what:
+if not params.what_report:
     sys.exit()
 
 
 if params.what_report == cc.WHAT_COMPARE_RANGES:
-    today_str = ut.date_str("today")
-    try:
-        today_date = date.fromisoformat(today_str)
-    except ValueError:
-        today_date = date.today()
+    prior_start, prior_end = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_PREVIOUS_MONTH_PRIOR_YEAR
+    )
+    recent_start, recent_end = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_PREVIOUS_MONTH
+    )
+    params.start_date = params.start_date or prior_start
+    params.end_date = params.end_date or prior_end
+    params.start_date2 = params.start_date2 or recent_start
+    params.end_date2 = params.end_date2 or recent_end
 
-    current_month_start = date(today_date.year, today_date.month, 1)
-    last_month_end = current_month_start - timedelta(days=1)
-    last_month_start = date(last_month_end.year, last_month_end.month, 1)
-
-    def _month_end(start_day: date) -> date:
-        """Return the final day of the month containing ``start_day``."""
-        if start_day.month == 12:
-            next_month_start = date(start_day.year + 1, 1, 1)
-        else:
-            next_month_start = date(start_day.year, start_day.month + 1, 1)
-        return next_month_start - timedelta(days=1)
-
-    period_b_start_default = last_month_start.isoformat()
-    period_b_end_default = last_month_end.isoformat()
-
-    prev_year_start = date(last_month_start.year - 1, last_month_start.month, 1)
-    prev_year_end = _month_end(prev_year_start)
-
-    period_a_start_default = prev_year_start.isoformat()
-    period_a_end_default = prev_year_end.isoformat()
-
-    if not requested_start:
-        requested_start = period_a_start_default
-    if not requested_end:
-        requested_end = period_a_end_default
-    if not requested_start2:
-        requested_start2 = period_b_start_default
-    if not requested_end2:
-        requested_end2 = period_b_end_default
-
-date_start, date_end, _default_start_date, _default_end_date = cc.resolve_date_range(
-    database,
-    orgsite_id=ORGSITE_ID,
-    start_date=requested_start,
-    end_date=requested_end,
+(params.start_date, params.end_date, _default_start_date, _default_end_date) = (
+    cc.resolve_date_range(
+        database,
+        start_date=params.start_date or "",
+        end_date=params.end_date or "",
+    )
 )
 
-date_start2, date_end2, _default_start_date2, _default_end_date2 = cc.resolve_date_range(
-    database,
-    orgsite_id=ORGSITE_ID,
-    start_date=requested_start2,
-    end_date=requested_end2,
-)
-
-
-if what == cc.WHAT_TAG_HISTORY:
-    web_tags_report.one_tag_history_report(database, tag)
-elif what == cc.WHAT_BLOCKS:
-    web_block_report.blocks_report(
+if params.what_report == cc.WHAT_COMPARE_RANGES:
+    (
+        params.start_date2,
+        params.end_date2,
+        _default_start_date2,
+        _default_end_date2,
+    ) = cc.resolve_date_range(
         database,
-        iso_dow=dow_parameter,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
+        start_date=params.start_date2 or "",
+        end_date=params.end_date2 or "",
     )
-elif what == cc.WHAT_DETAIL:
-    web_season_report.season_detail(
-        database,
-        sort_by=sort_by,
-        sort_direction=sort_direction,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
-        dow_parameter=dow_parameter,
-    )
-elif what == cc.WHAT_SUMMARY:
+else:
+    params.start_date2 = params.start_date2 or ""
+    params.end_date2 = params.end_date2 or ""
+
+if params.what_report == cc.WHAT_TAG_HISTORY:
+    web_tags_report.one_tag_history_report(database, params.tag)
+elif params.what_report == cc.WHAT_BLOCKS:
+    web_block_report.blocks_report(database, params)
+elif params.what_report == cc.WHAT_DETAIL:
+    web_season_report.season_detail(database, params)
+elif params.what_report == cc.WHAT_SUMMARY:
     web_season_report.main_web_page(database)
-elif what == cc.WHAT_SUMMARY_FREQUENCIES:
-    web_season_report.season_frequencies_report(
-        database,
-        dow_parameter=dow_parameter,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
-    )
-elif what == cc.WHAT_COMPARE_RANGES:
-    web_compare_ranges.compare_ranges(
-        database,
-        params=params,
-        pages_back=pages_back,
-        start_date_a=date_start,
-        end_date_a=date_end,
-        dow_a=dow_parameter,
-        start_date_b=date_start2,
-        end_date_b=date_end2,
-        dow_b=dow_parameter2,
-        # query_params=compare_query_params,
-    )
-elif what == cc.WHAT_TAGS_LOST:
+elif params.what_report == cc.WHAT_SUMMARY_FREQUENCIES:
+    web_season_report.season_frequencies_report(database, params)
+elif params.what_report == cc.WHAT_COMPARE_RANGES:
+    web_compare_ranges.compare_ranges(database, params=params)
+elif params.what_report == cc.WHAT_TAGS_LOST:
     web_tags_report.tags_report(database)
-elif what == cc.WHAT_ONE_DAY:
-    one_day_tags_report(
-        database,
-        orgsite_id=ORGSITE_ID,
-        whatday=params.start_date,
-        sort_by=sort_by,
-        pages_back=pages_back,
-    )
-elif what == cc.WHAT_ONE_DAY_FREQUENCIES:
+elif params.what_report == cc.WHAT_ONE_DAY:
+    web_day_detail.one_day_tags_report(database, params)
+elif params.what_report == cc.WHAT_ONE_DAY_FREQUENCIES:
     web_season_report.season_frequencies_report(
-        database,
-        pages_back=pages_back,
-        start_date=date_start,
-        end_date=date_end,
-        restrict_to_single_day=True,
+        database, params, restrict_to_single_day=True
     )
-elif what == cc.WHAT_AUDIT:
-    web_audit_report(
-        database, orgsite_id=1,
-    )  # FIXME: orgsite_id
-elif what in [
-    cc.WHAT_DATERANGE,
-    cc.WHAT_DATERANGE_WEEK,
-    cc.WHAT_DATERANGE_MONTH,
-    cc.WHAT_DATERANGE_QUARTER,
-    cc.WHAT_DATERANGE_YEAR,
-    cc.WHAT_DATERANGE_CUSTOM,
-]:
-    web_period_summaries.daterange_summary(
-        database, what, start_date=date_start, end_date=date_end, pages_back=pages_back
-    )
-elif what == cc.WHAT_ESTIMATE_VERBOSE:
+elif params.what_report == cc.WHAT_AUDIT:
+    web_audit_report(database)
+elif params.what_report == cc.WHAT_DATERANGE_DETAIL:
+    web_period_detail.period_detail(database, params=params)
+elif params.what_report == cc.WHAT_DATERANGE:
+    web_period_summaries.daterange_summary(database, params=params)
+elif params.what_report == cc.WHAT_ESTIMATE_VERBOSE:
     web_est_wrapper()
 
 else:
-    cc.error_out(f"Unknown request: {ut.untaint(what)}")
+    cc.error_out(f"Unknown request: {ut.untaint(params.what_report)}")
     sys.exit(1)
 
 

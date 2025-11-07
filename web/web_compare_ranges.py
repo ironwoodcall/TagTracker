@@ -3,12 +3,8 @@
 
 from __future__ import annotations
 
-import copy
 import html
-import math
 import sqlite3
-from dataclasses import dataclass
-from statistics import mean, median
 from typing import Any, Mapping, Sequence
 
 import web_common as cc
@@ -19,112 +15,11 @@ from web_daterange_selector import (
     find_dow_option,
     _render_hidden_fields,
 )
-from common.tt_daysummary import DayTotals
-from common.tt_time import VTime
-try:
-    from common.commuter_hump import CommuterHumpAnalyzer
-except ImportError:  # pragma: no cover - optional dependency
-    CommuterHumpAnalyzer = None
-
-
-@dataclass
-class PeriodMetrics:
-    """Aggregated values for a date range."""
-
-    days_open: int = 0
-    open_minutes: int = 0
-    total_bikes_parked: int = 0
-    regular_bikes: int = 0
-    oversize_bikes: int = 0
-    most_bikes: int = 0
-    bikes_registered: int = 0
-    max_bikes_parked: int = 0
-    bikes_left: int = 0
-    total_precipitation: float | None = 0.0
-    max_high_temperature: float | None = None
-    longest_visit_minutes: int | None = None
-    mean_visit_minutes: int | None = None
-    median_visit_minutes: int | None = None
-    mean_bikes_per_day_combined: float | None = 0.0
-    median_bikes_per_day_combined: float | None = 0.0
-    mean_bikes_per_day_regular: float | None = 0.0
-    median_bikes_per_day_regular: float | None = 0.0
-    mean_bikes_per_day_oversize: float | None = 0.0
-    median_bikes_per_day_oversize: float | None = 0.0
-    mean_bikes_registered_per_day: float | None = None
-    median_bikes_registered_per_day: float | None = None
-    mean_bikes_left_per_day: float | None = None
-    commuters: int | None = None
-    commuters_per_day: float | None = None
-
-
-def _parse_dow_tokens(dow_value: str) -> set[int]:
-    """Return the permitted ISO days_of_week for the normalized selector value."""
-    allowed: set[int] = set()
-    if not dow_value:
-        return allowed
-    for token in dow_value.split(","):
-        token = token.strip()
-        if not token.isdigit():
-            continue
-        candidate = int(token)
-        if 1 <= candidate <= 7:
-            allowed.add(candidate)
-    return allowed
-
-
-def _open_minutes_for_day(day: DayTotals) -> int:
-    """Return the number of minutes the site was open for a single day."""
-    open_minutes = getattr(getattr(day, "time_open", None), "as_minutes", None)
-    close_minutes = getattr(getattr(day, "time_closed", None), "as_minutes", None)
-    if open_minutes is None or close_minutes is None:
-        return 0
-    duration = close_minutes - open_minutes
-    if duration < 0:
-        return 0
-    return duration
-
-
-def _fetch_commuter_metrics(
-    ttdb:sqlite3.Connection,
-    start_iso: str,
-    end_iso: str,
-    days_of_week: Sequence[int],
-) -> tuple[int | None, float | None]:
-    """Run the commuter hump analysis and return commuter count and mean per day."""
-    if CommuterHumpAnalyzer is None:
-        return None, None
-    if not start_iso or not end_iso:
-        return None, None
-    ordered_start, ordered_end = sorted((start_iso, end_iso))
-    normalized_weekdays = tuple(sorted(set(days_of_week))) or tuple(range(1, 8))
-    try:
-        analyzer = CommuterHumpAnalyzer(
-            db_path=ttdb,
-            start_date=ordered_start,
-            end_date=ordered_end,
-            days_of_week=normalized_weekdays,
-        ).run()
-    except Exception:
-        return None, None
-    if analyzer is None or getattr(analyzer, "error", None):
-        return None, None
-    commuter_count = getattr(analyzer, "commuter_count", None)
-    if commuter_count is not None:
-        try:
-            commuter_count = int(commuter_count)
-        except (TypeError, ValueError):
-            commuter_count = None
-    mean_value = getattr(analyzer, "mean_commuter_per_day", None)
-    if mean_value is None:
-        return commuter_count, None
-    try:
-        mean_value = float(mean_value)
-    except (TypeError, ValueError):
-        return commuter_count, None
-    if math.isnan(mean_value):
-        return commuter_count, None
-    return commuter_count, mean_value
+from web_period_metrics import (
+    METRIC_ROWS,
+    aggregate_period,
+    format_percent,
+)
 
 
 def _coerce_param_value(value: Any) -> str:
@@ -147,211 +42,6 @@ def _normalize_query_params(params: Mapping[str, Any]) -> dict[str, str]:
             continue
         normalized[str(key)] = coerced
     return normalized
-
-
-def _aggregate_period(
-    ttdb: sqlite3.Connection,
-    start_date: str,
-    end_date: str,
-    dow_value: str,
-) -> PeriodMetrics:
-    """Collect daily summaries and roll them into PeriodMetrics."""
-    days = cc.get_days_data(ttdb, min_date=start_date, max_date=end_date)
-    allowed = _parse_dow_tokens(dow_value)
-    if allowed:
-        days = [day for day in days if getattr(day, "weekday", None) in allowed]
-
-    metrics = PeriodMetrics()
-    metrics.days_open = len(days)
-    metrics.open_minutes = sum(_open_minutes_for_day(day) for day in days)
-    metrics.total_bikes_parked = sum(
-        (getattr(day, "num_parked_combined", 0) or 0) for day in days
-    )
-    metrics.most_bikes = (
-        max((getattr(day, "num_fullest_combined", 0) or 0) for day in days)
-        if days
-        else 0
-    )
-    metrics.bikes_registered = sum(
-        (getattr(day, "bikes_registered", 0) or 0) for day in days
-    )
-    metrics.max_bikes_parked = (
-        max((getattr(day, "num_parked_combined", 0) or 0) for day in days)
-        if days
-        else 0
-    )
-    metrics.bikes_left = sum(
-        (getattr(day, "num_remaining_combined", 0) or 0) for day in days
-    )
-    if days:
-        metrics.mean_bikes_left_per_day = metrics.bikes_left / len(days)
-    else:
-        metrics.mean_bikes_left_per_day = None
-
-    # Map of bike type labels to their corresponding day attributes
-    bike_type_attr_map = [
-        ("combined", "num_parked_combined"),
-        ("regular", "num_parked_regular"),
-        ("oversize", "num_parked_oversize"),
-    ]
-    # Find mean & medians daily values for regular, oversize & total bikes
-    for label, attr in bike_type_attr_map:
-        totals = [(getattr(day, attr, 0) or 0) for day in days]
-        if totals:
-            setattr(metrics, f"mean_bikes_per_day_{label}", mean(totals))
-            setattr(metrics, f"median_bikes_per_day_{label}", median(totals))
-        else:
-            setattr(metrics, f"mean_bikes_per_day_{label}", None)
-            setattr(metrics, f"median_bikes_per_day_{label}", None)
-
-    registered_counts = [(getattr(day, "bikes_registered", 0) or 0) for day in days]
-    if registered_counts:
-        metrics.mean_bikes_registered_per_day = mean(registered_counts)
-        metrics.median_bikes_registered_per_day = median(registered_counts)
-    else:
-        metrics.mean_bikes_registered_per_day = None
-        metrics.median_bikes_registered_per_day = None
-    metrics.commuters = None
-    metrics.commuters_per_day = None
-    if days:
-        day_dates = [
-            getattr(day, "date", None)
-            for day in days
-            if getattr(day, "date", None)
-        ]
-        if day_dates:
-            commuter_count, commuters_per_day = _fetch_commuter_metrics(
-                ttdb,
-                min(day_dates),
-                max(day_dates),
-                allowed or range(1, 8),
-            )
-            metrics.commuters = commuter_count
-            metrics.commuters_per_day = commuters_per_day
-    precip_values = [
-        getattr(day, "precipitation", None)
-        for day in days
-        if getattr(day, "precipitation", None) is not None
-    ]
-    metrics.total_precipitation = sum(precip_values) if precip_values else 0.0
-    temperature_values = [
-        getattr(day, "max_temperature", None)
-        for day in days
-        if getattr(day, "max_temperature", None) is not None
-    ]
-    metrics.max_high_temperature = (
-        max(temperature_values) if temperature_values else None
-    )
-    metrics.regular_bikes = sum(
-        (getattr(day, "num_parked_regular", 0) or 0) for day in days
-    )
-    metrics.oversize_bikes = sum(
-        (getattr(day, "num_parked_oversize", 0) or 0) for day in days
-    )
-
-    day_where_clauses = ["orgsite_id = ?"]
-    params: list = [1]
-    if start_date:
-        day_where_clauses.append("date >= ?")
-        params.append(start_date)
-    if end_date:
-        day_where_clauses.append("date <= ?")
-        params.append(end_date)
-    if allowed:
-        placeholders = ",".join("?" for _ in allowed)
-        day_where_clauses.append(f"weekday IN ({placeholders})")
-        params.extend(sorted(allowed))
-    day_clause = " AND ".join(day_where_clauses)
-    visit_query = (
-        "SELECT duration FROM VISIT WHERE day_id IN ("
-        f"SELECT id FROM DAY WHERE {day_clause}"
-        ")"
-    )
-    cursor = ttdb.cursor()
-    cursor.execute(visit_query, params)
-    visit_durations = [row[0] for row in cursor.fetchall() if row[0] is not None]
-    cursor.close()
-    if visit_durations:
-        durations_minutes = [int(round(duration)) for duration in visit_durations]
-        # metrics.shortest_visit_minutes = min(durations_minutes)
-        metrics.longest_visit_minutes = max(durations_minutes)
-        metrics.mean_visit_minutes = int(round(mean(durations_minutes)))
-        metrics.median_visit_minutes = int(round(median(durations_minutes)))
-    else:
-        # metrics.shortest_visit_minutes = None
-        metrics.longest_visit_minutes = None
-        metrics.mean_visit_minutes = None
-        metrics.median_visit_minutes = None
-
-    return metrics
-
-
-def _format_minutes(value: int | VTime) -> str:
-    """Return a display string for a minute count."""
-    if value is None:
-        return "-"
-    if isinstance(value, VTime):
-        return value.tidy
-    if not value:
-        return "0:00"
-    return VTime(value, allow_large=True).tidy
-
-
-def _format_minutes_delta(delta: int) -> str:
-    """Return a signed duration for the minutes delta."""
-    if delta is None:
-        return "-"
-    if not delta:
-        return "0:00"
-    sign = "+" if delta > 0 else "-"
-    return f"{sign}{_format_minutes(abs(delta))}"
-
-
-def _format_int(value: int) -> str:
-    """Return an integer formatted with thousands separators."""
-    if value is None:
-        return "-"
-    return f"{value:,}"
-
-
-def _format_int_delta(delta: int) -> str:
-    """Return a signed integer string with thousands separators."""
-    if delta is None:
-        return "-"
-    if not delta:
-        return "0"
-    return f"{delta:+,}"
-
-
-def _format_percent(base_value: int, delta_value: int) -> str:
-    """Return percentage change with a single decimal place."""
-    if delta_value is None:
-        return "-"
-    if base_value in (None, 0):
-        return "0.0%" if delta_value == 0 else "-"
-    change = (delta_value / base_value) * 100
-    change = round(change, 1)
-    if change == 0:
-        return "0.0%"
-    return f"{change:+.1f}%"
-
-
-def _format_float(value: float, decimals: int = 1) -> str:
-    """Return a floating-point value with a fixed number of decimals."""
-    if value is None:
-        return "-"
-    return f"{value:.{decimals}f}"
-
-
-def _format_float_delta(delta: float, decimals: int = 1) -> str:
-    """Return a signed floating-point delta."""
-    if delta is None:
-        return "-"
-    if delta == 0:
-        return f"{0:.{decimals}f}"
-    formatted = f"{abs(delta):.{decimals}f}"
-    sign = "+" if delta > 0 else "-"
-    return f"{sign}{formatted}"
 
 
 def _percent_to_color(percent_value: float | None) -> str:
@@ -509,94 +199,49 @@ def compare_ranges(
     ttdb: sqlite3.Connection,
     *,
     params: cc.ReportParameters,
-    pages_back: int = 1,
-    start_date_a: str = "",
-    end_date_a: str = "",
-    dow_a: str = "",
-    start_date_b: str = "",
-    end_date_b: str = "",
-    dow_b: str = "",
 ) -> None:
     """Render the comparison report between two date ranges."""
 
-    resolved_start_a = start_date_a or ""
-    resolved_end_a = end_date_a or ""
-    resolved_start_b = start_date_b or ""
-    resolved_end_b = end_date_b or ""
-    resolved_dow_a = dow_a or ""
-    resolved_dow_b = dow_b or ""
+    nav_pages_back = params.pages_back if isinstance(params.pages_back, int) else 1
+    params.pages_back = cc.increment_pages_back(nav_pages_back)
 
-    resolved_pages_back: int = pages_back
-    if not isinstance(resolved_pages_back, int):
-        resolved_pages_back = 1
+    field_names = tuple(
+        {
+            "start": cc.CGIManager.param_name(f"start_date{suffix}"),
+            "end": cc.CGIManager.param_name(f"end_date{suffix}"),
+            "dow": cc.CGIManager.param_name(f"dow{suffix}"),
+        }
+        for suffix in ("", "2")
+    )
 
-    field_names_a = {
-        "start": cc.CGIManager.param_name("start_date"),
-        "end": cc.CGIManager.param_name("end_date"),
-        "dow": cc.CGIManager.param_name("dow"),
-    }
-    field_names_b = {
-        "start": cc.CGIManager.param_name("start_date2"),
-        "end": cc.CGIManager.param_name("end_date2"),
-        "dow": cc.CGIManager.param_name("dow2"),
-    }
+    normalized_updates = _normalize_query_params(
+        cc.CGIManager.params_to_query_mapping(params)
+    )
 
-    params.what_report = cc.WHAT_COMPARE_RANGES
-    params.start_date = resolved_start_a
-    params.end_date = resolved_end_a
-    params.start_date2 = resolved_start_b
-    params.end_date2 = resolved_end_b
-    params.dow = resolved_dow_a
-    params.dow2 = resolved_dow_b
-    params.pages_back = cc.increment_pages_back(resolved_pages_back)
-
-    query_params = cc.CGIManager.params_to_query_mapping(params)
-    # query_params["back"] = resolved_pages_back
-    normalized_updates = _normalize_query_params(query_params)
-
-    nav_pages_back = resolved_pages_back
-
-    title = cc.titleize("Compare date ranges")
+    title = cc.titleize("Date range comparison")
     print(title)
     print(f"{cc.main_and_back_buttons(nav_pages_back)}<br><br>")
 
     _print_instructions()
 
     options_tuple = tuple(DEFAULT_DOW_OPTIONS)
-    selection_a = DateDowSelection(
-        start_date=resolved_start_a,
-        end_date=resolved_end_a,
-        dow_value=find_dow_option(resolved_dow_a, options_tuple).value,
-    )
-    selection_b = DateDowSelection(
-        start_date=resolved_start_b,
-        end_date=resolved_end_b,
-        dow_value=find_dow_option(resolved_dow_b, options_tuple).value,
-    )
-
-
-    self_url = cc.selfref(
-        what=cc.WHAT_COMPARE_RANGES,
-        start_date=resolved_start_a,
-        end_date=resolved_end_a,
-        start_date2=resolved_start_b,
-        end_date2=resolved_end_b,
-        qdow=resolved_dow_a,
-        dow2=resolved_dow_b,
-        pages_back=cc.increment_pages_back(resolved_pages_back),
+    selection_a, selection_b = tuple(
+        DateDowSelection(
+            start_date=start,
+            end_date=end,
+            dow_value=find_dow_option(dow, options_tuple).value,
+        )
+        for start, end, dow in (
+            (params.start_date, params.end_date, params.dow),
+            (params.start_date2, params.end_date2, params.dow2),
+        )
     )
 
+    self_url = cc.CGIManager.selfref(params=params, what_report=cc.WHAT_COMPARE_RANGES)
 
     form_action = self_url.split("?", 1)[0]
 
-    excluded = {
-        field_names_a["start"].lower(),
-        field_names_a["end"].lower(),
-        field_names_a["dow"].lower(),
-        field_names_b["start"].lower(),
-        field_names_b["end"].lower(),
-        field_names_b["dow"].lower(),
-    }
+    excluded = {value.lower() for names in field_names for value in names.values()}
     hidden_params = {
         key: [value]
         for key, value in normalized_updates.items()
@@ -609,7 +254,7 @@ def compare_ranges(
             form_action,
             selection_a,
             selection_b,
-            field_names=(field_names_a, field_names_b),
+            field_names=field_names,
             submit_label="Apply filters",
             options=options_tuple,
             hidden_fields=hidden_fields,
@@ -620,190 +265,18 @@ def compare_ranges(
     description_b = selection_b.description(options_tuple)
     print("<br>")
 
-    metrics_a = _aggregate_period(
+    metrics_a = aggregate_period(
         ttdb,
         selection_a.start_date,
         selection_a.end_date,
         selection_a.dow_value,
     )
-    metrics_b = _aggregate_period(
+    metrics_b = aggregate_period(
         ttdb,
         selection_b.start_date,
         selection_b.end_date,
         selection_b.dow_value,
     )
-
-    metric_rows = [
-        {
-            "label": "Days open (total):",
-            "row_span": 2,
-            "row_span_color": "#d6d8ce",
-            "attr": "days_open",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        {
-            "label": "Hours open (total):",
-            "row_class": "class='heavy-bottom'",
-            "attr": "open_minutes",
-            "value_fmt": _format_minutes,
-            "delta_fmt": _format_minutes_delta,
-        },
-        # Period totals here
-        {
-            "label": "Visits (all bike types):",
-            "row_span": 8,
-            "row_span_color": "#c1b8aa",
-            "attr": "total_bikes_parked",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        {
-            "label": "&nbsp;&nbsp;&nbsp;Regular bike visits:",
-            "attr": "regular_bikes",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        {
-            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits:",
-            "attr": "oversize_bikes",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        {
-            "label": "&nbsp;&nbsp;&nbsp;Commuter portion:",
-            "attr": "commuters",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        {
-            "label": "Max visits in one day:",
-            "attr": "max_bikes_parked",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        {
-            "label": "Max bikes on-site:",
-            "attr": "most_bikes",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        {
-            "label": "Bikes left on-site:",
-            "attr": "bikes_left",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        {
-            "label": "Registrations:",
-            "row_class": "class=heavy-bottom",
-            "attr": "bikes_registered",
-            "value_fmt": _format_int,
-            "delta_fmt": _format_int_delta,
-        },
-        # Per-day below this
-        {
-            "label": "Mean visits <b>per day</b> (all bike types):",
-            "row_span": 10,
-            "row_span_color": "#d6d8ce",
-            "attr": "mean_bikes_per_day_combined",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "&nbsp;&nbsp;&nbsp;Regular bike visits:",
-            "attr": "mean_bikes_per_day_regular",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits:",
-            "attr": "mean_bikes_per_day_oversize",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "&nbsp;&nbsp;&nbsp;Commuter portion:",
-            # "row_class": "class='heavy-bottom'",
-            "attr": "commuters_per_day",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Median visits <b>per day</b> (all bike types):",
-            "attr": "median_bikes_per_day_combined",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "&nbsp;&nbsp;&nbsp;Regular bike visits:",
-            "attr": "median_bikes_per_day_regular",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "&nbsp;&nbsp;&nbsp;Oversize bike visits:",
-            "attr": "median_bikes_per_day_oversize",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Bikes left on-site <b>per day</b>:",
-            "attr": "mean_bikes_left_per_day",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Registrations <b>per day</b> (mean):",
-            "attr": "mean_bikes_registered_per_day",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Registrations <b>per day</b> (median):",
-            "row_class": "class='heavy-bottom'",
-            "attr": "median_bikes_registered_per_day",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        # Visit stats
-        {
-            "label": "Visit duration (max):",
-            "row_span": 3,
-            "row_span_color": "#c1b8aa",
-            "attr": "longest_visit_minutes",
-            "value_fmt": _format_minutes,
-            "delta_fmt": _format_minutes_delta,
-        },
-        {
-            "label": "Visit duration (mean):",
-            "attr": "mean_visit_minutes",
-            "value_fmt": _format_minutes,
-            "delta_fmt": _format_minutes_delta,
-        },
-        {
-            "label": "Visit duration (median)",
-            "row_class": "class='heavy-bottom'",
-            "attr": "median_visit_minutes",
-            "value_fmt": _format_minutes,
-            "delta_fmt": _format_minutes_delta,
-        },
-        {
-            "label": "Total precipitation:",
-            "row_span": 2,
-            "row_span_color": "#d6d8ce",
-            "attr": "total_precipitation",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-        {
-            "label": "Max temperature:",
-            "row_class": "class='heavy-bottom'",
-            "attr": "max_high_temperature",
-            "value_fmt": lambda value: _format_float(value, decimals=1),
-            "delta_fmt": lambda delta: _format_float_delta(delta, decimals=1),
-        },
-    ]
 
     print("<table class='general_table'>")
     description_row = (
@@ -822,12 +295,12 @@ def compare_ranges(
         "<th colspan=2 style='text-align:left;'>Item</th>"
         "<th style='text-align:right;'>Period A</th>"
         "<th style='text-align:right;'>Period B</th>"
-        "<th style='text-align:right;'>Delta</th>"
-        "<th style='text-align:right;'>%Delta</th>"
+        "<th style='text-align:right;'>Δ</th>"
+        "<th style='text-align:right;'>%Δ</th>"
         "</tr>"
     )
 
-    for row in metric_rows:
+    for row in METRIC_ROWS:
         value_a = getattr(metrics_a, row["attr"])
         value_b = getattr(metrics_b, row["attr"])
         delta = None
@@ -836,7 +309,7 @@ def compare_ranges(
         formatted_a = row["value_fmt"](value_a)
         formatted_b = row["value_fmt"](value_b)
         formatted_delta = row["delta_fmt"](delta)
-        percent = _format_percent(value_a, delta)
+        percent = format_percent(value_a, delta)
         percent_value = None
         if delta is not None:
             numeric_delta = float(delta)
@@ -857,7 +330,9 @@ def compare_ranges(
 
         print(f"<tr {row_class}>")
         if row_span:
-            print(f"<td rowspan={row_span} class='heavy-bottom' {row_span_style}>&nbsp;</td>")
+            print(
+                f"<td rowspan={row_span} class='heavy-bottom' {row_span_style}>&nbsp;</td>"
+            )
         print(
             f"<td style='text-align:left;'>{row['label']}</td>"
             f"<td style='text-align:right;'>{formatted_a}</td>"

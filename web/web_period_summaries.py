@@ -36,7 +36,7 @@ DATERANGE_NAMES = {
     cc.WHAT_DATERANGE_MONTH: "months",
     cc.WHAT_DATERANGE_QUARTER: "quarters",
     cc.WHAT_DATERANGE_YEAR: "years",
-    cc.WHAT_DATERANGE_FOREVER: "whole period",
+    cc.WHAT_DATERANGE_FOREVER: "whole date range",
 }
 
 
@@ -111,22 +111,21 @@ class _DateRangeRow:
 
 def daterange_summary(
     ttdb,
-    daterange_type: str = "",
-    start_date: str = "",
-    end_date: str = "",
-    pages_back: int = 1,
+    params:cc.ReportParameters,
 ):
-    """Present a daterange summary page for a given daterange_type etc.
+    """Present a daterange summary page of all the date range types."""
 
-    If no daterange_type or just WHAT_DATERANGE, does them all.
-    """
-
+    daterange_type = "" # FIXME this concept no longer needed in this fn
     orgsite_id = 1  # FIXME hardcoded orgsite_id
+
+    start_date = params.start_date
+    end_date = params.end_date
+    pages_back = params.pages_back
 
     # Fetch date range limits from the database
     db_start_date, db_end_date = db.fetch_date_range_limits(ttdb, orgsite_id=orgsite_id)
     if not db_start_date or not db_end_date:
-        print(f"No data found for {orgsite_id=}")
+        print("No data found when seeking data for date ranges")
         return
 
     requested_start = "" if start_date in ("", "0000-00-00") else start_date
@@ -134,17 +133,16 @@ def daterange_summary(
 
     start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
         ttdb,
-        orgsite_id=orgsite_id,
         start_date=requested_start,
         end_date=requested_end,
         db_limits=(db_start_date, db_end_date),
     )
 
-    filter_url = cc.selfref(
-        what=cc.WHAT_DATERANGE,
+    filter_url = cc.CGIManager.selfref(
+        what_report=cc.WHAT_DATERANGE,
         start_date=start_date,
         end_date=end_date,
-        pages_back=pages_back + 1,
+        pages_back=cc.increment_pages_back(pages_back),
     )
     filter_widget = build_date_dow_filter_widget(
         filter_url,
@@ -191,7 +189,7 @@ def daterange_summary(
 
 
 def _daterange_summary_pagetop(filter_str: str = "", pages_back: int = 1):
-    title = cc.titleize(f"Period summaries {filter_str}")
+    title = cc.titleize(f"Date range summaries {filter_str}")
     print(title)
     print(f"{cc.main_and_back_buttons(pages_back)}<br>")
 
@@ -370,15 +368,21 @@ def _one_daterange_summary_row(pd: _DateRangeRow, pages_back: int):
     """Print one table row in a dateranges table."""
 
     # Calculate links to day detail for days of maximum values
-    max_all_bikes_link = cc.selfref(cc.WHAT_ONE_DAY, start_date=pd.when_max.all_bikes)
-    max_regular_bikes_link = cc.selfref(
-        cc.WHAT_ONE_DAY, start_date=pd.when_max.regular_bikes
+    max_all_bikes_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=pd.when_max.all_bikes
     )
-    max_oversize_bikes_link = cc.selfref(
-        cc.WHAT_ONE_DAY, start_date=pd.when_max.oversize_bikes
+    max_regular_bikes_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=pd.when_max.regular_bikes
     )
-    max_fullest_link = cc.selfref(cc.WHAT_ONE_DAY, start_date=pd.when_max.fullest)
-    max_reg529_link = cc.selfref(cc.WHAT_ONE_DAY, start_date=pd.when_max.reg529)
+    max_oversize_bikes_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=pd.when_max.oversize_bikes
+    )
+    max_fullest_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=pd.when_max.fullest
+    )
+    max_reg529_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=pd.when_max.reg529
+    )
 
     TD = "<td  style='text-align: right;'>"
     print(

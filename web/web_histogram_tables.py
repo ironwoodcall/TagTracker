@@ -48,7 +48,7 @@ def arrival_duration_hist_table(
     """
 
     arrival_duration_colors = Dimension(interpolation_exponent=0.8)
-    arrival_duration_colors.add_config(0.00, "#fffbe6")   # very pale yellow
+    arrival_duration_colors.add_config(0.00, "white") #"#fffbe6")   # very pale yellow
     arrival_duration_colors.add_config(0.25, "#fde6a2")   # warm light yellow
     arrival_duration_colors.add_config(0.50, "#f5b75e")   # soft amber
     arrival_duration_colors.add_config(0.75, "#d67642")   # burnt orange

@@ -25,14 +25,14 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 # import html
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 from functools import lru_cache
 import common.tt_util as ut
 import web_common as cc
 import datacolors as dc
 import web_histogram
 from web.web_base_config import HIST_FIXED_Y_AXIS_DURATION
-from web_daterange_selector import build_date_dow_filter_widget
+from web_daterange_selector import build_date_dow_filter_widget, DateDowSelection
 from web.web_histogram_data import ArrivalDepartureMatrix
 import common.tt_dbutil as db
 from common.tt_time import VTime
@@ -52,11 +52,8 @@ BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 def season_frequencies_report(
     ttdb: sqlite3.Connection,
-    dow_parameter: str = "",
-    title_bit: str = "",
-    pages_back: int = 0,
-    start_date: str = "",
-    end_date: str = "",
+    params: cc.ReportParameters,
+    *,
     restrict_to_single_day: bool = False,
 ):
     """Web page showing histograms of visit frequency distributions.
@@ -66,6 +63,12 @@ def season_frequencies_report(
     """
 
     orgsite_id = 1  # FIXME: orgsite_id hardcoded
+    title_bit = ""
+
+    dow_parameter = params.dow
+    pages_back = params.pages_back
+    start_date = params.start_date
+    end_date = params.end_date
 
     # Fetch date range limits from the database
     db_start_date, db_end_date = db.fetch_date_range_limits(
@@ -81,7 +84,6 @@ def season_frequencies_report(
 
     start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
         ttdb,
-        orgsite_id=orgsite_id,
         start_date=requested_start,
         end_date=requested_end,
         db_limits=(db_start_date, db_end_date),
@@ -125,9 +127,9 @@ def season_frequencies_report(
     if restrict_to_single_day:
         normalized_dow = ""
     else:
-        self_url = cc.selfref(
-            what=cc.WHAT_SUMMARY_FREQUENCIES,
-            qdow=dow_parameter,
+        self_url = cc.CGIManager.selfref(
+            params=params,
+            what_report=cc.WHAT_SUMMARY_FREQUENCIES,
             start_date=start_date,
             end_date=end_date,
             pages_back=cc.increment_pages_back(pages_back),
@@ -213,7 +215,7 @@ def season_frequencies_report(
     if title_bit:
         arrival_duration_title = f"{arrival_duration_title} ({title_bit})"
     arrival_duration_title = f"<h2>{arrival_duration_title}</h2>"
-    arrival_duration_subtitle = "Data is normalized by average of whole-matrix and per-column maximums. Click on individual cells for exact values."
+    arrival_duration_subtitle = "Data colour is normalized by average of whole-matrix and per-column maximums, darker means more visits. Click on individual cells for exact values."
 
     print(
         web_histogram.arrival_duration_hist_table(
@@ -277,26 +279,16 @@ def totals_table(conn: sqlite3.Connection):
             return "0.0%"
         return f"{change:+.1f}%"
 
-    def subtract_year_safe(day: date) -> date:
-        """Return the same calendar day in the prior year, clamping as needed."""
-        target_year = day.year - 1
-        day_num = day.day
-        month_num = day.month
-        while day_num > 0:
-            try:
-                return date(target_year, month_num, day_num)
-            except ValueError:
-                day_num -= 1
-        return date(target_year, month_num, 1)
-
-    def fetch_totals(start_day: date, end_day: date) -> db.MultiDayTotals:
-        if start_day > end_day:
-            start_day = end_day
+    def fetch_totals(start_iso: str, end_iso: str) -> db.MultiDayTotals:
+        """Fetch totals between two ISO-formatted dates (inclusive)."""
+        if not start_iso or not end_iso:
+            return db.MultiDayTotals()
+        ordered_start, ordered_end = sorted((start_iso, end_iso))
         return db.MultiDayTotals.fetch_from_db(
             conn=conn,
             orgsite_id=1,
-            start_date=start_day.isoformat(),
-            end_date=end_day.isoformat(),
+            start_date=ordered_start,
+            end_date=ordered_end,
         )
 
     def totals_attr(name: str):
@@ -352,15 +344,13 @@ def totals_table(conn: sqlite3.Connection):
             commuter_mean_per_day(ordered_start, ordered_end),
         )
 
-    today = ut.date_str("today")
-    today_date = date.fromisoformat(today)
-    selected_year = today_date.year
-    selected_year_str = str(selected_year)
+    today_iso = ut.date_str("today")
+    selected_year_str = today_iso[:4]
     day_totals = {}
 
     # Fetching day totals for each day
     for i in range(6, -1, -1):  # Collect in reverse order
-        d = ut.date_offset(today, -i)
+        d = ut.date_offset(today_iso, -i)
         day_totals[d] = db.MultiDayTotals.fetch_from_db(
             conn=conn, orgsite_id=1, start_date=d, end_date=d
         )
@@ -370,48 +360,69 @@ def totals_table(conn: sqlite3.Connection):
 
     today_remaining_combined = 0
     # Track bikes currently onsite today so "Bikes left" can exclude them from current-period totals.
-    today_totals = day_totals.get(today)
+    today_totals = day_totals.get(today_iso)
     if today_totals:
         today_remaining_value = getattr(today_totals, "total_remaining_combined", 0)
         if today_remaining_value:
             today_remaining_combined = today_remaining_value
 
-    start_of_year = date(selected_year, 1, 1)
+    ytd_start_iso, ytd_end_iso = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_YTD,
+    )
+    ytd_totals = fetch_totals(ytd_start_iso, ytd_end_iso)
 
-    # Fetch data for YTD
-    ytd_totals = fetch_totals(start_of_year, today_date)
+    prior_ytd_start_iso, prior_ytd_end_iso = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_YTD_PRIOR_YEAR,
+    )
+    prior_ytd_totals = fetch_totals(prior_ytd_start_iso, prior_ytd_end_iso)
 
-    one_year_ago = subtract_year_safe(today_date)
-    prior_year_start = date(selected_year - 1, 1, 1)
-    if prior_year_start > one_year_ago:
-        prior_year_start = one_year_ago
-    prior_ytd_totals = fetch_totals(prior_year_start, one_year_ago)
-    # FIXME: this iswhere to pt the prior_ytd_compare link definition
-    prior_ytd_compare_link = cc.selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
+    current_12mo_start_iso, current_12mo_end_iso = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_LAST_12MONTHS,
+    )
+    current_12mo_totals = fetch_totals(current_12mo_start_iso, current_12mo_end_iso)
 
-    current_12mo_start = one_year_ago + timedelta(days=1)
-    if current_12mo_start > today_date:
-        current_12mo_start = today_date
-    current_12mo_totals = fetch_totals(current_12mo_start, today_date)
+    prev_12mo_start_iso, prev_12mo_end_iso = DateDowSelection.date_range_for(
+        DateDowSelection.RANGE_LAST_12MONTHS_PRIOR_YEAR,
+    )
+    prev_12mo_totals = fetch_totals(prev_12mo_start_iso, prev_12mo_end_iso)
 
-    prev_12mo_end = one_year_ago
-    prev_12mo_start = subtract_year_safe(current_12mo_start)
-    if prev_12mo_start > prev_12mo_end:
-        prev_12mo_start = prev_12mo_end
-    prev_12mo_totals = fetch_totals(prev_12mo_start, prev_12mo_end)
+    ytd_summary_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_DATERANGE,
+        start_date=ytd_start_iso,
+        end_date=ytd_end_iso,
+        pages_back=1,
+    )
+    prior_ytd_compare_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_COMPARE_RANGES,
+        start_date=prior_ytd_start_iso,
+        end_date=prior_ytd_end_iso,
+        start_date2=ytd_start_iso,
+        end_date2=ytd_end_iso,
+        pages_back=1,
+    )
+    prior_12mo_compare_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_COMPARE_RANGES,
+        start_date=prev_12mo_start_iso,
+        end_date=prev_12mo_end_iso,
+        start_date2=current_12mo_start_iso,
+        end_date2=current_12mo_end_iso,
+        pages_back=1,
+    )
 
-    attach_commuter_metric(ytd_totals, start_of_year, today_date)
-    attach_commuter_metric(prior_ytd_totals, prior_year_start, one_year_ago)
-    attach_commuter_metric(current_12mo_totals, current_12mo_start, today_date)
-    attach_commuter_metric(prev_12mo_totals, prev_12mo_start, prev_12mo_end)
+    attach_commuter_metric(ytd_totals, ytd_start_iso, ytd_end_iso)
+    attach_commuter_metric(prior_ytd_totals, prior_ytd_start_iso, prior_ytd_end_iso)
+    attach_commuter_metric(
+        current_12mo_totals, current_12mo_start_iso, current_12mo_end_iso
+    )
+    attach_commuter_metric(prev_12mo_totals, prev_12mo_start_iso, prev_12mo_end_iso)
     for key in display_day_keys:
         attach_commuter_metric(day_totals[key], key, key)
 
-    most_parked_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_parked_combined_date
+    most_parked_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_parked_combined_date
     )
-    fullest_link = cc.selfref(
-        what=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_fullest_combined_date
+    fullest_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_fullest_combined_date
     )
 
     row_defs = [
@@ -536,22 +547,25 @@ def totals_table(conn: sqlite3.Connection):
 
     # Table header
     header_html = (
-        # "<tr><th rowspan=2 style='text-align:center;border-right: 2px solid gray;'>Summary</th>"
         "<tr><th rowspan='2' class='heavy-right' style='text-align:center;'>Summary</th>"
         "<th colspan=3 class='heavy-right' style='text-align:center;'>This year</th>"
         "<th colspan=5>Recent days</th></tr>"
         # f"  <tr><th>{selected_year_str} Summary</th>"
-        f"<th style='text-align:center;'>YTD<br>{selected_year_str}</th>"
-        "<th style='text-align:center'>%Δ<br>YTD</th>"
-        "<th style='text-align:center;border-right: 2px solid gray;'>%Δ<br>12mo</th>"
+        f"<th style='text-align:center;'><a href='{ytd_summary_link}'>"
+        f"YTD<br>{selected_year_str}</a></th>"
+        f"<th style='text-align:center'><a href='{prior_ytd_compare_link}'>%Δ<br>YTD</a></th>"
+        "<th style='text-align:center;border-right: 2px solid gray;'>"
+        f"<a href='{prior_12mo_compare_link}'>%Δ<br>12mo</a></th>"
     )
     for day in display_day_keys:
-        if day == today:
+        if day == today_iso:
             daylabel = "Today"
-            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, start_date="today")
+            daylink = cc.CGIManager.selfref(
+                what_report=cc.WHAT_ONE_DAY, start_date="today"
+            )
         else:
             daylabel = day
-            daylink = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=day)
+            daylink = cc.CGIManager.selfref(what_report=cc.WHAT_ONE_DAY, start_date=day)
 
         header_html += (
             f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
@@ -630,7 +644,9 @@ def totals_table(conn: sqlite3.Connection):
     total_columns = 4 + len(display_day_keys)
     print(
         f"<tr><td colspan='{total_columns}'>"
-        "<i>%ΔYTD compares YTD to same period last year; %Δ12mo compares most recent 12 months to 12 months before that.</i></td></tr>"
+        f"<i>%ΔYTD compares <a href='{prior_ytd_compare_link}'>YTD to same period last year</a>; "
+        f"%Δ12mo compares <a href='{prior_12mo_compare_link}'>most recent 12 months to 12 months before that</a>."
+        "</i></td></tr>"
     )
 
     print("</table>")
@@ -639,14 +655,27 @@ def totals_table(conn: sqlite3.Connection):
 def main_web_page(ttdb: sqlite3.Connection):
     """Print super-brief summary report of the current year."""
 
-    detail_link = cc.selfref(what=cc.WHAT_DETAIL, pages_back=1)
-    blocks_link = cc.selfref(what=cc.WHAT_BLOCKS, pages_back=1)
-    tags_link = cc.selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
-    today_link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date="today")
-    summaries_link = cc.selfref(what=cc.WHAT_DATERANGE)
-    compare_link = cc.selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
-    download_csv_link = cc.make_url("tt_download", what=cc.WHAT_DOWNLOAD_CSV)
-    download_db_link = cc.make_url("tt_download", what=cc.WHAT_DOWNLOAD_DB)
+    detail_link = cc.CGIManager.selfref(what_report=cc.WHAT_DETAIL, pages_back=1)
+    period_detail_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_DATERANGE_DETAIL, pages_back=1
+    )
+    blocks_link = cc.CGIManager.selfref(what_report=cc.WHAT_BLOCKS, pages_back=1)
+    tags_link = cc.CGIManager.selfref(what_report=cc.WHAT_TAGS_LOST, pages_back=1)
+    today_link = cc.CGIManager.selfref(what_report=cc.WHAT_ONE_DAY, start_date="today")
+    summaries_link = cc.CGIManager.selfref(what_report=cc.WHAT_DATERANGE)
+    graphs_link = cc.CGIManager.selfref(what_report=cc.WHAT_SUMMARY_FREQUENCIES)
+
+    compare_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_COMPARE_RANGES, pages_back=1
+    )
+    download_csv_link = cc.CGIManager.make_url(
+        script_name="tt_download",
+        params=cc.ReportParameters(maybe_what_report=cc.WHAT_DOWNLOAD_CSV),
+    )
+    download_db_link = cc.CGIManager.make_url(
+        script_name="tt_download",
+        params=cc.ReportParameters(maybe_what_report=cc.WHAT_DOWNLOAD_DB),
+    )
 
     print(f"{cc.titleize('')}<br>")
     print("<div style='display:inline-block'>")
@@ -667,7 +696,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         <br>
         <button onclick="window.location.href='{today_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Today<br>Detail</b></button>
+          <b>Single Day<br>Detail</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -675,15 +704,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{detail_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Daily<br>Summaries</b></button>
-        &nbsp;&nbsp;
-          """
-    )
-    print(
-        f"""
-        <button onclick="window.location.href='{summaries_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Period<br>Summaries</b></button>
+          <b>Day by Day<br>Summaries</b></button>
         &nbsp;&nbsp;
           """
     )
@@ -691,7 +712,32 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Time Block<br>Summaries</b></button>
+          <b>Day by Day<br>Activity</b></button>
+        &nbsp;&nbsp;
+        """
+    )
+    print("<br><br>")
+    print(
+        f"""
+        <button onclick="window.location.href='{period_detail_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Date Range<br>Detail</b></button>
+        &nbsp;&nbsp;
+          """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{summaries_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Date Range<br>Summaries</b></button>
+        &nbsp;&nbsp;
+          """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{graphs_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Date Range<br>Graphs</b></button>
         &nbsp;&nbsp;
         """
     )
@@ -699,37 +745,28 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{compare_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Compare<br>Date Ranges</b></button>
+          <b>Date Range<br>Comparison</b></button>
         &nbsp;&nbsp;
         """
-    )
-
-    print(
-        f"""
-        <button onclick="window.location.href='{cc.selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Summary<br>Graphs</b></button>
-        &nbsp;&nbsp;
-        """
-    )
-    print(
-        f"""
-        <button onclick="window.location.href='{tags_link}'"
-            style="padding: 10px; display: inline-block;">
-          <b>Inventory<br>of Tags</b></button>
-        &nbsp;&nbsp;
-          """
     )
     print("<br><br>")  # "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")
     print(
         f"""
+        <button onclick="window.location.href='{tags_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Bike Tag<br>Inventory</b></button>
+        &nbsp;&nbsp;
+          """
+    )
+    print(
+        f"""
     <button onclick="window.location.href='{download_csv_link}'"
         style="padding: 10px; display: inline-block; background-color: #ddd; border: 1px solid #aaa;">
-      <b>Download<br>CSV</b></button>
+      <b>CSV Data<br>Download</b></button>
     &nbsp;&nbsp;
     <button onclick="window.location.href='{download_db_link}'"
         style="padding: 10px; display: inline-block; background-color: #ddd; border: 1px solid #aaa;">
-      <b>Download<br>Database</b></button>
+      <b>Full Database<br>Download</b></button>
     <br><br>
       """
     )
@@ -737,60 +774,55 @@ def main_web_page(ttdb: sqlite3.Connection):
 
 def season_detail(
     ttdb: sqlite3.Connection,
-    sort_by=None,
-    sort_direction=None,
-    pages_back: int = 1,
-    start_date: str = "",
-    end_date: str = "",
-    dow_parameter: str = "",
+    params: cc.ReportParameters,
 ):
     """A summary in which each row is one day."""
 
-    requested_start = "" if start_date in ("", "0000-00-00") else start_date
-    requested_end = "" if end_date in ("", "9999-99-99") else end_date
+    requested_start = (
+        "" if params.start_date in ("", "0000-00-00") else params.start_date
+    )
+    requested_end = "" if params.end_date in ("", "9999-99-99") else params.end_date
 
     db_start_date, db_end_date = db.fetch_date_range_limits(
         ttdb,
         orgsite_id=1,
     )
 
-    start_date, end_date, _default_start, _default_end = cc.resolve_date_range(
-        ttdb,
-        orgsite_id=1,
-        start_date=requested_start,
-        end_date=requested_end,
-        db_limits=(db_start_date, db_end_date),
+    params.start_date, params.end_date, _default_start, _default_end = (
+        cc.resolve_date_range(
+            ttdb,
+            start_date=requested_start,
+            end_date=requested_end,
+            db_limits=(db_start_date, db_end_date),
+        )
     )
 
-    sort_by = sort_by if sort_by else cc.SORT_DATE
-    sort_direction = sort_direction if sort_direction else cc.ORDER_REVERSE
+    sort_by = params.sort_by if params.sort_by else cc.SORT_DATE
+    sort_direction = (
+        params.sort_direction if params.sort_direction else cc.ORDER_REVERSE
+    )
 
-    filter_base_url = cc.selfref(
-        cc.WHAT_DETAIL,
-        qsort=sort_by,
-        qdir=sort_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+    filter_base_url = cc.CGIManager.selfref(
+        what_report=cc.WHAT_DETAIL,
+        sort_by=sort_by,
+        sort_direction=sort_direction,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
     filter_widget = build_date_dow_filter_widget(
         filter_base_url,
-        start_date=start_date,
-        end_date=end_date,
-        selected_dow=dow_parameter,
+        start_date=params.start_date,
+        end_date=params.end_date,
+        selected_dow=params.dow,
     )
-    dow_parameter = filter_widget.selection.dow_value
+    params.dow = filter_widget.selection.dow_value
     filter_description = filter_widget.description()
 
     all_days = cc.get_days_data(
-        ttdb=ttdb, min_date=start_date, max_date=end_date
+        ttdb=ttdb, min_date=params.start_date, max_date=params.end_date
     )  # FIXME: needs to use orgsite_id
-    if dow_parameter:
+    if params.dow:
         allowed_dows = {
-            int(token)
-            for token in dow_parameter.split(",")
-            if token and token.isdigit()
+            int(token) for token in params.dow.split(",") if token and token.isdigit()
         }
         all_days = [
             day for day in all_days if getattr(day, "weekday", None) in allowed_dows
@@ -890,66 +922,53 @@ def season_detail(
         max_precip_colour.add_config(max_precip_value, "azure")
 
     print(f"{cc.titleize('Daily summaries', filter_widget.description())}")
-    print(f"{cc.main_and_back_buttons(pages_back)}<br>")
+    print(f"{cc.main_and_back_buttons(params.pages_back)}<br>")
     print("<br>")
     print(filter_widget.html)
     print("<br><br>")
 
-    sort_date_link = cc.selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_DATE,
-        qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+    sort_date_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_DATE,
+        sort_direction=other_direction,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_parked_link = cc.selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_PARKED,
-        qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+    sort_parked_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_PARKED,
+        sort_direction=other_direction,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_fullness_link = cc.selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_FULLNESS,
-        qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+    sort_fullness_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_FULLNESS,
+        sort_direction=other_direction,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_leftovers_link = cc.selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_LEFTOVERS,
-        qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+    sort_leftovers_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_LEFTOVERS,
+        sort_direction=other_direction,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_precipitation_link = cc.selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_PRECIPITATAION,
-        qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+    sort_precipitation_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_PRECIPITATAION,
+        sort_direction=other_direction,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_temperature_link = cc.selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_TEMPERATURE,
-        qdir=other_direction,
-        qdow=dow_parameter,
-        start_date=start_date,
-        end_date=end_date,
-        pages_back=cc.increment_pages_back(pages_back),
+    sort_temperature_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_TEMPERATURE,
+        sort_direction=other_direction,
+        pages_back=cc.increment_pages_back(params.pages_back),
     )
-    # mismatches_link = cc.selfref(cc.WHAT_MISMATCH)
 
     print("<table class='general_table'>")
     print(f"<tr><th colspan=12><br>{sort_msg}<br>&nbsp;</th></tr>")
@@ -982,7 +1001,9 @@ def season_detail(
 
     for row in all_days:
         row: DayTotals
-        date_link = cc.selfref(what=cc.WHAT_ONE_DAY, start_date=row.date)
+        date_link = cc.CGIManager.selfref(
+            what_report=cc.WHAT_ONE_DAY, start_date=row.date
+        )
         reg_str = "" if row.bikes_registered is None else f"{row.bikes_registered}"
         temp_str = "" if row.max_temperature is None else f"{row.max_temperature:0.1f}"
         precip_str = "" if row.precipitation is None else f"{row.precipitation:0.1f}"
