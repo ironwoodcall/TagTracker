@@ -100,8 +100,8 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                     style="opacity: 0.5; cursor: not-allowed;">
                 {label}</button>
                 """
-        link = cc.old_selfref(
-            what=cc.WHAT_ONE_DAY,
+        link = cc.CGIManager.selfref(
+            what_report=cc.WHAT_ONE_DAY,
             start_date=target,
             pages_back=cc.increment_pages_back(pages_back),
         )
@@ -118,8 +118,8 @@ def _nav_buttons(ttdb, orgsite_id: int, thisday: str, pages_back) -> str:
                     style="opacity: 0.5; cursor: not-allowed;">
                 {label}</button>
                 """
-        link = cc.old_selfref(
-            what=cc.WHAT_ONE_DAY,
+        link = cc.CGIManager.selfref(
+            what_report=cc.WHAT_ONE_DAY,
             start_date="today",
             pages_back=cc.increment_pages_back(pages_back),
         )
@@ -156,7 +156,6 @@ def one_day_tags_report(
 
     orgsite_id = 1 # FIXME remove eventually
 
-    sort_by = params.sort_by
     pages_back = params.pages_back
 
     thisday = ut.date_str(params.start_date)
@@ -234,7 +233,7 @@ def one_day_tags_report(
             visits[i - 1].next_time_in = v.time_in
             visits[i - 1].next_tag = v.tag
 
-    # FIXME: 'daylight' probably can be removed
+    # Colour ramps for the visits table
     daylight = dc.Dimension()
     daylight.add_config(VTime("07:30").num, "LightSkyBlue")
     daylight.add_config(VTime("12:00").num, "LightCyan")
@@ -312,13 +311,13 @@ def one_day_tags_report(
     # legend_table(daylight, duration_colors)
     visits_table(
         thisday,
-        is_today,
-        visits,
-        highlights,
-        daylight,
-        duration_colors,
-        sort_by,
-        pages_back,
+        is_today=is_today,
+        rows=visits,
+        highlights=highlights,
+        daylight=daylight,
+        duration_colors=duration_colors,
+        sort_by=params.sort_by,
+        pages_back=pages_back,
     )
 
 
@@ -326,8 +325,8 @@ def day_activity_histogram(ttdb: sqlite3.Connection, today: str) -> str:
     """Return a mini activity histogram for the one day view."""
 
     orgsite_id = 1  # FIXME hardcoded orgsite_id
-    graph_link = cc.old_selfref(
-        what=cc.WHAT_ONE_DAY_FREQUENCIES,
+    graph_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY_FREQUENCIES,
         start_date=today,
         end_date=today,
         pages_back=1,
@@ -428,8 +427,8 @@ def day_fullness_histogram(day_data: DayTotals, blocks) -> str:
 
     histogram_data = dict(ordered_pairs)
 
-    graph_link = cc.old_selfref(
-        what=cc.WHAT_ONE_DAY_FREQUENCIES,
+    graph_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY_FREQUENCIES,
         start_date=day_data.date if day_data else "",
         end_date=day_data.date if day_data else "",
         pages_back=1,
@@ -722,6 +721,7 @@ def block_activity_table(
 
 def visits_table(
     thisday,
+    *,
     is_today,
     rows,
     highlights,
@@ -758,29 +758,28 @@ def visits_table(
         sort_msg = f"bike tag (sort parameter '{sort_by}' unrecognized)"
     sort_msg = f"(Sorted by {sort_msg}) "
 
-    link_sort_time = cc.old_selfref(
-        what=cc.WHAT_ONE_DAY,
-        start_date=thisday,
-        qsort=cc.SORT_TIME_IN,
-        pages_back=cc.increment_pages_back(pages_back),
+    link_params = cc.ReportParameters(
+        maybe_what_report=cc.WHAT_ONE_DAY,
+        maybe_start_date=thisday,
+        maybe_pages_back=cc.increment_pages_back(pages_back),
     )
-    link_sort_time_out = cc.old_selfref(
-        what=cc.WHAT_ONE_DAY,
-        start_date=thisday,
-        qsort=cc.SORT_TIME_OUT,
-        pages_back=cc.increment_pages_back(pages_back),
+
+    link_sort_time = cc.CGIManager.selfref(
+        link_params,
+        sort_by=cc.SORT_TIME_IN
     )
-    link_sort_tag = cc.old_selfref(
-        what=cc.WHAT_ONE_DAY,
-        start_date=thisday,
-        qsort=cc.SORT_TAG,
-        pages_back=cc.increment_pages_back(pages_back),
+    link_sort_time_out = cc.CGIManager.selfref(
+        link_params,
+        sort_by=cc.SORT_TIME_OUT
     )
-    link_sort_duration = cc.old_selfref(
-        what=cc.WHAT_ONE_DAY,
-        start_date=thisday,
-        qsort=cc.SORT_DURATION,
-        pages_back=cc.increment_pages_back(pages_back),
+    link_sort_tag = cc.CGIManager.selfref(
+        link_params,
+        sort_by=cc.SORT_TAG
+    )
+    link_sort_duration = cc.CGIManager.selfref(
+        link_params,
+        sort_by=cc.SORT_DURATION,
+        sort_direction=cc.ORDER_REVERSE
     )
 
     # Earliest and latest event are for the bar graph
@@ -791,8 +790,8 @@ def visits_table(
     ).num
     bar_scaling_factor = BAR_COL_WIDTH / (max_visit)
     bar_offset = round(earliest_event * bar_scaling_factor)
-
-    now_minutes = VTime("now").num if is_today else None
+    now = VTime("now")
+    now_minutes = now.num if is_today else None
 
     html = "<table style=text-align:right class=general_table>"
     html += (
@@ -807,7 +806,7 @@ def visits_table(
         "<th>Bar graph showing each visit<br>"
         f"{BAR_MARKERS['R']} = Regular bike visit; "
         f"{BAR_MARKERS['O']} = Oversize bike visit; "
-        "'-' = visit in progress</th></tr>"
+        f"'{BAR_MARKER_FUTURE}' = visit in progress</th></tr>"
     )
     print(html)
 
@@ -817,13 +816,8 @@ def visits_table(
         duration = VTime(v.duration)
         print("<tr>")
         # Tag
-        tag_link = cc.old_selfref(what=cc.WHAT_TAG_HISTORY, tag=v.tag)
+        tag_link = cc.CGIManager.selfref(what_report=cc.WHAT_TAG_HISTORY, tag=v.tag)
         c = "color:auto;"
-        # if v.next_time_in < time_in and time_out <= "" and not is_today:
-        #     if v.tag[:1] == v.next_tag[:1]:
-        #         c = highlights.css_bg_fg(HIGHLIGHT_ERROR)
-        #     elif v.next_tag:
-        #         c = highlights.css_bg_fg(HIGHLIGHT_MAYBE_ERROR)
         print(
             f"<td style='text-align:center;{c}'><a href='{tag_link}'>{v.tag}</a></td>"
         )
@@ -863,7 +857,7 @@ def visits_table(
                 )
             else:
                 elapsed_len = bar_itself_len
-            elapsed_len = max(0, min(bar_itself_len, elapsed_len))
+            elapsed_len = max(1, min(bar_itself_len, elapsed_len))
             remaining_len = max(0, bar_itself_len - elapsed_len)
             bar_itself = (bar_marker * elapsed_len) + (
                 BAR_MARKER_FUTURE * remaining_len
@@ -903,7 +897,8 @@ def summary_table(
         return obj
 
     the_estimate = None
-    if is_today:
+    est = None
+    if is_today and VTime('now') <= day_data.time_closed:
         est = web_estimator.Estimator(estimation_type=EST_TYPE_FOR_ONEDAY_SUMMARY)
         est.guess()
         if est.state != web_estimator.ERROR and est.time_closed > VTime("now"):
@@ -978,8 +973,8 @@ def summary_table(
     table_bits.append("</table><p></p>")
     prediction_bits = ""
     if is_today and est is not None and est.state != web_estimator.ERROR:
-        detail_link = cc.old_selfref(what=cc.WHAT_ESTIMATE_VERBOSE)
-        audit_link = cc.old_selfref(what=cc.WHAT_AUDIT)
+        detail_link = cc.CGIManager.selfref(what_report=cc.WHAT_ESTIMATE_VERBOSE)
+        audit_link = cc.CGIManager.selfref(what_report=cc.WHAT_AUDIT)
         result_html = "".join(est.result_msg(as_html=True))
         prediction_bits = (
             "<div style='margin-top:0.5em'>"
