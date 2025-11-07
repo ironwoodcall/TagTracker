@@ -52,7 +52,8 @@ BLOCK_HIGHLIGHT_MARKER = chr(0x2B24)
 
 def season_frequencies_report(
     ttdb: sqlite3.Connection,
-    params: cc.ReportParameters,*,
+    params: cc.ReportParameters,
+    *,
     restrict_to_single_day: bool = False,
 ):
     """Web page showing histograms of visit frequency distributions.
@@ -126,9 +127,9 @@ def season_frequencies_report(
     if restrict_to_single_day:
         normalized_dow = ""
     else:
-        self_url = cc.old_selfref(
-            what=cc.WHAT_SUMMARY_FREQUENCIES,
-            qdow=dow_parameter,
+        self_url = cc.CGIManager.selfref(
+            params=params,
+            what_report=cc.WHAT_SUMMARY_FREQUENCIES,
             start_date=start_date,
             end_date=end_date,
             pages_back=cc.increment_pages_back(pages_back),
@@ -385,22 +386,22 @@ def totals_table(conn: sqlite3.Connection):
     )
     prev_12mo_totals = fetch_totals(prev_12mo_start_iso, prev_12mo_end_iso)
 
-    ytd_summary_link = cc.old_selfref(
-        what=cc.WHAT_DATERANGE,
+    ytd_summary_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_DATERANGE,
         start_date=ytd_start_iso,
         end_date=ytd_end_iso,
         pages_back=1,
     )
-    prior_ytd_compare_link = cc.old_selfref(
-        what=cc.WHAT_COMPARE_RANGES,
+    prior_ytd_compare_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_COMPARE_RANGES,
         start_date=prior_ytd_start_iso,
         end_date=prior_ytd_end_iso,
         start_date2=ytd_start_iso,
         end_date2=ytd_end_iso,
         pages_back=1,
     )
-    prior_12mo_compare_link = cc.old_selfref(
-        what=cc.WHAT_COMPARE_RANGES,
+    prior_12mo_compare_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_COMPARE_RANGES,
         start_date=prev_12mo_start_iso,
         end_date=prev_12mo_end_iso,
         start_date2=current_12mo_start_iso,
@@ -417,11 +418,11 @@ def totals_table(conn: sqlite3.Connection):
     for key in display_day_keys:
         attach_commuter_metric(day_totals[key], key, key)
 
-    most_parked_link = cc.old_selfref(
-        what=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_parked_combined_date
+    most_parked_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_parked_combined_date
     )
-    fullest_link = cc.old_selfref(
-        what=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_fullest_combined_date
+    fullest_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_ONE_DAY, start_date=ytd_totals.max_fullest_combined_date
     )
 
     row_defs = [
@@ -559,10 +560,12 @@ def totals_table(conn: sqlite3.Connection):
     for day in display_day_keys:
         if day == today_iso:
             daylabel = "Today"
-            daylink = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date="today")
+            daylink = cc.CGIManager.selfref(
+                what_report=cc.WHAT_ONE_DAY, start_date="today"
+            )
         else:
             daylabel = day
-            daylink = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date=day)
+            daylink = cc.CGIManager.selfref(what_report=cc.WHAT_ONE_DAY, start_date=day)
 
         header_html += (
             f"<th><a href='{daylink}'>{daylabel}</a><br>{ut.dow_str(day)}</th>"
@@ -652,15 +655,27 @@ def totals_table(conn: sqlite3.Connection):
 def main_web_page(ttdb: sqlite3.Connection):
     """Print super-brief summary report of the current year."""
 
-    detail_link = cc.old_selfref(what=cc.WHAT_DETAIL, pages_back=1)
-    period_detail_link = cc.old_selfref(what=cc.WHAT_DATERANGE_DETAIL, pages_back=1)
-    blocks_link = cc.old_selfref(what=cc.WHAT_BLOCKS, pages_back=1)
-    tags_link = cc.old_selfref(what=cc.WHAT_TAGS_LOST, pages_back=1)
-    today_link = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date="today")
-    summaries_link = cc.old_selfref(what=cc.WHAT_DATERANGE)
-    compare_link = cc.old_selfref(what=cc.WHAT_COMPARE_RANGES, pages_back=1)
-    download_csv_link = cc.old_make_url("tt_download", what=cc.WHAT_DOWNLOAD_CSV)
-    download_db_link = cc.old_make_url("tt_download", what=cc.WHAT_DOWNLOAD_DB)
+    detail_link = cc.CGIManager.selfref(what_report=cc.WHAT_DETAIL, pages_back=1)
+    period_detail_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_DATERANGE_DETAIL, pages_back=1
+    )
+    blocks_link = cc.CGIManager.selfref(what_report=cc.WHAT_BLOCKS, pages_back=1)
+    tags_link = cc.CGIManager.selfref(what_report=cc.WHAT_TAGS_LOST, pages_back=1)
+    today_link = cc.CGIManager.selfref(what_report=cc.WHAT_ONE_DAY, start_date="today")
+    summaries_link = cc.CGIManager.selfref(what_report=cc.WHAT_DATERANGE)
+    graphs_link = cc.CGIManager.selfref(what_report=cc.WHAT_SUMMARY_FREQUENCIES)
+
+    compare_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_COMPARE_RANGES, pages_back=1
+    )
+    download_csv_link = cc.CGIManager.make_url(
+        script_name="tt_download",
+        params=cc.ReportParameters(maybe_what_report=cc.WHAT_DOWNLOAD_CSV),
+    )
+    download_db_link = cc.CGIManager.make_url(
+        script_name="tt_download",
+        params=cc.ReportParameters(maybe_what_report=cc.WHAT_DOWNLOAD_DB),
+    )
 
     print(f"{cc.titleize('')}<br>")
     print("<div style='display:inline-block'>")
@@ -720,7 +735,7 @@ def main_web_page(ttdb: sqlite3.Connection):
     )
     print(
         f"""
-        <button onclick="window.location.href='{cc.old_selfref(cc.WHAT_SUMMARY_FREQUENCIES)}'"
+        <button onclick="window.location.href='{graphs_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Date Range<br>Graphs</b></button>
         &nbsp;&nbsp;
@@ -759,11 +774,13 @@ def main_web_page(ttdb: sqlite3.Connection):
 
 def season_detail(
     ttdb: sqlite3.Connection,
-    params:cc.ReportParameters,
+    params: cc.ReportParameters,
 ):
     """A summary in which each row is one day."""
 
-    requested_start = "" if params.start_date in ("", "0000-00-00") else params.start_date
+    requested_start = (
+        "" if params.start_date in ("", "0000-00-00") else params.start_date
+    )
     requested_end = "" if params.end_date in ("", "9999-99-99") else params.end_date
 
     db_start_date, db_end_date = db.fetch_date_range_limits(
@@ -771,23 +788,24 @@ def season_detail(
         orgsite_id=1,
     )
 
-    params.start_date, params.end_date, _default_start, _default_end = cc.resolve_date_range(
-        ttdb,
-        start_date=requested_start,
-        end_date=requested_end,
-        db_limits=(db_start_date, db_end_date),
+    params.start_date, params.end_date, _default_start, _default_end = (
+        cc.resolve_date_range(
+            ttdb,
+            start_date=requested_start,
+            end_date=requested_end,
+            db_limits=(db_start_date, db_end_date),
+        )
     )
 
     sort_by = params.sort_by if params.sort_by else cc.SORT_DATE
-    sort_direction = params.sort_direction if params.sort_direction else cc.ORDER_REVERSE
+    sort_direction = (
+        params.sort_direction if params.sort_direction else cc.ORDER_REVERSE
+    )
 
-    filter_base_url = cc.old_selfref(
-        cc.WHAT_DETAIL,
-        qsort=sort_by,
-        qdir=sort_direction,
-        qdow=params.dow,
-        start_date=params.start_date,
-        end_date=params.end_date,
+    filter_base_url = cc.CGIManager.selfref(
+        what_report=cc.WHAT_DETAIL,
+        sort_by=sort_by,
+        sort_direction=sort_direction,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
     filter_widget = build_date_dow_filter_widget(
@@ -804,9 +822,7 @@ def season_detail(
     )  # FIXME: needs to use orgsite_id
     if params.dow:
         allowed_dows = {
-            int(token)
-            for token in params.dow.split(",")
-            if token and token.isdigit()
+            int(token) for token in params.dow.split(",") if token and token.isdigit()
         }
         all_days = [
             day for day in all_days if getattr(day, "weekday", None) in allowed_dows
@@ -911,61 +927,48 @@ def season_detail(
     print(filter_widget.html)
     print("<br><br>")
 
-    sort_date_link = cc.old_selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_DATE,
-        qdir=other_direction,
-        qdow=params.dow,
-        start_date=params.start_date,
-        end_date=params.end_date,
+    sort_date_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_DATE,
+        sort_direction=other_direction,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_parked_link = cc.old_selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_PARKED,
-        qdir=other_direction,
-        qdow=params.dow,
-        start_date=params.start_date,
-        end_date=params.end_date,
+    sort_parked_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_PARKED,
+        sort_direction=other_direction,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_fullness_link = cc.old_selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_FULLNESS,
-        qdir=other_direction,
-        qdow=params.dow,
-        start_date=params.start_date,
-        end_date=params.end_date,
+    sort_fullness_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_FULLNESS,
+        sort_direction=other_direction,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_leftovers_link = cc.old_selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_LEFTOVERS,
-        qdir=other_direction,
-        qdow=params.dow,
-        start_date=params.start_date,
-        end_date=params.end_date,
+    sort_leftovers_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_LEFTOVERS,
+        sort_direction=other_direction,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_precipitation_link = cc.old_selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_PRECIPITATAION,
-        qdir=other_direction,
-        qdow=params.dow,
-        start_date=params.start_date,
-        end_date=params.end_date,
+    sort_precipitation_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_PRECIPITATAION,
+        sort_direction=other_direction,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    sort_temperature_link = cc.old_selfref(
-        cc.WHAT_DETAIL,
-        qsort=cc.SORT_TEMPERATURE,
-        qdir=other_direction,
-        qdow=params.dow,
-        start_date=params.start_date,
-        end_date=params.end_date,
+    sort_temperature_link = cc.CGIManager.selfref(
+        params=params,
+        what_report=cc.WHAT_DETAIL,
+        sort_by=cc.SORT_TEMPERATURE,
+        sort_direction=other_direction,
         pages_back=cc.increment_pages_back(params.pages_back),
     )
-    # mismatches_link = cc.old_selfref(cc.WHAT_MISMATCH)
 
     print("<table class='general_table'>")
     print(f"<tr><th colspan=12><br>{sort_msg}<br>&nbsp;</th></tr>")
@@ -998,7 +1001,9 @@ def season_detail(
 
     for row in all_days:
         row: DayTotals
-        date_link = cc.old_selfref(what=cc.WHAT_ONE_DAY, start_date=row.date)
+        date_link = cc.CGIManager.selfref(
+            what_report=cc.WHAT_ONE_DAY, start_date=row.date
+        )
         reg_str = "" if row.bikes_registered is None else f"{row.bikes_registered}"
         temp_str = "" if row.max_temperature is None else f"{row.max_temperature:0.1f}"
         precip_str = "" if row.precipitation is None else f"{row.precipitation:0.1f}"
