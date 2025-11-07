@@ -71,6 +71,8 @@ from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional, Tuple, Type
+from datetime import date as _date, time as _time, timedelta
+import csv
 
 import common.tt_constants as k
 import client_base_config as cfg
@@ -84,6 +86,7 @@ pr.COLOUR_ACTIVE = cfg.USE_COLOUR
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONTROL_DIR = "/tmp"
 RESUME_EPSILON_SECONDS = 2.0
+INTERNET_CONDENSE_WINDOW_SECONDS = 30 * 60  # 30 minutes
 
 
 def _default_control_file() -> str:
@@ -1027,6 +1030,11 @@ class InternetMonitor:
         )
 
         cls.log_monitor_event("SYS", "-", True, "MonitorStart")
+        # Condense existing heartbeat log to control size and keep summaries
+        try:
+            cls.condense_heartbeat_log_in_place()
+        except Exception as err:
+            _debug(f"Heartbeat condense failed: {err}")
         cls._load_control_state()
 
         next_delay = 0.0
@@ -1127,6 +1135,171 @@ class InternetMonitor:
                 heartbeat.write(line)
         except Exception as err:  # pragma: no cover - logging should not fail monitor
             _debug(f"Heartbeat logging failed: {err}")
+
+    @classmethod
+    def condense_heartbeat_log_in_place(cls, now: Optional[datetime] = None) -> None:
+        """Condense the heartbeat CSV in place.
+
+        Rules:
+        - Drop all lines older than 6 months.
+        - For days older than 2 weeks (but within 6 months), keep only records
+          from the first half hour (00:00:00–00:29:59) and last half hour
+          (23:30:00–23:59:59). Replace removed lines for that day with a single
+          line: date, '-', 'SYS', '-', '{N} lines removed'.
+        - Lines with unparseable times (e.g., '-') are preserved as-is and not
+          counted as removed, to ensure idempotency across runs.
+
+        The file is rewritten in place (seek to 0, write, truncate).
+        """
+        folder_path = cfg.INTERNET_LOG_FOLDER
+        if not folder_path:
+            return
+        heartbeat_path = Path(folder_path) / cls.HEARTBEAT_FILENAME
+        if not heartbeat_path.exists():
+            return
+
+        def _subtract_months(d: _date, months: int) -> _date:
+            # Compute d minus `months` months without external deps.
+            month = d.month - months
+            year = d.year + (month - 1) // 12
+            month = (month - 1) % 12 + 1
+            # Clamp the day to last day of new month
+            # Days per month (ignoring leap; Feb handled separately)
+            if month in (1, 3, 5, 7, 8, 10, 12):
+                last_day = 31
+            elif month in (4, 6, 9, 11):
+                last_day = 30
+            else:
+                # February
+                y = year
+                is_leap = (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0))
+                last_day = 29 if is_leap else 28
+            day = min(d.day, last_day)
+            return _date(year, month, day)
+
+        now_dt = now or datetime.now()
+        today = now_dt.date()
+        six_months_cutoff = _subtract_months(today, 6)
+        two_weeks_ago = today - timedelta(days=14)
+
+        # Read file content
+        with open(heartbeat_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        # Parse into per-day buckets preserving day order
+        day_order = []  # list[str]
+        per_day = {}    # date_str -> list[tuple]
+
+        for raw in lines:
+            stripped = raw.strip()
+            if not stripped:
+                continue
+            # Expect 5 comma-separated fields
+            try:
+                # Avoid csv overhead for simple format, but be robust if commas appear later
+                row = next(csv.reader([stripped]))
+            except Exception:
+                # If parsing fails, skip the line
+                continue
+            if len(row) < 5:
+                continue
+            dstr, tstr, c3, c4, c5 = row[0], row[1], row[2], row[3], row[4]
+            try:
+                y, m, d = map(int, dstr.split("-"))
+                line_date = _date(y, m, d)
+            except Exception:
+                # Malformed date; keep line in a synthetic bucket so it's not lost
+                line_date = None
+
+            # Drop lines older than 6 months
+            if line_date and line_date < six_months_cutoff:
+                continue
+
+            key = dstr
+            if key not in per_day:
+                per_day[key] = []
+                day_order.append(key)
+            per_day[key].append((dstr, tstr, c3, c4, c5))
+
+        # Build condensed output
+        out_lines = []
+        for dstr in day_order:
+            rows = per_day[dstr]
+            # Parse date once
+            try:
+                y, m, d = map(int, dstr.split("-"))
+                this_date = _date(y, m, d)
+            except Exception:
+                this_date = None
+
+            if this_date and this_date < six_months_cutoff:
+                # Already filtered above, but keep guard
+                continue
+
+            if this_date and this_date < two_weeks_ago:
+                # Condense day: keep first and last 30 minutes of that day's records
+                keep_early = []
+                keep_late = []
+                keep_other = []  # rows with unparseable times or explicitly preserved
+                removed_count = 0
+                # Determine earliest and latest time among parseable records
+                def _t_to_secs(t: _time) -> int:
+                    return t.hour * 3600 + t.minute * 60 + t.second
+
+                parsed_secs = []  # list of (idx, seconds)
+                for idx, (d0, t0, c3, c4, c5) in enumerate(rows):
+                    try:
+                        hh, mm, ss = map(int, t0.split(":"))
+                        tval = _time(hh, mm, ss)
+                        parsed_secs.append((idx, _t_to_secs(tval)))
+                    except Exception:
+                        # Not parseable as time; will be counted as removed unless windows cannot be computed
+                        pass
+
+                if parsed_secs:
+                    earliest_sec = min(s for _, s in parsed_secs)
+                    latest_sec = max(s for _, s in parsed_secs)
+                    early_end = earliest_sec + INTERNET_CONDENSE_WINDOW_SECONDS
+                    late_start = max(0, latest_sec - INTERNET_CONDENSE_WINDOW_SECONDS)
+                else:
+                    earliest_sec = latest_sec = None
+                    early_end = -1
+                    late_start = 24 * 3600 + 1
+
+                for d0, t0, c3, c4, c5 in rows:
+                    try:
+                        hh, mm, ss = map(int, t0.split(":"))
+                        t_seconds = hh * 3600 + mm * 60 + ss
+                    except Exception:
+                        # Preserve rows with unparseable time (e.g., summary rows '-')
+                        keep_other.append((d0, t0, c3, c4, c5))
+                        continue
+                    if t_seconds <= early_end:
+                        keep_early.append((d0, t0, c3, c4, c5))
+                    elif t_seconds >= late_start:
+                        keep_late.append((d0, t0, c3, c4, c5))
+                    else:
+                        removed_count += 1
+
+                # Preserve order: early, other (unparseable), summary (if any), late
+                for d0, t0, c3, c4, c5 in keep_early:
+                    out_lines.append(f"{d0},{t0},{c3},{c4},{c5}\n")
+                for d0, t0, c3, c4, c5 in keep_other:
+                    out_lines.append(f"{d0},{t0},{c3},{c4},{c5}\n")
+                if removed_count > 0:
+                    out_lines.append(f"{dstr},-,SYS,-,{removed_count} lines removed\n")
+                for d0, t0, c3, c4, c5 in keep_late:
+                    out_lines.append(f"{d0},{t0},{c3},{c4},{c5}\n")
+            else:
+                # Keep entire day (recent within 2 weeks, or unknown date)
+                for d0, t0, c3, c4, c5 in rows:
+                    out_lines.append(f"{d0},{t0},{c3},{c4},{c5}\n")
+
+        # Rewrite file in place
+        with open(heartbeat_path, "r+", encoding="utf-8") as f:
+            f.seek(0)
+            f.writelines(out_lines)
+            f.truncate()
 
 
 if __name__ == "__main__":
