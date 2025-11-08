@@ -233,11 +233,24 @@ def main(argv: List[str]) -> int:
     open_str = df["time_open"].astype("string").fillna("Missing").str[:5]
     close_str = df["time_closed"].astype("string").fillna("Missing").str[:5]
     df["schedule_label"] = open_str + "-" + close_str
-    df["month"] = df["date"].dt.month
     df["days_since_start"] = (df["date"] - df["date"].min()).dt.days
+    # Operating hours (in hours), wrapping if close < open
+    def _to_minutes(x: str) -> int | None:
+        try:
+            s = str(x)[:5]
+            h, m = s.split(":", 1)
+            return int(h) * 60 + int(m)
+        except Exception:
+            return None
+    o_min = df["time_open"].map(_to_minutes)
+    c_min = df["time_closed"].map(_to_minutes)
+    dur_min = (c_min.fillna(0) - o_min.fillna(0)).astype(float)
+    dur_min = dur_min.where(dur_min >= 0, dur_min + 24 * 60)
+    df["operating_hours"] = dur_min / 60.0
 
+    # Best config from sweep: include operating_hours, exclude month
     cats = ["schedule_label"]
-    nums = ["month", "days_since_start", "max_temperature", "precipitation"]
+    nums = ["days_since_start", "max_temperature", "precipitation", "operating_hours"]
 
     def build_pipeline(cat_cols: List[str], num_cols: List[str]):
         categorical_pipeline = Pipeline(
@@ -253,7 +266,11 @@ def main(argv: List[str]) -> int:
                 ("numeric", numeric_pipeline, num_cols),
             ]
         )
-        model = GradientBoostingRegressor(random_state=42)
+        # Use absolute_error (LAD). Map to version-compatible token if needed.
+        def _resolve_gbr_loss(loss: str) -> str:
+            aliases = {"squared_error": "ls", "absolute_error": "lad"}
+            return aliases.get(loss, loss)
+        model = GradientBoostingRegressor(loss=_resolve_gbr_loss("absolute_error"), random_state=42)
         return Pipeline(steps=[("preprocess", preprocessor), ("model", model)])
 
     artifacts: Dict[str, Dict[str, Any]] = {}

@@ -225,7 +225,7 @@ class PredictorModel:
             o_str = str(opening_time)[:5]
             c_str = str(closing_time)[:5]
             schedule_label = f"{o_str}-{c_str}"
-            # days_since_start uses each model's train_start_date; we'll take parked model's
+            # days_since_start uses each model's train_start_date; prefer parked model's
             meta0 = self._payloads.get("num_parked_combined", {}).get("metadata", {})
             train_start = str(meta0.get("train_start_date", f"{y:04d}-{mo:02d}-01"))
             try:
@@ -236,14 +236,53 @@ class PredictorModel:
             except Exception:
                 days_since_start = 0
 
-            row = {
-                "schedule_label": schedule_label,
-                "month": int(mo),
-                "days_since_start": float(days_since_start),
-                "max_temperature": float(temperature or 0.0),
-                "precipitation": float(precip or 0.0),
-            }
-            X = pd.DataFrame([row])
+            # Build feature row based on payload metadata
+            # Support both old models (with 'month') and new ones (with 'operating_hours')
+            rows = {}
+            for tgt, payload in self._payloads.items():
+                md = payload.get("metadata", {})
+                cat_cols = list((md.get("feature_columns", {}) or {}).get("categorical", []))
+                num_cols = list((md.get("feature_columns", {}) or {}).get("numeric", []))
+                for c in cat_cols:
+                    if c == "schedule_label":
+                        rows[c] = schedule_label
+                    else:
+                        rows.setdefault(c, "Missing")
+                for n in num_cols:
+                    if n == "days_since_start":
+                        rows[n] = float(days_since_start)
+                    elif n == "max_temperature":
+                        rows[n] = float(temperature or 0.0)
+                    elif n == "precipitation":
+                        rows[n] = float(precip or 0.0)
+                    elif n == "operating_hours":
+                        # compute duration in hours
+                        def _to_minutes(s: str) -> int:
+                            try:
+                                h, m = s[:5].split(":", 1)
+                                return int(h) * 60 + int(m)
+                            except Exception:
+                                return 0
+                        om = _to_minutes(o_str)
+                        cm = _to_minutes(c_str)
+                        dur = cm - om
+                        if dur < 0:
+                            dur += 24 * 60
+                        rows[n] = float(dur) / 60.0
+                    elif n == "month":
+                        rows[n] = int(mo)
+                    else:
+                        rows.setdefault(n, float("nan"))
+
+            if not rows:
+                # Fallback to a minimal row to avoid crash
+                rows = {
+                    "schedule_label": schedule_label,
+                    "days_since_start": float(days_since_start),
+                    "max_temperature": float(temperature or 0.0),
+                    "precipitation": float(precip or 0.0),
+                }
+            X = pd.DataFrame([rows])
 
             # Predict total visits and max bikes if available
             rem_val = pk_val = None

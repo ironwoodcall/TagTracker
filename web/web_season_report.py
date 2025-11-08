@@ -664,6 +664,7 @@ def main_web_page(ttdb: sqlite3.Connection):
     today_link = cc.CGIManager.selfref(what_report=cc.WHAT_ONE_DAY, start_date="today")
     summaries_link = cc.CGIManager.selfref(what_report=cc.WHAT_DATERANGE)
     graphs_link = cc.CGIManager.selfref(what_report=cc.WHAT_SUMMARY_FREQUENCIES)
+    prediction_link = cc.CGIManager.selfref(what_report=cc.WHAT_PREDICT_FUTURE)
 
     compare_link = cc.CGIManager.selfref(
         what_report=cc.WHAT_COMPARE_RANGES, pages_back=1
@@ -713,6 +714,14 @@ def main_web_page(ttdb: sqlite3.Connection):
         <button onclick="window.location.href='{blocks_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Day by Day<br>Activity</b></button>
+        &nbsp;&nbsp;
+        """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{prediction_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Future Day<br>Prediction</b></button>
         &nbsp;&nbsp;
         """
     )
