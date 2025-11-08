@@ -78,6 +78,15 @@ def _render_form(database, params) -> None:
     print(f"<input type='hidden' name='{cc.ReportParameters.cgi_name('what_report')}' value='{cc.WHAT_PREDICT_FUTURE}'>")
     # Hidden schedule field that is set by the dropdown
     print(f"<input type='hidden' name='{cc.ReportParameters.cgi_name('schedule')}' value='{html.escape(sched_sel)}'>")
+    # Carry forward and increment pages_back across submissions so Back works
+    try:
+        _pb_base = params.pages_back if isinstance(params.pages_back, int) else 1
+        next_pages_back = cc.increment_pages_back(_pb_base)
+    except Exception:
+        next_pages_back = 1
+    print(
+        f"<input type='hidden' name='{cc.ReportParameters.cgi_name('pages_back')}' value='{next_pages_back}'>"
+    )
 
     # Top-left: Date
     print(
@@ -175,7 +184,11 @@ def prediction_report(database, params) -> None:
     """
 
     print(cc.titleize("Future day prediction"))
-    print(f"{cc.main_and_back_buttons(pages_back=cc.increment_pages_back(params.pages_back))}<br><br>")
+    params.pages_back = params.pages_back or 1
+    print(f"{cc.main_and_back_buttons(pages_back=params.pages_back)}<br><br>")
+
+    # Flag to allow us to skip missing-parameter error message on first entry
+    _initial_entry = not (params.start_date or params.schedule)
 
     # Apply defaults before rendering the form so selections reflect them
     if not (params.start_date and str(params.start_date).strip()):
@@ -203,7 +216,8 @@ def prediction_report(database, params) -> None:
 
     # If temperature or precipitation missing, show a bold notice below the box and stop
     if params.precipitation is None or params.temperature is None:
-        print("<div style='font-weight:bold;margin-top:0.25rem;'>Must give anticipated temperature and precipitation</div>")
+        if not _initial_entry:
+            print("<div style='color:red;sfont-weight:bold;margin-top:0.25rem;'>Must give anticipated temperature and precipitation</div>")
         return
 
     # Validate required parameters; if missing anything else, just stop
