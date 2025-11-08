@@ -41,6 +41,7 @@ import web_tags_report
 import web_period_summaries
 import web_compare_ranges
 import web_period_detail
+import web_prediction_report
 import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
@@ -275,13 +276,18 @@ if params.what_report == cc.WHAT_COMPARE_RANGES:
     params.start_date2 = params.start_date2 or recent_start
     params.end_date2 = params.end_date2 or recent_end
 
-(params.start_date, params.end_date, _default_start_date, _default_end_date) = (
-    cc.resolve_date_range(
+# Resolve date range for most reports, but do not clamp for predictions
+if params.what_report != cc.WHAT_PREDICT_FUTURE:
+    (
+        params.start_date,
+        params.end_date,
+        _default_start_date,
+        _default_end_date,
+    ) = cc.resolve_date_range(
         database,
         start_date=params.start_date or "",
         end_date=params.end_date or "",
     )
-)
 
 if params.what_report == cc.WHAT_COMPARE_RANGES:
     (
@@ -322,6 +328,8 @@ elif params.what_report == cc.WHAT_AUDIT:
     web_audit_report(database)
 elif params.what_report == cc.WHAT_DATERANGE_DETAIL:
     web_period_detail.period_detail(database, params=params)
+elif params.what_report == cc.WHAT_PREDICT_FUTURE:
+    web_prediction_report.prediction_report(database, params=params)
 elif params.what_report == cc.WHAT_DATERANGE:
     web_period_summaries.daterange_summary(database, params=params)
 elif params.what_report == cc.WHAT_ESTIMATE_VERBOSE:

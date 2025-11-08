@@ -72,6 +72,7 @@ WHAT_DATERANGE_MONTH = "pM"
 WHAT_DATERANGE_WEEK = "pW"
 WHAT_DATERANGE_CUSTOM = "pC"
 WHAT_ESTIMATE_VERBOSE = "EstV"
+WHAT_PREDICT_FUTURE = "Ft"
 WHAT_DOWNLOAD_CSV = "d.v"
 WHAT_DOWNLOAD_DB = "d.b"
 WHAT_VALID_VALUES = {
@@ -98,6 +99,7 @@ WHAT_VALID_VALUES = {
     WHAT_DOWNLOAD_CSV,
     WHAT_DOWNLOAD_DB,
     WHAT_DATERANGE_DETAIL,
+    WHAT_PREDICT_FUTURE,
 }
 
 # These constants are used to manage how report columns are sorted.
@@ -246,8 +248,7 @@ class ReportParameters:
     # with the parameter name and parameter value for the audit report.
     # Changes made of those here need to be reflected in the CGI script.
     what_report: str | None = field(default=None, metadata={"cgi": "what"})
-    sched_open: VTime | None = field(default=None, metadata={"cgi": "sched_open"})
-    sched_close: VTime | None = field(default=None, metadata={"cgi": "sched_close"})
+    schedule: str | None = field(default=None, metadata={"cgi": "schedule"})
     precipitation: float | None = field(default=None, metadata={"cgi": "precip"})
     temperature: float | None = field(default=None, metadata={"cgi": "temp"})
     start_date: str | None = field(default=None, metadata={"cgi": "start_date"})
@@ -301,6 +302,24 @@ class ReportParameters:
             error_out(f"Bad time value for parameter {property_name}: '{maybe_value}'")
         # Assign 'maybe_value' to self's property called 'property_name'
         setattr(self, property_name, maybe_value)
+
+    def _set_as_schedule(self, property_name, maybe_value):
+        """Accepts 'HH:MM-HH:MM' (or en dash) and normalizes.
+
+        Stores a canonical 'HH:MM-HH:MM' string in self.schedule.
+        """
+        raw = str(maybe_value).strip()
+        # Accept either '-' or en dash '–' as separator
+        sep = '-' if '-' in raw else ('–' if '–' in raw else None)
+        if not sep:
+            error_out(f"Bad schedule value for parameter {property_name}: '{ut.untaint(raw)}'")
+        left, right = [s.strip() for s in raw.split(sep, 1)]
+        o = VTime(left)
+        c = VTime(right)
+        if not o or not c:
+            error_out(f"Bad schedule value for parameter {property_name}: '{ut.untaint(raw)}'")
+        # Save canonical form
+        setattr(self, "schedule", f"{str(o)}-{str(c)}")
 
     def _set_as_tagid(self, property_name, maybe_value):
         """Assigns maybe_value to self.{property_name} if valid. Errors out if not."""
@@ -429,8 +448,7 @@ class ReportParameters:
 
     _property_type_checks = {
         "what_report": _set_as_what,
-        "sched_open": _set_as_time,
-        "sched_close": _set_as_time,
+        "schedule": _set_as_schedule,
         "start_date": _set_as_date,
         "end_date": _set_as_date,
         "dow": _set_as_dow,
@@ -594,8 +612,7 @@ class CGIManager:
         params: ReportParameters = None,
         *,
         what_report: str = "",
-        sched_open: str = "",
-        sched_close:str = "",
+        schedule: str = "",
         precipitation:float|None = None,
         temperature:float|None = None,
         tag: str = "",
@@ -623,8 +640,7 @@ class CGIManager:
 
         overrides = {
             "what_report": what_report,
-            "sched_open": sched_open,
-            "sched_close": sched_close,
+            "schedule": schedule,
             "precipitation": precipitation,
             "temperature": temperature,
             "tag": tag,
