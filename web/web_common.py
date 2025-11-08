@@ -246,7 +246,10 @@ class ReportParameters:
     # with the parameter name and parameter value for the audit report.
     # Changes made of those here need to be reflected in the CGI script.
     what_report: str | None = field(default=None, metadata={"cgi": "what"})
-    clock: VTime | None = field(default=None, metadata={"cgi": "clock"})
+    sched_open: VTime | None = field(default=None, metadata={"cgi": "sched_open"})
+    sched_close: VTime | None = field(default=None, metadata={"cgi": "sched_close"})
+    precipitation: float | None = field(default=None, metadata={"cgi": "precip"})
+    temperature: float | None = field(default=None, metadata={"cgi": "temp"})
     start_date: str | None = field(default=None, metadata={"cgi": "start_date"})
     end_date: str | None = field(default=None, metadata={"cgi": "end_date"})
     dow: str | None = field(default=None, metadata={"cgi": "dow"})
@@ -318,6 +321,27 @@ class ReportParameters:
                 f"Bad date value for parameter {property_name}: '{ut.untaint(maybe_value)}'"
             )
         setattr(self, property_name, maybe_value)
+
+    def _set_as_float(self, property_name, maybe_value) -> bool:
+        """Assigns maybe_value to self.{property_name} if valid float.
+        Errors out and halts if invalid (does not represent a float).
+        """
+        # Normalize and check presence
+        if maybe_value is None:
+            error_out(f"Missing numeric value for parameter {property_name}")
+        maybe_value = str(maybe_value).strip().lower()
+
+        # Validate float
+        try:
+            val = float(maybe_value)
+        except ValueError:
+            error_out(
+                f"Bad numeric value for parameter {property_name}: '{ut.untaint(maybe_value)}'"
+            )
+
+        # Assign validated float
+        setattr(self, property_name, val)
+        return True
 
     def _set_as_dow(self, property_name, maybe_value):
         """Assigns maybe_value to self.{property_name} if valid. Errors out if not.
@@ -405,7 +429,8 @@ class ReportParameters:
 
     _property_type_checks = {
         "what_report": _set_as_what,
-        "clock": _set_as_time,
+        "sched_open": _set_as_time,
+        "sched_close": _set_as_time,
         "start_date": _set_as_date,
         "end_date": _set_as_date,
         "dow": _set_as_dow,
@@ -416,6 +441,8 @@ class ReportParameters:
         "sort_direction": _set_as_sort_direction,
         "tag": _set_as_tagid,
         "pages_back": _set_as_pages_back,
+        "precipitation": _set_as_float,
+        "temperature": _set_as_float,
     }
 
     def __init__(
@@ -567,7 +594,10 @@ class CGIManager:
         params: ReportParameters = None,
         *,
         what_report: str = "",
-        clock: str = "",
+        sched_open: str = "",
+        sched_close:str = "",
+        precipitation:float|None = None,
+        temperature:float|None = None,
         tag: str = "",
         dow: str = "",
         sort_by: str = "",
@@ -593,7 +623,10 @@ class CGIManager:
 
         overrides = {
             "what_report": what_report,
-            "clock": clock,
+            "sched_open": sched_open,
+            "sched_close": sched_close,
+            "precipitation": precipitation,
+            "temperature": temperature,
             "tag": tag,
             "dow": dow,
             "sort_by": sort_by,
