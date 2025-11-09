@@ -122,7 +122,8 @@ def _render_form(database, params) -> None:
         "<div style='margin-top:8px;font-size:0.85em;color:#555;line-height:1.3;'>"
         "This experimental model predicts bike traffic in the future based on past data. "
         "It remains experimental as the model is refined to try to let it make reliable predictions. "
-        "It is heavily weighted to schedule and weather, but knows nothing about special events."
+        "It is heavily weighted to schedule and weather, but knows nothing about special events.<br><br>"
+        "Treat predictions with a grain or two of salt."
         "</div>"
     )
     print("</div>")  # end bordered box
