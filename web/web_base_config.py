@@ -88,6 +88,10 @@ EST_RECENT_DAYS = 30
 # best-model guidance for mixed outputs.
 EST_CALIBRATION_FILE = ""
 
+# Location for future prediction trained model data
+TRAINED_MODEL_FOLDER = ""
+
+
 # Selection strategy for 'best guess' rows in STANDARD output.
 #   'accuracy_first' (default): calibration best_model -> narrowest range -> confidence
 #   'range_first'            : narrowest range -> confidence (legacy behavior)
