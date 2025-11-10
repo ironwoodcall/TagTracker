@@ -83,7 +83,8 @@ EST_Z_CUTOFF = 2.5
 # Recent-window size for schedule-only model
 EST_RECENT_DAYS = 30
 
-# Optional path to calibration JSON (produced by helpers/estimator_calibrate_models.py --recommended)
+# Optional path to calibration JSON
+# (produced by helpers/estimator_calibrate_models.py --recommended)
 # If set, estimator will use per-model, per-measure, per-time-bin residual bands and
 # best-model guidance for mixed outputs.
 EST_CALIBRATION_FILE = ""
@@ -91,6 +92,8 @@ EST_CALIBRATION_FILE = ""
 # Location for future prediction trained model data
 TRAINED_MODEL_FOLDER = ""
 
+# Climate normals: csv file of climate norms for this forecast area
+CLIMATE_NORMALS = {}
 
 # Selection strategy for 'best guess' rows in STANDARD output.
 #   'accuracy_first' (default): calibration best_model -> narrowest range -> confidence

@@ -15,8 +15,9 @@ from datetime import datetime, date as _date
 
 import web_common as cc
 import common.tt_util as ut
-from web.web_predictor_model import PredictorModel
+from web.web_predictor_model import PredictorModel, PredictorOutput
 from common.tt_time import VTime
+import web_base_config as wcfg
 
 
 def _fmt_rng(r: Optional[tuple[int, int]], is_time: bool = False) -> str:
@@ -71,13 +72,17 @@ def _render_form(database, params) -> None:
     # Begin form
     print(
         "<form method='GET' style=\"margin-bottom:1rem\">"
-        "<div style=\"border:1px solid #aaa;padding:10px;border-radius:6px;max-width:26rem;\">"
-        "<div style=\"display:grid;grid-template-columns:1fr 1fr;column-gap:0.75rem;row-gap:0.5rem;align-items:center;\">"
+        '<div style="border:1px solid #aaa;padding:10px;border-radius:6px;max-width:26rem;">'
+        '<div style="display:grid;grid-template-columns:1fr 1fr;column-gap:0.75rem;row-gap:0.5rem;align-items:center;">'
     )
     # Ensure routing stays on this report
-    print(f"<input type='hidden' name='{cc.ReportParameters.cgi_name('what_report')}' value='{cc.WHAT_PREDICT_FUTURE}'>")
+    print(
+        f"<input type='hidden' name='{cc.ReportParameters.cgi_name('what_report')}' value='{cc.WHAT_PREDICT_FUTURE}'>"
+    )
     # Hidden schedule field that is set by the dropdown
-    print(f"<input type='hidden' name='{cc.ReportParameters.cgi_name('schedule')}' value='{html.escape(sched_sel)}'>")
+    print(
+        f"<input type='hidden' name='{cc.ReportParameters.cgi_name('schedule')}' value='{html.escape(sched_sel)}'>"
+    )
     # Carry forward and increment pages_back across submissions so Back works
     try:
         _pb_base = params.pages_back if isinstance(params.pages_back, int) else 1
@@ -96,7 +101,7 @@ def _render_form(database, params) -> None:
     # Top-right: Max temp
     print(
         f"<div style='display:flex;align-items:center;gap:0.25rem;justify-content:flex-end;'><label for='temp'><b>Max temp:</b></label>"
-        f"<input type='number' id='temp' step='0.1' size='4' style='width:5rem' name='{cc.ReportParameters.cgi_name('temperature')}' value='{html.escape(temp_val)}'></div>"
+        f"<input type='number' id='temp' step='any' size='4' style='width:5rem' name='{cc.ReportParameters.cgi_name('temperature')}' value='{html.escape(temp_val)}'></div>"
     )
     # Bottom-left: Schedule dropdown
     print(
@@ -107,16 +112,20 @@ def _render_form(database, params) -> None:
     for o, c in pairs:
         val = f"{o}-{c}"
         selected = " selected" if (sched_sel == val) else ""
-        print(f"<option value='{html.escape(val)}'{selected}>{html.escape(o)}–{html.escape(c)}</option>")
+        print(
+            f"<option value='{html.escape(val)}'{selected}>{html.escape(o)}–{html.escape(c)}</option>"
+        )
     print("</select></div>")
     # Bottom-right: Precip
     print(
         f"<div style='display:flex;align-items:center;gap:0.25rem;justify-content:flex-end;'><label for='precip'><b>Precip (mm):</b></label>"
-        f"<input type='number' id='precip' step='0.1' size='4' style='width:5rem' name='{cc.ReportParameters.cgi_name('precipitation')}' value='{html.escape(precip_val)}'></div>"
+        f"<input type='number' id='precip' step='any' size='4' style='width:5rem' name='{cc.ReportParameters.cgi_name('precipitation')}' value='{html.escape(precip_val)}'></div>"
     )
 
     print("</div>")  # end grid
-    print("<div style='text-align:center;margin-top:10px;'><input type='submit' value='Predict'></div>")
+    print(
+        "<div style='text-align:center;margin-top:10px;'><input type='submit' value='Predict'></div>"
+    )
     # Informational note (kept within the same box, no width change)
     print(
         "<div style='margin-top:8px;font-size:0.85em;color:#555;line-height:1.3;'>"
@@ -212,13 +221,59 @@ def prediction_report(database, params) -> None:
             except Exception:
                 params.schedule = sched
 
+    # If temperature/precip not provided, try climate normals for selected month
+    used_normals_temp = False
+    used_normals_precip = False
+    try:
+        normals = getattr(wcfg, "CLIMATE_NORMALS", {}) or {}
+        eff_date = params.start_date or ut.date_str("tomorrow")
+        if normals and eff_date:
+            dt = datetime.strptime(eff_date, "%Y-%m-%d")
+            m = dt.month
+            month_norm = normals.get(m) if isinstance(normals, dict) else None
+            if isinstance(month_norm, dict):
+                if (
+                    params.temperature is None
+                    and month_norm.get("temperature") is not None
+                ):
+                    try:
+                        params.set_property(
+                            "temperature", float(month_norm["temperature"])
+                        )
+                    except Exception:
+                        params.temperature = float(month_norm["temperature"])
+                    used_normals_temp = True
+                if (
+                    params.precipitation is None
+                    and month_norm.get("precipitation") is not None
+                ):
+                    try:
+                        params.set_property(
+                            "precipitation", float(month_norm["precipitation"])
+                        )
+                    except Exception:
+                        params.precipitation = float(month_norm["precipitation"])
+                    used_normals_precip = True
+    except Exception:
+        pass
+
     # Render input form at top (will show defaults if applied)
     _render_form(database, params)
 
-    # If temperature or precipitation missing, show a bold notice below the box and stop
+    # Informational note when climate normals were used as defaults
+    if used_normals_temp or used_normals_precip:
+        print(
+            "<div style='color:red;margin-top:0.25rem;'>"
+            "Temperature &/or precipitation have been set from Climate Normals. </br>"
+            "Adjust these values for a better prediction.<br><br></div>"
+        )
+
+    # If temperature or precipitation still missing, show a bold notice and stop
     if params.precipitation is None or params.temperature is None:
         if not _initial_entry:
-            print("<div style='color:red;sfont-weight:bold;margin-top:0.25rem;'>Must give anticipated temperature and precipitation</div>")
+            print(
+                "<div style='color:red;sfont-weight:bold;margin-top:0.25rem;'>Must give anticipated temperature and precipitation</div>"
+            )
         return
 
     # Validate required parameters; if missing anything else, just stop
@@ -247,18 +302,73 @@ def prediction_report(database, params) -> None:
     precip = float(params.precipitation)
     temp = float(params.temperature)
 
+    # Compute predictions for both models if available
+    out_sched = None
+    out_analog = None
+    pred_err = None
     try:
-        out = model.predict(
-            precip=precip,
-            temperature=temp,
-            date=date,
-            opening_time=otime,
-            closing_time=ctime,
-        )
+        # If schedule-driven payloads available, use them
+        if getattr(model, "_payloads", None):
+            out_sched = model.predict(
+                precip=precip,
+                temperature=temp,
+                date=date,
+                opening_time=otime,
+                closing_time=ctime,
+            )
+        # If analog available, call it directly
+        if getattr(model, "_analog", None) is not None:
+            try:
+                tot, tot_rng, pk, pk_rng = model._analog.predict(  # type: ignore[attr-defined]
+                    date=date,
+                    opening_time=otime,
+                    closing_time=ctime,
+                    max_temperature=float(temp),
+                    precipitation=float(precip),
+                )
+                # Shape into a PredictorOutput instance for typing clarity
+                out_analog = PredictorOutput(
+                    activity_next_hour=None,
+                    remainder=None if tot is None else int(round(max(0.0, float(tot)))),
+                    peak=None if pk is None else int(round(max(0.0, float(pk)))),
+                    peaktime=None,
+                    activity_range=None,
+                    remainder_range=(
+                        None
+                        if tot_rng is None
+                        else (
+                            max(0, int(round(tot_rng[0]))),
+                            max(0, int(round(tot_rng[1]))),
+                        )
+                    ),
+                    peak_range=(
+                        None
+                        if pk_rng is None
+                        else (
+                            max(0, int(round(pk_rng[0]))),
+                            max(0, int(round(pk_rng[1]))),
+                        )
+                    ),
+                    peaktime_range=None,
+                )
+            except Exception as e2:  # pylint:disable=broad-exception-caught
+                pred_err = e2
+        # If neither modern model available, fall back to whatever predict() provides
+        if out_sched is None and out_analog is None:
+            out_sched = model.predict(
+                precip=precip,
+                temperature=temp,
+                date=date,
+                opening_time=otime,
+                closing_time=ctime,
+            )
     except Exception as e:  # pylint:disable=broad-exception-caught
+        pred_err = e
+
+    if pred_err is not None and (out_sched is None and out_analog is None):
         print(
             "<div style='color:#a00'><b>Prediction error:</b> "
-            + html.escape(f"{type(e).__name__}: {e}")
+            + html.escape(f"{type(pred_err).__name__}: {pred_err}")
             + "</div>"
         )
         return
@@ -296,7 +406,7 @@ def prediction_report(database, params) -> None:
         actual_total = actual_max = None
 
     # Render table
-    print("<table class='general_table' style='max-width:42rem'>")
+    print("<table class='general_table' style='max-width:64rem'>")
     # Title row
     try:
         pred_dt = datetime.strptime(date, "%Y-%m-%d").date()
@@ -308,96 +418,137 @@ def prediction_report(database, params) -> None:
         title = f"Prediction for {dow3} {html.escape(date)} ({n_abs} days in the {future_past})"
     except Exception:
         title = f"Prediction for {html.escape(date)}"
-    total_cols = 5 if has_actual else 4
+    # Columns: Measure, [Actual], Schedule-driven (pred,range), Analog-day (pred,range)
+    has_sched = out_sched is not None
+    has_analog = out_analog is not None
+    # Each model contributes 2 columns (pred, range)
+    model_cols = (2 if has_sched else 0) + (2 if has_analog else 0)
+    total_cols = (2 if has_actual else 1) + model_cols
     print(f"<tr><th colspan={total_cols} class='heavy-bottom'>{title}</th></tr>")
 
     # Header for predictions (now used for both inputs and model outputs)
     if has_actual:
-        print("<tr><th>Measure</th><th>Actual</th><th>Prediction</th><th>Range (approx)</th><th>Notes</th></tr>")
+        cells = ["<th>Measure</th>", "<th style='border-right:2px solid #444'>Actual</th>"]
+        if has_sched:
+            cells.append("<th>Schedule-driven</th>")
+            cells.append("<th style='border-right:2px solid #444'>Range (approx)</th>")
+        if has_analog:
+            # If schedule-driven wasn't present, this becomes the first range column
+            if not has_sched:
+                cells.append("<th>Analog-day</th>")
+                cells.append("<th style='border-right:2px solid #444'>Range (approx)</th>")
+            else:
+                cells += ["<th>Analog-day</th>", "<th>Range (approx)</th>"]
+        print("<tr>" + "".join(cells) + "</tr>")
         # Input rows shown in the table using Prediction/Actual columns
-        print(
-            "<tr>"
-            "<td>Schedule</td>"
-            f"<td>{'' if (not actual_open or not actual_close) else html.escape(actual_open + '–' + actual_close)}</td>"
-            f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
-        print(
-            "<tr>"
-            "<td>Max temp</td>"
-            f"<td>{'' if actual_temp is None else actual_temp}</td>"
-            f"<td>{temp}</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
-        print(
-            "<tr class='heavy-bottom'>"
-            "<td>Precipitation</td>"
-            f"<td>{'' if actual_precip is None else str(actual_precip) + ' mm'}</td>"
-            f"<td>{precip} mm</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
+        # Schedule row with both model columns; empty ranges as nbsp
+        row = ["<tr>", "<td>Schedule</td>"]
+        actual_sched = '' if (not actual_open or not actual_close) else html.escape(actual_open + '–' + actual_close)
+        row.append(f"<td style='border-right:2px solid #444'>{actual_sched}</td>")
+        first_range_done = False
+        if has_sched:
+            row.append(f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>")
+            first_range_done = True
+        if has_analog:
+            row.append(f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>" if not first_range_done else "<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+        # Max temp row
+        row = ["<tr>", "<td>Max temp</td>"]
+        row.append(f"<td style='border-right:2px solid #444'>{'' if actual_temp is None else actual_temp}</td>")
+        first_range_done = False
+        if has_sched:
+            row.append(f"<td>{temp}</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>")
+            first_range_done = True
+        if has_analog:
+            row.append(f"<td>{temp}</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>" if not first_range_done else "<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+        # Precip row
+        row = ["<tr class='heavy-bottom'>", "<td>Precipitation</td>"]
+        row.append(f"<td style='border-right:2px solid #444'>{'' if actual_precip is None else str(actual_precip) + ' mm'}</td>")
+        first_range_done = False
+        if has_sched:
+            row.append(f"<td>{precip} mm</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>")
+            first_range_done = True
+        if has_analog:
+            row.append(f"<td>{precip} mm</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>" if not first_range_done else "<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
     else:
-        print("<tr><th>Measure</th><th>Prediction</th><th>Range (approx)</th><th>Notes</th></tr>")
-        print(
-            "<tr>"
-            "<td>Schedule</td>"
-            f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
-        print(
-            "<tr>"
-            "<td>Max temp</td>"
-            f"<td>{temp}</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
-        print(
-            "<tr class='heavy-bottom'>"
-            "<td>Precipitation</td>"
-            f"<td>{precip} mm</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
+        hdr = ["<th>Measure</th>"]
+        if has_sched:
+            hdr.append("<th>Schedule-driven</th>")
+            hdr.append("<th style='border-right:2px solid #444'>Range (approx)</th>")
+        if has_analog:
+            if not has_sched:
+                hdr.append("<th>Analog-day</th>")
+                hdr.append("<th style='border-right:2px solid #444'>Range (approx)</th>")
+            else:
+                hdr += ["<th>Analog-day</th>", "<th>Range (approx)</th>"]
+        print("<tr>" + "".join(hdr) + "</tr>")
+        # Inputs rows without actuals
+        row = ["<tr>", "<td>Schedule</td>"]
+        if has_sched:
+            row.append(f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>")
+            row.append("<td>&nbsp;</td>")
+        if has_analog:
+            row.append(f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>")
+            row.append("<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+        row = ["<tr>", "<td>Max temp</td>"]
+        if has_sched:
+            row.append(f"<td>{temp}</td>")
+            row.append("<td>&nbsp;</td>")
+        if has_analog:
+            row.append(f"<td>{temp}</td>")
+            row.append("<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+        row = ["<tr class='heavy-bottom'>", "<td>Precipitation</td>"]
+        if has_sched:
+            row.append(f"<td>{precip} mm</td>")
+            row.append("<td>&nbsp;</td>")
+        if has_analog:
+            row.append(f"<td>{precip} mm</td>")
+            row.append("<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+    row_bits = ["<tr>", "<td>Total visits</td>"]
     if has_actual:
-        print(
-            "<tr>"
-            "<td>Total visits</td>"
-            f"<td>{'' if actual_total is None else int(actual_total)}</td>"
-            f"<td>{'' if out.remainder is None else out.remainder}</td>"
-            f"<td>{_fmt_rng(out.remainder_range)}</td>"
-            f"<td></td>"
-            "</tr>"
-        )
-    else:
-        print(
-            "<tr>"
-            "<td>Total visits</td>"
-            f"<td>{'' if out.remainder is None else out.remainder}</td>"
-            f"<td>{_fmt_rng(out.remainder_range)}</td>"
-            f"<td></td>"
-            "</tr>"
-        )
+        row_bits.append(f"<td style='border-right:2px solid #444'>{'' if actual_total is None else int(actual_total)}</td>")
+    if has_sched:
+        row_bits.append(f"<td>{'' if out_sched.remainder is None else out_sched.remainder}</td>")
+        row_bits.append(f"<td style='border-right:2px solid #444'>{(_fmt_rng(getattr(out_sched, 'remainder_range', None)) or '&nbsp;')}</td>")
+    if has_analog:
+        row_bits.append(f"<td>{'' if out_analog.remainder is None else out_analog.remainder}</td>")
+        # Apply heavy border if schedule-driven absent
+        if not has_sched:
+            row_bits.append(f"<td style='border-right:2px solid #444'>{(_fmt_rng(getattr(out_analog, 'remainder_range', None)) or '&nbsp;')}</td>")
+        else:
+            row_bits.append(f"<td>{(_fmt_rng(getattr(out_analog, 'remainder_range', None)) or '&nbsp;')}</td>")
+    row_bits.append("</tr>")
+    print("".join(row_bits))
+    row_bits = ["<tr>", "<td>Max bikes</td>"]
     if has_actual:
-        print(
-            "<tr>"
-            "<td>Max bikes</td>"
-            f"<td>{'' if actual_max is None else int(actual_max)}</td>"
-            f"<td>{'' if out.peak is None else out.peak}</td>"
-            f"<td>{_fmt_rng(out.peak_range)}</td>"
-            f"<td></td>"
-            "</tr>"
-        )
-    else:
-        print(
-            "<tr>"
-            "<td>Max bikes</td>"
-            f"<td>{'' if out.peak is None else out.peak}</td>"
-            f"<td>{_fmt_rng(out.peak_range)}</td>"
-            f"<td></td>"
-            "</tr>"
-        )
+        row_bits.append(f"<td style='border-right:2px solid #444'>{'' if actual_max is None else int(actual_max)}</td>")
+    if has_sched:
+        row_bits.append(f"<td>{'' if out_sched.peak is None else out_sched.peak}</td>")
+        row_bits.append(f"<td style='border-right:2px solid #444'>{(_fmt_rng(getattr(out_sched, 'peak_range', None)) or '&nbsp;')}</td>")
+    if has_analog:
+        row_bits.append(f"<td>{'' if out_analog.peak is None else out_analog.peak}</td>")
+        # Apply heavy border if schedule-driven absent
+        if not has_sched:
+            row_bits.append(f"<td style='border-right:2px solid #444'>{(_fmt_rng(getattr(out_analog, 'peak_range', None)) or '&nbsp;')}</td>")
+        else:
+            row_bits.append(f"<td>{(_fmt_rng(getattr(out_analog, 'peak_range', None)) or '&nbsp;')}</td>")
+    row_bits.append("</tr>")
+    print("".join(row_bits))
     print("</table>")
