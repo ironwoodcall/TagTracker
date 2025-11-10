@@ -418,105 +418,137 @@ def prediction_report(database, params) -> None:
         title = f"Prediction for {dow3} {html.escape(date)} ({n_abs} days in the {future_past})"
     except Exception:
         title = f"Prediction for {html.escape(date)}"
-    # Columns: Measure, [Actual], Schedule-driven (pred,range), Analog-day (pred,range), Notes
+    # Columns: Measure, [Actual], Schedule-driven (pred,range), Analog-day (pred,range)
     has_sched = out_sched is not None
     has_analog = out_analog is not None
     # Each model contributes 2 columns (pred, range)
     model_cols = (2 if has_sched else 0) + (2 if has_analog else 0)
-    total_cols = (2 if has_actual else 1) + model_cols + 1
+    total_cols = (2 if has_actual else 1) + model_cols
     print(f"<tr><th colspan={total_cols} class='heavy-bottom'>{title}</th></tr>")
 
     # Header for predictions (now used for both inputs and model outputs)
     if has_actual:
-        hdr = ["Measure", "Actual"]
+        cells = ["<th>Measure</th>", "<th style='border-right:2px solid #444'>Actual</th>"]
         if has_sched:
-            hdr += ["Schedule-driven", "Range (approx)"]
+            cells.append("<th>Schedule-driven</th>")
+            cells.append("<th style='border-right:2px solid #444'>Range (approx)</th>")
         if has_analog:
-            hdr += ["Analog-day", "Range (approx)"]
-        hdr += ["Notes"]
-        print("<tr>" + "".join(f"<th>{h}</th>" for h in hdr) + "</tr>")
+            # If schedule-driven wasn't present, this becomes the first range column
+            if not has_sched:
+                cells.append("<th>Analog-day</th>")
+                cells.append("<th style='border-right:2px solid #444'>Range (approx)</th>")
+            else:
+                cells += ["<th>Analog-day</th>", "<th>Range (approx)</th>"]
+        print("<tr>" + "".join(cells) + "</tr>")
         # Input rows shown in the table using Prediction/Actual columns
-        print(
-            "<tr>"
-            "<td>Schedule</td>"
-            f"<td>{'' if (not actual_open or not actual_close) else html.escape(actual_open + '–' + actual_close)}</td>"
-            f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
-        print(
-            "<tr>"
-            "<td>Max temp</td>"
-            f"<td>{'' if actual_temp is None else actual_temp}</td>"
-            f"<td>{temp}</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
-        print(
-            "<tr class='heavy-bottom'>"
-            "<td>Precipitation</td>"
-            f"<td>{'' if actual_precip is None else str(actual_precip) + ' mm'}</td>"
-            f"<td>{precip} mm</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
-    else:
-        hdr = ["Measure"]
+        # Schedule row with both model columns; empty ranges as nbsp
+        row = ["<tr>", "<td>Schedule</td>"]
+        actual_sched = '' if (not actual_open or not actual_close) else html.escape(actual_open + '–' + actual_close)
+        row.append(f"<td style='border-right:2px solid #444'>{actual_sched}</td>")
+        first_range_done = False
         if has_sched:
-            hdr += ["Schedule-driven", "Range (approx)"]
+            row.append(f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>")
+            first_range_done = True
         if has_analog:
-            hdr += ["Analog-day", "Range (approx)"]
-        hdr += ["Notes"]
-        print("<tr>" + "".join(f"<th>{h}</th>" for h in hdr) + "</tr>")
-        print(
-            "<tr>"
-            "<td>Schedule</td>"
-            f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
-        print(
-            "<tr>" "<td>Max temp</td>" f"<td>{temp}</td>" "<td></td><td></td>" "</tr>"
-        )
-        print(
-            "<tr class='heavy-bottom'>"
-            "<td>Precipitation</td>"
-            f"<td>{precip} mm</td>"
-            "<td></td><td></td>"
-            "</tr>"
-        )
+            row.append(f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>" if not first_range_done else "<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+        # Max temp row
+        row = ["<tr>", "<td>Max temp</td>"]
+        row.append(f"<td style='border-right:2px solid #444'>{'' if actual_temp is None else actual_temp}</td>")
+        first_range_done = False
+        if has_sched:
+            row.append(f"<td>{temp}</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>")
+            first_range_done = True
+        if has_analog:
+            row.append(f"<td>{temp}</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>" if not first_range_done else "<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+        # Precip row
+        row = ["<tr class='heavy-bottom'>", "<td>Precipitation</td>"]
+        row.append(f"<td style='border-right:2px solid #444'>{'' if actual_precip is None else str(actual_precip) + ' mm'}</td>")
+        first_range_done = False
+        if has_sched:
+            row.append(f"<td>{precip} mm</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>")
+            first_range_done = True
+        if has_analog:
+            row.append(f"<td>{precip} mm</td>")
+            row.append("<td style='border-right:2px solid #444'>&nbsp;</td>" if not first_range_done else "<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+    else:
+        hdr = ["<th>Measure</th>"]
+        if has_sched:
+            hdr.append("<th>Schedule-driven</th>")
+            hdr.append("<th style='border-right:2px solid #444'>Range (approx)</th>")
+        if has_analog:
+            if not has_sched:
+                hdr.append("<th>Analog-day</th>")
+                hdr.append("<th style='border-right:2px solid #444'>Range (approx)</th>")
+            else:
+                hdr += ["<th>Analog-day</th>", "<th>Range (approx)</th>"]
+        print("<tr>" + "".join(hdr) + "</tr>")
+        # Inputs rows without actuals
+        row = ["<tr>", "<td>Schedule</td>"]
+        if has_sched:
+            row.append(f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>")
+            row.append("<td>&nbsp;</td>")
+        if has_analog:
+            row.append(f"<td>{html.escape(otime)}–{html.escape(ctime)}</td>")
+            row.append("<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+        row = ["<tr>", "<td>Max temp</td>"]
+        if has_sched:
+            row.append(f"<td>{temp}</td>")
+            row.append("<td>&nbsp;</td>")
+        if has_analog:
+            row.append(f"<td>{temp}</td>")
+            row.append("<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
+        row = ["<tr class='heavy-bottom'>", "<td>Precipitation</td>"]
+        if has_sched:
+            row.append(f"<td>{precip} mm</td>")
+            row.append("<td>&nbsp;</td>")
+        if has_analog:
+            row.append(f"<td>{precip} mm</td>")
+            row.append("<td>&nbsp;</td>")
+        row.append("</tr>")
+        print("".join(row))
     row_bits = ["<tr>", "<td>Total visits</td>"]
     if has_actual:
-        row_bits.append(f"<td>{'' if actual_total is None else int(actual_total)}</td>")
+        row_bits.append(f"<td style='border-right:2px solid #444'>{'' if actual_total is None else int(actual_total)}</td>")
     if has_sched:
-        row_bits.append(
-            f"<td>{'' if out_sched.remainder is None else out_sched.remainder}</td>"
-        )
-        row_bits.append(
-            f"<td>{_fmt_rng(getattr(out_sched, 'remainder_range', None))}</td>"
-        )
+        row_bits.append(f"<td>{'' if out_sched.remainder is None else out_sched.remainder}</td>")
+        row_bits.append(f"<td style='border-right:2px solid #444'>{(_fmt_rng(getattr(out_sched, 'remainder_range', None)) or '&nbsp;')}</td>")
     if has_analog:
-        row_bits.append(
-            f"<td>{'' if out_analog.remainder is None else out_analog.remainder}</td>"
-        )
-        row_bits.append(
-            f"<td>{_fmt_rng(getattr(out_analog, 'remainder_range', None))}</td>"
-        )
-    row_bits.append("<td></td>")
+        row_bits.append(f"<td>{'' if out_analog.remainder is None else out_analog.remainder}</td>")
+        # Apply heavy border if schedule-driven absent
+        if not has_sched:
+            row_bits.append(f"<td style='border-right:2px solid #444'>{(_fmt_rng(getattr(out_analog, 'remainder_range', None)) or '&nbsp;')}</td>")
+        else:
+            row_bits.append(f"<td>{(_fmt_rng(getattr(out_analog, 'remainder_range', None)) or '&nbsp;')}</td>")
     row_bits.append("</tr>")
     print("".join(row_bits))
     row_bits = ["<tr>", "<td>Max bikes</td>"]
     if has_actual:
-        row_bits.append(f"<td>{'' if actual_max is None else int(actual_max)}</td>")
+        row_bits.append(f"<td style='border-right:2px solid #444'>{'' if actual_max is None else int(actual_max)}</td>")
     if has_sched:
         row_bits.append(f"<td>{'' if out_sched.peak is None else out_sched.peak}</td>")
-        row_bits.append(f"<td>{_fmt_rng(getattr(out_sched, 'peak_range', None))}</td>")
+        row_bits.append(f"<td style='border-right:2px solid #444'>{(_fmt_rng(getattr(out_sched, 'peak_range', None)) or '&nbsp;')}</td>")
     if has_analog:
-        row_bits.append(
-            f"<td>{'' if out_analog.peak is None else out_analog.peak}</td>"
-        )
-        row_bits.append(f"<td>{_fmt_rng(getattr(out_analog, 'peak_range', None))}</td>")
-    row_bits.append("<td></td>")
+        row_bits.append(f"<td>{'' if out_analog.peak is None else out_analog.peak}</td>")
+        # Apply heavy border if schedule-driven absent
+        if not has_sched:
+            row_bits.append(f"<td style='border-right:2px solid #444'>{(_fmt_rng(getattr(out_analog, 'peak_range', None)) or '&nbsp;')}</td>")
+        else:
+            row_bits.append(f"<td>{(_fmt_rng(getattr(out_analog, 'peak_range', None)) or '&nbsp;')}</td>")
     row_bits.append("</tr>")
     print("".join(row_bits))
     print("</table>")
