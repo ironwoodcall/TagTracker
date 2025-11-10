@@ -26,11 +26,31 @@ from typing import Any, Dict, Optional
 
 # Local imports kept late to avoid circularities during bootstrap
 import web_base_config as wcfg
+import sqlite3
+from datetime import datetime, timedelta
+
+try:  # optional heavy deps
+    import pandas as pd  # type: ignore
+    import numpy as np  # type: ignore
+except Exception:  # pragma: no cover
+    pd = None  # type: ignore
+    np = None  # type: ignore
 
 
 DEFAULT_MODEL_FILENAME = "model.pkl"  # legacy single-file (unused by schedule-driven)
 DEFAULT_META_FILENAME = "meta.json"
 TARGETS = ("num_parked_combined", "num_fullest_combined")
+
+# Analog-day model configuration knobs (override by editing constants).
+# In a future iteration these can be wired into web_base_config.
+ANALOG_LOOKBACK_MONTHS = 18
+ANALOG_K_NEIGHBORS = 40
+ANALOG_TRIM_FRACTION = 0.10
+ANALOG_TEMP_WEIGHT = 2.0
+ANALOG_PRECIP_WEIGHT = 1.0
+ANALOG_GROWTH_ALPHA = 0.5
+ANALOG_GROWTH_CAP_LOW = 0.7
+ANALOG_GROWTH_CAP_HIGH = 1.3
 
 
 @dataclass
@@ -97,6 +117,7 @@ class PredictorModel:
         self._payloads: dict[str, Any] = {}
         self._meta: Dict[str, Any] = {}
         self.ready: bool = False
+        self._analog: Optional["AnalogDayModel"] = None
 
     # ------------------------------ IO ---------------------------------
     def load(self) -> None:
@@ -143,7 +164,26 @@ class PredictorModel:
             # metadata optional; ignore errors
             self._meta = {}
 
-        self.ready = loaded > 0
+        # Initialize analog-day predictor as a fallback or companion
+        try:
+            db_path = getattr(wcfg, "DB_FILENAME", "") or ""
+            if db_path:
+                self._analog = AnalogDayModel(
+                    db_path=db_path,
+                    artifacts_dir=self.model_dir / "analog",
+                    lookback_months=ANALOG_LOOKBACK_MONTHS,
+                    k=ANALOG_K_NEIGHBORS,
+                    trim_frac=ANALOG_TRIM_FRACTION,
+                    temp_weight=ANALOG_TEMP_WEIGHT,
+                    precip_weight=ANALOG_PRECIP_WEIGHT,
+                    growth_alpha=ANALOG_GROWTH_ALPHA,
+                    growth_cap_low=ANALOG_GROWTH_CAP_LOW,
+                    growth_cap_high=ANALOG_GROWTH_CAP_HIGH,
+                )
+        except Exception:
+            self._analog = None
+
+        self.ready = (loaded > 0) or (self._analog is not None)
 
     def metadata(self) -> Dict[str, Any]:
         """Return training metadata if available."""
@@ -317,6 +357,26 @@ class PredictorModel:
                 peaktime_range=None,
             )
 
+        # Fallback to analog-day predictor if available
+        if self._analog is not None:
+            tot, tot_rng, peak, peak_rng = self._analog.predict(
+                date=date,
+                opening_time=opening_time,
+                closing_time=closing_time,
+                max_temperature=float(temperature or 0.0),
+                precipitation=float(precip or 0.0),
+            )
+            return PredictorOutput(
+                activity_next_hour=None,
+                remainder=None if tot is None else int(round(max(0.0, float(tot)))),
+                peak=None if peak is None else int(round(max(0.0, float(peak)))),
+                peaktime=None,
+                activity_range=None,
+                remainder_range=None if tot_rng is None else (max(0, int(round(tot_rng[0]))), max(0, int(round(tot_rng[1])))),
+                peak_range=None if peak_rng is None else (max(0, int(round(peak_rng[0]))), max(0, int(round(peak_rng[1])))),
+                peaktime_range=None,
+            )
+
         # Legacy single-file linear model fallback
         # Prepare feature vector consistent with legacy trainer
         y, mo, d = self._date_parts(date)
@@ -357,6 +417,242 @@ class PredictorModel:
             peak_range=pk_rng,
             peaktime_range=pt_rng,
         )
+
+
+class AnalogDayModel:
+    """Analog-day predictor using schedule/weekday cohorts and weather K-NN.
+
+    Implements:
+      - Candidate pool: last 18 months up to as-of date
+      - Filters: same schedule_label (fallback to similar operating_hours), same weekday
+      - Weather K-NN: weighted L1 over max_temperature and precipitation (IQR-scaled)
+      - Aggregation: median or trimmed mean
+      - Growth factor: 3-month YOY median ratio, capped, exponent alpha
+      - Ranges: empirical percentiles of neighbor values after growth
+    """
+
+    def __init__(
+        self,
+        *,
+        db_path: str,
+        artifacts_dir: Path,
+        lookback_months: int = 18,
+        k: int = 40,
+        trim_frac: float = 0.10,
+        temp_weight: float = 2.0,
+        precip_weight: float = 1.0,
+        growth_alpha: float = 0.5,
+        growth_cap_low: float = 0.7,
+        growth_cap_high: float = 1.3,
+    ) -> None:
+        self.db_path = db_path
+        self.artifacts_dir = artifacts_dir
+        self.lookback_months = int(lookback_months)
+        self.k = int(max(0, k))
+        self.trim_frac = float(max(0.0, min(0.49, trim_frac)))
+        self.temp_weight = float(max(0.0, temp_weight))
+        self.precip_weight = float(max(0.0, precip_weight))
+        self.growth_alpha = float(max(0.0, growth_alpha))
+        self.growth_cap_low = float(max(0.1, growth_cap_low))
+        self.growth_cap_high = float(max(self.growth_cap_low, growth_cap_high))
+
+    @staticmethod
+    def _schedule_label(opening_time: str, closing_time: str) -> str:
+        o = str(opening_time or "")[:5]
+        c = str(closing_time or "")[:5]
+        return f"{o}-{c}"
+
+    @staticmethod
+    def _operating_hours(opening_time: str, closing_time: str) -> float:
+        try:
+            oh, om = str(opening_time)[:5].split(":", 1)
+            ch, cm = str(closing_time)[:5].split(":", 1)
+            o_min = int(oh) * 60 + int(om)
+            c_min = int(ch) * 60 + int(cm)
+            dur = c_min - o_min
+            if dur < 0:
+                dur += 24 * 60
+            return float(dur) / 60.0
+        except Exception:
+            return float("nan")
+
+    def _load_pool(self, asof_date: str) -> "pd.DataFrame":
+        if pd is None:
+            raise RuntimeError("pandas is required for analog-day predictor")
+        with sqlite3.connect(self.db_path) as conn:
+            df = pd.read_sql_query(
+                (
+                    "SELECT date, time_open, time_closed, max_temperature, precipitation, "
+                    "num_parked_combined, num_fullest_combined "
+                    "FROM DAY WHERE orgsite_id = 1 AND date <= ? AND date >= DATE(?, ?) ORDER BY date"
+                ),
+                conn,
+                params=(asof_date, asof_date, f"-{self.lookback_months} months"),
+                parse_dates=["date"],
+            )
+        # Derive helpers
+        s_open = df["time_open"].astype("string").fillna("Missing").str[:5]
+        s_close = df["time_closed"].astype("string").fillna("Missing").str[:5]
+        df["schedule_label"] = s_open + "-" + s_close
+        df["weekday_index"] = df["date"].dt.weekday
+        df["month"] = df["date"].dt.month
+        # operating hours
+        def _to_minutes(x: str) -> Optional[int]:
+            try:
+                h, m = str(x)[:5].split(":", 1)
+                return int(h) * 60 + int(m)
+            except Exception:
+                return None
+        o_min = df["time_open"].map(_to_minutes)
+        c_min = df["time_closed"].map(_to_minutes)
+        dur_min = (c_min.fillna(0) - o_min.fillna(0)).astype(float)
+        dur_min = dur_min.where(dur_min >= 0, dur_min + 24 * 60)
+        df["operating_hours"] = dur_min / 60.0
+        return df
+
+    def _growth_index(self, pool: "pd.DataFrame", asof_date: str, target_col: str) -> float:
+        # 3-month median vs same months last year
+        sub = pool.copy()
+        sub = sub[sub["date"] <= pd.to_datetime(asof_date)]
+        sub["ym"] = sub["date"].dt.to_period("M")
+        uniq = list(sub["ym"].unique())
+        if len(uniq) < 4:
+            return 1.0
+        last = uniq[-3:]
+        prev = [p - 12 for p in last]
+        this_med = sub[sub["ym"].isin(last)][target_col].median()
+        prev_med = sub[sub["ym"].isin(prev)][target_col].median()
+        if not (np is not None and np.isfinite(this_med) and np.isfinite(prev_med)):
+            try:
+                this_med = float(this_med)
+                prev_med = float(prev_med)
+            except Exception:
+                return 1.0
+        if not prev_med or prev_med == 0:
+            return 1.0
+        ratio = float(this_med) / float(prev_med)
+        ratio = max(self.growth_cap_low, min(self.growth_cap_high, ratio))
+        return float(ratio ** self.growth_alpha)
+
+    @staticmethod
+    def _iqr_scale(s: "pd.Series") -> float:
+        q1 = s.quantile(0.25)
+        q3 = s.quantile(0.75)
+        iqr = float(q3 - q1)
+        return max(1.0, iqr)
+
+    def _select_neighbors(
+        self,
+        pool: "pd.DataFrame",
+        schedule_label: str,
+        weekday_index: int,
+        oper_hours: float,
+        target_temp: float,
+        target_precip: float,
+    ) -> "pd.DataFrame":
+        # base filters
+        df = pool[pool["weekday_index"] == int(weekday_index)].copy()
+        exact = df[df["schedule_label"] == schedule_label]
+        if len(exact) >= max(12, min(20, self.k or 0)):
+            df = exact
+        else:
+            # widen to similar operating hours (±0.5h)
+            tol = 0.5
+            df = df[(df["operating_hours"] - float(oper_hours)).abs() <= tol]
+            # If still empty, fall back to weekday-only cohort
+            if len(df) == 0:
+                df = pool[pool["weekday_index"] == int(weekday_index)].copy()
+
+        # ensure targets present
+        df = df.dropna(subset=["num_parked_combined", "num_fullest_combined"])  # ensure targets
+        if self.k <= 0:
+            return df
+        if (pd.isna(target_temp) and self.temp_weight > 0) and (pd.isna(target_precip) and self.precip_weight > 0):
+            return df
+        # weather distance (weighted L1 with IQR scaling)
+        tscale = self._iqr_scale(df["max_temperature"]) if self.temp_weight > 0 else 1.0
+        pscale = self._iqr_scale(df["precipitation"]) if self.precip_weight > 0 else 1.0
+        tdiff = (df["max_temperature"].astype(float) - float(target_temp or 0.0)).abs() / float(tscale)
+        pdiff = (df["precipitation"].astype(float) - float(target_precip or 0.0)).abs() / float(pscale)
+        dist = self.temp_weight * tdiff + self.precip_weight * pdiff
+        order = dist.argsort(kind="mergesort")
+        k = int(min(len(order), max(1, self.k)))
+        return df.iloc[order[:k]]
+
+    def _aggregate(self, values: "np.ndarray") -> float:
+        if values.size == 0:
+            return float("nan")
+        if self.trim_frac > 0 and values.size >= 10:
+            cut = int(max(1, int(self.trim_frac * values.size)))
+            vals = np.sort(values)[cut: values.size - cut]
+            if vals.size:
+                return float(np.median(vals))
+        return float(np.median(values))
+
+    def predict(
+        self,
+        *,
+        date: str,
+        opening_time: str,
+        closing_time: str,
+        max_temperature: float,
+        precipitation: float,
+    ) -> tuple[Optional[float], Optional[tuple[float, float]], Optional[float], Optional[tuple[float, float]]]:
+        if pd is None or np is None:
+            raise RuntimeError("pandas/numpy required for analog-day predictor")
+        # FIXME: optionally return a neighbors explainer payload (top dates/values/distances)
+        # to display in the prediction report for debugging transparency.
+        # Load pool up to as-of
+        asof = date
+        pool = self._load_pool(asof)
+        if pool.empty:
+            return None, None, None, None
+        # Exclude the target date itself if present to avoid trivial neighbor
+        try:
+            pool = pool[pool["date"] < pd.to_datetime(asof)]
+        except Exception:
+            pass
+
+        # If the target date exists in DB with schedule, prefer its schedule for matching
+        sched = self._schedule_label(opening_time, closing_time)
+        oh = self._operating_hours(opening_time, closing_time)
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    "SELECT time_open, time_closed FROM DAY WHERE orgsite_id = 1 AND date = ? LIMIT 1",
+                    (date,),
+                ).fetchone()
+            if row and row[0] and row[1]:
+                so = str(row[0])[:5]
+                sc = str(row[1])[:5]
+                sched = f"{so}-{sc}"
+                oh = self._operating_hours(so, sc)
+        except Exception:
+            pass
+
+        wh = int(datetime.strptime(date, "%Y-%m-%d").weekday())
+        neigh = self._select_neighbors(
+            pool, sched, wh, oh, float(max_temperature), float(precipitation)
+        )
+        if neigh.empty:
+            return None, None, None, None
+        # Growth index per target
+        g_total = self._growth_index(pool, asof, "num_parked_combined")
+        g_peak = self._growth_index(pool, asof, "num_fullest_combined")
+
+        # Distributions (apply growth to each neighbor value, then aggregate)
+        vals_total = neigh["num_parked_combined"].astype(float).to_numpy() * g_total
+        vals_peak = neigh["num_fullest_combined"].astype(float).to_numpy() * g_peak
+        pred_total = self._aggregate(vals_total)
+        pred_peak = self._aggregate(vals_peak)
+        # Percentile bands (approx 80–90%)
+        try:
+            lo_t, hi_t = float(np.percentile(vals_total, 10)), float(np.percentile(vals_total, 90))
+            lo_p, hi_p = float(np.percentile(vals_peak, 10)), float(np.percentile(vals_peak, 90))
+        except Exception:
+            lo_t = hi_t = pred_total
+            lo_p = hi_p = pred_peak
+        return pred_total, (lo_t, hi_t), pred_peak, (lo_p, hi_p)
 
 
 __all__ = [
