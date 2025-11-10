@@ -41,7 +41,7 @@ import web_tags_report
 import web_period_summaries
 import web_compare_ranges
 import web_period_detail
-import web_prediction_report
+import web_predictor_report
 import web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
@@ -329,7 +329,7 @@ elif params.what_report == cc.WHAT_AUDIT:
 elif params.what_report == cc.WHAT_DATERANGE_DETAIL:
     web_period_detail.period_detail(database, params=params)
 elif params.what_report == cc.WHAT_PREDICT_FUTURE:
-    web_prediction_report.prediction_report(database, params=params)
+    web_predictor_report.prediction_report(database, params=params)
 elif params.what_report == cc.WHAT_DATERANGE:
     web_period_summaries.daterange_summary(database, params=params)
 elif params.what_report == cc.WHAT_ESTIMATE_VERBOSE:
