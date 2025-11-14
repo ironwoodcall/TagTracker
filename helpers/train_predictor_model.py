@@ -253,10 +253,17 @@ def main(argv: List[str]) -> int:
     nums = ["days_since_start", "max_temperature", "precipitation", "operating_hours"]
 
     def build_pipeline(cat_cols: List[str], num_cols: List[str]):
+        # Handle scikit-learn API changes:
+        # - Newer versions use sparse_output instead of sparse on OneHotEncoder.
+        # - Loss name 'absolute_error' is preferred; older versions used 'lad'.
+        try:
+            ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+        except TypeError:
+            ohe = OneHotEncoder(handle_unknown="ignore", sparse=False)
         categorical_pipeline = Pipeline(
             steps=[
                 ("imputer", SimpleImputer(strategy="most_frequent")),
-                ("onehot", OneHotEncoder(handle_unknown="ignore", sparse=False)),
+                ("onehot", ohe),
             ]
         )
         numeric_pipeline = Pipeline(steps=[("imputer", SimpleImputer(strategy="median"))])
@@ -266,11 +273,23 @@ def main(argv: List[str]) -> int:
                 ("numeric", numeric_pipeline, num_cols),
             ]
         )
-        # Use absolute_error (LAD). Map to version-compatible token if needed.
-        def _resolve_gbr_loss(loss: str) -> str:
-            aliases = {"squared_error": "ls", "absolute_error": "lad"}
-            return aliases.get(loss, loss)
-        model = GradientBoostingRegressor(loss=_resolve_gbr_loss("absolute_error"), random_state=42)
+
+        # Choose a loss compatible with the installed scikit-learn:
+        # try 'absolute_error', and proactively run any available param
+        # validation; if that fails, fall back to legacy 'lad'.
+        try:
+            model = GradientBoostingRegressor(loss="absolute_error", random_state=42)
+            checker = getattr(model, "_validate_params", None) or getattr(
+                model, "_check_params", None
+            )
+            if callable(checker):
+                try:
+                    checker()
+                except Exception:
+                    model = GradientBoostingRegressor(loss="lad", random_state=42)
+        except Exception:
+            model = GradientBoostingRegressor(loss="lad", random_state=42)
+
         return Pipeline(steps=[("preprocess", preprocessor), ("model", model)])
 
     artifacts: Dict[str, Dict[str, Any]] = {}
