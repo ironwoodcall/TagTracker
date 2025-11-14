@@ -273,11 +273,23 @@ def main(argv: List[str]) -> int:
                 ("numeric", numeric_pipeline, num_cols),
             ]
         )
-        # Prefer 'absolute_error'; fall back to legacy 'lad' if needed.
+
+        # Choose a loss compatible with the installed scikit-learn:
+        # try 'absolute_error', and proactively run any available param
+        # validation; if that fails, fall back to legacy 'lad'.
         try:
             model = GradientBoostingRegressor(loss="absolute_error", random_state=42)
+            checker = getattr(model, "_validate_params", None) or getattr(
+                model, "_check_params", None
+            )
+            if callable(checker):
+                try:
+                    checker()
+                except Exception:
+                    model = GradientBoostingRegressor(loss="lad", random_state=42)
         except Exception:
             model = GradientBoostingRegressor(loss="lad", random_state=42)
+
         return Pipeline(steps=[("preprocess", preprocessor), ("model", model)])
 
     artifacts: Dict[str, Dict[str, Any]] = {}
