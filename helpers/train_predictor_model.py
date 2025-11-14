@@ -253,10 +253,15 @@ def main(argv: List[str]) -> int:
     nums = ["days_since_start", "max_temperature", "precipitation", "operating_hours"]
 
     def build_pipeline(cat_cols: List[str], num_cols: List[str]):
+        # Handle scikit-learn API changes: newer versions use sparse_output instead of sparse
+        try:
+            ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+        except TypeError:
+            ohe = OneHotEncoder(handle_unknown="ignore", sparse=False)
         categorical_pipeline = Pipeline(
             steps=[
                 ("imputer", SimpleImputer(strategy="most_frequent")),
-                ("onehot", OneHotEncoder(handle_unknown="ignore", sparse=False)),
+                ("onehot", ohe),
             ]
         )
         numeric_pipeline = Pipeline(steps=[("imputer", SimpleImputer(strategy="median"))])
