@@ -253,7 +253,9 @@ def main(argv: List[str]) -> int:
     nums = ["days_since_start", "max_temperature", "precipitation", "operating_hours"]
 
     def build_pipeline(cat_cols: List[str], num_cols: List[str]):
-        # Handle scikit-learn API changes: newer versions use sparse_output instead of sparse
+        # Handle scikit-learn API changes:
+        # - Newer versions use sparse_output instead of sparse on OneHotEncoder.
+        # - Loss name 'absolute_error' is preferred; older versions used 'lad'.
         try:
             ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
         except TypeError:
@@ -271,11 +273,11 @@ def main(argv: List[str]) -> int:
                 ("numeric", numeric_pipeline, num_cols),
             ]
         )
-        # Use absolute_error (LAD). Map to version-compatible token if needed.
-        def _resolve_gbr_loss(loss: str) -> str:
-            aliases = {"squared_error": "ls", "absolute_error": "lad"}
-            return aliases.get(loss, loss)
-        model = GradientBoostingRegressor(loss=_resolve_gbr_loss("absolute_error"), random_state=42)
+        # Prefer 'absolute_error'; fall back to legacy 'lad' if needed.
+        try:
+            model = GradientBoostingRegressor(loss="absolute_error", random_state=42)
+        except Exception:
+            model = GradientBoostingRegressor(loss="lad", random_state=42)
         return Pipeline(steps=[("preprocess", preprocessor), ("model", model)])
 
     artifacts: Dict[str, Dict[str, Any]] = {}
