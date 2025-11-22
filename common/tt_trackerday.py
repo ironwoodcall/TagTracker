@@ -26,6 +26,7 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
 
 import re
 import json
+from pathlib import Path
 
 import client_base_config as cfg
 from common.tt_tag import TagID
@@ -54,6 +55,11 @@ TOKEN_RETIRED_TAGIDS = "retired_tagids"
 TOKEN_NOTES = "notes"
 TOKEN_SITE_NAME = "site_name"
 TOKEN_SITE_HANDLE = "site_handle"
+
+SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent / "common" / "tagtracker_schema_v1.0.0.json"
+)
+_SCHEMA_CACHE: dict[Path, dict] = {}
 
 
 class OldTrackerDay:
@@ -709,6 +715,43 @@ class TrackerDay:
         }
 
     @staticmethod
+    def load_schema(schema_path: Path | None = None) -> dict:
+        """Load and cache the JSON schema used to validate datafiles."""
+        target = schema_path or SCHEMA_PATH
+        if target in _SCHEMA_CACHE:
+            return _SCHEMA_CACHE[target]
+
+        try:
+            with open(target, "r", encoding="utf-8") as schema_file:
+                schema = json.load(schema_file)
+        except FileNotFoundError as exc:
+            raise TrackerDayError(f"Schema file not found at {target}") from exc
+        except json.JSONDecodeError as exc:
+            raise TrackerDayError(f"Schema file {target} is invalid JSON: {exc}") from exc
+
+        _SCHEMA_CACHE[target] = schema
+        return schema
+
+    @classmethod
+    def validate_data(cls, data: dict, schema_path: Path | None = None) -> None:
+        """Validate a datafile dict against the JSON schema."""
+        try:
+            from jsonschema import Draft7Validator
+        except ImportError as exc:  # pragma: no cover - dependency check
+            raise TrackerDayError(
+                "jsonschema package is required for datafile validation."
+            ) from exc
+
+        schema = cls.load_schema(schema_path=schema_path)
+        validator = Draft7Validator(schema)
+        errors = sorted(validator.iter_errors(data), key=lambda err: err.path)
+        if errors:
+            first = errors[0]
+            path = ".".join(str(part) for part in first.absolute_path)
+            location = f" at '{path}'" if path else ""
+            raise TrackerDayError(f"Schema validation failed{location}: {first.message}")
+
+    @staticmethod
     def _day_from_json_dict(data: dict, filepath: str) -> "TrackerDay":
         day = TrackerDay(filepath)
         try:
@@ -732,7 +775,7 @@ class TrackerDay:
 
         except (KeyError, ValueError) as e:
             raise TrackerDayError(
-                f"Bad key or value in file: '{data[TOKEN_REGISTRATIONS]}'. Error {e}"
+                f"Bad key or value in data file: '{data[TOKEN_REGISTRATIONS]}'. Error {e}"
             ) from e
 
         # Initialize the biketags from the tagid lists
@@ -775,7 +818,7 @@ class TrackerDay:
             day.notes.load(data[TOKEN_NOTES])
         except (KeyError, ValueError) as e:
             raise TrackerDayError(
-                f"Bad key or value for Notes in file: "
+                f"Bad key or value for Notes in data file: "
                 f"'{data[TOKEN_REGISTRATIONS]}'. Error {e}"
             ) from e
 
@@ -808,7 +851,7 @@ class TrackerDay:
         return True
 
     @staticmethod
-    def load_from_file(filepath) -> "TrackerDay":
+    def load_from_file(filepath, validate_schema: bool = False) -> "TrackerDay":
         """Load the TrackerDay from file.
 
         Some error testing is done, but a lint check is still required.
@@ -816,6 +859,8 @@ class TrackerDay:
         try:
             with open(filepath, "r", encoding="utf-8") as file:
                 data = json.load(file)
+            if validate_schema:
+                TrackerDay.validate_data(data)
             loaded_day = TrackerDay._day_from_json_dict(data, filepath)
         except json.decoder.JSONDecodeError as e:
             raise TrackerDayError(f"JSON error {e}") from e

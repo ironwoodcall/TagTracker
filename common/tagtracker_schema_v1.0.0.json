@@ -1,0 +1,93 @@
+{
+    "//": "Schema for TagTracker daily data file",
+    "//": "Copyright 2024 Todd Glover",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "version": "1.0.2",
+    "type": "object",
+    "properties": {
+      "comment:": {
+        "type": "string"
+      },
+      "site_name": {
+        "type": "string"
+      },
+      "site_handle": {
+        "type": "string"
+      },
+      "date": {
+        "type": "string",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+      },
+      "time_open": {
+        "type": "string",
+        "pattern": "^\\d{1,2}:\\d{2}$"
+      },
+      "time_closed": {
+        "type": "string",
+        "pattern": "^\\d{1,2}:\\d{2}$"
+      },
+      "registrations": {
+        "type": ["integer", "null"]
+      },
+      "bike_visits": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "time_in": {
+              "type": "string",
+              "pattern": "^\\d{1,2}:\\d{2}$"
+            },
+            "time_out": {
+              "type": ["string", "null"],
+              "pattern": "^(\\d{1,2}:\\d{2})?$"
+            },
+            "bike_size": {
+              "type": "string",
+              "enum": ["regular", "oversize"]
+            },
+            "tagid": {
+              "type": ["string", "null"]
+            }
+          },
+          "required": ["time_in", "bike_size"],
+          "additionalProperties": false
+        }
+      },
+      "regular_tagids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "oversize_tagids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "retired_tagids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "notes": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "site_name",
+      "site_handle",
+      "date",
+      "time_open",
+      "time_closed",
+      "bike_visits",
+      "regular_tagids",
+      "oversize_tagids",
+      "retired_tagids"
+    ]
+  }
