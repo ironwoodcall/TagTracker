@@ -109,7 +109,7 @@ EST_SELECTION_MODE = "accuracy_first"
 
 # Import any local web config to override this module's values.
 try:
-    from web_local_config import * # pylint:disable=wildcard-import
+    from web.web_local_config import * # pylint:disable=wildcard-import
 except ModuleNotFoundError:
     pass
 except Exception as e: # pylint:disable=broad-exception-caught

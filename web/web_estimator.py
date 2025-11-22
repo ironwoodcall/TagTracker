@@ -38,13 +38,13 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 import urllib.request
 import urllib.parse
 import traceback as _tb
-from web_estimator_calibration import (
+from web.web_estimator_calibration import (
     load_calibration as _calib_load,
     bin_label as _calib_bin_label,
     residual_band as _calib_residual_band,
     probability_lookup as _calib_probability,
 )
-from web_estimator_selection import dispatch_select as _select_dispatch
+from web.web_estimator_selection import dispatch_select as _select_dispatch
 import os
 import sys
 import time
@@ -54,16 +54,16 @@ sys.path.append("../")
 sys.path.append("./")
 
 # pylint: disable=wrong-import-position
-import web_base_config as wcfg
-import web_common as cc
+import web.web_base_config as wcfg
+import web.web_common as cc
 import common.tt_util as ut
 from common.tt_time import VTime
 import common.tt_dbutil as db
 
 # import client_base_config as cfg
 import web.web_estimator_rf as rf
-from web_estimator_models import SimpleModel as SimpleModelNew, LRModel as LRModelNew
-from web_estimator_render import render_tables as _render_tables
+from web.web_estimator_models import SimpleModel as SimpleModelNew, LRModel as LRModelNew
+from web.web_estimator_render import render_tables as _render_tables
 
 # pylint: enable=wrong-import-position
 

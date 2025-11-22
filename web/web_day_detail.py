@@ -34,10 +34,10 @@ import common.tt_util as ut
 from common.tt_daysummary import DayTotals, PeriodDetail
 from common.tt_statistics import VisitStats
 import common.tt_constants as k
-import web_common as cc
-import datacolors as dc
+import web.web_common as cc
+import web.datacolors as dc
 import web.web_estimator as web_estimator
-import web_histogram
+from web import web_histogram
 from web.web_base_config import EST_TYPE_FOR_ONEDAY_SUMMARY, HIST_FIXED_Y_AXIS_FULLNESS
 
 try:

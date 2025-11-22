@@ -28,7 +28,7 @@ from typing import Iterable, Sequence
 import urllib.parse
 
 import common.tt_util as ut
-import web_common as cc
+import web.web_common as cc
 
 DATE_PATTERN = "[0-9]{4}-[0-9]{2}-[0-9]{2}"
 

@@ -13,11 +13,11 @@ import html
 from typing import Optional, Iterable, Tuple
 from datetime import datetime, date as _date
 
-import web_common as cc
+import web.web_common as cc
 import common.tt_util as ut
 from web.web_predictor_model import PredictorModel, PredictorOutput
 from common.tt_time import VTime
-import web_base_config as wcfg
+import web.web_base_config as wcfg
 
 
 def _fmt_rng(r: Optional[tuple[int, int]], is_time: bool = False) -> str:

@@ -7,15 +7,15 @@ import html
 import sqlite3
 from typing import Any, Mapping, Sequence
 
-import web_common as cc
-from web_daterange_selector import (
+import web.web_common as cc
+from web.web_daterange_selector import (
     DATE_PATTERN,
     DEFAULT_DOW_OPTIONS,
     DateDowSelection,
     find_dow_option,
     _render_hidden_fields,
 )
-from web_period_metrics import (
+from web.web_period_metrics import (
     METRIC_ROWS,
     aggregate_period,
     format_percent,

@@ -28,8 +28,8 @@ from datetime import datetime, timedelta
 
 # import tt_util as ut
 import common.tt_dbutil as db
-import web_common as cc
-from web_daterange_selector import build_date_dow_filter_widget
+import web.web_common as cc
+from web.web_daterange_selector import build_date_dow_filter_widget
 
 DATERANGE_NAMES = {
     cc.WHAT_DATERANGE_WEEK: "weeks",

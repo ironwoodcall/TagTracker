@@ -6,7 +6,7 @@ from html import escape
 from common.tt_time import VTime
 import common.tt_util as ut
 
-from web_histogram_data import ArrivalDepartureMatrix
+from web.web_histogram_data import ArrivalDepartureMatrix
 
 
 def html_histogram(
@@ -362,7 +362,7 @@ def html_histogram_matrix(
 
     if dimension is None:
         try:
-            import datacolors as dc  # type: ignore
+            import web.datacolors as dc  # type: ignore
         except ModuleNotFoundError:
             from web import datacolors as dc  # type: ignore
 
