@@ -69,8 +69,8 @@ from datetime import datetime
 import hashlib
 
 # import tt_datafile
-import common.tt_dbutil as db
-from common.tt_dbutil import SQL_CRITICAL_ERRORS, SQL_MODERATE_ERRORS
+import database.tt_dbutil as db
+from database.tt_dbutil import SQL_CRITICAL_ERRORS, SQL_MODERATE_ERRORS
 
 # import tt_globals
 import common.tt_util as ut
@@ -721,7 +721,7 @@ def read_datafile(filename: str) -> tuple[TrackerDay, DaySummary]:
         print(f"Reading {filename}:")
 
     try:
-        day = TrackerDay.load_from_file(filename, validate_schema=True)
+        day = TrackerDay.load_from_file(filename)
     except (TrackerDayError, BikeTagError) as e:
         msg = f"Error reading file {filename=}: {e}. Skipping file."
         file_info.set_bad(msg)
