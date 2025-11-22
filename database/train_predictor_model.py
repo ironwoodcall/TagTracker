@@ -2,7 +2,7 @@
 """Train the schedule-driven predictor model (scaffold).
 
 This script reads training data from the TagTracker SQLite DB and writes a
-trained artifact to web_base_config.TRAINED_MODEL_FOLDER. It is safe to run
+trained artifact to database_base_config.TRAINED_MODEL_FOLDER. It is safe to run
 from cron: it creates the output folder if needed and replaces the model
 atomically (write temp then rename).
 
@@ -42,14 +42,14 @@ try:  # pragma: no cover - import guards
 except Exception:
     _SKLEARN_OK = False
 
+from database.database_base_config import DB_FILENAME, TRAINED_MODEL_FOLDER
+
 # Make the repository's bin directory importable when invoked from anywhere
 _HERE = Path(__file__).resolve()
 _BIN_DIR = _HERE.parent.parent  # .../TagTracker/bin
 if str(_BIN_DIR) not in sys.path:
     sys.path.insert(0, str(_BIN_DIR))
 
-# Local imports (kept late to avoid circularities during bootstrap)
-import web.web_base_config as wcfg  # type: ignore
 import database.tt_dbutil as db
 
 
@@ -120,18 +120,6 @@ def _fit_linear(X: List[List[float]], y: List[float]) -> Tuple[List[float], floa
 def main(argv: List[str]) -> int:
     ap = argparse.ArgumentParser(description="Train schedule-driven predictor model")
     ap.add_argument(
-        "--db",
-        dest="db_path",
-        default=getattr(wcfg, "DB_FILENAME", ""),
-        help="Path to TagTracker sqlite DB (default: web_base_config.DB_FILENAME)",
-    )
-    ap.add_argument(
-        "--out-dir",
-        dest="out_dir",
-        default=getattr(wcfg, "TRAINED_MODEL_FOLDER", ""),
-        help="Output folder for trained model (default: web_base_config.TRAINED_MODEL_FOLDER)",
-    )
-    ap.add_argument(
         "--since",
         dest="since",
         default="",
@@ -139,24 +127,27 @@ def main(argv: List[str]) -> int:
     )
     args = ap.parse_args(argv)
 
-    if not args.db_path:
-        print("ERROR: No DB path configured (web_base_config.DB_FILENAME is empty).", file=sys.stderr)
+    db_path = DB_FILENAME or ""
+    out_dir_raw = TRAINED_MODEL_FOLDER or ""
+
+    if not db_path:
+        print("ERROR: No DB path configured (database_base_config.DB_FILENAME is empty).", file=sys.stderr)
         return 2
-    if not os.path.exists(args.db_path):
-        print(f"ERROR: DB file not found: {args.db_path}", file=sys.stderr)
+    if not os.path.exists(db_path):
+        print(f"ERROR: DB file not found: {db_path}", file=sys.stderr)
         return 2
 
-    out_dir = Path(args.out_dir or "")
-    if not out_dir:
+    if not out_dir_raw:
         print(
-            "ERROR: TRAINED_MODEL_FOLDER not set (web_base_config.TRAINED_MODEL_FOLDER).",
+            "ERROR: TRAINED_MODEL_FOLDER not set (database_base_config.TRAINED_MODEL_FOLDER).",
             file=sys.stderr,
         )
         return 2
+    out_dir = Path(out_dir_raw)
     _ensure_folder(out_dir)
 
     # Connect DB
-    conn = db.db_connect(args.db_path)
+    conn = db.db_connect(db_path)
     if conn is None:
         print("ERROR: Could not open DB.", file=sys.stderr)
         return 2
@@ -326,7 +317,7 @@ def main(argv: List[str]) -> int:
     meta: Dict[str, Any] = {
         "version": 1,
         "trained_on": _iso_today(),
-        "db_path": os.path.abspath(args.db_path),
+        "db_path": os.path.abspath(db_path),
         "orgsite_id": orgsite_id,
         "min_date": min_date,
         "max_date": max_date,
