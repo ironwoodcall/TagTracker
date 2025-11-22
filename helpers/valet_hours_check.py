@@ -2,8 +2,8 @@
 """Scan hours to see if they seem correct."""
 
 import sys
-import tt_dbutil as db
-from web_base_config import DB_FILENAME
+import common.tt_dbutil as db
+from web.web_base_config import DB_FILENAME
 import common.tt_util as ut
 
 sys.path.append("../")

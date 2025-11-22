@@ -29,8 +29,8 @@ import time
 import html
 from pathlib import Path
 
-sys.path.append("../")
-sys.path.append("./")
+# sys.path.append("../")
+# sys.path.append("./")
 
 # pylint:disable=wrong-import-position
 import web.web_common as cc

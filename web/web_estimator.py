@@ -50,8 +50,8 @@ import sys
 import time
 from typing import Optional
 
-sys.path.append("../")
-sys.path.append("./")
+# sys.path.append("../")
+# sys.path.append("./")
 
 # pylint: disable=wrong-import-position
 import web.web_base_config as wcfg

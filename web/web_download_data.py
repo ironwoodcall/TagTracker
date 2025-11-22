@@ -12,8 +12,8 @@ from typing import Optional
 import zipfile
 from datetime import datetime
 
-sys.path.append("../")
-sys.path.append("./")
+# sys.path.append("../")
+# sys.path.append("./")
 
 from web.web_base_config import DB_FILENAME, DATA_OWNER
 import web.web_common as cc
