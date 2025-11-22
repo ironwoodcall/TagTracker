@@ -27,7 +27,7 @@ import math
 import sqlite3
 from dataclasses import dataclass
 
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut

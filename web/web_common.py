@@ -36,7 +36,7 @@ import web.web_base_config as wcfg
 # from tt_conf import SITE_NAME
 from common.tt_time import VTime
 from common.tt_tag import TagID
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 import common.tt_util as ut
 from common.tt_daysummary import DayTotals
 from common.get_version import get_version_info

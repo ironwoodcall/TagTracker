@@ -2,7 +2,7 @@
 """Scan hours to see if they seem correct."""
 
 import sys
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 from web.web_base_config import DB_FILENAME
 import common.tt_util as ut
 

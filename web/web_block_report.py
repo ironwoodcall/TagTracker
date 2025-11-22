@@ -31,7 +31,7 @@ from web.web_daterange_selector import build_date_dow_filter_widget, find_dow_op
 import web.web_common as cc
 import web.datacolors as dc
 import web.colortable as colortable
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 from common.tt_time import VTime
 import common.tt_util as ut
 

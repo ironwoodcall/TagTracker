@@ -50,7 +50,7 @@ if str(_BIN_DIR) not in sys.path:
 
 # Local imports (kept late to avoid circularities during bootstrap)
 import web.web_base_config as wcfg  # type: ignore
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 
 
 DEFAULT_MODEL_FILENAME = "model.pkl"

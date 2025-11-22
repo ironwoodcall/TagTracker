@@ -34,7 +34,7 @@ from web.web_base_config import HIST_FIXED_Y_AXIS_DURATION
 from web.web_daterange_selector import build_date_dow_filter_widget, DateDowSelection
 from web import web_histogram
 from web.web_histogram_data import ArrivalDepartureMatrix
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 from common.tt_time import VTime
 from common.tt_daysummary import DayTotals
 

@@ -5,7 +5,7 @@ Data preparation utilities for the histogram views.
 from dataclasses import dataclass
 import sqlite3
 
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 import web.web_common as cc
 from common.tt_time import VTime
 

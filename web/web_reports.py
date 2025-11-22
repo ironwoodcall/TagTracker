@@ -47,7 +47,7 @@ from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
 import common.tt_constants as k
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 
 # import tt_reports as rep
 # import tt_audit_report as aud
