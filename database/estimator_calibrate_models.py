@@ -68,6 +68,8 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
+from database import database_base_config
+
 # Optional acceleration / numeric helpers
 try:  # pragma: no cover
     import numpy as np  # type: ignore # pylint:disable=import-error
@@ -85,6 +87,8 @@ except Exception:  # pragma: no cover
     HAVE_RF = False
 
 PROB_BIN_SIZE = 10
+DEFAULT_DB_FILENAME = getattr(database_base_config, "DB_FILENAME", "")
+DEFAULT_EST_CALIBRATION_FILE = getattr(database_base_config, "EST_CALIBRATION_FILE", "")
 
 
 # Lightweight time helper compatible with HH:MM strings
@@ -391,7 +395,14 @@ def linreg(xs: List[float], ys: List[float]) -> Optional[Tuple[float, float]]:
 
 def main():
     ap = argparse.ArgumentParser(description="Estimator model calibration backtest")
-    ap.add_argument("--db", required=True, help="Path to TagTracker SQLite database")
+    ap.add_argument(
+        "--db",
+        default=None,
+        help=(
+            "Path to TagTracker SQLite database "
+            "(defaults to database_base_config.DB_FILENAME)"
+        ),
+    )
     ap.add_argument("--start", default="0000-00-00")
     ap.add_argument("--end", default="9999-12-31")
     ap.add_argument("--step-min", type=int, default=30)
@@ -420,7 +431,12 @@ def main():
         "--summary-csv", default="", help="Optional CSV path for per-bin summary"
     )
     ap.add_argument(
-        "--output", default="", help="Write recommended JSON to this path (atomic)"
+        "--output",
+        default=None,
+        help=(
+            "Write recommended JSON to this path (atomic). "
+            "Defaults to database_base_config.EST_CALIBRATION_FILE."
+        ),
     )
     ap.add_argument(
         "--quiet",
@@ -444,6 +460,18 @@ def main():
         help="Keep N rotated backups of the JSON (file.json.1..N) before replace",
     )
     args = ap.parse_args()
+
+    # Pull defaults from config if not provided on the CLI
+    args.db = args.db or DEFAULT_DB_FILENAME
+    args.output = args.output if args.output is not None else DEFAULT_EST_CALIBRATION_FILE
+
+    if not args.db:
+        print(
+            "(error) Database path not set. "
+            "Set DB_FILENAME in database/database_base_config.py or pass --db",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     # Recommended-mode nudges
     if args.recommended:
