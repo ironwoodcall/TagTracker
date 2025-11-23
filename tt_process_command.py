@@ -372,7 +372,7 @@ def guess_check_inout(args: list, today: TrackerDay) -> bool:
         # In addition to default error message, add something helpful
         pr.iprint(
             f"Use {COMMANDS[CmdKeys.CMD_BIKE_IN].invoke[0].upper()} [tag] [time] or "
-            "{COMMANDS[CmdKeys.CMD_BIKE_OUT].invoke[0].upper()} [tag] [time].",
+            f"{COMMANDS[CmdKeys.CMD_BIKE_OUT].invoke[0].upper()} [tag] [time].",
             style=k.WARNING_STYLE,
         )
         return False
