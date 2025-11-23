@@ -125,6 +125,11 @@ def main(argv: List[str]) -> int:
         default="",
         help="Only use data since YYYY-MM-DD (optional)",
     )
+    ap.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print training diagnostics (row counts, feature stats, sample fits)",
+    )
     args = ap.parse_args(argv)
 
     db_path = DB_FILENAME or ""
@@ -239,6 +244,23 @@ def main(argv: List[str]) -> int:
     dur_min = dur_min.where(dur_min >= 0, dur_min + 24 * 60)
     df["operating_hours"] = dur_min / 60.0
 
+    if args.debug:
+        print("[DEBUG] Training diagnostics")
+        print(f"[DEBUG]  orgsite_id={orgsite_id}  rows={n_rows}")
+        print(f"[DEBUG]  date range: min={min_date or 'None'} max={max_date or _iso_today()} since_arg={args.since or 'None'}")
+        print("[DEBUG]  schedule_label value counts (top 6):")
+        try:
+            vc = df["schedule_label"].value_counts().head(6)
+            print(vc.to_string())
+        except Exception as e:
+            print(f"[DEBUG]   unable to compute value counts: {type(e).__name__}: {e}")
+        try:
+            stats = df[["days_since_start", "operating_hours", "max_temperature", "precipitation"]].describe()
+            print("[DEBUG]  numeric feature summary:")
+            print(stats.to_string())
+        except Exception as e:
+            print(f"[DEBUG]   unable to describe numeric features: {type(e).__name__}: {e}")
+
     # Best config from sweep: include operating_hours, exclude month
     cats = ["schedule_label"]
     nums = ["days_since_start", "max_temperature", "precipitation", "operating_hours"]
@@ -297,6 +319,23 @@ def main(argv: List[str]) -> int:
                 (sum((float(a) - float(b)) ** 2 for a, b in zip(y, yhat)) / max(1, len(y)))
                 ** 0.5
             )
+        if args.debug:
+            print(f"[DEBUG]  target={target}")
+            print(
+                f"[DEBUG]   rmse={rmse:.3f} train_rows={len(X)} "
+                f"train_start={df['date'].min().date()} train_end={df['date'].max().date()}"
+            )
+            sample_n = min(5, len(X))
+            if sample_n > 0:
+                sample = df.iloc[:sample_n]
+                print("[DEBUG]   sample fits:")
+                for i in range(sample_n):
+                    print(
+                        f"[DEBUG]    {i+1}: date={sample.iloc[i]['date'].date()} "
+                        f"sched={sample.iloc[i]['schedule_label']} "
+                        f"oper_hours={sample.iloc[i]['operating_hours']:.2f} "
+                        f"y={float(y.iloc[i]):.2f} yhat={float(yhat[i]):.2f}"
+                    )
         metadata = {
             "target": target,
             "variant": "schedule_driven",
