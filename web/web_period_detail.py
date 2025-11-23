@@ -6,9 +6,9 @@ from __future__ import annotations
 import html
 import sqlite3
 
-import web_common as cc
-from web_daterange_selector import build_date_dow_filter_widget
-from web_period_metrics import METRIC_ROWS, aggregate_period
+import web.web_common as cc
+from web.web_daterange_selector import build_date_dow_filter_widget
+from web.web_period_metrics import METRIC_ROWS, aggregate_period
 
 
 def period_detail(

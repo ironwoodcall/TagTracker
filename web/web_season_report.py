@@ -28,13 +28,13 @@ import sqlite3
 from datetime import date
 from functools import lru_cache
 import common.tt_util as ut
-import web_common as cc
-import datacolors as dc
-import web_histogram
+import web.web_common as cc
+import web.datacolors as dc
 from web.web_base_config import HIST_FIXED_Y_AXIS_DURATION
-from web_daterange_selector import build_date_dow_filter_widget, DateDowSelection
+from web.web_daterange_selector import build_date_dow_filter_widget, DateDowSelection
+from web import web_histogram
 from web.web_histogram_data import ArrivalDepartureMatrix
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 from common.tt_time import VTime
 from common.tt_daysummary import DayTotals
 

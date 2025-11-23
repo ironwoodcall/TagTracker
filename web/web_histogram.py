@@ -14,7 +14,7 @@ This wrapper keeps the original import surface available while delegating the
 work to the new modules.
 """
 
-from web_histogram_data import (
+from web.web_histogram_data import (
     ArrivalDepartureMatrix,
     HistogramResult,
     # arrival_duration_matrix_data,
@@ -24,8 +24,8 @@ from web_histogram_data import (
     fullness_histogram_data,
     time_histogram_data,
 )
-from web_histogram_render import html_histogram, html_histogram_matrix
-from web_histogram_tables import (
+from web.web_histogram_render import html_histogram, html_histogram_matrix
+from web.web_histogram_tables import (
     activity_hist_table,
     arrival_duration_hist_table,
     fullness_hist_table,

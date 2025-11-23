@@ -73,7 +73,7 @@ try:
 except ImportError:  # pragma: no cover - numpy is optional at runtime
     np = None  # type: ignore
 
-from color_names import COLOR_NAMES
+from web.color_names import COLOR_NAMES
 
 BLEND_LERP = "lerp"  # linear interpolation
 BLEND_ALPHA = BLEND_LERP

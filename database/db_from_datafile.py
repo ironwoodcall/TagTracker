@@ -26,9 +26,11 @@ Command-line options:
     --tail-only    For files with the same basename, only load the last in the list
     --org          Organization handle (default: "no_org")
 
+Database path:
+    Taken from database.database_base_config.DB_FILENAME (overridable via database_local_config).
+
 Arguments:
     dataglob       One or more file globs specifying the datafiles to load
-    dbfile         Path to the SQLite database file
 
 Requirements:
     - The SQLite database must already exist (see create_database.sql).
@@ -68,9 +70,11 @@ import subprocess
 from datetime import datetime
 import hashlib
 
+from database.database_base_config import DB_FILENAME
+
 # import tt_datafile
-import common.tt_dbutil as db
-from common.tt_dbutil import SQL_CRITICAL_ERRORS, SQL_MODERATE_ERRORS
+import database.tt_dbutil as db
+from database.tt_dbutil import SQL_CRITICAL_ERRORS, SQL_MODERATE_ERRORS
 
 # import tt_globals
 import common.tt_util as ut
@@ -899,7 +903,6 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "dataglob", type=str, nargs="+", help="Fileglob(s) of datafiles to load"
     )
-    parser.add_argument("dbfile", type=str, help="SQLite3 database file")
 
     prog_args = parser.parse_args()
 
@@ -1073,7 +1076,28 @@ def main():
 
     global args  # pylint:disable=global-statement
     args = get_args()
-    ordered_file_list = find_datafiles(args.dataglob)
+    data_globs = list(args.dataglob)
+
+    # Backward-compatibility: if caller still provided a trailing DB argument,
+    # ignore it when DB_FILENAME is already configured.
+    if DB_FILENAME and data_globs:
+        maybe_db_arg = data_globs[-1]
+        if os.path.abspath(maybe_db_arg) == os.path.abspath(DB_FILENAME):
+            if args.verbose:
+                print(
+                    f"Ignoring trailing DB argument '{maybe_db_arg}' "
+                    f"(using DB_FILENAME='{DB_FILENAME}')."
+                )
+            data_globs = data_globs[:-1]
+
+    if not data_globs:
+        print(
+            "Error: no datafile globs provided; DB path now comes from database_base_config.DB_FILENAME.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    ordered_file_list = find_datafiles(data_globs)
     if not args.quiet:
         print(f"Load requested for {len(ordered_file_list)} files.")
 
@@ -1081,7 +1105,13 @@ def main():
         print("Calculating metadata of datafiles.")
     get_files_metadata(ordered_file_list)
 
-    database_file = args.dbfile
+    database_file = DB_FILENAME or ""
+    if not database_file:
+        print(
+            "Error: DB_FILENAME not set in database/database_base_config.py",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if args.verbose:
         print(f"Connecting to database {database_file}.")
     dbconx = db.db_connect(database_file)

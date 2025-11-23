@@ -30,7 +30,7 @@ import common.tt_constants as k
 import common.tt_util as ut
 from common.tt_tag import TagID
 from common.tt_time import VTime
-import web_common as cc
+import web.web_common as cc
 
 STYLE_GOOD = "color:black;background:cornsilk;"
 STYLE_NOW_LOST = "color:black;background:tomato;"

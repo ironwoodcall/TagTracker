@@ -9,14 +9,14 @@ from typing import TYPE_CHECKING
 
 from common.tt_time import VTime
 
-from web_histogram_data import (
+from web.web_histogram_data import (
     bucket_label,
     fullness_histogram_data,
     time_histogram_data,
     ArrivalDepartureMatrix,
 )
-from web_histogram_render import html_histogram, html_histogram_matrix
-from web_base_config import (
+from web.web_histogram_render import html_histogram, html_histogram_matrix
+from web.web_base_config import (
     HIST_FIXED_Y_AXIS_ACTIVITY,
     HIST_FIXED_Y_AXIS_FULLNESS,
 )

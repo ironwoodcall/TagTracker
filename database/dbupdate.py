@@ -32,7 +32,7 @@ import csv
 import sys
 import sqlite3
 
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 import common.tt_util as ut
 
 # from common.tt_time import VTime

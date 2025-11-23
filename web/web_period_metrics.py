@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from statistics import mean, median
 from typing import Any, Sequence, Tuple
 
-import web_common as cc
+import web.web_common as cc
 from common.tt_daysummary import DayTotals
 from common.tt_time import VTime
 

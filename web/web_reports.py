@@ -29,32 +29,32 @@ import time
 import html
 from pathlib import Path
 
-sys.path.append("../")
-sys.path.append("./")
+# sys.path.append("../")
+# sys.path.append("./")
 
 # pylint:disable=wrong-import-position
-import web_common as cc
-import web_block_report
-import web_day_detail
-import web_season_report
-import web_tags_report
-import web_period_summaries
-import web_compare_ranges
-import web_period_detail
-import web_predictor_report
-import web_base_config as wcfg
+import web.web_common as cc
+import web.web_block_report as web_block_report
+import web.web_day_detail as web_day_detail
+import web.web_season_report as web_season_report
+import web.web_tags_report as web_tags_report
+import web.web_period_summaries as web_period_summaries
+import web.web_compare_ranges as web_compare_ranges
+import web.web_period_detail as web_period_detail
+import web.web_predictor_report as web_predictor_report
+import web.web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
 import common.tt_constants as k
-import common.tt_dbutil as db
+import database.tt_dbutil as db
 
 # import tt_reports as rep
 # import tt_audit_report as aud
 # import tt_tag_inv
 # import tt_printer as pr
-from web_estimator import Estimator
-from web_daterange_selector import DateDowSelection
+from web.web_estimator import Estimator
+from web.web_daterange_selector import DateDowSelection
 
 
 def web_audit_report(

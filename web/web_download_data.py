@@ -12,11 +12,11 @@ from typing import Optional
 import zipfile
 from datetime import datetime
 
-sys.path.append("../")
-sys.path.append("./")
+# sys.path.append("../")
+# sys.path.append("./")
 
-from web_base_config import DB_FILENAME, DATA_OWNER
-import web_common as cc
+from web.web_base_config import DB_FILENAME, DATA_OWNER
+import web.web_common as cc
 
 CSV_ARCHIVE_NAME = "bikedata-csv.zip"
 DB_ARCHIVE_NAME = "bikedata-db.zip"
@@ -25,19 +25,7 @@ TABLES = ["day", "visit"]
 DEBUG_ENV_FLAG = "TAGTRACKER_DEBUG"
 DEBUG_ENABLED = bool(os.environ.get(DEBUG_ENV_FLAG))
 
-
-def _resolve_db_path() -> Optional[Path]:
-    if not DB_FILENAME:
-        return None
-
-    db_path = Path(DB_FILENAME)
-    if not db_path.is_absolute():
-        db_path = (Path(__file__).resolve().parent / db_path).resolve()
-
-    return db_path
-
-
-DB_PATH = _resolve_db_path()
+DB_PATH = Path(DB_FILENAME) # Filename of database, as a Path
 
 
 def debug(message: str) -> None:
