@@ -25,6 +25,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     """
+
 ###########################################################
 #            BEGINNING OF CONFIG SECTION                  #
 # To make a new database_local_config.py config file,     #
@@ -35,6 +36,16 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 # Database filename
 DB_FILENAME = ""  # Filepath to sqlite3 database
+
+# Weather update configuration
+# WX_SITES is an ordered list of mappings with keys:
+#   url: CSV endpoint (may include {year} placeholder)
+#   date_col: 1-based column number for the date
+#   max_temp_col / precip_col: 1-based column numbers for max temp and precip
+#   date_format: optional strptime format if not YYYY-MM-DD
+#   has_header: optional bool to skip the first row
+WX_SITES = []
+WX_MIN_AGE_DAYS = 2
 
 # Optional path to calibration JSON
 # (produced by helpers/estimator_calibrate_models.py --recommended)
@@ -52,6 +63,8 @@ TRAINED_MODEL_FOLDER = ""
 # Do not include any code below here  #
 # in database_local_config.py.        #
 #######################################
+
+
 
 # Import any local web config to override this module's values.
 try:
