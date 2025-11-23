@@ -87,10 +87,11 @@ def _safe_float(raw: str) -> Optional[float]:
         return None
 
 
-def fetch_csv_text(url: str, verbose: bool) -> str:
+def fetch_csv_text(url: str, verbose: bool, label: str = "") -> str:
     """Fetch CSV content from url."""
     if verbose:
-        print(f"Fetching: {url}")
+        prefix = f"[{label}] " if label else ""
+        print(f"{prefix}Fetching: {url}")
     try:
         with urllib.request.urlopen(url) as resp:  # nosec B310
             charset = resp.headers.get_content_charset() or "utf-8"
@@ -180,6 +181,7 @@ def apply_site(
     verbose: bool,
 ) -> tuple[int, int]:
     """Apply updates from a single site."""
+    label = site_cfg.get("label", f"site {site_idx}")
     precip_updates = 0
     max_temp_updates = 0
 
@@ -207,7 +209,7 @@ def apply_site(
         sql = f"update day set {', '.join(assignments)} where date = '{date}';"
         db.db_update(ttdb, sql, commit=False)
         if verbose:
-            print(f"[site {site_idx}] {date}: {'; '.join(assignments)}")
+            print(f"[{label}] {date}: {'; '.join(assignments)}")
 
     return precip_updates, max_temp_updates
 
@@ -249,8 +251,9 @@ def main():
 
     for idx, site in enumerate(cfg.WX_SITES, start=1):
         url_template = site.get("url", "")
+        label = site.get("label", f"site {idx}")
         url = url_template.format(year=args.year) if "{year" in url_template else url_template
-        csv_text = fetch_csv_text(url, args.verbose)
+        csv_text = fetch_csv_text(url, args.verbose, label=label)
         site_rows = parse_site_rows(site, csv_text, args.verbose)
 
         p_updates, t_updates = apply_site(
@@ -267,7 +270,7 @@ def main():
         total_maxtemp += t_updates
 
         if args.verbose:
-            print(f"[site {idx}] applied {p_updates} precip and {t_updates} max temp updates.")
+            print(f"[{label}] applied {p_updates} precip and {t_updates} max temp updates.")
 
         if not have_blanks(existing):
             break
