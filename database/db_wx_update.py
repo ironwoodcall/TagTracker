@@ -6,6 +6,10 @@ CSV payloads from the ordered list in database_base_config.WX_SITES, and for
 each day older than WX_MIN_AGE_DAYS fills precipitation and max_temperature
 values (or overwrites when --force). If a site leaves blanks, the next site in
 the list is tried until all blanks are filled or sources are exhausted.
+
+NB: --force does not behave in a way that makes sense.  It overwrites using
+*every* wx site in the list, which means that the data ends up with the
+least favourable (latest-in-list) stats.  Makes no sense.  It is disabled.
 """
 
 from __future__ import annotations
@@ -38,12 +42,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Populate TagTracker DAY weather fields from configured CSV feeds.",
     )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        default=False,
-        help="Update even when database values are already present.",
-    )
+    # parser.add_argument(
+    #     "--force",
+    #     action="store_true",
+    #     default=False,
+    #     help="Update even when database values are already present.",
+    # )
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -87,7 +91,7 @@ def _safe_float(raw: str) -> Optional[float]:
         return None
 
 
-def fetch_csv_text(url: str, verbose: bool, label: str = "") -> str:
+def fetch_csv_text(url: str, verbose: bool, label: str = "") -> tuple[str, str | None]:
     """Fetch CSV content from url."""
     if verbose:
         prefix = f"[{label}] " if label else ""
@@ -95,23 +99,28 @@ def fetch_csv_text(url: str, verbose: bool, label: str = "") -> str:
     try:
         with urllib.request.urlopen(url) as resp:  # nosec B310
             charset = resp.headers.get_content_charset() or "utf-8"
-            return resp.read().decode(charset)
-    except (urllib.error.URLError, UnicodeDecodeError) as err:
+            return resp.read().decode(charset), None
+    except urllib.error.HTTPError as err:
+        note = f"URL error {err.code}"
         print(f"Unable to fetch {url}: {err}", file=sys.stderr)
-        return ""
+        return "", note
+    except (urllib.error.URLError, UnicodeDecodeError) as err:
+        note = "URL error"
+        print(f"Unable to fetch {url}: {err}", file=sys.stderr)
+        return "", note
 
 
-def parse_site_rows(site_cfg: dict, csv_text: str, verbose: bool) -> Dict[str, WxRow]:
+def parse_site_rows(site_cfg: dict, csv_text: str, verbose: bool) -> tuple[Dict[str, WxRow], int]:
     """Parse CSV rows for one site into a date -> WxRow map."""
     data: Dict[str, WxRow] = {}
     if not csv_text:
-        return data
+        return data, 0
 
     required_keys = ["url", "date_col", "max_temp_col", "precip_col"]
     missing = [k for k in required_keys if k not in site_cfg]
     if missing:
         print(f"Site config missing keys {missing}; skipping.", file=sys.stderr)
-        return data
+        return data, 0
 
     try:
         date_col = int(site_cfg.get("date_col")) - 1
@@ -119,17 +128,19 @@ def parse_site_rows(site_cfg: dict, csv_text: str, verbose: bool) -> Dict[str, W
         precip_col = int(site_cfg.get("precip_col")) - 1
     except (TypeError, ValueError):
         print("Invalid column numbers in WX_SITES; must be integers.", file=sys.stderr)
-        return data
+        return data, 0
     if min(date_col, max_col, precip_col) < 0:
         print("Column numbers in WX_SITES must be 1-based (>=1).", file=sys.stderr)
-        return data
+        return data, 0
     date_format = site_cfg.get("date_format")
     has_header = bool(site_cfg.get("has_header"))
 
     reader = csv.reader(io.StringIO(csv_text))
+    row_count = 0
     for idx, row in enumerate(reader):
         if idx == 0 and has_header:
             continue
+        row_count += 1
         try:
             date_raw = row[date_col]
             max_raw = row[max_col]
@@ -149,7 +160,7 @@ def parse_site_rows(site_cfg: dict, csv_text: str, verbose: bool) -> Dict[str, W
             max_temperature=max_temp,
             precipitation=precip,
         )
-    return data
+    return data, row_count
 
 
 def load_existing_weather(ttdb, cutoff_date: str) -> Dict[str, dict]:
@@ -180,6 +191,7 @@ def apply_site(
     cutoff_date: str,
     verbose: bool,
 ) -> tuple[int, int]:
+
     """Apply updates from a single site."""
     label = site_cfg.get("label", f"site {site_idx}")
     precip_updates = 0
@@ -191,7 +203,9 @@ def apply_site(
         current = existing[date]
         assignments = []
 
-        if newvals.precipitation is not None and (force or current["precipitation"] is None):
+        if newvals.precipitation is not None and (
+            force or current["precipitation"] is None
+        ):
             assignments.append(f"precipitation = {newvals.precipitation}")
             current["precipitation"] = newvals.precipitation
             precip_updates += 1
@@ -224,6 +238,7 @@ def have_blanks(existing: Dict[str, dict]) -> bool:
 
 def main():
     args = parse_args()
+    args.force = False # Completely disables the --force option FIXME
 
     if not cfg.WX_SITES:
         print("No WX_SITES configured in database_base_config.", file=sys.stderr)
@@ -248,13 +263,14 @@ def main():
 
     total_precip = 0
     total_maxtemp = 0
+    per_site_stats: list[tuple[str, int, int, str]] = []
 
     for idx, site in enumerate(cfg.WX_SITES, start=1):
         url_template = site.get("url", "")
         label = site.get("label", f"site {idx}")
         url = url_template.format(year=args.year) if "{year" in url_template else url_template
-        csv_text = fetch_csv_text(url, args.verbose, label=label)
-        site_rows = parse_site_rows(site, csv_text, args.verbose)
+        csv_text, fetch_note = fetch_csv_text(url, args.verbose, label=label)
+        site_rows, row_count = parse_site_rows(site, csv_text, args.verbose)
 
         p_updates, t_updates = apply_site(
             ttdb,
@@ -268,6 +284,16 @@ def main():
         )
         total_precip += p_updates
         total_maxtemp += t_updates
+        note = fetch_note or ""
+        if not note and row_count == 0:
+            note = "URL error: no csv"
+        if not note and args.year == datetime.date.today().year:
+            cutoff_dt = datetime.date.fromisoformat(cutoff_date)
+            expected_rows = (cutoff_dt - datetime.date(args.year, 1, 1)).days + 1
+            missing = expected_rows - row_count
+            if missing > 5:
+                note = f"missing {missing} rows in csv"
+        per_site_stats.append((label, p_updates, t_updates, note))
 
         if args.verbose:
             print(f"[{label}] applied {p_updates} precip and {t_updates} max temp updates.")
@@ -277,10 +303,24 @@ def main():
 
     db.db_commit(ttdb)
 
-    print(
-        f"Weather updates complete (cutoff {cutoff_date}): "
-        f"{total_precip} precip, {total_maxtemp} max temp updates."
-    )
+    if per_site_stats:
+        label_width = max(len(label) for label, _, _, _ in per_site_stats)
+        note_width = max(len(note) for _, _, _, note in per_site_stats)
+        print(f"Weather updates {args.year} (cutoff {cutoff_date}):")
+        print(
+            f"{'Label'.ljust(label_width)}  {'Precip':>7}  {'MaxTemp':>7}  {'Note'.ljust(note_width)}"
+        )
+        for label, p_updates, t_updates, note in per_site_stats:
+            print(
+                f"{label.ljust(label_width)}  {p_updates:7d}  {t_updates:7d}  {note.ljust(note_width)}"
+            )
+        print(f"{'-'*label_width}  {'-'*7}  {'-'*7}  {'-'*note_width}")
+        print(f"{'TOTAL'.ljust(label_width)}  {total_precip:7d}  {total_maxtemp:7d}  {'':{note_width}s}")
+    else:
+        print(
+            f"Weather updates complete (cutoff {cutoff_date}): "
+            f"{total_precip} precip, {total_maxtemp} max temp updates."
+        )
 
 
 if __name__ == "__main__":
