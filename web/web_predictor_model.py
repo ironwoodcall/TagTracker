@@ -11,8 +11,7 @@ Responsibilities:
   - Provide a simple .predict(...) API using weather and schedule inputs
   - Expose metadata about the trained model
 
-The actual ML logic is intentionally minimal here; you can replace the
-placeholder with the migrated implementation from ../blind-estimator.
+The actual ML logic is intentionally minimal here.
 """
 
 from __future__ import annotations
@@ -122,6 +121,7 @@ class PredictorModel:
     # ------------------------------ IO ---------------------------------
     def load(self) -> None:
         """Load model + metadata from TRAINED_MODEL_FOLDER; idempotent."""
+
         self.ready = False
         self._model = None
         self._meta = {}
