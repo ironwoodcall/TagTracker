@@ -29,3 +29,6 @@ See [installation instructions](https://github.com/ironwoodcall/TagTracker/wiki/
 
 # USAGE - basic commands / short versions
 Usage is described when you run the `help` command in TagTracker
+
+## Weather updates
+To backfill weather data into the `day` table, configure `WX_SITES`, `WX_MIN_AGE_DAYS`, and `DB_FILENAME` in `database/database_local_config.py`, then run `python3 -m database.db_wx_update` from the `bin` directory (suitable for cron). The script walks the configured CSV feeds in order, filling empty precipitation and max-temperature fields for dates older than the configured age. Use `--year YYYY` to override the default current year for feeds that include `{year}` in their URLs.
