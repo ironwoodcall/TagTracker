@@ -56,6 +56,7 @@ from typing import Optional
 # pylint: disable=wrong-import-position
 import web.web_base_config as wcfg
 import web.web_common as cc
+import web.auth as auth
 import common.tt_util as ut
 from common.tt_time import VTime
 import database.tt_dbutil as db
@@ -1920,16 +1921,23 @@ if __name__ == "__main__":
                 estimation_type = (
                     (query_parms.get("what", [""])[0] or "").strip().lower()
                 )
-            render_format = (
+            cgi_req_format = (
                 (query_parms.get("format", ["plain"])[0] or "plain").strip().lower()
             )
+            # Check if the user has the authority to run this script
+            what_code = (
+                cc.WHAT_ESTIMATE_VERBOSE
+                if estimation_type == "verbose"
+                else cc.WHAT_ESTIMATE
+            )
+            auth.require_role_for_what(what_code, emit_header=True)
             est = Estimator(
                 bikes_so_far=bikes_so_far,
                 opening_time=opening_time,
                 closing_time=closing_time,
                 estimation_type=estimation_type,
             )
-            return est, render_format
+            return est, cgi_req_format
 
         start_time = time.perf_counter()
         estimate_any = None
