@@ -144,8 +144,13 @@ NAV_MAIN_BUTTON = -2
 NAV_VALID_VALUES = {NAV_NO_BUTTON, NAV_MAIN_BUTTON}
 
 
-def error_out(msg: str = ""):
-    """Give an error message and exit."""
+def error_out(msg: str = "", *, emit_header: bool = False):
+    """Give an error message and exit.
+
+    If emit_header is True, output a basic HTML content-type header first.
+    """
+    if emit_header:
+        print("Content-type: text/html\n")
     if msg:
         print(msg)
     else:
