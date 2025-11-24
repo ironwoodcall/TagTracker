@@ -25,7 +25,6 @@ import urllib.request
 from typing import Optional
 
 import client_base_config as cfg
-import common.tt_util as ut
 from common.tt_time import VTime
 import common.tt_trackerday as tt_trackerday
 
@@ -68,8 +67,22 @@ def get_estimate_via_url(
 
     url = f"{cfg.ESTIMATOR_URL_BASE}?" + "&".join(parts)
     ##ut.squawk(f"{url=}")
+    request = urllib.request.Request(url)
+    opener = None
+
+    # Add digest auth when credentials are configured
+    if cfg.ESTIMATOR_USERNAME or cfg.ESTIMATOR_PASSWORD:
+        pwd_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+        pwd_mgr.add_password(
+            None,
+            cfg.ESTIMATOR_URL_BASE,
+            cfg.ESTIMATOR_USERNAME,
+            cfg.ESTIMATOR_PASSWORD,
+        )
+        opener = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(pwd_mgr))
+
     try:
-        response = urllib.request.urlopen(url)
+        response = opener.open(request) if opener else urllib.request.urlopen(request)
         data = response.read()
         decoded_data = data.decode("utf-8")
     except urllib.error.URLError as e:
