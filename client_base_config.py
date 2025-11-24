@@ -82,6 +82,10 @@ ECHO = False
 # E.g. "http://example.com/cgi-bin/estimator"
 # "" disables estimations
 ESTIMATOR_URL_BASE = ""
+# Credentials for the estimator URL. Obviously these are not secret from the
+# valet attendants.
+ESTIMATOR_USERNAME = ""
+ESTIMATOR_PASSWORD = ""
 
 # Maximum length for Notes
 MAX_NOTE_LENGTH = 80
