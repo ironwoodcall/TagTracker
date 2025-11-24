@@ -81,25 +81,39 @@ def required_role_for_what(what_code: str) -> Optional[str]:
     return WHAT_MIN_ROLE.get(what_code)
 
 
-def require_authenticated(env: Optional[Mapping[str, str]] = None) -> str:
+def require_authenticated(
+    env: Optional[Mapping[str, str]] = None, *, emit_header: bool = False
+) -> str:
     """Ensure a valid role is present; return it or emit an error page."""
     role = get_current_role(env)
     if role is None:
-        cc.error_out(f"{ENV_ROLE} is not set; access requires authentication.")
+        cc.error_out(
+            f"{ENV_ROLE} is not set; access requires authentication.",
+            emit_header=emit_header,
+        )
     if not is_valid_role(role):
-        cc.error_out(f"Unrecognized role '{cc.ut.untaint(role)}' in {ENV_ROLE}.")
+        cc.error_out(
+            f"Unrecognized role '{cc.ut.untaint(role)}' in {ENV_ROLE}.",
+            emit_header=emit_header,
+        )
     return role
 
 
-def require_role_for_what(what_code: str, env: Optional[Mapping[str, str]] = None) -> str:
+def require_role_for_what(
+    what_code: str, env: Optional[Mapping[str, str]] = None, *, emit_header: bool = False
+) -> str:
     """Ensure the caller role is allowed for the given WHAT_* code; return role."""
-    role = require_authenticated(env)
+    role = require_authenticated(env, emit_header=emit_header)
     required = required_role_for_what(what_code)
     if required is None:
-        cc.error_out(f"Unknown or unmapped request type '{cc.ut.untaint(what_code)}'.")
+        cc.error_out(
+            f"Unknown or unmapped request type '{cc.ut.untaint(what_code)}'.",
+            emit_header=emit_header,
+        )
     if not role_at_least(role, required):
         cc.error_out(
             f"Access denied for role '{cc.ut.untaint(role)}' to request "
-            f"'{cc.ut.untaint(what_code)}'."
+            f"'{cc.ut.untaint(what_code)}'.",
+            emit_header=emit_header,
         )
     return role
