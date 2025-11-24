@@ -1,0 +1,54 @@
+# This snippet requires every user to have digest authentication.
+# See below for a tansitional setup that allows unauth to get the 'attendant' role.
+<Location "/cgi-bin/tagtracker">
+    AuthType Digest
+    AuthName "TagTracker"
+    AuthDigestProvider file
+    AuthDigestDomain /cgi-bin/tagtracker
+    AuthUserFile "/etc/apache2/digest.tagtracker"
+    AuthGroupFile "/etc/apache2/groups.tagtracker"
+
+    Require valid-user
+
+    # Default: any authenticated user starts as attendant
+    SetEnv TT_ROLE attendant
+
+    # Override if in groups (order matters: later lines override earlier)
+    SetEnvIfExpr "member('users',  req('user'))" TT_ROLE=user
+    SetEnvIfExpr "member('admins', req('user'))" TT_ROLE=admin
+
+    # Fail fast if somehow TT_ROLE is still unset
+    Require env TT_ROLE
+</Location>
+
+
+
+
+
+# The code below is an idea of authorization - e.g. transitional - in which an unauthenticated user
+# gets the role "attendant" (the least-privileged role)
+<Location "/cgi-bin/tagtracker">
+    AuthType Digest
+    AuthName "TagTracker"
+    AuthDigestProvider file
+    AuthDigestDomain /cgi-bin/tagtracker
+    AuthUserFile "/etc/apache2/digest.tagtracker"
+    AuthGroupFile "/etc/apache2/groups.tagtracker"
+
+    # Allow either anon or authenticated (no challenge unless the client sends auth)
+    <RequireAny>
+        Require all granted       # anonymous allowed
+        Require valid-user        # authenticated also allowed
+    </RequireAny>
+
+    # Default everyone to attendant
+    SetEnv TT_ROLE attendant
+
+    # Elevate when authenticated and in groups (order matters)
+    SetEnvIfExpr "reqenv('REMOTE_USER') != '' && member('users',  req('user'))" TT_ROLE=user
+    SetEnvIfExpr "reqenv('REMOTE_USER') != '' && member('admins', req('user'))" TT_ROLE=admin
+
+    # Optional: ensure TT_ROLE is always set
+    Require env TT_ROLE
+</Location>
+

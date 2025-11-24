@@ -1,0 +1,8 @@
+#!/bin/bash
+# This is a loader for tagtracker cgi scripts.
+# Using this to redirect over to the tagtracker folder for the main script
+
+# export TAGTRACKER_DEBUG=1
+PATH="$PATH:/usr/bin"
+cd /home/tags/TagTracker/bin
+python3 -m web.web_reports 

@@ -1,0 +1,22 @@
+#!/bin/bash
+# This is a loader for tagtracker audit cgi scripts.
+
+export QUERY_STRING="what=Au"
+export REQUEST_METHOD="GET"
+# export SCRIPT_NAME="$CONTEXT_PREFIX/tt"
+
+# export TAGTRACKER_DEV=1
+# export TAGTRACKER_DEBUG=1
+
+# main tagtracker entry point
+tagtracker="./tt"
+
+# Adjust SCRIPT_NAME to match the tagtracker's web path
+base_path="${SCRIPT_NAME%/*}"      # e.g. /cgi-bin/subdir
+tagtracker_name="$(basename "$tagtracker")"
+export SCRIPT_NAME="${base_path}/${tagtracker_name}"
+
+# Call main tagtracker in the adjusted environment
+"$tagtracker"
+
+
