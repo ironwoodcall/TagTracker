@@ -1,0 +1,8 @@
+# Sample Apache group file for TagTracker.
+# Use with AuthGroupFile directive in your Apache config.
+#
+# Format: groupname: user1 user2 ...
+#
+# Example groups:
+admins: admin_user
+users:  analyst_user power_user
