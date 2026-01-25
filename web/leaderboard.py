@@ -290,7 +290,10 @@ def _format_columns_html_pairs(
     for idx, header in enumerate(headers):
         lines.append(f'      <th colspan="2">{_html.escape(header)}</th>')
         if idx < len(headers) - 1:
-            lines.append('      <th class="leaderboard-gap">&nbsp;</th>')
+            lines.append(
+                '      <th class="leaderboard-gap" '
+                'style="border:none;background:transparent;">&nbsp;</th>'
+            )
     lines.extend(["    </tr>", "  </thead>", "  <tbody>"])
     row_count = max(len(col) for col in columns)
     for row_idx in range(row_count):
@@ -303,7 +306,10 @@ def _format_columns_html_pairs(
             )
             lines.append(f'      <td class="leaderboard-date">{_html.escape(date)}</td>')
             if col_idx < len(columns) - 1:
-                lines.append('      <td class="leaderboard-gap">&nbsp;</td>')
+                lines.append(
+                    '      <td class="leaderboard-gap" '
+                    'style="border:none;background:transparent;">&nbsp;</td>'
+                )
         lines.append("    </tr>")
     lines.extend(["  </tbody>", "</table>"])
     return lines
