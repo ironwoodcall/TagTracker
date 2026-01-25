@@ -819,8 +819,9 @@ if __name__ == "__main__":
 def leaderboard_report(ttdb, params) -> None:
     """Render the leaderboard page via web_reports.py."""
     print(cc.titleize("Historic maximums"))
-    params.pages_back = params.pages_back or 1
-    print(f"{cc.main_and_back_buttons(pages_back=params.pages_back)}<br><br>")
+    if cc.CGIManager.called_by_self():
+        params.pages_back = params.pages_back or 1
+        print(f"{cc.main_and_back_buttons(pages_back=params.pages_back)}<br><br>")
 
     raw_category = params.category or ""
     category = _normalize_category(raw_category)
