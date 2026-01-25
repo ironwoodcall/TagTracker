@@ -2,8 +2,8 @@
 """Leaderboard output for various categories.
 
 CGI parameters:
-    category: optional; values include "registrations", "visits", "fullest",
-        "rain", "temperature", or "all".
+    category: optional; values include "registrations" (r), "precipitation" (p),
+        "temperature" (t), "visits" (v), "fullness" (f), or "all" (a).
     date: optional; defaults to today (YYYY-MM-DD). Any non-empty value is used.
     format: optional; "html" or "plain" (default).
 """
@@ -19,6 +19,8 @@ import database.tt_dbutil as db
 import web.web_base_config as wcfg
 import web.web_common as cc
 
+import cgitb
+cgitb.enable()
 
 def _normalize_date(raw_date: str) -> str:
     raw_date = (raw_date or "").strip()
@@ -28,9 +30,25 @@ def _normalize_date(raw_date: str) -> str:
     return normalized or raw_date
 
 
-def _normalize_category(raw_category: str) -> str:
+def _normalize_category(raw_category: str) -> str | None:
     raw_category = (raw_category or "").strip().lower()
-    return raw_category or "all"
+    if not raw_category:
+        return "all"
+    aliases = {
+        "registrations": "registrations",
+        "r": "registrations",
+        "precipitation": "precipitation",
+        "p": "precipitation",
+        "temperature": "temperature",
+        "t": "temperature",
+        "visits": "visits",
+        "v": "visits",
+        "fullness": "fullness",
+        "f": "fullness",
+        "all": "all",
+        "a": "all",
+    }
+    return aliases.get(raw_category)
 
 
 def _render_visits(date_value: str, render_html: bool) -> list[str]:
@@ -86,35 +104,46 @@ def _render_error(message: str, render_html: bool) -> list[str]:
 
 
 def _render_category(category: str, date_value: str, render_html: bool) -> list[str]:
-    if category == "visits":
-        return _render_visits(date_value, render_html)
-    if category == "registrations":
-        return _render_registrations(date_value, render_html)
-    if category == "fullest":
-        return _render_fullest(date_value, render_html)
-    if category == "rain":
-        return _render_rain(date_value, render_html)
-    if category == "temperature":
-        return _render_temperature(date_value, render_html)
+    handlers = {
+        "registrations": _render_registrations,
+        "precipitation": _render_rain,
+        "temperature": _render_temperature,
+        "visits": _render_visits,
+        "fullness": _render_fullest,
+    }
+    if category in handlers:
+        return handlers[category](date_value, render_html)
     if category == "all":
         lines = []
-        renderers = [
-            _render_visits,
-            _render_registrations,
-            _render_fullest,
-            _render_rain,
-            _render_temperature,
-        ]
+        if render_html:
+            renderers = [
+                _render_registrations,
+                _render_fullest,
+                _render_visits,
+                _render_rain,
+                _render_temperature,
+            ]
+        else:
+            renderers = [
+                _render_temperature,
+                _render_rain,
+                _render_visits,
+                _render_fullest,
+                _render_registrations,
+            ]
         for idx, renderer in enumerate(renderers):
             if idx:
-                lines.append("<hr>" if render_html else "")
+                lines.append("")
             lines.extend(renderer(date_value, render_html))
         return lines
+    if render_html:
+        cc.error_out(
+            "Unknown category. Expected registrations (r), precipitation (p), "
+            "temperature (t), visits (v), fullness (f), or all (a)."
+        )
     return _render_error(
-        (
-            "Unknown category '{category}'. Expected visits, registrations, "
-            "fullest, rain, temperature, or all."
-        ).format(category=category),
+        "Unknown category. Expected registrations (r), precipitation (p), "
+        "temperature (t), visits (v), fullness (f), or all (a).",
         render_html,
     )
 
@@ -455,13 +484,16 @@ if __name__ == "__main__":
         def _init_from_cgi() -> tuple[str, str, bool]:
             query_str = ut.untaint(os.environ.get("QUERY_STRING", ""))
             query_parms = urllib.parse.parse_qs(query_str)
-            category = _normalize_category(query_parms.get("category", [""])[0])
-            date_value = _normalize_date(query_parms.get("date", [""])[0])
+            raw_category = query_parms.get("category", [""])[0]
+            param_category = _normalize_category(raw_category)
+            if param_category is None and raw_category.strip():
+                param_category = "__invalid__"
+            param_date = _normalize_date(query_parms.get("date", [""])[0])
             render_format = (
                 (query_parms.get("format", ["plain"])[0] or "plain").strip().lower()
             )
-            render_html = render_format == "html"
-            return category, date_value, render_html
+            param_render_html = render_format == "html"
+            return param_category, param_date, param_render_html
 
         start_time = time.perf_counter()
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
@@ -474,6 +506,10 @@ if __name__ == "__main__":
         print(f"Content-type: {mime}\n")
         if render_html:
             print(cc.style())
+            if os.getenv("TAGTRACKER_DEBUG"):
+                print("<pre style='color:red'>\nDEBUG -- TAGTRACKER_DEBUG flag is set\n\n" "</pre>")
+
+
 
         output_lines = _render_category(category, date_value, render_html)
         for line in output_lines:
