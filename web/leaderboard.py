@@ -68,6 +68,7 @@ def _render_visits(date_value: str, render_html: bool) -> list[str]:
             title="Most single-day visits as of {date}",
             column="num_parked_combined",
             render_html=render_html,
+            include_today_table=True,
         )
     finally:
         ttdb.close()
@@ -90,6 +91,7 @@ def _render_registrations(date_value: str, render_html: bool) -> list[str]:
             title="Most single-day registrations as of {date}",
             column="bikes_registered",
             render_html=render_html,
+            include_today_table=True,
         )
     finally:
         ttdb.close()
@@ -307,12 +309,34 @@ def _format_columns_html_pairs(
     return lines
 
 
+def _format_today_table_html(value: str) -> list[str]:
+    return [
+        '<table class="general_table leaderboard_table">',
+        "  <thead>",
+        "    <tr>",
+        "      <th>So far today</th>",
+        "    </tr>",
+        "  </thead>",
+        "  <tbody>",
+        "    <tr>",
+        f'      <td style="text-align:right;">{value}</td>',
+        "    </tr>",
+        "  </tbody>",
+        "</table>",
+    ]
+
+
+def _format_today_table_text(value: str) -> list[str]:
+    return [value or ""]
+
+
 def _metric_text(
     ttdb,
     date_value: datetime.date,
     title: str,
     column: str,
     formatter=_format_metric_value,
+    include_today_table: bool = False,
 ) -> list[str]:
     this_month_start = datetime.date(date_value.year, date_value.month, 1)
     this_year_start = datetime.date(date_value.year, 1, 1)
@@ -329,13 +353,26 @@ def _metric_text(
 
     month_lines = _format_value_date_rows(month_rows, formatter=formatter)
     year_lines = _format_value_date_rows(year_rows, formatter=formatter)
-    lines.extend(
-        _format_columns(
-            ["This month", "This year"],
-            [month_lines, year_lines],
-            gap="     ",
+    if include_today_table:
+        today_value = _fetch_metric_value(ttdb, column, date_value)
+        today_lines = _format_today_table_text(
+            formatter(today_value) if today_value is not None else ""
         )
-    )
+        lines.extend(
+            _format_columns(
+                ["This month", "This year", "So far today"],
+                [month_lines, year_lines, today_lines],
+                gap="     ",
+            )
+        )
+    else:
+        lines.extend(
+            _format_columns(
+                ["This month", "This year"],
+                [month_lines, year_lines],
+                gap="     ",
+            )
+        )
     lines.append("")
 
     since_month_lines = _format_value_date_rows(since_month_rows, formatter=formatter)
@@ -362,6 +399,7 @@ def _metric_html(
     title: str,
     column: str,
     formatter=_format_metric_value,
+    include_today_table: bool = False,
 ) -> list[str]:
     this_month_start = datetime.date(date_value.year, date_value.month, 1)
     this_year_start = datetime.date(date_value.year, 1, 1)
@@ -381,9 +419,27 @@ def _metric_html(
     forever_lines = _format_value_date_pairs(forever_rows, formatter=formatter)
 
     lines = [f"<h2>{title.format(date=date_value.isoformat())}</h2>"]
-    lines.extend(
-        _format_columns_html_pairs(["This month", "This year"], [month_lines, year_lines])
+    first_table = _format_columns_html_pairs(
+        ["This month", "This year"], [month_lines, year_lines]
     )
+    if include_today_table:
+        today_value = _fetch_metric_value(ttdb, column, date_value)
+        today_table = _format_today_table_html(
+            value=formatter(today_value) if today_value is not None else ""
+        )
+        lines.append("<table>")
+        lines.append("  <tr>")
+        lines.append("    <td valign=\"top\">")
+        lines.extend(first_table)
+        lines.append("    </td>")
+        lines.append("    <td>&nbsp;</td>")
+        lines.append("    <td valign=\"top\">")
+        lines.extend(today_table)
+        lines.append("    </td>")
+        lines.append("  </tr>")
+        lines.append("</table>")
+    else:
+        lines.extend(first_table)
     lines.append("<br>")
     lines.extend(
         _format_columns_html_pairs(
@@ -405,10 +461,44 @@ def _metric_leaderboard(
     column: str,
     render_html: bool,
     formatter=_format_metric_value,
+    include_today_table: bool = False,
 ) -> list[str]:
     if render_html:
-        return _metric_html(ttdb, date_value, title, column, formatter=formatter)
-    return _metric_text(ttdb, date_value, title, column, formatter=formatter)
+        return _metric_html(
+            ttdb,
+            date_value,
+            title,
+            column,
+            formatter=formatter,
+            include_today_table=include_today_table,
+        )
+    return _metric_text(
+        ttdb,
+        date_value,
+        title,
+        column,
+        formatter=formatter,
+        include_today_table=include_today_table,
+    )
+
+
+def _fetch_metric_value(
+    ttdb,
+    column: str,
+    date_value: datetime.date,
+) -> float | None:
+    orgsite_id = 1  # FIXME: hardcoded orgsite_id
+    sql = f"""
+        SELECT {column} AS metric
+        FROM day
+        WHERE date = '{date_value.isoformat()}'
+            AND orgsite_id = {orgsite_id}
+        LIMIT 1
+    """
+    rows = db.db_fetch(ttdb, sql)
+    if not rows:
+        return None
+    return rows[0].metric
 
 
 def _render_fullest(date_value: str, render_html: bool) -> list[str]:
@@ -428,6 +518,7 @@ def _render_fullest(date_value: str, render_html: bool) -> list[str]:
             title="Most bikes on-site as of {date}",
             column="num_fullest_combined",
             render_html=render_html,
+            include_today_table=True,
         )
     finally:
         ttdb.close()
