@@ -536,6 +536,24 @@ def _fetch_metric_value(
     return rows[0].metric
 
 
+def _fetch_busyness_value(ttdb, date_value: datetime.date) -> int | None:
+    orgsite_id = 1  # FIXME: hardcoded orgsite_id
+    sql = f"""
+        SELECT
+            MAX(COALESCE(b.num_incoming_combined, 0)
+                + COALESCE(b.num_outgoing_combined, 0)) AS metric
+        FROM block b
+        JOIN day d ON d.id = b.day_id
+        WHERE d.date = '{date_value.isoformat()}'
+            AND d.orgsite_id = {orgsite_id}
+        LIMIT 1
+    """
+    rows = db.db_fetch(ttdb, sql)
+    if not rows:
+        return None
+    return int(rows[0].metric) if rows[0].metric is not None else None
+
+
 def _busyness_text(ttdb, date_value: datetime.date, title: str) -> list[str]:
     this_month_start = datetime.date(date_value.year, date_value.month, 1)
     this_year_start = datetime.date(date_value.year, 1, 1)
@@ -547,15 +565,19 @@ def _busyness_text(ttdb, date_value: datetime.date, title: str) -> list[str]:
     since_month_rows = _top_busyness(ttdb, since_month_start, date_value)
     since_year_rows = _top_busyness(ttdb, since_year_start, date_value)
     forever_rows = _top_busyness(ttdb, None, date_value)
+    today_value = _fetch_busyness_value(ttdb, date_value)
 
     lines = [title.format(date=date_value.isoformat()), ""]
 
     month_lines = _format_value_date_rows(month_rows)
     year_lines = _format_value_date_rows(year_rows)
+    today_lines = _format_today_table_text(
+        _format_metric_value(today_value) if today_value is not None else ""
+    )
     lines.extend(
         _format_columns(
-            ["This month", "This year"],
-            [month_lines, year_lines],
+            ["This month", "This year", "So far today"],
+            [month_lines, year_lines, today_lines],
             gap="     ",
         )
     )
@@ -590,6 +612,7 @@ def _busyness_html(ttdb, date_value: datetime.date, title: str) -> list[str]:
     since_month_rows = _top_busyness(ttdb, since_month_start, date_value)
     since_year_rows = _top_busyness(ttdb, since_year_start, date_value)
     forever_rows = _top_busyness(ttdb, None, date_value)
+    today_value = _fetch_busyness_value(ttdb, date_value)
 
     month_lines = _format_value_date_pairs(month_rows)
     year_lines = _format_value_date_pairs(year_rows)
@@ -598,9 +621,23 @@ def _busyness_html(ttdb, date_value: datetime.date, title: str) -> list[str]:
     forever_lines = _format_value_date_pairs(forever_rows)
 
     lines = [f"<h2>{title.format(date=date_value.isoformat())}</h2>"]
-    lines.extend(
-        _format_columns_html_pairs(["This month", "This year"], [month_lines, year_lines])
+    first_table = _format_columns_html_pairs(
+        ["This month", "This year"], [month_lines, year_lines]
     )
+    today_table = _format_today_table_html(
+        value=_format_metric_value(today_value) if today_value is not None else ""
+    )
+    lines.append("<table>")
+    lines.append("  <tr>")
+    lines.append("    <td valign=\"top\">")
+    lines.extend(first_table)
+    lines.append("    </td>")
+    lines.append("    <td>&nbsp;</td>")
+    lines.append("    <td valign=\"top\">")
+    lines.extend(today_table)
+    lines.append("    </td>")
+    lines.append("  </tr>")
+    lines.append("</table>")
     lines.append("<br>")
     lines.extend(
         _format_columns_html_pairs(
@@ -695,7 +732,7 @@ def _render_busyness(date_value: str, render_html: bool) -> list[str]:
     if not ttdb:
         return _render_error("Database not found.", render_html)
     try:
-        title = "Most activity in a single half-hour block (bikes in + out) as of {date}"
+        title = "Most bikes in + out in a half-hour block as of {date}"
         if render_html:
             return _busyness_html(ttdb, parsed_date, title)
         return _busyness_text(ttdb, parsed_date, title)
