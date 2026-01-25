@@ -20,9 +20,6 @@ import database.tt_dbutil as db
 import web.web_base_config as wcfg
 import web.web_common as cc
 
-import cgitb
-cgitb.enable()
-
 def _normalize_date(raw_date: str) -> str:
     raw_date = (raw_date or "").strip()
     if not raw_date:
