@@ -75,6 +75,7 @@ WHAT_ESTIMATE_VERBOSE = "EstV"
 WHAT_PREDICT_FUTURE = "Ft"
 WHAT_DOWNLOAD_CSV = "d.v"
 WHAT_DOWNLOAD_DB = "d.b"
+WHAT_LEADERBOARD = "Ld"
 WHAT_VALID_VALUES = {
     WHAT_OVERVIEW,
     WHAT_BLOCKS,
@@ -100,6 +101,7 @@ WHAT_VALID_VALUES = {
     WHAT_DOWNLOAD_DB,
     WHAT_DATERANGE_DETAIL,
     WHAT_PREDICT_FUTURE,
+    WHAT_LEADERBOARD,
 }
 
 # These constants are used to manage how report columns are sorted.
@@ -248,6 +250,7 @@ class ReportParameters:
     # with the parameter name and parameter value for the audit report.
     # Changes made of those here need to be reflected in the CGI script.
     what_report: str | None = field(default=None, metadata={"cgi": "what"})
+    category: str | None = field(default=None, metadata={"cgi": "category"})
     schedule: str | None = field(default=None, metadata={"cgi": "schedule"})
     precipitation: float | None = field(default=None, metadata={"cgi": "precip"})
     temperature: float | None = field(default=None, metadata={"cgi": "temp"})
@@ -340,6 +343,12 @@ class ReportParameters:
                 f"Bad date value for parameter {property_name}: '{ut.untaint(maybe_value)}'"
             )
         setattr(self, property_name, maybe_value)
+
+    def _set_as_text(self, property_name, maybe_value) -> bool:
+        """Assigns maybe_value to self.{property_name} as a string."""
+        if maybe_value is None:
+            error_out(f"Missing value for parameter {property_name}")
+        setattr(self, property_name, str(maybe_value).strip())
 
     def _set_as_float(self, property_name, maybe_value) -> bool:
         """Assigns maybe_value to self.{property_name} if valid float.
@@ -448,6 +457,7 @@ class ReportParameters:
 
     _property_type_checks = {
         "what_report": _set_as_what,
+        "category": _set_as_text,
         "schedule": _set_as_schedule,
         "start_date": _set_as_date,
         "end_date": _set_as_date,
@@ -467,6 +477,7 @@ class ReportParameters:
         self,
         # pylint:disable=unused-argument
         maybe_what_report: str = None,
+        maybe_category: str = None,
         maybe_clock: VTime = None,
         maybe_start_date: str = None,
         maybe_end_date: str = None,

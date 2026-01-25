@@ -661,6 +661,9 @@ def main_web_page(ttdb: sqlite3.Connection):
     )
     blocks_link = cc.CGIManager.selfref(what_report=cc.WHAT_BLOCKS, pages_back=1)
     tags_link = cc.CGIManager.selfref(what_report=cc.WHAT_TAGS_LOST, pages_back=1)
+    leaderboard_link = cc.CGIManager.selfref(
+        what_report=cc.WHAT_LEADERBOARD, pages_back=1
+    )
     today_link = cc.CGIManager.selfref(what_report=cc.WHAT_ONE_DAY, start_date="today")
     summaries_link = cc.CGIManager.selfref(what_report=cc.WHAT_DATERANGE)
     graphs_link = cc.CGIManager.selfref(what_report=cc.WHAT_SUMMARY_FREQUENCIES)
@@ -764,6 +767,14 @@ def main_web_page(ttdb: sqlite3.Connection):
         <button onclick="window.location.href='{tags_link}'"
             style="padding: 10px; display: inline-block;">
           <b>Bike Tag<br>Inventory</b></button>
+        &nbsp;&nbsp;
+          """
+    )
+    print(
+        f"""
+        <button onclick="window.location.href='{leaderboard_link}'"
+            style="padding: 10px; display: inline-block;">
+          <b>Leader-<br>board</b></button>
         &nbsp;&nbsp;
           """
     )

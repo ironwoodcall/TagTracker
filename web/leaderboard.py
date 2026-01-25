@@ -777,3 +777,24 @@ if __name__ == "__main__":
             print("\n".join(_tb.format_exception(type(e), e, e.__traceback__)))
         except Exception:  # pylint:disable=broad-except
             pass
+
+
+def leaderboard_report(ttdb, params) -> None:
+    """Render the leaderboard page via web_reports.py."""
+    print(cc.titleize("Leaderboard"))
+    params.pages_back = params.pages_back or 1
+    print(f"{cc.main_and_back_buttons(pages_back=params.pages_back)}<br><br>")
+
+    raw_category = params.category or ""
+    category = _normalize_category(raw_category)
+    if category is None and raw_category.strip():
+        cc.error_out(
+            "Unknown category. Expected registrations (r), precipitation (p), "
+            "temperature (t), visits (v), fullness (f), busyness (b), or all (a)."
+        )
+    category = category or "all"
+
+    date_value = _normalize_date(params.end_date or "")
+    lines = _render_category(category, date_value, True)
+    for line in lines:
+        print(line)
