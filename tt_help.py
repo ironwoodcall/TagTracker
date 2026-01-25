@@ -57,6 +57,7 @@ Information and reports
   Show day-end stats report    :  STATS [time]
   Graph busy- and fullness     :  GRAPH
   Show chart of all activity   :  CHART
+  Show historic max values     :  MAX [A|B|F|P|R|T] R|V|F|T|P|A|B]
 
 Other
   Help with commands           :  HELP [command]
@@ -174,6 +175,34 @@ Description:
     >>> wa3 bf6 bf7
   Is identical to:
     >>> INOUT wa3 bf6 bf7
+""",
+
+    CmdKeys.CMD_LEADERBOARD: """
+Command: MAX [category] --> default is STANDARD
+
+Can be invoked as:
+  {}
+
+Argument ('category'):
+    Category tells what to show maximums for:
+    A or ALL (default) : show all categories (except 'busyness')
+    B or BUSYNESS      : days with busiest half hour
+    F or FULLNESS      : days with the most bikes on-site at once
+    P or PRECIPITATION : days with the greatest precipitation
+    R or REGISTRATIONS : days with the most bike registrations
+    T or TEMPERATURE   : days with the highest temperatures
+
+Description:
+  This is a leaderboard, showing the top five days in various
+  categories.  Days are compared for the current month, the
+  current year, the preceding month (~last 30 days), the preceding
+  12 months, and finally the highest-ranked days in any year.
+
+Examples
+  MAX             # Show many categories (default)
+  M R             # Show days with the most registrations
+  MAX VISITS      # Show days with the most visits
+  M PRECIPITATION # Show days with the most precipitation
 """,
 
     CmdKeys.CMD_ESTIMATE: """
