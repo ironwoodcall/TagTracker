@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Leaderboard output for various categories.
+"""Historic maximums output for various categories.
 
 CGI parameters:
     category: optional; values include "registrations" (r), "precipitation" (p),
@@ -101,8 +101,8 @@ def _render_error(message: str, render_html: bool) -> list[str]:
     if render_html:
         import html as _html
 
-        return [f"<p>Leaderboard error: {_html.escape(message)}</p>"]
-    return [f"Leaderboard error: {message}"]
+        return [f"<p>Historic maximums error: {_html.escape(message)}</p>"]
+    return [f"Historic maximums error: {message}"]
 
 
 def _render_category(category: str, date_value: str, render_html: bool) -> list[str]:
@@ -798,7 +798,7 @@ if __name__ == "__main__":
         if render_html:
             import html as _html
 
-            print(f"<p>Leaderboard error: {_html.escape(str(e))}</p>")
+            print(f"<p>Historic maximums error: {_html.escape(str(e))}</p>")
             try:
                 tb_html = "<br>".join(
                     _html.escape(line.rstrip("\n"))
@@ -809,7 +809,7 @@ if __name__ == "__main__":
                 pass
             raise SystemExit(1)
 
-        print(f"Leaderboard error: {e}")
+        print(f"Historic maximums error: {e}")
         try:
             print("\n".join(_tb.format_exception(type(e), e, e.__traceback__)))
         except Exception:  # pylint:disable=broad-except
@@ -818,7 +818,7 @@ if __name__ == "__main__":
 
 def leaderboard_report(ttdb, params) -> None:
     """Render the leaderboard page via web_reports.py."""
-    print(cc.titleize("Leaderboard"))
+    print(cc.titleize("Historic maximums"))
     params.pages_back = params.pages_back or 1
     print(f"{cc.main_and_back_buttons(pages_back=params.pages_back)}<br><br>")
 

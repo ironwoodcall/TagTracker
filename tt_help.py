@@ -57,7 +57,7 @@ Information and reports
   Show day-end stats report    :  STATS [time]
   Graph busy- and fullness     :  GRAPH
   Show chart of all activity   :  CHART
-  Show historic max values     :  MAX [A|B|F|P|R|T] R|V|F|T|P|A|B]
+  Show historic maximums       :  MAX [A|B|F|P|R|T]
 
 Other
   Help with commands           :  HELP [command]
@@ -178,7 +178,7 @@ Description:
 """,
 
     CmdKeys.CMD_LEADERBOARD: """
-Command: MAX [category] --> default is STANDARD
+Command: MAX [category]
 
 Can be invoked as:
   {}
@@ -193,7 +193,7 @@ Argument ('category'):
     T or TEMPERATURE   : days with the highest temperatures
 
 Description:
-  This is a leaderboard, showing the top five days in various
+  Show the single-day historic maximums in various
   categories.  Days are compared for the current month, the
   current year, the preceding month (~last 30 days), the preceding
   12 months, and finally the highest-ranked days in any year.

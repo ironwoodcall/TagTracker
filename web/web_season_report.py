@@ -774,7 +774,7 @@ def main_web_page(ttdb: sqlite3.Connection):
         f"""
         <button onclick="window.location.href='{leaderboard_link}'"
             style="padding: 10px; display: inline-block;">
-          <b>Leader-<br>board</b></button>
+          <b>Historic<br>Maximums</b></button>
         &nbsp;&nbsp;
           """
     )
