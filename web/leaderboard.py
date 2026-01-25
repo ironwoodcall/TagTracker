@@ -3,7 +3,8 @@
 
 CGI parameters:
     category: optional; values include "registrations" (r), "precipitation" (p),
-        "temperature" (t), "visits" (v), "fullness" (f), or "all" (a).
+        "temperature" (t), "visits" (v), "fullness" (f), "busyness" (b),
+        or "all" (a).
     date: optional; defaults to today (YYYY-MM-DD). Any non-empty value is used.
     format: optional; "html" or "plain" (default).
 """
@@ -45,6 +46,8 @@ def _normalize_category(raw_category: str) -> str | None:
         "v": "visits",
         "fullness": "fullness",
         "f": "fullness",
+        "busyness": "busyness",
+        "b": "busyness",
         "all": "all",
         "a": "all",
     }
@@ -112,6 +115,7 @@ def _render_category(category: str, date_value: str, render_html: bool) -> list[
         "temperature": _render_temperature,
         "visits": _render_visits,
         "fullness": _render_fullest,
+        "busyness": _render_busyness,
     }
     if category in handlers:
         return handlers[category](date_value, render_html)
@@ -141,11 +145,11 @@ def _render_category(category: str, date_value: str, render_html: bool) -> list[
     if render_html:
         cc.error_out(
             "Unknown category. Expected registrations (r), precipitation (p), "
-            "temperature (t), visits (v), fullness (f), or all (a)."
+            "temperature (t), visits (v), fullness (f), busyness (b), or all (a)."
         )
     return _render_error(
         "Unknown category. Expected registrations (r), precipitation (p), "
-        "temperature (t), visits (v), fullness (f), or all (a).",
+        "temperature (t), visits (v), fullness (f), busyness (b), or all (a).",
         render_html,
     )
 
@@ -215,6 +219,34 @@ def _top_metric(
     """
     rows = db.db_fetch(ttdb, sql)
     return [(row.metric, row.date) for row in rows if row.metric is not None]
+
+
+def _top_busyness(
+    ttdb,
+    start_date: datetime.date | None,
+    end_date: datetime.date,
+    limit: int = 5,
+) -> list[tuple[int, str]]:
+    orgsite_id = 1  # FIXME: hardcoded orgsite_id
+    start_clause = ""
+    if start_date:
+        start_clause = f"AND d.date >= '{start_date.isoformat()}'"
+    sql = f"""
+        SELECT
+            d.date AS date,
+            MAX(COALESCE(b.num_incoming_combined, 0)
+                + COALESCE(b.num_outgoing_combined, 0)) AS metric
+        FROM block b
+        JOIN day d ON d.id = b.day_id
+        WHERE d.date <= '{end_date.isoformat()}'
+            {start_clause}
+            AND d.orgsite_id = {orgsite_id}
+        GROUP BY d.date
+        ORDER BY metric DESC, d.date DESC
+        LIMIT {int(limit)}
+    """
+    rows = db.db_fetch(ttdb, sql)
+    return [(int(row.metric), row.date) for row in rows if row.metric is not None]
 
 
 def _format_metric_value(value: float) -> str:
@@ -507,6 +539,85 @@ def _fetch_metric_value(
     return rows[0].metric
 
 
+def _busyness_text(ttdb, date_value: datetime.date, title: str) -> list[str]:
+    this_month_start = datetime.date(date_value.year, date_value.month, 1)
+    this_year_start = datetime.date(date_value.year, 1, 1)
+    since_month_start = _shift_months(date_value, -1)
+    since_year_start = _shift_years(date_value, -1)
+
+    month_rows = _top_busyness(ttdb, this_month_start, date_value)
+    year_rows = _top_busyness(ttdb, this_year_start, date_value)
+    since_month_rows = _top_busyness(ttdb, since_month_start, date_value)
+    since_year_rows = _top_busyness(ttdb, since_year_start, date_value)
+    forever_rows = _top_busyness(ttdb, None, date_value)
+
+    lines = [title.format(date=date_value.isoformat()), ""]
+
+    month_lines = _format_value_date_rows(month_rows)
+    year_lines = _format_value_date_rows(year_rows)
+    lines.extend(
+        _format_columns(
+            ["This month", "This year"],
+            [month_lines, year_lines],
+            gap="     ",
+        )
+    )
+    lines.append("")
+
+    since_month_lines = _format_value_date_rows(since_month_rows)
+    since_year_lines = _format_value_date_rows(since_year_rows)
+    forever_lines = _format_value_date_rows(forever_rows)
+    lines.extend(
+        _format_columns(
+            [
+                f"Since {since_month_start.isoformat()}",
+                f"Since {since_year_start.isoformat()}",
+                "Since Forever",
+            ],
+            [since_month_lines, since_year_lines, forever_lines],
+            gap="     ",
+        )
+    )
+
+    return lines
+
+
+def _busyness_html(ttdb, date_value: datetime.date, title: str) -> list[str]:
+    this_month_start = datetime.date(date_value.year, date_value.month, 1)
+    this_year_start = datetime.date(date_value.year, 1, 1)
+    since_month_start = _shift_months(date_value, -1)
+    since_year_start = _shift_years(date_value, -1)
+
+    month_rows = _top_busyness(ttdb, this_month_start, date_value)
+    year_rows = _top_busyness(ttdb, this_year_start, date_value)
+    since_month_rows = _top_busyness(ttdb, since_month_start, date_value)
+    since_year_rows = _top_busyness(ttdb, since_year_start, date_value)
+    forever_rows = _top_busyness(ttdb, None, date_value)
+
+    month_lines = _format_value_date_pairs(month_rows)
+    year_lines = _format_value_date_pairs(year_rows)
+    since_month_lines = _format_value_date_pairs(since_month_rows)
+    since_year_lines = _format_value_date_pairs(since_year_rows)
+    forever_lines = _format_value_date_pairs(forever_rows)
+
+    lines = [f"<h2>{title.format(date=date_value.isoformat())}</h2>"]
+    lines.extend(
+        _format_columns_html_pairs(["This month", "This year"], [month_lines, year_lines])
+    )
+    lines.append("<br>")
+    lines.extend(
+        _format_columns_html_pairs(
+            [
+                f"Since {since_month_start.isoformat()}",
+                f"Since {since_year_start.isoformat()}",
+                "Since Forever",
+            ],
+            [since_month_lines, since_year_lines, forever_lines],
+        )
+    )
+    return lines
+
+
 def _render_fullest(date_value: str, render_html: bool) -> list[str]:
     parsed_date = _parse_date(date_value)
     if not parsed_date:
@@ -572,6 +683,25 @@ def _render_temperature(date_value: str, render_html: bool) -> list[str]:
             render_html=render_html,
             formatter=_format_fixed_one_decimal,
         )
+    finally:
+        ttdb.close()
+
+
+def _render_busyness(date_value: str, render_html: bool) -> list[str]:
+    parsed_date = _parse_date(date_value)
+    if not parsed_date:
+        return _render_error(
+            f"Bad date '{date_value}'. Expected YYYY-MM-DD or a valid alias.",
+            render_html,
+        )
+    ttdb = _open_db()
+    if not ttdb:
+        return _render_error("Database not found.", render_html)
+    try:
+        title = "Most activity in a single half-hour block (bikes in + out) as of {date}"
+        if render_html:
+            return _busyness_html(ttdb, parsed_date, title)
+        return _busyness_text(ttdb, parsed_date, title)
     finally:
         ttdb.close()
 
