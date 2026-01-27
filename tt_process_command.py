@@ -56,6 +56,7 @@ from tt_commands import (
     COMMANDS,
 )
 import tt_call_estimator
+import tt_call_leaderboard
 from tt_sounds import NoiseMaker
 import tt_main_bits as bits
 from tt_internet_monitor import InternetMonitorController
@@ -638,6 +639,17 @@ def process_command(
         leftovers_query(today=today)
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
+    elif cmd == CmdKeys.CMD_LEADERBOARD:
+        message_lines = tt_call_leaderboard.get_leaderboard_via_url()
+        if not message_lines:
+            message_lines = ["Nothing returned, don't know why. Sorry."]
+        pr.iprint()
+        for line in message_lines:
+            if line and not line.startswith("  "):
+                pr.iprint(line, style=k.TITLE_STYLE)
+            else:
+                pr.iprint(line)
+        pr.iprint()
     elif cmd == CmdKeys.CMD_MONITOR:
         if args[0]:  # True
             InternetMonitorController.notifications_on()

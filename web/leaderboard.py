@@ -65,7 +65,7 @@ def _render_visits(date_value: str, render_html: bool) -> list[str]:
         return _metric_leaderboard(
             ttdb=ttdb,
             date_value=parsed_date,
-            title="Most single-day visits as of {date}",
+            title="Most visits as of {date}",
             column="num_parked_combined",
             render_html=render_html,
             include_today_table=True,
@@ -88,7 +88,7 @@ def _render_registrations(date_value: str, render_html: bool) -> list[str]:
         return _metric_leaderboard(
             ttdb=ttdb,
             date_value=parsed_date,
-            title="Most single-day registrations as of {date}",
+            title="Most registrations as of {date}",
             column="bikes_registered",
             render_html=render_html,
             include_today_table=True,
@@ -102,7 +102,15 @@ def _render_error(message: str, render_html: bool) -> list[str]:
         import html as _html
 
         return [f"<p>Historic maximums error: {_html.escape(message)}</p>"]
-    return [f"Historic maximums error: {message}"]
+    return _indent_lines([f"Historic maximums error: {message}"], skip_first=False)
+
+
+def _indent_lines(lines: list[str], indent: str = "  ", skip_first: bool = False) -> list[str]:
+    if not lines:
+        return []
+    if skip_first:
+        return [lines[0]] + [f"{indent}{line}" if line else line for line in lines[1:]]
+    return [f"{indent}{line}" if line else line for line in lines]
 
 
 def _render_category(category: str, date_value: str, render_html: bool) -> list[str]:
@@ -425,7 +433,7 @@ def _metric_text(
         )
     )
 
-    return lines
+    return _indent_lines(lines, skip_first=True)
 
 
 def _metric_html(
@@ -598,7 +606,7 @@ def _busyness_text(ttdb, date_value: datetime.date, title: str) -> list[str]:
         )
     )
 
-    return lines
+    return _indent_lines(lines, skip_first=True)
 
 
 def _busyness_html(ttdb, date_value: datetime.date, title: str) -> list[str]:
@@ -712,7 +720,7 @@ def _render_temperature(date_value: str, render_html: bool) -> list[str]:
         return _metric_leaderboard(
             ttdb=ttdb,
             date_value=parsed_date,
-            title="Highest temperature as of {date}",
+            title="Highest temperatures as of {date}",
             column="max_temperature",
             render_html=render_html,
             formatter=_format_fixed_one_decimal,
@@ -782,7 +790,7 @@ if __name__ == "__main__":
                 f'<p class="estimator-query-time">Query took {elapsed_time:.1f} seconds.</p>'
             )
         else:
-            print(f"\n\nQuery took {elapsed_time:.1f} seconds.")
+            print(f"\n\n  Query took {elapsed_time:.1f} seconds.")
     except Exception as e:  # pylint:disable=broad-except
         is_cgi = bool(os.environ.get("REQUEST_METHOD"))
         try:
