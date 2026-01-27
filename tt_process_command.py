@@ -640,7 +640,8 @@ def process_command(
     elif cmd == CmdKeys.CMD_LINT:
         lint_report(today=today, strict_datetimes=True, chatty=True)
     elif cmd == CmdKeys.CMD_LEADERBOARD:
-        message_lines = tt_call_leaderboard.get_leaderboard_via_url()
+        category = args[0].strip().lower() if args else ""
+        message_lines = tt_call_leaderboard.get_leaderboard_via_url(category or None)
         if not message_lines:
             message_lines = ["Nothing returned, don't know why. Sorry."]
         pr.iprint()

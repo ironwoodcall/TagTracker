@@ -27,14 +27,17 @@ import client_base_config as cfg
 import tt_printer as pr
 
 
-def get_leaderboard_via_url() -> list[str]:
+def get_leaderboard_via_url(category: str | None = None) -> list[str]:
     """Call leaderboard URL to get the maximums output."""
     if not cfg.LEADERBOARD_URL_BASE:
         return ["No leaderboard URL defined"]
 
     pr.iprint("Fetching maximums....")
     separator = "&" if "?" in cfg.LEADERBOARD_URL_BASE else "?"
-    url = f"{cfg.LEADERBOARD_URL_BASE}{separator}format=plain"
+    params = ["format=plain"]
+    if category:
+        params.append(f"category={category}")
+    url = f"{cfg.LEADERBOARD_URL_BASE}{separator}" + "&".join(params)
     try:
         response = urllib.request.urlopen(url)
         data = response.read()

@@ -257,7 +257,7 @@ COMMANDS = {
     CmdKeys.CMD_LINT: CmdConfig(invoke=["lint"]),
     CmdKeys.CMD_LEADERBOARD: CmdConfig(
         invoke=["max", "m", "maximum", "maximums"],
-        arg_configs=[],
+        arg_configs=[ArgConfig(ARG_TOKEN, optional=True)],
     ),
     CmdKeys.CMD_LEFTOVERS: CmdConfig(invoke=["leftovers", "leftover","left","l"]),
     CmdKeys.CMD_LOWERCASE: CmdConfig(invoke=["lc", "lowercase"]),
