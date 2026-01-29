@@ -107,6 +107,7 @@ class CmdKeys:
     CMD_FULL_CHART = "FULLNESS_CHART"
     CMD_HELP = "HELP"
     CMD_HOURS = "HOURS"
+    CMD_LEADERBOARD = "LEADERBOARD"
     CMD_LEFTOVERS = "LEFTOVERS"
     CMD_LINT = "LINT"
     CMD_LOWERCASE = "LOWERCASE"
@@ -254,6 +255,10 @@ COMMANDS = {
     ),
     CmdKeys.CMD_HOURS: CmdConfig(invoke=["hours", "hour", "open"]),
     CmdKeys.CMD_LINT: CmdConfig(invoke=["lint"]),
+    CmdKeys.CMD_LEADERBOARD: CmdConfig(
+        invoke=["max", "m", "maximum", "maximums"],
+        arg_configs=[ArgConfig(ARG_TOKEN, optional=True)],
+    ),
     CmdKeys.CMD_LEFTOVERS: CmdConfig(invoke=["leftovers", "leftover","left","l"]),
     CmdKeys.CMD_LOWERCASE: CmdConfig(invoke=["lc", "lowercase"]),
     CmdKeys.CMD_MONITOR: CmdConfig(

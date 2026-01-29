@@ -83,6 +83,9 @@ ECHO = False
 # "" disables estimations
 ESTIMATOR_URL_BASE = ""
 
+# Base of URL for calls to 'maximums' (leaderboard)
+LEADERBOARD_URL_BASE = ""
+
 # Maximum length for Notes
 MAX_NOTE_LENGTH = 80
 

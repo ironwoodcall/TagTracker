@@ -42,6 +42,7 @@ import web.web_period_summaries as web_period_summaries
 import web.web_compare_ranges as web_compare_ranges
 import web.web_period_detail as web_period_detail
 import web.web_predictor_report as web_predictor_report
+import web.leaderboard as web_leaderboard
 import web.web_base_config as wcfg
 from common.tt_tag import TagID
 from common.tt_time import VTime
@@ -334,6 +335,8 @@ elif params.what_report == cc.WHAT_DATERANGE:
     web_period_summaries.daterange_summary(database, params=params)
 elif params.what_report == cc.WHAT_ESTIMATE_VERBOSE:
     web_est_wrapper()
+elif params.what_report == cc.WHAT_LEADERBOARD:
+    web_leaderboard.leaderboard_report(database, params)
 
 else:
     cc.error_out(f"Unknown request: {ut.untaint(params.what_report)}")
