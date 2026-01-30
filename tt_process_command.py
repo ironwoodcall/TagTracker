@@ -343,6 +343,41 @@ def check_out(args: list, today: TrackerDay) -> bool:
     return data_changed
 
 
+def flip_tags(args: list, today: TrackerDay) -> bool:
+    """Flip tag(s): check out then check back in at the same time."""
+
+    flip_time = VTime(args[1]) if len(args) > 1 else VTime("now")
+    if not bits.check_bike_time_reasonable(bike_time=flip_time, day=today):
+        return False
+
+    data_changed = False
+    for tagid in args[0]:
+        tagid: TagID
+        try:
+            if not bits.check_tagid_usable(tagid, today):
+                NoiseMaker.queue_add(k.ALERT)
+                continue
+            biketag = today.biketags[tagid]
+            if biketag.status != biketag.IN_USE:
+                pr.iprint(
+                    f"Can not check out tag {tagid.original}, it was not checked in.",
+                    style=k.WARNING_STYLE,
+                )
+                NoiseMaker.queue_add(k.ALERT)
+                continue
+            biketag.edit_out(flip_time)
+            data_changed = True
+            print_tag_inout(biketag, k.BIKE_OUT, flip_time)
+            biketag.check_in(flip_time)
+            data_changed = True
+            print_tag_inout(biketag, k.BIKE_IN, flip_time)
+        except (BikeTagError, TrackerDayError) as e:
+            pr.iprint(e, style=k.WARNING_STYLE)
+            NoiseMaker.queue_add(k.ALERT)
+
+    return data_changed
+
+
 def guess_check_inout(args: list, today: TrackerDay) -> bool:
     """Check bike(s) in or out, guessing which is appropriate.
 
@@ -604,6 +639,9 @@ def process_command(
     elif cmd == CmdKeys.CMD_BIKE_OUT:
         # Check a bike out. Hard to imagine anyone even using this command.
         data_changed = check_out(args=args, today=today)
+    elif cmd == CmdKeys.CMD_FLIP:
+        # Check a bike out then in at the same time.
+        data_changed = flip_tags(args=args, today=today)
     # elif cmd == CmdKeys.CMD_BUSY:
     #     pr.iprint(
     #         "'BUSY' command is now part of 'STATS' command.", style=k.WARNING_STYLE

@@ -39,6 +39,7 @@ TagTracker Commands
 To enter and change tracking data
   Check bike in (can reuse tag):  IN <tag(s)> [time]
   Check bike out               :  OUT <tag(s)> [time]
+  Flip tag out+in (same time)  :  FLIP <tag(s)> [time]
   Guess about check in or out  :  INOUT <tag(s)> - or just <tag(s)>
   Edit check in/out times      :  EDIT <tag(s)> <in|out> <time>
   Delete a check in/out        :  DELETE <tag(s)> <in|out> <yes>
@@ -149,6 +150,24 @@ Description:
   Check a bike out.  This makes the tag available for re-use.
 
 
+""",
+
+    CmdKeys.CMD_FLIP: """
+Command: FLIP <tag(s)> [time]
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to flip from one bike to the next
+    [time]: optional time to use for the check-out and check-in. Default is 'now'
+
+Description:
+  Flip a tag from an outgoing bike to an incoming bike.  This is quivalent
+  to OUT <tag(s)> followed by IN <tag(s)>.
+
+  If any tag is not currently checked in, it shows an error for that tag ony
+  but continues for the other tags (if any) in the list.
 """,
 
     CmdKeys.CMD_BIKE_INOUT: """

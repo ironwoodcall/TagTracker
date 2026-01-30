@@ -94,6 +94,7 @@ class CmdKeys:
     CMD_BIKE_IN = "BIKE_IN"  # Explicit
     CMD_BIKE_INOUT = "BIKE_INOUT"  # Guess, but won't re-use a tag.
     CMD_BIKE_OUT = "BIKE_OUT"  # Explicit
+    CMD_FLIP = "FLIP"
     # CMD_BUSY = "BUSY"
     CMD_GRAPHS = "BUSY_CHART"
     CMD_CHART = "CHART"
@@ -178,6 +179,13 @@ COMMANDS = {
                 optional=False,
                 prompt="Check out bike(s) having what tag(s)? ",
             ),
+            ArgConfig(ARG_TIME, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_FLIP: CmdConfig(
+        invoke=["flip", "f"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Flip what tag(s)? "),
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
