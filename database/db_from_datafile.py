@@ -70,7 +70,7 @@ import subprocess
 from datetime import datetime
 import hashlib
 
-from database.database_base_config import DB_FILENAME
+from database.database_base_config import DB_FILENAME, SHORT_VISITS_FILTER
 
 # import tt_datafile
 import database.tt_dbutil as db
@@ -478,7 +478,7 @@ def insert_into_visit(
     day: TrackerDay,
     cursor: sqlite3.Connection.cursor,
     day_id: int,
-) -> bool:
+) -> tuple[int, int]:
     """Load this day's visits into the database."""
     # if args.verbose:
     #     print("   Deleting any existing visits info for this day from database.")
@@ -492,6 +492,15 @@ def insert_into_visit(
     if args.verbose:
         print(f"   Adding {len(day.all_visits())} visits to database.")
 
+    discarded = 0
+    inserted = 0
+    try:
+        short_visit_threshold = (
+            int(SHORT_VISITS_FILTER) if SHORT_VISITS_FILTER is not None else None
+        )
+    except (TypeError, ValueError):
+        short_visit_threshold = None
+
     for visit in day.all_visits():
         visit: BikeVisit
         if not visit.time_in:
@@ -500,6 +509,16 @@ def insert_into_visit(
 
         time_in_text = str(visit.time_in) if visit.time_in else "00:00"
         time_out_text = str(visit.time_out) if visit.time_out else ""
+        duration = visit.duration(day.time_closed, is_close_of_business=True)
+
+        if (
+            short_visit_threshold is not None
+            and short_visit_threshold > 0
+            and duration is not None
+            and duration < short_visit_threshold
+        ):
+            discarded += 1
+            continue
 
         # Save to VISIT table
         cursor.execute(
@@ -519,12 +538,13 @@ def insert_into_visit(
                 day_id,
                 time_in_text,
                 time_out_text,
-                visit.duration(day.time_closed, is_close_of_business=True),
+                duration,
                 biketype,
                 visit.tagid,
             ),
         )
-    return True
+        inserted += 1
+    return inserted, discarded
 
 
 def insert_into_block(
@@ -806,7 +826,7 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
             batch_id=batch,
             cursor=cursor,
         )
-        insert_into_visit(
+        inserted_visits, discarded_visits = insert_into_visit(
             day=day,
             cursor=cursor,
             day_id=day_id,
@@ -833,10 +853,21 @@ def one_datafile_into_db(filename: str, batch, dbconx) -> str:
 
     dbconx.commit()  # commit as one datafile transaction
 
+    if not args.quiet:
+        try:
+            short_visit_threshold = (
+                int(SHORT_VISITS_FILTER) if SHORT_VISITS_FILTER is not None else None
+            )
+        except (TypeError, ValueError):
+            short_visit_threshold = None
+        if short_visit_threshold is not None and short_visit_threshold > 0:
+            print(
+                f"   Discarded {discarded_visits} visits shorter than "
+                f"{short_visit_threshold} minutes."
+            )
+
     if args.verbose:
-        print(
-            f"   Committed {day_summary.whole_day.num_parked_combined} visits for {day.date}."
-        )
+        print(f"   Committed {inserted_visits} visits for {day.date}.")
 
     return day.date
 
