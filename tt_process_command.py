@@ -360,7 +360,7 @@ def flip_tags(args: list, today: TrackerDay) -> bool:
             biketag = today.biketags[tagid]
             if biketag.status != biketag.IN_USE:
                 pr.iprint(
-                    f"Tag {tagid.original} not checked in.",
+                    f"Can not check out tag {tagid.original}, it was not checked in.",
                     style=k.WARNING_STYLE,
                 )
                 NoiseMaker.queue_add(k.ALERT)
