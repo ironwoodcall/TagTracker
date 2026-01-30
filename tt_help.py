@@ -163,12 +163,11 @@ Arguments:
     [time]: optional time to use for the check-out and check-in. Default is 'now'
 
 Description:
-  Flip a tag from one bike to the next at the same time. This checks the tag
-  out and then immediately checks it back in, splitting the current visit
-  into two visits at the same time.
+  Flip a tag from an outgoing bike to an incoming bike.  This is quivalent
+  to OUT <tag(s)> followed by IN <tag(s)>.
 
-  Works only if the tag is currently checked in. Failures affect only the
-  affected tag; other tags will continue.
+  If any tag is not currently checked in, it shows an error for that tag ony
+  but continues for the other tags (if any) in the list.
 """,
 
     CmdKeys.CMD_BIKE_INOUT: """
