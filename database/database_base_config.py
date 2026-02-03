@@ -37,6 +37,11 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 # Database filename
 DB_FILENAME = ""  # Filepath to sqlite3 database
 
+# Minimum visit duration (minutes) to keep in DB load.
+# Visits with duration strictly less than this value are discarded.
+# Set to 0 or None to disable filtering.
+SHORT_VISITS_FILTER = 2
+
 # Weather update configuration
 # WX_SITES is an ordered list of mappings with keys:
 #   url: CSV endpoint (may include {year} placeholder)
