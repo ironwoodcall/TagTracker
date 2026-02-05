@@ -679,6 +679,8 @@ def process_command(
         lint_report(today=today, strict_datetimes=True, chatty=True)
     elif cmd == CmdKeys.CMD_LEADERBOARD:
         category = args[0].strip().lower() if args else ""
+        if category == "busy":
+            category = "busyness"
         message_lines = tt_call_leaderboard.get_leaderboard_via_url(category or None)
         if not message_lines:
             message_lines = ["Nothing returned, don't know why. Sorry."]
