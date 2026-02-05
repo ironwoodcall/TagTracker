@@ -166,7 +166,7 @@ Description:
   Flip a tag from an outgoing bike to an incoming bike.  This is quivalent
   to OUT <tag(s)> followed by IN <tag(s)>.
 
-  If any tag is not currently checked in, it shows an error for that tag ony
+  If any tag is not currently checked in, it shows an error for that tag only
   but continues for the other tags (if any) in the list.
 """,
 
