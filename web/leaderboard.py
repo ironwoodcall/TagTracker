@@ -219,7 +219,7 @@ def _top_metric(
             {start_clause}
             AND orgsite_id = {orgsite_id}
             AND {column} IS NOT NULL
-        ORDER BY {column} DESC, date DESC
+        ORDER BY {column} DESC, date ASC
         LIMIT {int(limit)}
     """
     rows = db.db_fetch(ttdb, sql)
@@ -247,7 +247,7 @@ def _top_busyness(
             {start_clause}
             AND d.orgsite_id = {orgsite_id}
         GROUP BY d.date
-        ORDER BY metric DESC, d.date DESC
+        ORDER BY metric DESC, d.date ASC
         LIMIT {int(limit)}
     """
     rows = db.db_fetch(ttdb, sql)
