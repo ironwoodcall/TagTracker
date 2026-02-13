@@ -128,12 +128,15 @@ def build_argument_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description=(
-            "Convert a schedule CSV (one date column per day, one row per person) "
+            "Convert one or more schedule CSV files (one date column per day, one row per person) "
             "into PERSON,DATE,START_TIME,END_TIME rows."
         )
     )
     parser.add_argument(
-        "input_csv", type=Path, help="Path to the exported schedule CSV"
+        "input_csvs",
+        type=Path,
+        nargs="+",
+        help="Path(s) to exported schedule CSV file(s).",
     )
     parser.add_argument(
         "-o",
@@ -149,7 +152,9 @@ def main(argv: List[str] | None = None) -> None:
     parser = build_argument_parser()
     args = parser.parse_args(argv)
 
-    shifts = list(parse_schedule(args.input_csv))
+    shifts: List[Shift] = []
+    for input_csv in args.input_csvs:
+        shifts.extend(parse_schedule(input_csv))
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

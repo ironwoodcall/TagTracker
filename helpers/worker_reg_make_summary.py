@@ -592,11 +592,17 @@ def build_registration_table(
     assignments: Iterable[Tuple[ActivityRecord, List[str]]],
     alias_reverse_map: Dict[str, str],
     month: str | None = None,
+    range_start: datetime | None = None,
+    range_end: datetime | None = None,
 ) -> Tuple[List[str], List[List[str]]]:
     """Build a row-by-row registration assignment table."""
     headers = ["DATE", "TIME", "DELTA", "WORKERS"]
     rows: List[List[str]] = []
     for record, workers in assignments:
+        if range_start is not None and record.timestamp < range_start:
+            continue
+        if range_end is not None and record.timestamp >= range_end:
+            continue
         if month is not None and record.timestamp.strftime("%Y-%m") != month:
             continue
         date_text = record.timestamp.date().isoformat()
@@ -667,6 +673,8 @@ def prepare_tables(
     alias_reverse_map: Dict[str, str],
     assignments: Iterable[Tuple[ActivityRecord, List[str]]],
     warnings: Iterable[CoverageWarning],
+    shift_range_start: datetime | None = None,
+    shift_range_end: datetime | None = None,
     month: str | None = None,
 ) -> List[Tuple[str, List[str], List[List[str]]]]:
     """Assemble the output tables in display order."""
@@ -684,17 +692,23 @@ def prepare_tables(
         team_units, team_date_units, team_shift_hours, team_date_shift_hours, month
     )
     registration_headers, registration_rows = build_registration_table(
-        assignments, alias_reverse_map, month
+        assignments,
+        alias_reverse_map,
+        month,
+        shift_range_start,
+        shift_range_end,
     )
     warning_headers, warning_rows = build_warning_table(
         warnings, alias_reverse_map, month
     )
-    return [
+    tables: List[Tuple[str, List[str], List[List[str]]]] = [
         ("person_metrics", person_headers, person_rows),
         ("team_metrics", team_headers, team_rows),
         ("registration_log", registration_headers, registration_rows),
-        ("coverage_warnings", warning_headers, warning_rows),
     ]
+    if warning_rows:
+        tables.append(("coverage_warnings", warning_headers, warning_rows))
+    return tables
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -770,15 +784,52 @@ def main(argv: List[str] | None = None) -> None:
     ) = aggregate_points(spans, activities)
 
     months = sorted({span.day.strftime("%Y-%m") for span in spans})
+    shift_range_start = min((span.start for span in spans), default=None)
+    shift_range_end = max((span.end for span in spans), default=None)
+
+    def format_time_range(start: datetime | None, end: datetime | None) -> str:
+        """Return a human-readable date range label."""
+        if start is None or end is None:
+            return "No shift range"
+        return f"{start.strftime('%Y-%m-%d %H:%M')} to {end.strftime('%Y-%m-%d %H:%M')}"
+
+    def table_title(table_key: str) -> str:
+        """Map internal table keys to display titles."""
+        titles = {
+            "person_metrics": "Person Metrics",
+            "team_metrics": "Team Metrics",
+            "registration_log": "Registration Log",
+            "coverage_warnings": "Coverage Warnings",
+        }
+        return titles.get(table_key, table_key.replace("_", " ").title())
+
+    def write_table(
+        writer: csv.writer,
+        table_key: str,
+        headers: List[str],
+        rows: List[List[str]],
+        start: datetime | None,
+        end: datetime | None,
+    ) -> None:
+        """Write one table with a title/range line and a blank line before headers."""
+        title_line = (
+            f"{table_title(table_key)} | Time Range: {format_time_range(start, end)}"
+        )
+        writer.writerow([title_line] + [""] * max(0, len(headers) - 1))
+        writer.writerow([])
+        writer.writerow(headers)
+        writer.writerows(rows)
 
     def export_tables(
         tables: List[Tuple[str, List[str], List[List[str]]]],
         directory: Path,
         stem: str,
         suffix: str,
+        start: datetime | None,
+        end: datetime | None,
         prefix: str | None = None,
     ) -> None:
-        for index, (_, headers, rows) in enumerate(tables, start=1):
+        for index, (table_key, headers, rows) in enumerate(tables, start=1):
             if prefix:
                 filename = f"{stem}_{prefix}_{index}{suffix}"
             else:
@@ -786,13 +837,20 @@ def main(argv: List[str] | None = None) -> None:
             output_path = directory / filename
             with output_path.open("w", newline="", encoding="utf-8") as handle:
                 writer = csv.writer(handle)
-                writer.writerow(headers)
-                writer.writerows(rows)
+                write_table(writer, table_key, headers, rows, start, end)
+
+    month_ranges: Dict[str, Tuple[datetime | None, datetime | None]] = {}
+    for month in months:
+        month_spans = [span for span in spans if span.day.strftime("%Y-%m") == month]
+        month_start = min((span.start for span in month_spans), default=None)
+        month_end = max((span.end for span in month_spans), default=None)
+        month_ranges[month] = (month_start, month_end)
 
     if args.by_month:
         if args.output is None:
             writer = csv.writer(sys.stdout)
             for month in months:
+                month_start, month_end = month_ranges.get(month, (None, None))
                 tables = prepare_tables(
                     person_units,
                     person_date_units,
@@ -807,12 +865,15 @@ def main(argv: List[str] | None = None) -> None:
                     alias_reverse_map,
                     assignments,
                     warnings,
+                    shift_range_start,
+                    shift_range_end,
                     month,
                 )
                 writer.writerow(["MONTH", month])
-                for table_index, (_, headers, rows) in enumerate(tables):
-                    writer.writerow(headers)
-                    writer.writerows(rows)
+                for table_index, (table_key, headers, rows) in enumerate(tables):
+                    write_table(
+                        writer, table_key, headers, rows, month_start, month_end
+                    )
                     if table_index < len(tables) - 1:
                         writer.writerow([])
                 writer.writerow([])
@@ -822,6 +883,7 @@ def main(argv: List[str] | None = None) -> None:
             suffix = base_path.suffix or ".csv"
             stem = base_path.stem
             for month in months:
+                month_start, month_end = month_ranges.get(month, (None, None))
                 tables = prepare_tables(
                     person_units,
                     person_date_units,
@@ -836,9 +898,19 @@ def main(argv: List[str] | None = None) -> None:
                     alias_reverse_map,
                     assignments,
                     warnings,
+                    shift_range_start,
+                    shift_range_end,
                     month,
                 )
-                export_tables(tables, base_path.parent, stem, suffix, month)
+                export_tables(
+                    tables,
+                    base_path.parent,
+                    stem,
+                    suffix,
+                    month_start,
+                    month_end,
+                    month,
+                )
     else:
         tables = prepare_tables(
             person_units,
@@ -854,6 +926,8 @@ def main(argv: List[str] | None = None) -> None:
             alias_reverse_map,
             assignments,
             warnings,
+            shift_range_start,
+            shift_range_end,
             None,
         )
 
@@ -862,12 +936,21 @@ def main(argv: List[str] | None = None) -> None:
             base_path.parent.mkdir(parents=True, exist_ok=True)
             suffix = base_path.suffix or ".csv"
             stem = base_path.stem
-            export_tables(tables, base_path.parent, stem, suffix, None)
+            export_tables(
+                tables,
+                base_path.parent,
+                stem,
+                suffix,
+                shift_range_start,
+                shift_range_end,
+                None,
+            )
         else:
             writer = csv.writer(sys.stdout)
-            for table_index, (_, headers, rows) in enumerate(tables):
-                writer.writerow(headers)
-                writer.writerows(rows)
+            for table_index, (table_key, headers, rows) in enumerate(tables):
+                write_table(
+                    writer, table_key, headers, rows, shift_range_start, shift_range_end
+                )
                 if table_index < len(tables) - 1:
                     writer.writerow([])
 
