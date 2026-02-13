@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize registration commands from TagTracker ECHO transcripts."""
+"""Extract registration deltas from TagTracker ECHO transcripts."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ class RegistrationEvent(NamedTuple):
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description=(
             "Emit registration commands from TagTracker ECHO transcript files as CSV."
@@ -48,6 +49,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def normalize_time(raw_time: str) -> str:
+    """Normalize a time string into zero-padded HH:MM format."""
     hour_text, minute_text = raw_time.strip().split(":", 1)
     try:
         hour = int(hour_text)
@@ -58,6 +60,7 @@ def normalize_time(raw_time: str) -> str:
 
 
 def extract_date(lines: Iterable[str]) -> str | None:
+    """Find the first YYYY-MM-DD date embedded in the file."""
     for line in lines:
         match = DATE_PATTERN.search(line)
         if match:
@@ -66,6 +69,7 @@ def extract_date(lines: Iterable[str]) -> str | None:
 
 
 def debug_print(enabled: bool, message: str) -> None:
+    """Print a debug message when enabled."""
     if enabled:
         print(message, file=sys.stderr)
 
@@ -73,6 +77,7 @@ def debug_print(enabled: bool, message: str) -> None:
 def find_registrations(
     lines: list[str], debug: bool = False
 ) -> list[dict[str, str | int]]:
+    """Return parsed registration commands with deltas inferred from echo output."""
     matches: list[dict[str, str | int]] = []
     total_lines = len(lines)
     for index, line in enumerate(lines):
@@ -144,6 +149,7 @@ def find_registrations(
 
 
 def process_file(path: Path, debug: bool = False) -> list[RegistrationEvent]:
+    """Parse a single echo transcript into registration events."""
     try:
         content = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -188,6 +194,7 @@ def process_file(path: Path, debug: bool = False) -> list[RegistrationEvent]:
 
 
 def main() -> None:
+    """CLI entry point."""
     args = parse_args()
     events: list[RegistrationEvent] = []
     for echo_file in args.echo_files:
