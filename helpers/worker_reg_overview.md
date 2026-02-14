@@ -1,13 +1,17 @@
 # Worker Registration Helpers Overview
 
-This folder includes three scripts that turn TagTracker registration activity and a Sling schedule export into tabular summaries suitable for spreadsheet analysis.
+This folder includes scripts that turn TagTracker registration activity and a Sling schedule export into tabular summaries suitable for spreadsheet analysis.
 
 ## Scripts
 
+### Main Script
 - `worker_reg.py`
-  - One-step orchestrator for the full flow.  Using this will orchestrate everything else.
+  - One-step orchestrator for the full flow.
   - Takes `--echo` file(s) and `--shifts` export CSV file(s), creates intermediate CSVs in a temp folder, and invokes `worker_reg_make_summary.py`.
-  - Forwards summary flags (for example: `--by-month`, `--report-unassigned`, `-o/--output`).
+  - Forwards summary flags (`--by-month`, `--report-unassigned`, `-o/--output`).
+  - Captures upstream stderr warnings/notes from preprocessing and passes them into the final workbook notes tab.
+
+### Supporting Scripts
 
 - `worker_reg_process_echo_files.py`
   - Reads TagTracker ECHO transcript files.
@@ -20,24 +24,33 @@ This folder includes three scripts that turn TagTracker registration activity an
 
 - `worker_reg_make_summary.py`
   - Combines the normalized shift CSV with the registration activity CSV.
-  - Produces four tables:
-    - Person metrics (points, shifts, hours, registrations per hour).
-    - Team metrics (pairwise registrations per hour for exact two-person overlaps).
-    - Registration log with worker assignments.
-    - Coverage warnings for any shift period with worker counts other than two
-      when those segments contain at least one registration event.
+  - Constrains analysis to the shared date window where both shift coverage and registration events exist.
+  - Produces worker/team/register summary tables.
+  - When `-o/--output` is used, writes one `.xlsx` workbook:
+    - `Workers` tab (points, shifts, hours, registrations per hour).
+    - `Teams` tab (pairwise registrations per hour for exact two-person overlaps).
+    - `Reg Log` tab (registration events with worker assignments).
+    - `Warnings∕Notes` tab containing:
+      - run timestamp
+      - upstream warnings/notes (stderr)
+      - suppressed months
+      - dates with no matching shifts
+      - worker-count mismatch lines
+      - input files list (at the bottom)
+  - In `--by-month` mode, month tabs are omitted when that month has zero registration events.
+  - Numeric columns are written as numeric cells (not text) for spreadsheet compatibility.
   - Also prints coverage warnings to stderr (with registration deltas and worker initials).
 
 ## Typical Data Flow
 
 1. Start with TagTracker ECHO transcript files and one or more Sling schedule export CSVs.
-2. - Run `worker_reg.py --echo <echo1> [<echo2> ...] --shifts <shift_export1.csv> [<shift_export2.csv> ...] [summary flags]`.
-- Example:
-  - `python3 helpers/worker_reg.py --echo ~/echo/*.txt --shifts shifts_jan.csv shifts_feb.csv --by-month -o summary.csv`
+2. Run `worker_reg.py --echo <echo1> [<echo2> ...] --shifts <shift_export1.csv> [<shift_export2.csv> ...] [summary flags]`.
+3. Example:
+   - `python3 helpers/worker_reg.py --echo ~/echo/*.txt --shifts shifts_jan.csv shifts_feb.csv --by-month -o summary.xlsx`
 
-Output tables can be written to stdout or to files. Use the `--by-month` option to emit separate tables per month if desired.
+Output tables can be written to stdout (CSV-style) or to a single `.xlsx` workbook when `-o/--output` is provided. Use the `--by-month` option to emit separate month-specific tabs.
 
-## Alternative piece-by-pice flow (or for debugging)
+## Alternative piece-by-piece flow (or for debugging)
 
 1. Start with TagTracker ECHO transcript files and one or more Sling schedule export CSVs.
 2. Convert ECHO transcripts into a registration activity CSV:
@@ -49,4 +62,3 @@ Output tables can be written to stdout or to files. Use the `--by-month` option 
 4. Merge shifts and registration activity:
    - Run `worker_reg_make_summary.py` with the shift CSV and the registrations CSV.
    - Load the resulting tables into a spreadsheet for analysis.
-

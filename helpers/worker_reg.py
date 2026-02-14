@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import sys
 import tempfile
+from contextlib import redirect_stderr
 from pathlib import Path
 from typing import List
 
@@ -50,7 +52,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         type=Path,
-        help="Optional destination CSV for summary output.",
+        help="Optional destination XLSX workbook for summary output.",
     )
     parser.add_argument(
         "--by-month",
@@ -113,10 +115,31 @@ def main(argv: List[str] | None = None) -> int:
         activity_csv = temp_path / "registrations.csv"
         shifts_csv = temp_path / "shifts.csv"
 
-        write_echo_activity(args.echo, activity_csv, debug=args.echo_debug)
-        write_shift_rows(args.shifts, shifts_csv)
+        note_lines: List[str] = []
+
+        echo_stderr = io.StringIO()
+        with redirect_stderr(echo_stderr):
+            write_echo_activity(args.echo, activity_csv, debug=args.echo_debug)
+        for line in echo_stderr.getvalue().splitlines():
+            stripped = line.strip()
+            if stripped:
+                note_lines.append(stripped)
+                print(stripped, file=sys.stderr)
+
+        shift_stderr = io.StringIO()
+        with redirect_stderr(shift_stderr):
+            write_shift_rows(args.shifts, shifts_csv)
+        for line in shift_stderr.getvalue().splitlines():
+            stripped = line.strip()
+            if stripped:
+                note_lines.append(stripped)
+                print(stripped, file=sys.stderr)
 
         summary_args: List[str] = [str(shifts_csv), str(activity_csv)]
+        for source_path in [*args.echo, *args.shifts]:
+            summary_args.extend(["--input-file", str(source_path)])
+        for note_line in note_lines:
+            summary_args.extend(["--note-line", note_line])
         if args.output is not None:
             summary_args.extend(["--output", str(args.output)])
         if args.by_month:

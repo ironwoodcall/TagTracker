@@ -2,12 +2,14 @@
 
 import argparse
 import csv
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple, Optional
+from openpyxl import Workbook
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
@@ -734,7 +736,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         type=Path,
-        help="Optional destination CSV. Defaults to stdout.",
+        help="Optional destination XLSX workbook. Defaults to stdout CSV.",
     )
     parser.add_argument(
         "--by-month",
@@ -746,6 +748,24 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print lines with no matching shift to stderr for review.",
     )
+    parser.add_argument(
+        "--input-file",
+        action="append",
+        default=[],
+        help="Optional source input file to list in Warnings/Notes (repeatable).",
+    )
+    parser.add_argument(
+        "--note-line",
+        action="append",
+        default=[],
+        help="Optional note/warning line to include in Warnings/Notes (repeatable).",
+    )
+    parser.add_argument(
+        "--run-at",
+        type=str,
+        default=None,
+        help="Optional run timestamp for Warnings/Notes; defaults to now.",
+    )
     return parser
 
 
@@ -753,13 +773,67 @@ def main(argv: List[str] | None = None) -> None:
     """CLI entry point."""
     parser = build_argument_parser()
     args = parser.parse_args(argv)
+    run_timestamp = args.run_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     raw_shifts = load_shift_schedule(args.schedule_csv)
     alias_map, alias_reverse_map = generate_unique_initials(
         shift.person for shift in raw_shifts
     )
-    spans = normalize_shifts(raw_shifts, alias_map)
-    activities = parse_activity_log(args.activity_log)
+    all_spans = normalize_shifts(raw_shifts, alias_map)
+    all_activities = parse_activity_log(args.activity_log)
+
+    # Constrain analysis to the shared date range where both shift coverage
+    # and registration events exist.
+    shift_dates = {
+        day
+        for span in all_spans
+        for day in (
+            span.start.date() + timedelta(days=offset)
+            for offset in range((span.end.date() - span.start.date()).days + 1)
+        )
+    }
+    activity_dates = {act.timestamp.date() for act in all_activities}
+    common_dates = sorted(shift_dates & activity_dates)
+
+    if common_dates:
+        overlap_start_day = common_dates[0]
+        overlap_end_day = common_dates[-1]
+        overlap_start_dt = datetime.combine(overlap_start_day, time.min)
+        overlap_end_dt = datetime.combine(overlap_end_day + timedelta(days=1), time.min)
+    else:
+        overlap_start_day = None
+        overlap_end_day = None
+        overlap_start_dt = None
+        overlap_end_dt = None
+
+    def clip_span_to_overlap(span: ShiftSpan) -> ShiftSpan | None:
+        """Clip shift span to overlap datetime window; return None if no overlap."""
+        if overlap_start_dt is None or overlap_end_dt is None:
+            return None
+        clipped_start = max(span.start, overlap_start_dt)
+        clipped_end = min(span.end, overlap_end_dt)
+        if clipped_end <= clipped_start:
+            return None
+        return ShiftSpan(
+            person=span.person,
+            day=clipped_start.date(),
+            start=clipped_start,
+            end=clipped_end,
+        )
+
+    spans: List[ShiftSpan] = []
+    for span in all_spans:
+        clipped = clip_span_to_overlap(span)
+        if clipped is not None:
+            spans.append(clipped)
+
+    activities = [
+        act
+        for act in all_activities
+        if overlap_start_dt is not None
+        and overlap_end_dt is not None
+        and overlap_start_dt <= act.timestamp < overlap_end_dt
+    ]
 
     (
         person_shift_counts,
@@ -784,8 +858,28 @@ def main(argv: List[str] | None = None) -> None:
     ) = aggregate_points(spans, activities)
 
     months = sorted({span.day.strftime("%Y-%m") for span in spans})
-    shift_range_start = min((span.start for span in spans), default=None)
-    shift_range_end = max((span.end for span in spans), default=None)
+    shift_range_start = (
+        datetime.combine(overlap_start_day, time.min)
+        if overlap_start_day is not None
+        else None
+    )
+    shift_range_end = (
+        datetime.combine(overlap_end_day + timedelta(days=1), time.min)
+        if overlap_end_day is not None
+        else None
+    )
+    if args.input_file:
+        source_files = list(args.input_file)
+    else:
+        source_files = [str(args.schedule_csv), str(args.activity_log)]
+    input_files: List[str] = []
+    seen_files: set[str] = set()
+    for source_file in source_files:
+        if source_file in seen_files:
+            continue
+        seen_files.add(source_file)
+        input_files.append(source_file)
+    upstream_note_lines = [line for line in args.note_line if line.strip()]
 
     def format_time_range(start: datetime | None, end: datetime | None) -> str:
         """Return a human-readable date range label."""
@@ -796,12 +890,22 @@ def main(argv: List[str] | None = None) -> None:
     def table_title(table_key: str) -> str:
         """Map internal table keys to display titles."""
         titles = {
-            "person_metrics": "Person Metrics",
-            "team_metrics": "Team Metrics",
-            "registration_log": "Registration Log",
+            "person_metrics": "Workers",
+            "team_metrics": "Teams",
+            "registration_log": "Reg Log",
             "coverage_warnings": "Coverage Warnings",
         }
         return titles.get(table_key, table_key.replace("_", " ").title())
+
+    def warning_line(warning: CoverageWarning) -> str:
+        """Render a coverage warning line in stderr format."""
+        start_text = warning.start.strftime("%Y-%m-%d %H:%M")
+        end_text = warning.end.strftime("%Y-%m-%d %H:%M")
+        workers_text = ", ".join(warning.workers) if warning.workers else ""
+        return (
+            f"{start_text} - {end_text}: {warning.reg_delta:+d} reg; "
+            f"{len(warning.workers)} workers ({workers_text})"
+        )
 
     def write_table(
         writer: csv.writer,
@@ -820,24 +924,116 @@ def main(argv: List[str] | None = None) -> None:
         writer.writerow(headers)
         writer.writerows(rows)
 
-    def export_tables(
-        tables: List[Tuple[str, List[str], List[List[str]]]],
-        directory: Path,
-        stem: str,
-        suffix: str,
+    def write_table_sheet(
+        sheet,
+        table_key: str,
+        headers: List[str],
+        rows: List[List[str]],
         start: datetime | None,
         end: datetime | None,
-        prefix: str | None = None,
     ) -> None:
-        for index, (table_key, headers, rows) in enumerate(tables, start=1):
-            if prefix:
-                filename = f"{stem}_{prefix}_{index}{suffix}"
-            else:
-                filename = f"{stem}{index}{suffix}"
-            output_path = directory / filename
-            with output_path.open("w", newline="", encoding="utf-8") as handle:
-                writer = csv.writer(handle)
-                write_table(writer, table_key, headers, rows, start, end)
+        """Write one table to a worksheet with title/range and blank line."""
+        title_line = (
+            f"{table_title(table_key)} | Time Range: {format_time_range(start, end)}"
+        )
+        sheet.append([title_line] + [""] * max(0, len(headers) - 1))
+        sheet.append([])
+        sheet.append(headers)
+
+        numeric_columns: set[int] = set()
+        if table_key == "person_metrics":
+            numeric_columns = {1, 2, 3, 4}
+        elif table_key == "team_metrics":
+            numeric_columns = set(range(1, len(headers)))
+        elif table_key == "registration_log":
+            numeric_columns = {2}
+        elif table_key == "coverage_warnings":
+            numeric_columns = {3}
+
+        def coerce_value(cell_value: str, column_index: int):
+            if column_index not in numeric_columns:
+                return cell_value
+            if cell_value == "":
+                return ""
+            try:
+                # Prefer int when appropriate, otherwise float.
+                if "." in cell_value:
+                    return float(cell_value)
+                return int(cell_value)
+            except (TypeError, ValueError):
+                return cell_value
+
+        for row in rows:
+            typed_row = [coerce_value(value, idx) for idx, value in enumerate(row)]
+            sheet.append(typed_row)
+
+    def build_sheet_name(
+        base: str,
+        used_names: set[str],
+    ) -> str:
+        """Generate a unique Excel-safe sheet name."""
+        cleaned = re.sub(r'[:\\/*?\[\]]', "_", base).strip()
+        if not cleaned:
+            cleaned = "Sheet"
+        candidate_base = cleaned[:31]
+        candidate = candidate_base
+        index = 1
+        while candidate in used_names:
+            suffix = f"_{index}"
+            candidate = f"{candidate_base[: 31 - len(suffix)]}{suffix}"
+            index += 1
+        used_names.add(candidate)
+        return candidate
+
+    def write_notes_sheet(
+        workbook: Workbook,
+        used_names: set[str],
+        suppressed_months: List[str],
+    ) -> None:
+        """Write a single notes sheet with month suppression and warning details."""
+        notes_sheet = workbook.create_sheet(
+            title=build_sheet_name("Warnings∕Notes", used_names)
+        )
+        notes_sheet.append(["Warnings/Notes"])
+        notes_sheet.append([])
+        notes_sheet.append([f"Run At: {run_timestamp}"])
+        notes_sheet.append([])
+        notes_sheet.append(["Upstream warnings/notes (stderr):"])
+        if upstream_note_lines:
+            for note_line in upstream_note_lines:
+                notes_sheet.append([note_line])
+        else:
+            notes_sheet.append(["None"])
+        notes_sheet.append([])
+
+        notes_sheet.append(["Suppressed months (no registration events):"])
+        if suppressed_months:
+            for month in suppressed_months:
+                notes_sheet.append([month])
+        else:
+            notes_sheet.append(["None"])
+        notes_sheet.append([])
+
+        notes_sheet.append(["Dates with no matching shifts:"])
+        if unassigned:
+            unassigned_dates = sorted({act.timestamp.date().isoformat() for act in unassigned})
+            for date_text in unassigned_dates:
+                notes_sheet.append([date_text])
+        else:
+            notes_sheet.append(["None"])
+        notes_sheet.append([])
+
+        notes_sheet.append(["Shift segments with worker-count mismatch (!= 2):"])
+        if warnings:
+            for warning in warnings:
+                notes_sheet.append([warning_line(warning)])
+        else:
+            notes_sheet.append(["None"])
+        notes_sheet.append([])
+
+        notes_sheet.append(["Input files:"])
+        for input_file in input_files:
+            notes_sheet.append([input_file])
 
     month_ranges: Dict[str, Tuple[datetime | None, datetime | None]] = {}
     for month in months:
@@ -880,8 +1076,12 @@ def main(argv: List[str] | None = None) -> None:
         else:
             base_path: Path = args.output
             base_path.parent.mkdir(parents=True, exist_ok=True)
-            suffix = base_path.suffix or ".csv"
-            stem = base_path.stem
+            if base_path.suffix.lower() != ".xlsx":
+                base_path = base_path.with_suffix(".xlsx")
+            workbook = Workbook()
+            workbook.remove(workbook.active)
+            used_sheet_names: set[str] = set()
+            suppressed_months: List[str] = []
             for month in months:
                 month_start, month_end = month_ranges.get(month, (None, None))
                 tables = prepare_tables(
@@ -902,15 +1102,27 @@ def main(argv: List[str] | None = None) -> None:
                     shift_range_end,
                     month,
                 )
-                export_tables(
-                    tables,
-                    base_path.parent,
-                    stem,
-                    suffix,
-                    month_start,
-                    month_end,
-                    month,
+                registration_rows = next(
+                    (rows for table_key, _, rows in tables if table_key == "registration_log"),
+                    [],
                 )
+                if not registration_rows:
+                    suppressed_months.append(month)
+                    continue
+                for table_key, headers, rows in tables:
+                    if table_key == "coverage_warnings":
+                        continue
+                    sheet_name = build_sheet_name(
+                        f"{month} {table_title(table_key)}", used_sheet_names
+                    )
+                    sheet = workbook.create_sheet(title=sheet_name)
+                    write_table_sheet(
+                        sheet, table_key, headers, rows, month_start, month_end
+                    )
+            write_notes_sheet(workbook, used_sheet_names, suppressed_months)
+            if not workbook.sheetnames:
+                workbook.create_sheet(title="Summary")
+            workbook.save(base_path)
     else:
         tables = prepare_tables(
             person_units,
@@ -934,17 +1146,28 @@ def main(argv: List[str] | None = None) -> None:
         if args.output:
             base_path: Path = args.output
             base_path.parent.mkdir(parents=True, exist_ok=True)
-            suffix = base_path.suffix or ".csv"
-            stem = base_path.stem
-            export_tables(
-                tables,
-                base_path.parent,
-                stem,
-                suffix,
-                shift_range_start,
-                shift_range_end,
-                None,
-            )
+            if base_path.suffix.lower() != ".xlsx":
+                base_path = base_path.with_suffix(".xlsx")
+            workbook = Workbook()
+            workbook.remove(workbook.active)
+            used_sheet_names: set[str] = set()
+            for table_key, headers, rows in tables:
+                if table_key == "coverage_warnings":
+                    continue
+                sheet_name = build_sheet_name(table_title(table_key), used_sheet_names)
+                sheet = workbook.create_sheet(title=sheet_name)
+                write_table_sheet(
+                    sheet,
+                    table_key,
+                    headers,
+                    rows,
+                    shift_range_start,
+                    shift_range_end,
+                )
+            write_notes_sheet(workbook, used_sheet_names, [])
+            if not workbook.sheetnames:
+                workbook.create_sheet(title="Summary")
+            workbook.save(base_path)
         else:
             writer = csv.writer(sys.stdout)
             for table_index, (table_key, headers, rows) in enumerate(tables):
@@ -963,14 +1186,7 @@ def main(argv: List[str] | None = None) -> None:
 
     if warnings:
         for warning in warnings:
-            start_text = warning.start.strftime("%Y-%m-%d %H:%M")
-            end_text = warning.end.strftime("%Y-%m-%d %H:%M")
-            workers_text = ", ".join(warning.workers) if warning.workers else ""
-            print(
-                f"{start_text} - {end_text}: {warning.reg_delta:+d} reg; "
-                f"{len(warning.workers)} workers ({workers_text})",
-                file=sys.stderr,
-            )
+            print(warning_line(warning), file=sys.stderr)
 
 
 if __name__ == "__main__":
