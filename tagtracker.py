@@ -44,6 +44,7 @@ if sys.version_info < (3, 10):
 # pylint: disable=wrong-import-position
 import common.tt_constants as k
 from common.tt_tag import TagID
+
 # import tt_reports as rep
 
 # from tt_realtag import Stay
@@ -59,13 +60,16 @@ import tt_publish as pub
 from tt_process_command import process_command, lint_report
 
 # from tt_cmdparse import CmdBits
-from tt_commands import CmdKeys, get_parsed_command, PARSED_OK #, tags_arg
+from tt_commands import CmdKeys, get_parsed_command, PARSED_OK  # , tags_arg
 from tt_sounds import NoiseMaker
 from tt_internet_monitor import InternetMonitorController
 import tt_main_bits as bits
 
-# The assignments below are unneccessary but stop pylint from whining.
+# The assignment below is unneccessary but stops pylint from whining.
 publishment = None
+
+# This allows us to detect if we are editing the 'wrong' day.
+SCRIPT_START_DATE = ut.date_str("today")
 
 
 def deduce_parking_date(filename: str) -> str:
@@ -100,7 +104,7 @@ def main_loop(today: TrackerDay):
     """Run main program command loop."""
 
     done = False
-    todays_date = ut.date_str("today")
+
     while not done:
         pr.iprint()
         # Nag about bikes expected to be present if close to closing time
@@ -114,7 +118,7 @@ def main_loop(today: TrackerDay):
         if cmd_bits.command == CmdKeys.CMD_EXIT:
             break
         # If midnight has passed then need to restart
-        if midnight_passed(todays_date):
+        if midnight_passed(SCRIPT_START_DATE):
             midnight_message()
             break
         # If null input, just ignore
@@ -133,7 +137,7 @@ def main_loop(today: TrackerDay):
             notes_changed_msg = today.harmonize_notes()
             today.rebuild_visit_notes_link()
             if notes_changed_msg:
-                pr.iprint(notes_changed_msg,style=k.SUBTITLE_STYLE)
+                pr.iprint(notes_changed_msg, style=k.SUBTITLE_STYLE)
 
         # If any time has becomne "24:00" change it to "23:59" (I forget why)
         if data_changed and today.fix_2400_events():
@@ -247,6 +251,7 @@ def midnight_passed(today_is: str) -> bool:
     if today_is == ut.date_str("today"):
         return False
     return True
+
 
 def set_up_today() -> TrackerDay:
     """Initialize today's tracking data."""
