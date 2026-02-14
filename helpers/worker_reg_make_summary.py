@@ -1,17 +1,21 @@
+"""Combine shift schedules and registration activity into summary tables."""
+
 import argparse
 import csv
+import re
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple, Optional
+from openpyxl import Workbook
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from helpers.schedule_shift_parser import Shift
+from helpers.worker_reg_process_shift_export import Shift
 
 TeamKey = Tuple[str, ...]
 
@@ -30,9 +34,18 @@ class ActivityRecord:
     delta: int
 
 
+@dataclass
+class CoverageWarning:
+    start: datetime
+    end: datetime
+    workers: Tuple[str, ...]
+    reg_delta: int
+
+
 def generate_unique_initials(
     names: Iterable[str],
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Generate unique initials and a reverse lookup from a list of names."""
     unique_names: List[str] = []
     seen = set()
     for name in names:
@@ -115,6 +128,7 @@ def generate_unique_initials(
 def normalize_shifts(
     shifts: Iterable[Shift], aliases: Dict[str, str]
 ) -> List[ShiftSpan]:
+    """Expand shifts into timestamp spans and apply alias mapping."""
     spans: List[ShiftSpan] = []
     for shift in shifts:
         try:
@@ -143,6 +157,7 @@ def normalize_shifts(
 
 
 def load_shift_schedule(path: Path) -> List[Shift]:
+    """Load normalized shift rows from a CSV file."""
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         required_fields = {"PERSON", "DATE", "START_TIME", "END_TIME"}
@@ -172,6 +187,7 @@ def load_shift_schedule(path: Path) -> List[Shift]:
 
 
 def build_shift_index(spans: Iterable[ShiftSpan]) -> Dict[date, List[ShiftSpan]]:
+    """Index shift spans by date for fast lookup."""
     index: Dict[date, List[ShiftSpan]] = defaultdict(list)
     for span in spans:
         current_day = span.start.date()
@@ -193,6 +209,7 @@ def compute_shift_stats(
     Dict[str, Dict[date, int]],
     Dict[str, Dict[date, float]],
 ]:
+    """Compute per-person shift counts and hours."""
     person_shift_counts: Dict[str, int] = defaultdict(int)
     person_shift_hours: Dict[str, float] = defaultdict(float)
     person_date_shift_counts: Dict[str, Dict[date, int]] = defaultdict(
@@ -225,6 +242,7 @@ def compute_team_shift_stats(
     Dict[TeamKey, Dict[date, int]],
     Dict[TeamKey, Dict[date, float]],
 ]:
+    """Compute pairwise overlap counts and hours for exact two-person teams."""
     team_shift_counts: Dict[TeamKey, int] = defaultdict(int)
     team_shift_hours: Dict[TeamKey, float] = defaultdict(float)
     team_date_shift_counts: Dict[TeamKey, Dict[date, int]] = defaultdict(
@@ -250,8 +268,8 @@ def compute_team_shift_stats(
     for day, entries in day_entries.items():
         events: List[Tuple[datetime, int, str]] = []
         for seg_start, seg_end, person in entries:
-            events.append((seg_start, 0, person))  # start
-            events.append((seg_end, 1, person))  # end
+            events.append((seg_start, 1, person))  # start
+            events.append((seg_end, 0, person))  # end
         events.sort(key=lambda item: (item[0], item[1], item[2]))
 
         active = set()
@@ -265,7 +283,7 @@ def compute_team_shift_stats(
                 team_shift_hours[prev_team] += duration
                 team_date_shift_counts[prev_team][day] += 1
                 team_date_shift_hours[prev_team][day] += duration
-            if order == 0:
+            if order == 1:
                 active.add(person)
             else:
                 active.discard(person)
@@ -282,7 +300,75 @@ def compute_team_shift_stats(
     )
 
 
+def compute_coverage_warnings(
+    spans: Iterable[ShiftSpan],
+    activities: Iterable[ActivityRecord],
+) -> List[CoverageWarning]:
+    """Return non-two-worker segments that overlap at least one activity."""
+    activity_records = sorted(activities, key=lambda act: act.timestamp)
+    warnings: List[CoverageWarning] = []
+    day_entries: Dict[date, List[Tuple[datetime, datetime, str]]] = defaultdict(list)
+    for span in spans:
+        current_day = span.start.date()
+        final_day = span.end.date()
+        while current_day <= final_day:
+            day_start = datetime.combine(current_day, time.min)
+            day_end = day_start + timedelta(days=1)
+            seg_start = max(span.start, day_start)
+            seg_end = min(span.end, day_end)
+            if seg_end > seg_start:
+                day_entries[current_day].append((seg_start, seg_end, span.person))
+            current_day += timedelta(days=1)
+
+    def activity_stats(start: datetime, end: datetime) -> Tuple[int, int]:
+        if not activity_records:
+            return 0, 0
+        total = 0
+        count = 0
+        for record in activity_records:
+            if record.timestamp < start:
+                continue
+            if record.timestamp >= end:
+                break
+            total += record.delta
+            count += 1
+        return total, count
+
+    for entries in day_entries.values():
+        events: List[Tuple[datetime, int, str]] = []
+        for seg_start, seg_end, person in entries:
+            events.append((seg_start, 1, person))  # start
+            events.append((seg_end, 0, person))  # end
+        events.sort(key=lambda item: (item[0], item[1], item[2]))
+
+        active: set[str] = set()
+        prev_time: Optional[datetime] = None
+
+        for timestamp, order, person in events:
+            if prev_time is not None and timestamp > prev_time:
+                if active and len(active) != 2:
+                    reg_delta, reg_count = activity_stats(prev_time, timestamp)
+                    if reg_count == 0:
+                        continue
+                    warnings.append(
+                        CoverageWarning(
+                            start=prev_time,
+                            end=timestamp,
+                            workers=tuple(sorted(active)),
+                            reg_delta=reg_delta,
+                        )
+                    )
+            if order == 1:
+                active.add(person)
+            else:
+                active.discard(person)
+            prev_time = timestamp
+
+    return warnings
+
+
 def parse_activity_log(path: Path) -> List[ActivityRecord]:
+    """Load registration deltas from a DATE,TIME,REGISTRATIONS CSV."""
     records: List[ActivityRecord] = []
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -336,6 +422,7 @@ def find_active_workers(
     shift_index: Dict[date, List[ShiftSpan]],
     timestamp: datetime,
 ) -> List[str]:
+    """Return workers scheduled at the given timestamp."""
     workers = []
     for span in shift_index.get(timestamp.date(), []):
         if span.start <= timestamp < span.end:
@@ -354,9 +441,12 @@ def aggregate_points(
     List[Tuple[ActivityRecord, List[str]]],
     List[ActivityRecord],
 ]:
+    """Assign registration deltas to people and two-person teams."""
     shift_index = build_shift_index(spans)
     person_units: Dict[str, int] = defaultdict(int)
-    person_date_units: Dict[str, Dict[date, int]] = defaultdict(lambda: defaultdict(int))
+    person_date_units: Dict[str, Dict[date, int]] = defaultdict(
+        lambda: defaultdict(int)
+    )
     team_units: Dict[TeamKey, int] = defaultdict(int)
     team_date_units: Dict[TeamKey, Dict[date, int]] = defaultdict(
         lambda: defaultdict(int)
@@ -400,6 +490,7 @@ def build_person_table(
     alias_reverse_map: Dict[str, str],
     month: str | None = None,
 ) -> Tuple[List[str], List[List[str]]]:
+    """Build the per-person summary table."""
     headers = [
         "PERSON",
         "POINTS",
@@ -455,6 +546,7 @@ def build_team_table(
     team_date_shift_hours: Dict[TeamKey, Dict[date, float]],
     month: str | None = None,
 ) -> Tuple[List[str], List[List[str]]]:
+    """Build the pairwise team summary table."""
     rows: List[List[str]] = []
     names_set = set()
     if month is None:
@@ -502,10 +594,17 @@ def build_registration_table(
     assignments: Iterable[Tuple[ActivityRecord, List[str]]],
     alias_reverse_map: Dict[str, str],
     month: str | None = None,
+    range_start: datetime | None = None,
+    range_end: datetime | None = None,
 ) -> Tuple[List[str], List[List[str]]]:
+    """Build a row-by-row registration assignment table."""
     headers = ["DATE", "TIME", "DELTA", "WORKERS"]
     rows: List[List[str]] = []
     for record, workers in assignments:
+        if range_start is not None and record.timestamp < range_start:
+            continue
+        if range_end is not None and record.timestamp >= range_end:
+            continue
         if month is not None and record.timestamp.strftime("%Y-%m") != month:
             continue
         date_text = record.timestamp.date().isoformat()
@@ -528,6 +627,40 @@ def build_registration_table(
     return headers, rows
 
 
+def build_warning_table(
+    warnings: Iterable[CoverageWarning],
+    alias_reverse_map: Dict[str, str],
+    month: str | None = None,
+) -> Tuple[List[str], List[List[str]]]:
+    """Build a table of shift segments with non-two worker coverage."""
+    headers = ["DATE", "START", "END", "WORKER_COUNT", "WORKERS"]
+    rows: List[List[str]] = []
+    for warning in warnings:
+        if month is not None and warning.start.strftime("%Y-%m") != month:
+            continue
+        date_text = warning.start.date().isoformat()
+        start_text = warning.start.strftime("%H:%M")
+        end_text = warning.end.strftime("%H:%M")
+        workers = list(warning.workers)
+        if workers:
+            full_names = [alias_reverse_map.get(worker, worker) for worker in workers]
+            workers_text = "; ".join(
+                f"{worker} ({full})" for worker, full in zip(workers, full_names)
+            )
+        else:
+            workers_text = ""
+        rows.append(
+            [
+                date_text,
+                start_text,
+                end_text,
+                str(len(workers)),
+                workers_text,
+            ]
+        )
+    return headers, rows
+
+
 def prepare_tables(
     person_units: Dict[str, int],
     person_date_units: Dict[str, Dict[date, int]],
@@ -541,8 +674,12 @@ def prepare_tables(
     team_date_shift_hours: Dict[TeamKey, Dict[date, float]],
     alias_reverse_map: Dict[str, str],
     assignments: Iterable[Tuple[ActivityRecord, List[str]]],
+    warnings: Iterable[CoverageWarning],
+    shift_range_start: datetime | None = None,
+    shift_range_end: datetime | None = None,
     month: str | None = None,
 ) -> List[Tuple[str, List[str], List[List[str]]]]:
+    """Assemble the output tables in display order."""
     person_headers, person_rows = build_person_table(
         person_units,
         person_date_units,
@@ -557,16 +694,27 @@ def prepare_tables(
         team_units, team_date_units, team_shift_hours, team_date_shift_hours, month
     )
     registration_headers, registration_rows = build_registration_table(
-        assignments, alias_reverse_map, month
+        assignments,
+        alias_reverse_map,
+        month,
+        shift_range_start,
+        shift_range_end,
     )
-    return [
+    warning_headers, warning_rows = build_warning_table(
+        warnings, alias_reverse_map, month
+    )
+    tables: List[Tuple[str, List[str], List[List[str]]]] = [
         ("person_metrics", person_headers, person_rows),
         ("team_metrics", team_headers, team_rows),
         ("registration_log", registration_headers, registration_rows),
     ]
+    if warning_rows:
+        tables.append(("coverage_warnings", warning_headers, warning_rows))
+    return tables
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description=(
             "Combine structured shift schedule data with bike registration activity "
@@ -574,7 +722,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
             "Each registration delta assigns ±0.5 points per worker and ±1 point per team."
         )
     )
-    parser.add_argument("schedule_csv", type=Path, help="Shift schedule CSV produced by schedule_shift_parser.")
+    parser.add_argument(
+        "schedule_csv",
+        type=Path,
+        help="Shift schedule CSV produced by worker_reg_process_shift_export.",
+    )
     parser.add_argument(
         "activity_log",
         type=Path,
@@ -584,7 +736,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         type=Path,
-        help="Optional destination CSV. Defaults to stdout.",
+        help="Optional destination XLSX workbook. Defaults to stdout CSV.",
     )
     parser.add_argument(
         "--by-month",
@@ -596,19 +748,92 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print lines with no matching shift to stderr for review.",
     )
+    parser.add_argument(
+        "--input-file",
+        action="append",
+        default=[],
+        help="Optional source input file to list in Warnings/Notes (repeatable).",
+    )
+    parser.add_argument(
+        "--note-line",
+        action="append",
+        default=[],
+        help="Optional note/warning line to include in Warnings/Notes (repeatable).",
+    )
+    parser.add_argument(
+        "--run-at",
+        type=str,
+        default=None,
+        help="Optional run timestamp for Warnings/Notes; defaults to now.",
+    )
     return parser
 
 
 def main(argv: List[str] | None = None) -> None:
+    """CLI entry point."""
     parser = build_argument_parser()
     args = parser.parse_args(argv)
+    run_timestamp = args.run_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     raw_shifts = load_shift_schedule(args.schedule_csv)
     alias_map, alias_reverse_map = generate_unique_initials(
         shift.person for shift in raw_shifts
     )
-    spans = normalize_shifts(raw_shifts, alias_map)
-    activities = parse_activity_log(args.activity_log)
+    all_spans = normalize_shifts(raw_shifts, alias_map)
+    all_activities = parse_activity_log(args.activity_log)
+
+    # Constrain analysis to the shared date range where both shift coverage
+    # and registration events exist.
+    shift_dates = {
+        day
+        for span in all_spans
+        for day in (
+            span.start.date() + timedelta(days=offset)
+            for offset in range((span.end.date() - span.start.date()).days + 1)
+        )
+    }
+    activity_dates = {act.timestamp.date() for act in all_activities}
+    common_dates = sorted(shift_dates & activity_dates)
+
+    if common_dates:
+        overlap_start_day = common_dates[0]
+        overlap_end_day = common_dates[-1]
+        overlap_start_dt = datetime.combine(overlap_start_day, time.min)
+        overlap_end_dt = datetime.combine(overlap_end_day + timedelta(days=1), time.min)
+    else:
+        overlap_start_day = None
+        overlap_end_day = None
+        overlap_start_dt = None
+        overlap_end_dt = None
+
+    def clip_span_to_overlap(span: ShiftSpan) -> ShiftSpan | None:
+        """Clip shift span to overlap datetime window; return None if no overlap."""
+        if overlap_start_dt is None or overlap_end_dt is None:
+            return None
+        clipped_start = max(span.start, overlap_start_dt)
+        clipped_end = min(span.end, overlap_end_dt)
+        if clipped_end <= clipped_start:
+            return None
+        return ShiftSpan(
+            person=span.person,
+            day=clipped_start.date(),
+            start=clipped_start,
+            end=clipped_end,
+        )
+
+    spans: List[ShiftSpan] = []
+    for span in all_spans:
+        clipped = clip_span_to_overlap(span)
+        if clipped is not None:
+            spans.append(clipped)
+
+    activities = [
+        act
+        for act in all_activities
+        if overlap_start_dt is not None
+        and overlap_end_dt is not None
+        and overlap_start_dt <= act.timestamp < overlap_end_dt
+    ]
 
     (
         person_shift_counts,
@@ -617,11 +842,12 @@ def main(argv: List[str] | None = None) -> None:
         person_date_shift_hours,
     ) = compute_shift_stats(spans)
     (
-        team_shift_counts,
+        _team_shift_counts,
         team_shift_hours,
-        team_date_shift_counts,
+        _team_date_shift_counts,
         team_date_shift_hours,
     ) = compute_team_shift_stats(spans)
+    warnings = compute_coverage_warnings(spans, activities)
     (
         person_units,
         person_date_units,
@@ -632,29 +858,195 @@ def main(argv: List[str] | None = None) -> None:
     ) = aggregate_points(spans, activities)
 
     months = sorted({span.day.strftime("%Y-%m") for span in spans})
+    shift_range_start = (
+        datetime.combine(overlap_start_day, time.min)
+        if overlap_start_day is not None
+        else None
+    )
+    shift_range_end = (
+        datetime.combine(overlap_end_day + timedelta(days=1), time.min)
+        if overlap_end_day is not None
+        else None
+    )
+    if args.input_file:
+        source_files = list(args.input_file)
+    else:
+        source_files = [str(args.schedule_csv), str(args.activity_log)]
+    input_files: List[str] = []
+    seen_files: set[str] = set()
+    for source_file in source_files:
+        if source_file in seen_files:
+            continue
+        seen_files.add(source_file)
+        input_files.append(source_file)
+    upstream_note_lines = [line for line in args.note_line if line.strip()]
 
-    def export_tables(
-        tables: List[Tuple[str, List[str], List[List[str]]]],
-        directory: Path,
-        stem: str,
-        suffix: str,
-        prefix: str | None = None,
+    def format_time_range(start: datetime | None, end: datetime | None) -> str:
+        """Return a human-readable date range label."""
+        if start is None or end is None:
+            return "No shift range"
+        return f"{start.strftime('%Y-%m-%d %H:%M')} to {end.strftime('%Y-%m-%d %H:%M')}"
+
+    def table_title(table_key: str) -> str:
+        """Map internal table keys to display titles."""
+        titles = {
+            "person_metrics": "Workers",
+            "team_metrics": "Teams",
+            "registration_log": "Reg Log",
+            "coverage_warnings": "Coverage Warnings",
+        }
+        return titles.get(table_key, table_key.replace("_", " ").title())
+
+    def warning_line(warning: CoverageWarning) -> str:
+        """Render a coverage warning line in stderr format."""
+        start_text = warning.start.strftime("%Y-%m-%d %H:%M")
+        end_text = warning.end.strftime("%Y-%m-%d %H:%M")
+        workers_text = ", ".join(warning.workers) if warning.workers else ""
+        return (
+            f"{start_text} - {end_text}: {warning.reg_delta:+d} reg; "
+            f"{len(warning.workers)} workers ({workers_text})"
+        )
+
+    def write_table(
+        writer: csv.writer,
+        table_key: str,
+        headers: List[str],
+        rows: List[List[str]],
+        start: datetime | None,
+        end: datetime | None,
     ) -> None:
-        for index, (_, headers, rows) in enumerate(tables, start=1):
-            if prefix:
-                filename = f"{stem}_{prefix}_{index}{suffix}"
-            else:
-                filename = f"{stem}{index}{suffix}"
-            output_path = directory / filename
-            with output_path.open("w", newline="", encoding="utf-8") as handle:
-                writer = csv.writer(handle)
-                writer.writerow(headers)
-                writer.writerows(rows)
+        """Write one table with a title/range line and a blank line before headers."""
+        title_line = (
+            f"{table_title(table_key)} | Time Range: {format_time_range(start, end)}"
+        )
+        writer.writerow([title_line] + [""] * max(0, len(headers) - 1))
+        writer.writerow([])
+        writer.writerow(headers)
+        writer.writerows(rows)
+
+    def write_table_sheet(
+        sheet,
+        table_key: str,
+        headers: List[str],
+        rows: List[List[str]],
+        start: datetime | None,
+        end: datetime | None,
+    ) -> None:
+        """Write one table to a worksheet with title/range and blank line."""
+        title_line = (
+            f"{table_title(table_key)} | Time Range: {format_time_range(start, end)}"
+        )
+        sheet.append([title_line] + [""] * max(0, len(headers) - 1))
+        sheet.append([])
+        sheet.append(headers)
+
+        numeric_columns: set[int] = set()
+        if table_key == "person_metrics":
+            numeric_columns = {1, 2, 3, 4}
+        elif table_key == "team_metrics":
+            numeric_columns = set(range(1, len(headers)))
+        elif table_key == "registration_log":
+            numeric_columns = {2}
+        elif table_key == "coverage_warnings":
+            numeric_columns = {3}
+
+        def coerce_value(cell_value: str, column_index: int):
+            if column_index not in numeric_columns:
+                return cell_value
+            if cell_value == "":
+                return ""
+            try:
+                # Prefer int when appropriate, otherwise float.
+                if "." in cell_value:
+                    return float(cell_value)
+                return int(cell_value)
+            except (TypeError, ValueError):
+                return cell_value
+
+        for row in rows:
+            typed_row = [coerce_value(value, idx) for idx, value in enumerate(row)]
+            sheet.append(typed_row)
+
+    def build_sheet_name(
+        base: str,
+        used_names: set[str],
+    ) -> str:
+        """Generate a unique Excel-safe sheet name."""
+        cleaned = re.sub(r'[:\\/*?\[\]]', "_", base).strip()
+        if not cleaned:
+            cleaned = "Sheet"
+        candidate_base = cleaned[:31]
+        candidate = candidate_base
+        index = 1
+        while candidate in used_names:
+            suffix = f"_{index}"
+            candidate = f"{candidate_base[: 31 - len(suffix)]}{suffix}"
+            index += 1
+        used_names.add(candidate)
+        return candidate
+
+    def write_notes_sheet(
+        workbook: Workbook,
+        used_names: set[str],
+        suppressed_months: List[str],
+    ) -> None:
+        """Write a single notes sheet with month suppression and warning details."""
+        notes_sheet = workbook.create_sheet(
+            title=build_sheet_name("Warnings∕Notes", used_names)
+        )
+        notes_sheet.append(["Warnings/Notes"])
+        notes_sheet.append([])
+        notes_sheet.append([f"Run At: {run_timestamp}"])
+        notes_sheet.append([])
+        notes_sheet.append(["Upstream warnings/notes (stderr):"])
+        if upstream_note_lines:
+            for note_line in upstream_note_lines:
+                notes_sheet.append([note_line])
+        else:
+            notes_sheet.append(["None"])
+        notes_sheet.append([])
+
+        notes_sheet.append(["Suppressed months (no registration events):"])
+        if suppressed_months:
+            for month in suppressed_months:
+                notes_sheet.append([month])
+        else:
+            notes_sheet.append(["None"])
+        notes_sheet.append([])
+
+        notes_sheet.append(["Dates with no matching shifts:"])
+        if unassigned:
+            unassigned_dates = sorted({act.timestamp.date().isoformat() for act in unassigned})
+            for date_text in unassigned_dates:
+                notes_sheet.append([date_text])
+        else:
+            notes_sheet.append(["None"])
+        notes_sheet.append([])
+
+        notes_sheet.append(["Shift segments with worker-count mismatch (!= 2):"])
+        if warnings:
+            for warning in warnings:
+                notes_sheet.append([warning_line(warning)])
+        else:
+            notes_sheet.append(["None"])
+        notes_sheet.append([])
+
+        notes_sheet.append(["Input files:"])
+        for input_file in input_files:
+            notes_sheet.append([input_file])
+
+    month_ranges: Dict[str, Tuple[datetime | None, datetime | None]] = {}
+    for month in months:
+        month_spans = [span for span in spans if span.day.strftime("%Y-%m") == month]
+        month_start = min((span.start for span in month_spans), default=None)
+        month_end = max((span.end for span in month_spans), default=None)
+        month_ranges[month] = (month_start, month_end)
 
     if args.by_month:
         if args.output is None:
             writer = csv.writer(sys.stdout)
             for month in months:
+                month_start, month_end = month_ranges.get(month, (None, None))
                 tables = prepare_tables(
                     person_units,
                     person_date_units,
@@ -668,21 +1060,30 @@ def main(argv: List[str] | None = None) -> None:
                     team_date_shift_hours,
                     alias_reverse_map,
                     assignments,
+                    warnings,
+                    shift_range_start,
+                    shift_range_end,
                     month,
                 )
-                writer.writerow([f"MONTH", month])
-                for table_index, (_, headers, rows) in enumerate(tables):
-                    writer.writerow(headers)
-                    writer.writerows(rows)
+                writer.writerow(["MONTH", month])
+                for table_index, (table_key, headers, rows) in enumerate(tables):
+                    write_table(
+                        writer, table_key, headers, rows, month_start, month_end
+                    )
                     if table_index < len(tables) - 1:
                         writer.writerow([])
                 writer.writerow([])
         else:
             base_path: Path = args.output
             base_path.parent.mkdir(parents=True, exist_ok=True)
-            suffix = base_path.suffix or ".csv"
-            stem = base_path.stem
+            if base_path.suffix.lower() != ".xlsx":
+                base_path = base_path.with_suffix(".xlsx")
+            workbook = Workbook()
+            workbook.remove(workbook.active)
+            used_sheet_names: set[str] = set()
+            suppressed_months: List[str] = []
             for month in months:
+                month_start, month_end = month_ranges.get(month, (None, None))
                 tables = prepare_tables(
                     person_units,
                     person_date_units,
@@ -696,9 +1097,32 @@ def main(argv: List[str] | None = None) -> None:
                     team_date_shift_hours,
                     alias_reverse_map,
                     assignments,
+                    warnings,
+                    shift_range_start,
+                    shift_range_end,
                     month,
                 )
-                export_tables(tables, base_path.parent, stem, suffix, month)
+                registration_rows = next(
+                    (rows for table_key, _, rows in tables if table_key == "registration_log"),
+                    [],
+                )
+                if not registration_rows:
+                    suppressed_months.append(month)
+                    continue
+                for table_key, headers, rows in tables:
+                    if table_key == "coverage_warnings":
+                        continue
+                    sheet_name = build_sheet_name(
+                        f"{month} {table_title(table_key)}", used_sheet_names
+                    )
+                    sheet = workbook.create_sheet(title=sheet_name)
+                    write_table_sheet(
+                        sheet, table_key, headers, rows, month_start, month_end
+                    )
+            write_notes_sheet(workbook, used_sheet_names, suppressed_months)
+            if not workbook.sheetnames:
+                workbook.create_sheet(title="Summary")
+            workbook.save(base_path)
     else:
         tables = prepare_tables(
             person_units,
@@ -713,20 +1137,43 @@ def main(argv: List[str] | None = None) -> None:
             team_date_shift_hours,
             alias_reverse_map,
             assignments,
+            warnings,
+            shift_range_start,
+            shift_range_end,
             None,
         )
 
         if args.output:
             base_path: Path = args.output
             base_path.parent.mkdir(parents=True, exist_ok=True)
-            suffix = base_path.suffix or ".csv"
-            stem = base_path.stem
-            export_tables(tables, base_path.parent, stem, suffix, None)
+            if base_path.suffix.lower() != ".xlsx":
+                base_path = base_path.with_suffix(".xlsx")
+            workbook = Workbook()
+            workbook.remove(workbook.active)
+            used_sheet_names: set[str] = set()
+            for table_key, headers, rows in tables:
+                if table_key == "coverage_warnings":
+                    continue
+                sheet_name = build_sheet_name(table_title(table_key), used_sheet_names)
+                sheet = workbook.create_sheet(title=sheet_name)
+                write_table_sheet(
+                    sheet,
+                    table_key,
+                    headers,
+                    rows,
+                    shift_range_start,
+                    shift_range_end,
+                )
+            write_notes_sheet(workbook, used_sheet_names, [])
+            if not workbook.sheetnames:
+                workbook.create_sheet(title="Summary")
+            workbook.save(base_path)
         else:
             writer = csv.writer(sys.stdout)
-            for table_index, (_, headers, rows) in enumerate(tables):
-                writer.writerow(headers)
-                writer.writerows(rows)
+            for table_index, (table_key, headers, rows) in enumerate(tables):
+                write_table(
+                    writer, table_key, headers, rows, shift_range_start, shift_range_end
+                )
                 if table_index < len(tables) - 1:
                     writer.writerow([])
 
@@ -736,6 +1183,10 @@ def main(argv: List[str] | None = None) -> None:
                 f"No shift found for {act.timestamp.strftime('%Y-%m-%d %H:%M')} delta={act.delta}",
                 file=sys.stderr,
             )
+
+    if warnings:
+        for warning in warnings:
+            print(warning_line(warning), file=sys.stderr)
 
 
 if __name__ == "__main__":
