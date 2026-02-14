@@ -26,7 +26,7 @@ Copyright (C) 2023-2025 Todd Glover & Julias Hocking
 
 import os
 import sys
-import time
+# import time
 
 # The readline module magically solves arrow keys creating ANSI esc codes
 # on the Chromebook.  But it isn't on all platforms.
@@ -307,7 +307,10 @@ def set_up_today() -> TrackerDay:
         error_exit()
 
     # Save
-    day.save_to_file()
+    # (Unless we have changed days - this happens if the script
+    # is started one night then left at the hours prompt until the next day.)
+    if not midnight_passed(SCRIPT_START_DATE):
+        day.save_to_file()
 
     return day
 
@@ -355,13 +358,16 @@ if __name__ == "__main__":
     publishment = pub.Publisher(cfg.REPORTS_FOLDER, cfg.PUBLISH_FREQUENCY)
     # Check that sounds can work (if enabled).
     NoiseMaker.init_check()
-    # Start internet monitoring (if enabled in config)
+    # Start internet monitoring (if enabled in config).
     InternetMonitorController.start_monitor()
 
-    # Initialize today's tracking data
+    # Initialize today's tracking data.
     today_data = set_up_today()
+    # In case of failure, exit.
+    if not today_data:
+        sys.exit(1)
 
-    # Display data owner notice
+    # Display data owner notice.
     bits.data_owner_notice()
 
     # Set UC if needed (NB: datafiles are always LC)
