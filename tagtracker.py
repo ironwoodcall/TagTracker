@@ -367,8 +367,12 @@ if __name__ == "__main__":
     # Set UC if needed (NB: datafiles are always LC)
     TagID.uc(cfg.TAGS_UPPERCASE)
 
-    # Start tracking tags
-    main_loop(today_data)
+    # Start mainprocessing loop, but only if it's actually te same day.
+    if midnight_passed(SCRIPT_START_DATE):
+        midnight_message()
+    else:
+        # Start tracking tags
+        main_loop(today_data)
 
     # Finished, turn off echo
     pr.set_echo(False)
