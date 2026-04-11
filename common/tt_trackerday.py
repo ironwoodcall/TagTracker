@@ -373,6 +373,27 @@ class TrackerDay:
         """
 
         fixes = []
+        # Ensure tags added in config exist in today's biketag list so they
+        # can participate in reconciliation.
+        for tagid in list(self.regular_tagids | self.oversize_tagids | self.retired_tagids):
+            if tagid in self.biketags:
+                continue
+            conf_type = self._configured_bike_type(tagid)
+            bike_type = UNKNOWN if conf_type == RETIRED else conf_type
+            self.biketags[tagid] = BikeTag(tagid, bike_type)
+
+        # If a tag has already been used today, keep it in today's context
+        # even if it was removed from config mid-day.
+        for biketag in self.biketags.values():
+            if (
+                biketag.status in {BikeTag.IN_USE, BikeTag.DONE}
+                and self._configured_bike_type(biketag.tagid) == UNKNOWN
+            ):
+                self._set_tagid_type(biketag.tagid, biketag.bike_type)
+                fixes += [
+                    f"Tag {biketag.tagid} remains {biketag.bike_type} until end of day."
+                ]
+
         # Look for any biketags marked RETIRED but no longer
         # retired in config
         for biketag in self.biketags.values():
@@ -394,6 +415,7 @@ class TrackerDay:
             biketag = self.biketags[tagid]  # Cache the biketag for efficiency
             if biketag.status == BikeTag.UNUSED:
                 biketag.status = BikeTag.RETIRED
+                biketag.bike_type = UNKNOWN
             elif biketag.status != BikeTag.RETIRED:
                 # Retired in config but already in use!
                 self.retired_tagids.discard(tagid)
@@ -407,7 +429,7 @@ class TrackerDay:
                 # Mismatch between config and biketags list.
                 if biketag.status in {BikeTag.IN_USE, BikeTag.DONE}:
                     # biketag is used. Change the sets.
-                    self._swap_tagid_between_sets(tagid)
+                    self._set_tagid_type(tagid, biketag.bike_type)
                     fixes += [
                         f"Tag {tagid} remains {biketag.bike_type} " f"not {conf_type}."
                     ]
@@ -437,6 +459,20 @@ class TrackerDay:
         if tagid in self.oversize_tagids:
             return OVERSIZE
         return UNKNOWN
+
+    def _set_tagid_type(self, tagid, bike_type):
+        """Put tagid into the set matching bike_type and remove it from others."""
+        if bike_type == REGULAR:
+            self._remove_tag_from_other_sets(tagid, self.regular_tagids)
+            self.regular_tagids.add(tagid)
+        elif bike_type == OVERSIZE:
+            self._remove_tag_from_other_sets(tagid, self.oversize_tagids)
+            self.oversize_tagids.add(tagid)
+        elif bike_type == RETIRED:
+            self._remove_tag_from_other_sets(tagid, self.retired_tagids)
+            self.retired_tagids.add(tagid)
+        else:
+            self._remove_tag_from_other_sets(tagid, None)
 
     def _remove_tag_from_other_sets(self, tagid, exclude_set):
         """Helper for harmonize_biketags."""
@@ -804,6 +840,17 @@ class TrackerDay:
                 errs.append(f"Datafile has bad time_out for {tagid}: '{maybetime}.'")
             if errs:
                 continue
+            if tagid not in day.biketags:
+                bike_size = visit_data.get(TOKEN_BIKE_SIZE, "")
+                if bike_size == day.REGULAR_BIKE:
+                    day.biketags[tagid] = BikeTag(tagid, REGULAR)
+                elif bike_size == day.OVERSIZE_BIKE:
+                    day.biketags[tagid] = BikeTag(tagid, OVERSIZE)
+                else:
+                    errs.append(
+                        f"Datafile has bad or missing bike_size for {tagid}: '{bike_size}'."
+                    )
+                    continue
             day.biketags[tagid].start_visit(time_in)
             if time_out:
                 day.biketags[tagid].finish_visit(time_out)
