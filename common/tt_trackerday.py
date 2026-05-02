@@ -21,7 +21,7 @@ Copyright (C) 2023-2024 Todd Glover & Julias Hocking
     GNU Affero General Public License for more details.
 
     You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+    along with this program. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import re
