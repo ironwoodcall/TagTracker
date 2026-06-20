@@ -85,10 +85,12 @@ def print_tag_inout(biketag: BikeTag, inout: str, when: VTime) -> None:
     # Print any note(s)
     # visit = biketag.find_visit(when)
     ut.squawk(f"{visit.tagid=},{visit.attached_notes=}",cfg.DEBUG)
-    for note_str in visit.active_note_strings():
+    notes = visit.active_note_strings()
+    for note_str in notes:
         pr.iprint(f"    {note_str}", style=k.WARNING_STYLE)
     NoiseMaker.queue_add(inout)
-
+    if notes:
+        NoiseMaker.queue_add(k.HAS_NOTE)
 
 def edit_event(args: list, today: TrackerDay) -> bool:
     """Possibly edit a check in or check-out for one or more tags' latest visit.
@@ -216,6 +218,7 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                         f"Deleted check-in for latest {tagid} visit.",
                         style=k.ANSWER_STYLE,
                     )
+                    NoiseMaker.queue_add(k.OK_DONE)
                     data_changed = True
             elif args[1] == "o":
                 if not visit.time_out:
@@ -231,6 +234,7 @@ def delete_event(args: list, today: TrackerDay) -> bool:
                         f"Deleted check-out for latest {tagid} visit.",
                         style=k.ANSWER_STYLE,
                     )
+                    NoiseMaker.queue_add(k.OK_DONE)
                     data_changed = True
             # Add any applicable note(s)
             if data_changed:
@@ -239,6 +243,7 @@ def delete_event(args: list, today: TrackerDay) -> bool:
         except (BikeTagError, TrackerDayError) as e:
             pr.iprint(e, style=k.WARNING_STYLE)
             NoiseMaker.queue_add(k.ALERT)
+
 
     # NoiseMaker.queue_play()
     return data_changed
@@ -701,6 +706,8 @@ def process_command(
             pr.iprint(f"Suppressing internet monitoring for {monitor_delay} minutes.")
     elif cmd == CmdKeys.CMD_NOTES:
         data_changed = tt_notes_command.notes_command(notes_list=today.notes, args=args)
+        if data_changed:
+            NoiseMaker.play(k.OK_DONE)
     elif cmd == CmdKeys.CMD_PUBLISH:
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:

@@ -47,6 +47,8 @@ class NoiseMaker:
     bike_out = cfg.SOUND_BIKE_OUT
     alert = cfg.SOUND_ALERT
     cheer = cfg.SOUND_CHEER
+    ok_done = cfg.SOUND_OK_DONE
+    has_note = cfg.SOUND_HAS_NOTE
 
     @classmethod
     def init_check(cls):
@@ -131,6 +133,10 @@ class NoiseMaker:
             look_at = cls.alert
         elif code ==k.CHEER:
             look_at = cls.cheer
+        elif code ==k.OK_DONE:
+            look_at = cls.ok_done
+        elif code ==k.HAS_NOTE:
+            look_at = cls.has_note
         else:
             ut.squawk(f"sound type {code} not recognized")
             return None
