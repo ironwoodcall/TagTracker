@@ -73,8 +73,10 @@ class Registrations:
             NoiseMaker.play(k.CHEER)
         elif operator == "-":
             new_count = self.num_registrations - num
+            NoiseMaker.play(k.OK_DONE)
         elif operator == "=":
             new_count = num
+            NoiseMaker.play(k.OK_DONE)
         else:
             self.display_error_message("")
             return
