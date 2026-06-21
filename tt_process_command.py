@@ -706,8 +706,6 @@ def process_command(
             pr.iprint(f"Suppressing internet monitoring for {monitor_delay} minutes.")
     elif cmd == CmdKeys.CMD_NOTES:
         data_changed = tt_notes_command.notes_command(notes_list=today.notes, args=args)
-        if data_changed:
-            NoiseMaker.play(k.OK_DONE)
     elif cmd == CmdKeys.CMD_PUBLISH:
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
