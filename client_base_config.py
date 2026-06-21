@@ -54,8 +54,8 @@ SOUND_BIKE_IN = "sounds/bike-in.mp3"
 SOUND_BIKE_OUT = "sounds/bike-out.mp3"
 SOUND_ALERT = "sounds/alert.mp3"
 SOUND_CHEER = "sounds/cheer"
-SOUND_OK_DONE = "sounds/tock.mp3" # generic finish to command that makes change
-SOUND_HAS_NOTE = "sounds/chuckchuck.mp3" # when there is a note for a bike
+SOUND_OK_DONE = "sounds/ok-done-02.mp3" # generic finish to command that makes change
+SOUND_HAS_NOTE = "sounds/has-note-02.mp3" # when there is a note for a bike
 # This flag can set the (initial) state of whether sounds are enabled
 SOUND_ENABLED = True
 
