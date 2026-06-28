@@ -90,7 +90,7 @@ def print_tag_inout(biketag: BikeTag, inout: str, when: VTime) -> None:
         pr.iprint(f"    {note_str}", style=k.WARNING_STYLE)
     NoiseMaker.queue_add(inout)
     if notes:
-        NoiseMaker.queue_add(k.HAS_NOTE)
+        NoiseMaker.queue_add(k.ALERT_FOR_NOTE)
 
 def edit_event(args: list, today: TrackerDay) -> bool:
     """Possibly edit a check in or check-out for one or more tags' latest visit.

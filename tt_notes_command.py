@@ -126,7 +126,7 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
     notes_list.add(args[0])
     data_changed = True
     pr.iprint("Noted.", style=k.SUBTITLE_STYLE)
-    NoiseMaker.play(k.HAS_NOTE)
+    NoiseMaker.play(k.NEW_NOTE)
     return data_changed
 
 
