@@ -47,6 +47,9 @@ class NoiseMaker:
     bike_out = cfg.SOUND_BIKE_OUT
     alert = cfg.SOUND_ALERT
     cheer = cfg.SOUND_CHEER
+    ok_done = cfg.SOUND_OK_DONE
+    alert_for_note = cfg.SOUND_ALERT_FOR_NOTE
+    new_note = cfg.SOUND_NEW_NOTE
 
     @classmethod
     def init_check(cls):
@@ -131,6 +134,12 @@ class NoiseMaker:
             look_at = cls.alert
         elif code ==k.CHEER:
             look_at = cls.cheer
+        elif code ==k.OK_DONE:
+            look_at = cls.ok_done
+        elif code ==k.ALERT_FOR_NOTE:
+            look_at = cls.alert_for_note
+        elif code ==k.NEW_NOTE:
+            look_at = cls.new_note
         else:
             ut.squawk(f"sound type {code} not recognized")
             return None
@@ -141,7 +150,7 @@ class NoiseMaker:
     def play(cls, *sound_codes):
         """Play the sounds (which are constants from globals).
 
-        The sound_codes must be BIKE_IN, BIKE_OUT, or ALERT.
+        The sound_codes must be BIKE_IN, BIKE_OUT, ALERT, etc.
         """
         if not cls.init_check() or not sound_codes:
             return
@@ -149,7 +158,11 @@ class NoiseMaker:
         for code in sound_codes:
             if not code:   # skip any non-codes
                 continue
-            soundfiles.append(cls.get_sound_filepath(code))
+            this_sound =  cls.get_sound_filepath(code)
+            if this_sound:
+                soundfiles.append(this_sound)
+            else:
+                ut.squawk(f"probable missing soundfile for {code}")
         for sound in soundfiles:
             if not sound:   # skip any non-files
                 continue

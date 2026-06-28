@@ -59,6 +59,9 @@ ON = chr(0x2192) + "on"
 OFF = chr(0x2192) + "off"
 ALERT = chr(0x2192) + "alert"
 CHEER = chr(0x2192) + "cheer"
+OK_DONE = chr(0x2192) + "ok_done"
+ALERT_FOR_NOTE = chr(0x2192) + "alert_for_note"
+NEW_NOTE = chr(0x2192) + "new_note"
 
 # Date re checks for date that might be in another string
 _DATE_RE = r"(2[0-9][0-9][0-9])[/-]([01]?[0-9])[/-]([0123]?[0-9])"

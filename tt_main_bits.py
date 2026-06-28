@@ -173,6 +173,8 @@ def confirm_hours(today: TrackerDay) -> bool:
     today.time_open = new_open
     today.time_closed = new_close
     # Done, return whether data has changed
+    if data_changed:
+        NoiseMaker.play(k.OK_DONE)
     return data_changed
 
 

@@ -31,6 +31,7 @@ import tt_printer as pr
 from tt_notes import Note, NotesManager
 # from common.tt_trackerday import TrackerDay
 # from common.tt_tag import TagID
+from tt_sounds import NoiseMaker
 
 
 
@@ -106,10 +107,16 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
     text = args[0].strip()  # .lower()
 
     if text.lower() in {"deactiavte", "de", "delete", "del", "d"}:
-        return handle_delete_undelete_command(notes_list=notes_list, deleting=True)
+        data_changed = handle_delete_undelete_command(notes_list=notes_list, deleting=True)
+        if data_changed:
+            NoiseMaker.play(k.OK_DONE)
+        return data_changed
 
-    if text.lower() in {"recover", "reactivate", "re", "undelete", "undel", "u", "r"}:
-        return handle_delete_undelete_command(notes_list=notes_list, deleting=False)
+    elif text.lower() in {"recover", "reactivate", "re", "undelete", "undel", "u", "r"}:
+        data_changed = handle_delete_undelete_command(notes_list=notes_list, deleting=False)
+        if data_changed:
+            NoiseMaker.play(k.OK_DONE)
+        return data_changed
 
     # if text.lower() in {"auto", "autodelete", "ad"}:
     #     changed = notes_list.autodelete()
@@ -119,6 +126,7 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
     notes_list.add(args[0])
     data_changed = True
     pr.iprint("Noted.", style=k.SUBTITLE_STYLE)
+    NoiseMaker.play(k.NEW_NOTE)
     return data_changed
 
 

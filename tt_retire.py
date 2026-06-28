@@ -37,6 +37,7 @@ from common.tt_tag import TagID
 from common.tt_trackerday import TrackerDay
 import common.tt_util as ut
 import tt_printer as pr
+from tt_sounds import NoiseMaker
 
 
 _CONFIG_FILE = Path(__file__).resolve().parent / "client_local_config.py"
@@ -118,6 +119,7 @@ def _process(today: TrackerDay, tags: Sequence[TagID], mode: str) -> bool:
 
     if config_changed or today_changed:
         _summarize_changes(today_changed, config_delta)
+        NoiseMaker.play(k.OK_DONE)
     else:
         pr.iprint("Nothing needed changing.", style=k.SUBTITLE_STYLE)
 
