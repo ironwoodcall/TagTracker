@@ -44,6 +44,8 @@ class PeriodMetrics:
     regular_bikes: int = 0
     oversize_bikes: int = 0
     most_bikes: int = 0
+    most_bikes_regular: int = 0
+    most_bikes_oversize: int = 0
     bikes_registered: int = 0
     max_bikes_parked: int = 0
     bikes_left: int = 0
@@ -157,6 +159,16 @@ def aggregate_period(
     )
     metrics.most_bikes = (
         max((getattr(day, "num_fullest_combined", 0) or 0) for day in days)
+        if days
+        else 0
+    )
+    metrics.most_bikes_regular = (
+        max((getattr(day, "num_fullest_regular", 0) or 0) for day in days)
+        if days
+        else 0
+    )
+    metrics.most_bikes_oversize = (
+        max((getattr(day, "num_fullest_oversize", 0) or 0) for day in days)
         if days
         else 0
     )
@@ -387,7 +399,7 @@ METRIC_ROWS: Tuple[MetricRow, ...] = (
     },
     {
         "label": "Visits (all bike types):",
-        "row_span": 8,
+        "row_span": 10,
         "row_span_color": "#c1b8aa",
         "attr": "total_bikes_parked",
         "value_fmt": format_int,
@@ -420,6 +432,18 @@ METRIC_ROWS: Tuple[MetricRow, ...] = (
     {
         "label": "Max bikes on-site:",
         "attr": "most_bikes",
+        "value_fmt": format_int,
+        "delta_fmt": format_int_delta,
+    },
+    {
+        "label": "&nbsp;&nbsp;&nbsp;Max regular:",
+        "attr": "most_bikes_regular",
+        "value_fmt": format_int,
+        "delta_fmt": format_int_delta,
+    },
+    {
+        "label": "&nbsp;&nbsp;&nbsp;Max oversize:",
+        "attr": "most_bikes_oversize",
         "value_fmt": format_int,
         "delta_fmt": format_int_delta,
     },
