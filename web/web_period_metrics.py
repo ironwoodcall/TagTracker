@@ -399,7 +399,7 @@ METRIC_ROWS: Tuple[MetricRow, ...] = (
     },
     {
         "label": "Visits (all bike types):",
-        "row_span": 8,
+        "row_span": 10,
         "row_span_color": "#c1b8aa",
         "attr": "total_bikes_parked",
         "value_fmt": format_int,
