@@ -4,7 +4,7 @@ Status: draft, not yet implemented.
 
 ## Goal
 
-Let the operator type `undo` to reverse the single most recent tag-mutating
+Let the operator type `undo` (short for `u`) to reverse the single most recent tag-mutating
 command, within a 5-minute window, and `redo` to re-apply it. This targets
 same-minute typo/mistake recovery — it is a convenience shortcut, not a
 replacement for `edit`/`delete`, which remain the general-purpose correction
@@ -33,7 +33,8 @@ harmonize/rebuild pass run afterward reattaches notes correctly on its own.)
 
 ## Mental model
 
-Undo reverts the internal data model (and therefore the datafile, via the
+Undo reverts the internal data model (and therefore the datafile (but only
+the tags-related portions of the datafile)), via the
 normal save path) to its state immediately before the single most recent
 in-scope command — restricted to only the tag(s) that command actually
 changed. Stack depth is exactly one: one pending undo slot, one pending redo
