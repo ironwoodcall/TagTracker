@@ -100,6 +100,13 @@ elapsed time (`time.monotonic()` / `datetime.now()`), not `VTime`. `VTime`
 is the backdatable in-log event time (e.g. `in gb3 9:06` typed at 9:40) and
 must never be used for the undo/redo expiry clock.
 
+**Sound assets confirmed.** `sounds/undo.mp3` and `sounds/redo.mp3` already
+exist in the repo. `undo` plays `undo.mp3` alone. `redo` plays `redo.mp3`
+followed by whatever sound the replayed action itself makes (e.g.
+`redo.mp3` then the bike-in chime) — not `redo.mp3` alone — so the operator
+gets both "a redo just happened" and "here's what it did," matching the
+distinct-cue treatment `undo` already gets. See Flow step 3.
+
 ## Flow
 
 1. In `process_command()`, for the six in-scope commands: normalize time →
@@ -111,7 +118,7 @@ must never be used for the undo/redo expiry clock.
    - No pending record, or expired → polite message ("nothing to undo" /
      "undo window has passed"); clear the slot if expired.
    - Otherwise: restore the snapshot for the affected tag(s), convert the
-     consumed `UndoRecord` into a fresh `RedoRecord`, play a new "undo"
+     consumed `UndoRecord` into a fresh `RedoRecord`, queue the `undo.mp3`
      sound cue, print `Undid: <label>`, and return `data_changed=True` so
      the normal save/publish/notes-harmonize pipeline runs exactly as it
      does for any other mutating command.
@@ -120,11 +127,19 @@ must never be used for the undo/redo expiry clock.
      mutating command → polite "nothing to redo" message (the three causes
      can share one user-facing message; keep them distinguishable
      internally/in logs).
-   - Otherwise: print `Redoing "<label>"`, call the stored handler with the
-     stored resolved args. This re-enters the normal in-scope path from
-     step 1, so it naturally re-arms a fresh undo (undoing the redo) and
-     reproduces the original command's own confirmation line/sound for
-     free.
+   - Otherwise: queue the `redo.mp3` cue, print `Redoing "<label>"`, then
+     call the stored handler with the stored resolved args. The handler
+     queues its own normal sound (e.g. the bike-in chime) exactly as it
+     always does, so `redo.mp3` plays first followed by the replayed
+     action's own cue — no extra sequencing logic needed, since
+     `process_command()` already resets the sound queue at the top of each
+     command and flushes it once at the bottom
+     ([tt_process_command.py:609](../tt_process_command.py#L609),
+     [:740](../tt_process_command.py#L740)); queuing `redo.mp3` before
+     calling the handler is enough to guarantee the order. This also
+     re-enters the normal in-scope path from step 1, so it naturally
+     re-arms a fresh undo (undoing the redo) and reproduces the original
+     command's own confirmation line for free.
 4. Any other successful in-scope command already clears the pending redo
    slot as a side effect of step 1 — this is what "redo dies on any
    intervening tag-changing command" reduces to; no separate invalidation
@@ -196,8 +211,11 @@ state is a scoped follow-on, not something to build speculatively now.
    `tt_commands.py` (no-arg commands, `["undo"]` / `["redo"]`).
 5. Add the `CMD_UNDO`/`CMD_REDO` branches to `process_command()`'s dispatch
    ladder.
-6. New "undo" sound cue in `tt_sounds.py`; confirm redo reuses the replayed
-   command's existing cue rather than adding a second new one.
+6. Wire the confirmed `sounds/undo.mp3` and `sounds/redo.mp3` assets into
+   `tt_sounds.py`/`client_base_config.py`/`common/tt_constants.py` (new
+   `k.UNDO`/`SOUND_UNDO` and `k.REDO`/`SOUND_REDO`), and queue `k.REDO`
+   before invoking the replayed handler in the `CMD_REDO` branch so
+   `redo.mp3` plays before the replayed action's own cue.
 7. Pretty per-command `label` text for messages, reusing existing
    formatting (e.g. `print_tag_inout`) rather than inventing a parallel
    message format.
