@@ -25,24 +25,31 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 import copy
 import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Union
 
 from common.tt_tag import TagID
 from common.tt_biketag import BikeTag
 from common.tt_trackerday import TrackerDay
 from tt_commands import CmdKeys, COMMANDS
+from tt_notes import Note
 
 # How long an undo (or a redo) stays available, in real elapsed seconds.
 # NB: this is wall-clock time, not VTime -- VTime is the backdatable
 # in-log event time and must never be used for this window.
 WINDOW_SECONDS = 5 * 60
 
-# The only commands that undo/redo know how to handle. Each of these
-# takes a tag list as args[0] and is fully described, for replay purposes,
-# by (cmd_key, resolved_args). RETIRE/UNRETIRE are deliberately excluded --
-# they also rewrite client_local_config.py on disk, which this mechanism
-# does not attempt to reverse.
-UNDOABLE_COMMANDS = {
+# The tag-mutating commands undo/redo knows how to handle generically. Each
+# of these takes a tag list as args[0] and is fully described, for replay
+# purposes, by (cmd_key, resolved_args), and its undo is a BikeTag snapshot
+# restore. RETIRE/UNRETIRE are deliberately excluded -- they also rewrite
+# client_local_config.py on disk, which this mechanism does not attempt to
+# reverse.
+#
+# NOTE creation is *also* undoable, but doesn't fit this shape (its args
+# aren't a tag list, and its state lives in today.notes, not today.biketags)
+# -- it's handled separately, via UndoManager.record_note_created() and the
+# NoteRecord type below, sharing the same single pending-undo/redo slot.
+TAG_UNDOABLE_COMMANDS = {
     CmdKeys.CMD_BIKE_IN,
     CmdKeys.CMD_BIKE_OUT,
     CmdKeys.CMD_BIKE_INOUT,
@@ -52,6 +59,10 @@ UNDOABLE_COMMANDS = {
 }
 
 _INOUT_WORD = {"i": "in", "o": "out"}
+
+
+def _is_expired(created_at: float) -> bool:
+    return (time.monotonic() - created_at) > WINDOW_SECONDS
 
 
 def _clone_biketag(biketag: BikeTag) -> BikeTag:
@@ -102,9 +113,15 @@ def build_label(cmd_key: str, args: list) -> str:
     return " ".join(p for p in parts if p)
 
 
+def build_note_label(note: Note) -> str:
+    """Build a label for a just-created note, e.g. 'note flat tire on bg3'."""
+    canonical = COMMANDS[CmdKeys.CMD_NOTES].invoke[0]
+    return f"{canonical} {note.text}"
+
+
 @dataclass
 class UndoRecord:
-    """Everything needed to undo (restore) and later redo (replay) one command."""
+    """Everything needed to undo (restore) and later redo (replay) one tag command."""
 
     cmd_key: str
     resolved_args: list
@@ -114,12 +131,12 @@ class UndoRecord:
     created_at: float = field(default_factory=time.monotonic)
 
     def expired(self) -> bool:
-        return (time.monotonic() - self.created_at) > WINDOW_SECONDS
+        return _is_expired(self.created_at)
 
 
 @dataclass
 class RedoRecord:
-    """Everything needed to replay a just-undone command."""
+    """Everything needed to replay a just-undone tag command."""
 
     cmd_key: str
     resolved_args: list
@@ -127,7 +144,27 @@ class RedoRecord:
     created_at: float = field(default_factory=time.monotonic)
 
     def expired(self) -> bool:
-        return (time.monotonic() - self.created_at) > WINDOW_SECONDS
+        return _is_expired(self.created_at)
+
+
+@dataclass
+class NoteRecord:
+    """Undo/redo record for a just-created note (the only in-scope NOTE action).
+
+    Used for both the pending-undo slot (where undoing means removing this
+    exact note) and the pending-redo slot (where redoing means putting the
+    same note object back) -- which action to take is determined by which
+    slot it's sitting in, not by this record's type. It carries the actual
+    Note object (with its real, original created_at) rather than replaying
+    the NOTE command, precisely so a redo doesn't re-stamp a fresh 'now'.
+    """
+
+    note: Note
+    label: str
+    created_at: float = field(default_factory=time.monotonic)
+
+    def expired(self) -> bool:
+        return _is_expired(self.created_at)
 
 
 class UndoManager:
@@ -137,8 +174,8 @@ class UndoManager:
     simplification to fix later. See docs/undo_redo_spec.md.
     """
 
-    _pending_undo: Optional[UndoRecord] = None
-    _pending_redo: Optional[RedoRecord] = None
+    _pending_undo: Optional[Union[UndoRecord, NoteRecord]] = None
+    _pending_redo: Optional[Union[RedoRecord, NoteRecord]] = None
 
     @classmethod
     def snapshot(cls, today: TrackerDay, tagids: list) -> dict:
@@ -191,6 +228,19 @@ class UndoManager:
         cls._pending_redo = None
 
     @classmethod
+    def record_note_created(cls, note: Note, label: str) -> None:
+        """Record a just-created note as the new undo point.
+
+        Like record(), this occupies the single shared undo slot -- a note
+        creation competes with, and can bump out, a pending tag-command
+        undo (and vice versa). That's a deliberate consequence of keeping
+        one slot rather than a separate one per kind. See
+        docs/undo_redo_spec.md.
+        """
+        cls._pending_undo = NoteRecord(note=note, label=label)
+        cls._pending_redo = None
+
+    @classmethod
     def try_undo(cls, today: TrackerDay) -> tuple[bool, str]:
         """Attempt to undo the pending command. Returns (ok, message_or_label)."""
         record_ = cls._pending_undo
@@ -199,6 +249,13 @@ class UndoManager:
         if record_.expired():
             cls._pending_undo = None
             return False, "Nothing to undo (the undo window has passed)."
+
+        if isinstance(record_, NoteRecord):
+            if record_.note in today.notes.notes:
+                today.notes.notes.remove(record_.note)
+            cls._pending_redo = NoteRecord(note=record_.note, label=record_.label)
+            cls._pending_undo = None
+            return True, record_.label
 
         for tagid, snap in record_.snapshot_before.items():
             today.biketags[tagid] = snap
@@ -212,8 +269,15 @@ class UndoManager:
         return True, record_.label
 
     @classmethod
-    def try_redo(cls) -> tuple[bool, str, Optional[str], Optional[list]]:
-        """Attempt to redo the pending undo. Returns (ok, message_or_label, cmd_key, resolved_args)."""
+    def try_redo(cls, today: TrackerDay) -> tuple[bool, str, Optional[str], Optional[list]]:
+        """Attempt to redo the pending undo.
+
+        Returns (ok, message_or_label, cmd_key, resolved_args). For a
+        NoteRecord there is nothing further to dispatch -- the redo is
+        already fully applied by the time this returns -- so cmd_key and
+        resolved_args come back as None; the caller should treat that as
+        'already handled', not 'nothing to redo' (ok is still True).
+        """
         record_ = cls._pending_redo
         if record_ is None:
             return False, "Nothing to redo.", None, None
@@ -222,4 +286,14 @@ class UndoManager:
             return False, "Nothing to redo (the redo window has passed).", None, None
 
         cls._pending_redo = None
+
+        if isinstance(record_, NoteRecord):
+            today.notes.notes.append(record_.note)
+            # Re-arm undo for it directly (mirrors how a replayed tag
+            # command re-arms undo by falling through the normal dispatch
+            # into record()) -- so redo-then-undo works symmetrically here
+            # too, without re-running the NOTE command and re-stamping 'now'.
+            cls._pending_undo = NoteRecord(note=record_.note, label=record_.label)
+            return True, record_.label, None, None
+
         return True, record_.label, record_.cmd_key, record_.resolved_args

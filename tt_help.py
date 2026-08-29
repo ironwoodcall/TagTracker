@@ -133,6 +133,10 @@ Description:
     What this mostly means is that you can trust that most of the time, notes
     will only appear in the context of tags for which they are relevant.
 
+    A newly-created note can be reversed with UNDO (see 'help undo'), e.g.
+    to fix a typo -- this removes the note entirely rather than just
+    deactivating it. DEACTIVATE/REACTIVATE are not undoable this way.
+
     Other forms of manual note management:
         To deactivate: NOTE DEACTIVATE|DE|D|DELETE
         To reactivate: NOTE REACTIVATE|RE|UNDELETE|UN
@@ -193,11 +197,16 @@ Can be invoked as:
 
 Description:
   Reverses the single most recent IN, OUT, INOUT, EDIT, DELETE or FLIP
-  command, for just the tag(s) it affected.
+  command (for just the tag(s) it affected), or the single most recent
+  new NOTE (removes that note entirely, rather than just deactivating
+  it). NOTE DEACTIVATE/REACTIVATE are not covered.
 
   Only available for about 5 minutes after that command. After that (or
-  after any other tag-changing command happens in between), UNDO will
-  say there is nothing to undo -- use EDIT or DELETE instead.
+  after any other tag-changing command or new NOTE happens in between),
+  UNDO will say there is nothing to undo -- use EDIT or DELETE instead.
+
+  A new NOTE and a tag command (IN/OUT/etc.) compete for the same single
+  undo slot: whichever happened most recently is what UNDO will reverse.
 
   UNDO is not available across a restart of TagTracker: if the program is
   closed and reopened, there is nothing pending to undo. Nothing is lost

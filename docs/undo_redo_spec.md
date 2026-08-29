@@ -1,6 +1,7 @@
 # Undo/Redo for tag-mutating CLI commands — Design Spec
 
-Status: draft, not yet implemented.
+Status: implemented (`tt_undo.py` + wiring in `tt_process_command.py`),
+verified via `helpers/test_undo_redo.py`. Not yet committed.
 
 ## Goal
 
@@ -12,7 +13,12 @@ tools.
 
 ## Scope
 
-**In scope:** `in`, `out`, `inout`, `edit`, `delete`, `flip`.
+**In scope, generic (tag-shaped) mechanism:** `in`, `out`, `inout`, `edit`,
+`delete`, `flip` — see `tt_undo.TAG_UNDOABLE_COMMANDS`.
+
+**In scope, separate mechanism:** creating a note (`NOTE <text>`) — see
+"Notes: a second, separate mechanism" below. `NOTE DEACTIVATE`/`REACTIVATE`
+are **not** in scope (see that section for why).
 
 **Explicitly out of scope:** `retire`/`unretire`. Unlike the others, these
 mutate `client_local_config.py` on disk (a regex rewrite of the
@@ -22,10 +28,10 @@ materially riskier) problem than restoring an in-memory tag snapshot, and is
 not worth bundling into this feature. Manual `retire`/`unretire` remains the
 only way to reverse a retire/unretire.
 
-Also out of scope: everything else (`notes`, `hours`, `registrations`,
-reports, etc.). These do **not** invalidate a pending undo/redo — only the
-six in-scope commands do. (Notes are safe to leave out: `attached_notes` on
-a `BikeVisit` is a derived cache, rebuilt by
+Also out of scope: `hours`, `registrations`, reports, etc. These do **not**
+invalidate a pending undo/redo — only the six tag commands and note-creation
+do. (Restoring a tag snapshot doesn't need to touch note *linkage* either:
+`attached_notes` on a `BikeVisit` is a derived cache, rebuilt by
 `today.rebuild_visit_notes_link()` from `today.notes` by tag+time match
 ([tt_trackerday.py:267](../common/tt_trackerday.py#L267)), not a stored
 reference — so restoring a tag snapshot and letting the normal
@@ -83,6 +89,55 @@ snapshotted and included. Redo replays the original full command exactly as
 typed (`in BG3 PA10`), not just the subset that succeeded. If `PA10` is
 still in error, redo raises the same error again, same as the first attempt
 would if retried by hand.
+
+## Notes: a second, separate mechanism
+
+Creating a note (`NOTE <text>`) is also undoable, but doesn't fit the
+tag-shaped mechanism above and isn't in `TAG_UNDOABLE_COMMANDS`:
+
+- Its `args[0]` is free text (or absent), not a tag list — the generic
+  tag-snapshot code (`UndoManager.snapshot()`/`record()`) assumes `args[0]`
+  is `list[TagID]` and would misbehave if pointed at note args.
+- The state it changes lives in `today.notes` (`NotesManager.notes`, a flat
+  list of `Note` objects), not `today.biketags`.
+
+Instead, `tt_process_command.py`'s `CMD_NOTES` branch handles it directly:
+capture `len(today.notes.notes)` before calling `notes_command()`, and if it
+grew, the new note is `today.notes.notes[-1]` — record that via
+`UndoManager.record_note_created()`. This is why only *creating* a note is
+in scope: `NOTE DEACTIVATE`/`REACTIVATE` toggle an existing note's status
+in place and never change the list's length, so this check naturally never
+fires for them — no separate exclusion logic needed, and (as originally
+decided) they continue to leave any pending undo/redo alone.
+
+**Redo doesn't replay the command.** Unlike the six tag commands, redoing a
+note does *not* re-invoke `notes_command()` — `Note.created_at` defaults to
+`VTime("now")` at construction time ([tt_notes.py:110](../tt_notes.py#L110)),
+so re-running the command would re-stamp a fresh "now" instead of the
+note's real original time, the same problem solved for `in`/`out`/etc. by
+hoisting "now" resolution — except here there's no args-based fix, because
+the note *is* the resolved thing. So a `NoteRecord` carries the actual
+`Note` object (undo removes that exact object from the list; redo appends
+that same object back), and redo re-arms undo directly rather than falling
+through the normal dispatch ladder into `record()`.
+
+**Single shared slot, not a separate one.** A `NoteRecord` occupies the
+*same* `_pending_undo`/`_pending_redo` slot as the tag-shaped records
+(`Optional[Union[UndoRecord, NoteRecord]]`), branched on via `isinstance()`
+in `try_undo()`/`try_redo()`. This was a deliberate choice, not an
+oversight: it means a note and a tag command now compete for the one undo
+point. E.g.:
+
+```
+9:06  in bg3        <- wrong tag
+9:07  note flat tire on wa1
+9:07  undo          <- undoes the NOTE, not the wrong check-in
+```
+
+Before this change, `NOTE` was inert to undo/redo, so this sequence would
+have fixed the check-in. It no longer does — the most recent thing wins, as
+with any other pair of in-scope commands. This is called out explicitly in
+`help undo`/`help note` so it isn't a silent surprise.
 
 ## Data structures (new module `tt_undo.py`)
 
@@ -231,3 +286,21 @@ state is a scoped follow-on, not something to build speculatively now.
 10. Manual smoke test against a live/staged day file, diffing the on-disk
     JSON before/after an undo to confirm it's byte-for-byte the
     pre-command state for the affected tag(s).
+11. Bring `NOTE <text>` (creation only) into scope: `NoteRecord` in
+    `tt_undo.py`, `record_note_created()`, `isinstance()` branching in
+    `try_undo()`/`try_redo()`, the `len(today.notes.notes)` before/after
+    check in `process_command()`'s `CMD_NOTES` branch, the `redo_cmd is
+    None` sentinel handling in the `CMD_REDO` branch, and help text in
+    both `help undo` and `help note`. See "Notes: a second, separate
+    mechanism" above. **Done** — verified in `helpers/test_undo_redo.py`
+    steps 11-13 (slot contention with a pending tag-undo, identity/timestamp
+    preservation across undo→redo, and that DEACTIVATE/REACTIVATE leave a
+    pending undo alone).
+
+    Incidental bug found and fixed along the way, unrelated to undo/redo:
+    [tt_notes_command.py:109](../tt_notes_command.py#L109) checked for the
+    misspelled `"deactiavte"` instead of `"deactivate"` — the fully-spelled
+    keyword that `help note` itself documents. Typing `NOTE DEACTIVATE`
+    silently fell through to note-*creation*, creating a literal note
+    reading "deactivate" instead of deactivating anything. Fixed to the
+    correct spelling.

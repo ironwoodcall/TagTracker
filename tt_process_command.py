@@ -649,13 +649,21 @@ def process_command(
     # just been freshly typed. That dispatch will, in turn, record a fresh
     # undo point for it -- so redo naturally re-arms undo. See tt_undo.py.
     if cmd == CmdKeys.CMD_REDO:
-        ok, label, redo_cmd, redo_args = tt_undo.UndoManager.try_redo()
+        ok, label, redo_cmd, redo_args = tt_undo.UndoManager.try_redo(today)
         if not ok:
             pr.iprint(label, style=k.WARNING_STYLE)
             NoiseMaker.queue_play()
             return False
         pr.iprint(f'Redoing "{label}"', style=k.HIGHLIGHT_STYLE)
         NoiseMaker.queue_add(k.REDO)
+        if redo_cmd is None:
+            # Already fully applied inside try_redo() (a re-created note --
+            # replaying it as a fresh NOTE command would re-stamp 'now'
+            # instead of its real original time). Nothing left to dispatch.
+            pr.iprint("Noted.", style=k.SUBTITLE_STYLE)
+            NoiseMaker.queue_add(k.NEW_NOTE)
+            NoiseMaker.queue_play()
+            return True
         cmd, args = redo_cmd, redo_args
 
     # Undo: restore the pending snapshot directly (this is not itself
@@ -685,7 +693,7 @@ def process_command(
     # If this is an in-scope, tag-mutating command, snapshot the tag(s) it
     # names before running it, so a later 'undo' has something to restore.
     undo_snapshot = None
-    if cmd in tt_undo.UNDOABLE_COMMANDS:
+    if cmd in tt_undo.TAG_UNDOABLE_COMMANDS:
         undo_snapshot = tt_undo.UndoManager.snapshot(today, args[0])
 
     # This huge ladder of commands is in aphabetical order
@@ -764,7 +772,15 @@ def process_command(
             InternetMonitorController.notifications_off(monitor_delay)
             pr.iprint(f"Suppressing internet monitoring for {monitor_delay} minutes.")
     elif cmd == CmdKeys.CMD_NOTES:
+        notes_before = len(today.notes.notes)
         data_changed = tt_notes_command.notes_command(notes_list=today.notes, args=args)
+        # Only a new note (not a DELETE/REACTIVATE toggle, which leaves the
+        # list length unchanged) becomes an undo point.
+        if data_changed and len(today.notes.notes) > notes_before:
+            new_note = today.notes.notes[-1]
+            tt_undo.UndoManager.record_note_created(
+                new_note, tt_undo.build_note_label(new_note)
+            )
     elif cmd == CmdKeys.CMD_PUBLISH:
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
@@ -800,7 +816,7 @@ def process_command(
 
     # If this was an in-scope command and it actually changed something,
     # it becomes the new undo point (and clears any pending redo).
-    if cmd in tt_undo.UNDOABLE_COMMANDS and data_changed:
+    if cmd in tt_undo.TAG_UNDOABLE_COMMANDS and data_changed:
         tt_undo.UndoManager.record(
             cmd_key=cmd,
             resolved_args=args,
