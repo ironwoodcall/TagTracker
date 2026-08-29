@@ -27,6 +27,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
+import client_base_config as cfg
 from common.tt_tag import TagID
 from common.tt_biketag import BikeTag
 from common.tt_trackerday import TrackerDay
@@ -34,9 +35,11 @@ from tt_commands import CmdKeys, COMMANDS
 from tt_notes import Note
 
 # How long an undo (or a redo) stays available, in real elapsed seconds.
+# Set via client_base_config.UNDO_WINDOW_SECONDS (overridable per-site like
+# any other client config).
 # NB: this is wall-clock time, not VTime -- VTime is the backdatable
 # in-log event time and must never be used for this window.
-WINDOW_SECONDS = 5 * 60
+WINDOW_SECONDS = cfg.UNDO_WINDOW_SECONDS
 
 # The tag-mutating commands undo/redo knows how to handle generically. Each
 # of these takes a tag list as args[0] and is fully described, for replay

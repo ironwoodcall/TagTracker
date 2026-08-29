@@ -6,7 +6,8 @@ verified via `helpers/test_undo_redo.py`. Not yet committed.
 ## Goal
 
 Let the operator type `undo` (short for `u`) to reverse the single most recent tag-mutating
-command, within a 5-minute window, and `redo` to re-apply it. This targets
+command, within a short window (`client_base_config.UNDO_WINDOW_SECONDS`,
+currently 2 minutes), and `redo` to re-apply it. This targets
 same-minute typo/mistake recovery — it is a convenience shortcut, not a
 replacement for `edit`/`delete`, which remain the general-purpose correction
 tools.
@@ -150,10 +151,11 @@ with any other pair of in-scope commands. This is called out explicitly in
 - A small singleton (mirroring the existing `NoiseMaker` class-queue style)
   holding one `_pending_undo` and one `_pending_redo` slot.
 
-**Wall-clock, not bike-clock.** The 5-minute window is measured in real
-elapsed time (`time.monotonic()` / `datetime.now()`), not `VTime`. `VTime`
-is the backdatable in-log event time (e.g. `in gb3 9:06` typed at 9:40) and
-must never be used for the undo/redo expiry clock.
+**Wall-clock, not bike-clock.** The window
+(`client_base_config.UNDO_WINDOW_SECONDS`) is measured in real elapsed time
+(`time.monotonic()` / `datetime.now()`), not `VTime`. `VTime` is the
+backdatable in-log event time (e.g. `in gb3 9:06` typed at 9:40) and must
+never be used for the undo/redo expiry clock.
 
 **Sound assets confirmed.** `sounds/undo.mp3` and `sounds/redo.mp3` already
 exist in the repo. `undo` plays `undo.mp3` alone. `redo` plays `redo.mp3`

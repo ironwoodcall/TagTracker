@@ -62,6 +62,9 @@ SOUND_REDO = "sounds/redo.mp3"  # sound when a REDO succeeds (plays before the r
 # This flag can set the (initial) state of whether sounds are enabled
 SOUND_ENABLED = True
 
+# How long an UNDO (or a subsequent REDO) stays available, in seconds.
+UNDO_WINDOW_SECONDS = 2 * 60
+
 # This tells TT how often to check for an active internet connection (minutes).
 # If set to 0 (or anything else that evalues False), no monitoring is done.
 INTERNET_MONITORING_FREQUENCY = 10

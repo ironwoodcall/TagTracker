@@ -201,7 +201,7 @@ Description:
   new NOTE (removes that note entirely, rather than just deactivating
   it). NOTE DEACTIVATE/REACTIVATE are not covered.
 
-  Only available for about 5 minutes after that command. After that (or
+  Only available for about 2 minutes after that command. After that (or
   after any other tag-changing command or new NOTE happens in between),
   UNDO will say there is nothing to undo -- use EDIT or DELETE instead.
 
@@ -225,7 +225,7 @@ Can be invoked as:
 Description:
   Re-applies the command that was just undone with UNDO.
 
-  Only available for about 5 minutes after the UNDO (or until any other
+  Only available for about 2 minutes after the UNDO (or until any other
   tag-changing command happens in between, whichever comes first).
 """,
 
