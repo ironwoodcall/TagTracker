@@ -652,6 +652,7 @@ def process_command(
         ok, label, redo_cmd, redo_args = tt_undo.UndoManager.try_redo(today)
         if not ok:
             pr.iprint(label, style=k.WARNING_STYLE)
+            NoiseMaker.queue_add(k.ALERT)
             NoiseMaker.queue_play()
             return False
         pr.iprint(f'Redoing "{label}"', style=k.HIGHLIGHT_STYLE)
@@ -672,6 +673,7 @@ def process_command(
         ok, label = tt_undo.UndoManager.try_undo(today)
         if not ok:
             pr.iprint(label, style=k.WARNING_STYLE)
+            NoiseMaker.queue_add(k.ALERT)
             NoiseMaker.queue_play()
             return False
         pr.iprint("Undoing:", style=k.ERROR_STYLE, end="")
