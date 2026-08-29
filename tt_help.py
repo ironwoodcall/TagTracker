@@ -68,6 +68,7 @@ Other
   Display internal data dump   :  DUMP [VERBOSE|V]
   Emit debug breadcrumbs       :  DEBUG <ON|OFF>
   Suppress internet alerts     :  MONITOR <OFF|ON>
+  Show program version         :  VERSION
   Exit                         :  EXIT | x
 
 Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
@@ -170,6 +171,18 @@ Description:
 
   If any tag is not currently checked in, it shows an error for that tag only
   but continues for the other tags (if any) in the list.
+""",
+
+    CmdKeys.CMD_VERSION: """
+Command: VERSION
+
+Can be invoked as:
+  {}
+
+Description:
+  Reprints the version line shown when TagTracker starts up, e.g.
+  'TagTracker version: main (b562c40: 2026-08-28 21:39)'. Useful if you
+  need it again later in the session without restarting.
 """,
 
     CmdKeys.CMD_UNDO: """

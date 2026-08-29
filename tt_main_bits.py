@@ -44,12 +44,17 @@ except ImportError:
     PYFIGLET = False
 
 
+def print_version():
+    """Print the version line, e.g. 'TagTracker version: main (b562c40: 2026-08-28 21:39)'."""
+    pr.iprint(f"TagTracker version: {get_version_info()}")
+
+
 def splash():
     """Print a splash message including version & credits."""
     if not splash_top_pyfiglet():
         splash_top_default()
     pr.iprint()
-    pr.iprint(f"TagTracker version: {get_version_info()}")
+    print_version()
     pr.iprint("See github.com/ironwoodcall/tagtracker for version details.")
     pr.iprint()
 

@@ -788,6 +788,8 @@ def process_command(
     elif cmd in {CmdKeys.CMD_UPPERCASE, CmdKeys.CMD_LOWERCASE}:
         # Change to uc or lc tags
         set_tag_case(cmd == CmdKeys.CMD_UPPERCASE)
+    elif cmd == CmdKeys.CMD_VERSION:
+        bits.print_version()
     else:
         # An unhandled command
         canonical_invocation = COMMANDS[cmd].invoke[0].upper()

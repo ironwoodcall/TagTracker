@@ -125,6 +125,7 @@ class CmdKeys:
     CMD_UNDO = "UNDO"
     CMD_UNRETIRE = "UNRETIRE"
     CMD_UPPERCASE = "UPPERCASE"
+    CMD_VERSION = "VERSION"
 
 
 # CmdConfig class
@@ -332,6 +333,8 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
+    # Reprints the startup version line. See tt_main_bits.print_version().
+    CmdKeys.CMD_VERSION: CmdConfig(invoke=["version", "ver", "v"]),
 }
 
 
