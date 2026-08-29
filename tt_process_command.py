@@ -655,7 +655,8 @@ def process_command(
             NoiseMaker.queue_add(k.ALERT)
             NoiseMaker.queue_play()
             return False
-        pr.iprint(f'Redoing "{label}"', style=k.HIGHLIGHT_STYLE)
+        pr.iprint("Redoing:", style=k.ERROR_STYLE, end="")
+        pr.iprint(f"  {label}  ", style=k.HIGHLIGHT_STYLE)
         NoiseMaker.queue_add(k.REDO)
         if redo_cmd is None:
             # Already fully applied inside try_redo() (a re-created note --
@@ -677,7 +678,7 @@ def process_command(
             NoiseMaker.queue_play()
             return False
         pr.iprint("Undoing:", style=k.ERROR_STYLE, end="")
-        pr.iprint(f" {label}", style=k.ANSWER_STYLE)
+        pr.iprint(f"  {label}  ", style=k.ANSWER_STYLE)
         NoiseMaker.queue_add(k.UNDO)
         NoiseMaker.queue_play()
         return True
