@@ -50,6 +50,8 @@ class NoiseMaker:
     ok_done = cfg.SOUND_OK_DONE
     alert_for_note = cfg.SOUND_ALERT_FOR_NOTE
     new_note = cfg.SOUND_NEW_NOTE
+    undo = cfg.SOUND_UNDO
+    redo = cfg.SOUND_REDO
 
     @classmethod
     def init_check(cls):
@@ -140,6 +142,10 @@ class NoiseMaker:
             look_at = cls.alert_for_note
         elif code ==k.NEW_NOTE:
             look_at = cls.new_note
+        elif code ==k.UNDO:
+            look_at = cls.undo
+        elif code ==k.REDO:
+            look_at = cls.redo
         else:
             ut.squawk(f"sound type {code} not recognized")
             return None

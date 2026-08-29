@@ -43,6 +43,8 @@ To enter and change tracking data
   Guess about check in or out  :  INOUT <tag(s)> - or just <tag(s)>
   Edit check in/out times      :  EDIT <tag(s)> <in|out> <time>
   Delete a check in/out        :  DELETE <tag(s)> <in|out> <yes>
+  Undo the last such command   :  UNDO
+  Redo an undone command       :  REDO
   Change operating hours       :  HOURS
   View/manage attendant notes  :  NOTE [DEACTIVATE|REACTIVATE|note text]
   View/set bike registrations  :  REGISTER [+n|-n|=n]
@@ -168,6 +170,41 @@ Description:
 
   If any tag is not currently checked in, it shows an error for that tag only
   but continues for the other tags (if any) in the list.
+""",
+
+    CmdKeys.CMD_UNDO: """
+Command: UNDO
+
+Can be invoked as:
+  {}
+
+Description:
+  Reverses the single most recent IN, OUT, INOUT, EDIT, DELETE or FLIP
+  command, for just the tag(s) it affected.
+
+  Only available for about 5 minutes after that command. After that (or
+  after any other tag-changing command happens in between), UNDO will
+  say there is nothing to undo -- use EDIT or DELETE instead.
+
+  UNDO is not available across a restart of TagTracker: if the program is
+  closed and reopened, there is nothing pending to undo. Nothing is lost
+  by this -- your data was already saved before the restart -- you just
+  lose the one-key shortcut and would use EDIT/DELETE instead.
+
+  Use REDO to reverse an UNDO.
+""",
+
+    CmdKeys.CMD_REDO: """
+Command: REDO
+
+Can be invoked as:
+  {}
+
+Description:
+  Re-applies the command that was just undone with UNDO.
+
+  Only available for about 5 minutes after the UNDO (or until any other
+  tag-changing command happens in between, whichever comes first).
 """,
 
     CmdKeys.CMD_BIKE_INOUT: """

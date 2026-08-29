@@ -57,6 +57,8 @@ SOUND_CHEER = "sounds/cheer"
 SOUND_OK_DONE = "sounds/ok-done-02.mp3" # generic finish to command that makes change
 SOUND_ALERT_FOR_NOTE = "sounds/alert-for-note.mp3" # when there is a note for a bike
 SOUND_NEW_NOTE = "sounds/scribble.mp3"  # sound when new note crteated
+SOUND_UNDO = "sounds/undo.mp3"  # sound when an UNDO succeeds
+SOUND_REDO = "sounds/redo.mp3"  # sound when a REDO succeeds (plays before the replayed action's own sound)
 # This flag can set the (initial) state of whether sounds are enabled
 SOUND_ENABLED = True
 
