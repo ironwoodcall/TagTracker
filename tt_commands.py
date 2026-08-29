@@ -297,7 +297,7 @@ COMMANDS = {
         ],
     ),
     # Re-applies the most recently undone command. See tt_undo.py.
-    CmdKeys.CMD_REDO: CmdConfig(invoke=["redo"]),
+    CmdKeys.CMD_REDO: CmdConfig(invoke=["redo", "red"]),
     # Registrations:  e.g. r or r + 1 or r +1... so 2 args total.
     CmdKeys.CMD_REGISTRATIONS: CmdConfig(
         invoke=["registrations", "registration", "register", "reg"],
@@ -325,7 +325,7 @@ COMMANDS = {
         ],
     ),
     # Reverses the single most recent tag-mutating command. See tt_undo.py.
-    CmdKeys.CMD_UNDO: CmdConfig(invoke=["undo", "u"]),
+    CmdKeys.CMD_UNDO: CmdConfig(invoke=["undo", "u", "un"]),
     CmdKeys.CMD_UNRETIRE: CmdConfig(
         invoke=["unretire","unret"],
         arg_configs=[
