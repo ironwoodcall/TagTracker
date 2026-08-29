@@ -37,39 +37,39 @@ HELP_MESSAGES = {
 TagTracker Commands
 
 To enter and change tracking data
-  Check bike in (can reuse tag):  IN <tag(s)> [time]
-  Check bike out               :  OUT <tag(s)> [time]
-  Flip tag out+in (same time)  :  FLIP <tag(s)> [time]
-  Guess about check in or out  :  INOUT <tag(s)> - or just <tag(s)>
-  Edit check in/out times      :  EDIT <tag(s)> <in|out> <time>
-  Delete a check in/out        :  DELETE <tag(s)> <in|out> <yes>
-  Undo the last such command   :  UNDO
-  Redo an undone command       :  REDO
-  Change operating hours       :  HOURS
-  View/manage attendant notes  :  NOTE [DEACTIVATE|REACTIVATE|note text]
-  View/set bike registrations  :  REGISTER [+n|-n|=n]
-  Retire or unretire tags      :  RETIRE | UNRETIRE <tag(s)>
+  Check bike in (can reuse tag) :  IN <tag(s)> [time]
+  Check bike out                :  OUT <tag(s)> [time]
+  Flip tag out+in (same time)   :  FLIP <tag(s)> [time]
+  Guess about check in or out   :  INOUT <tag(s)> - or just <tag(s)>
+  Edit check in/out times       :  EDIT <tag(s)> <in|out> <time>
+  Delete a check in/out         :  DELETE <tag(s)> <in|out> <yes>
+  Undo the last tag/note command:  UNDO
+  Redo an undo command          :  REDO
+  Change operating hours        :  HOURS
+  View/manage attendant notes   :  NOTE [DEACTIVATE|REACTIVATE|note text]
+  View/set bike registrations   :  REGISTER [+n|-n|=n]
+  Retire or unretire tags       :  RETIRE | UNRETIRE <tag(s)>
 
 Information and reports
-  Show info about one tag      :  QUERY <tag(s)>
-  Show recent activity         :  RECENT [time] [time]
-  Show audit info              :  AUDIT [time]
-  Show times for leftovers     :  LEFT
-  Estimate further bikes today :  ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE]
-  Show tag configurations      :  TAGS
-  Show day-end stats report    :  STATS [time]
-  Graph busy- and fullness     :  GRAPH
-  Show chart of all activity   :  CHART
-  Show historic maximums       :  MAX [A|B|F|P|R|T]
+  Show info about one tag       :  QUERY <tag(s)>
+  Show recent activity          :  RECENT [time] [time]
+  Show audit info               :  AUDIT [time]
+  Show times for leftovers      :  LEFT
+  Estimate further bikes today  :  ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE]
+  Show tag configurations       :  TAGS
+  Show day-end stats report     :  STATS [time]
+  Graph busy- and fullness      :  GRAPH
+  Show chart of all activity    :  CHART
+  Show historic maximums        :  MAX [A|B|F|P|R|T]
 
 Other
-  Help with commands           :  HELP [command]
-  Set tags to UPPER/LOWER CASE :  UPPERCASE | UC | LOWERCASE | LC
-  Display internal data dump   :  DUMP [VERBOSE|V]
-  Emit debug breadcrumbs       :  DEBUG <ON|OFF>
-  Suppress internet alerts     :  MONITOR <OFF|ON>
-  Show program version         :  VERSION
-  Exit                         :  EXIT | x
+  Help with commands            :  HELP [command]
+  Set tags to UPPER/LOWER CASE  :  UPPERCASE | UC | LOWERCASE | LC
+  Display internal data dump    :  DUMP [VERBOSE|V]
+  Emit debug breadcrumbs        :  DEBUG <ON|OFF>
+  Suppress internet alerts      :  MONITOR <OFF|ON>
+  Show program version          :  VERSION
+  Exit                          :  EXIT | x
 
 Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
 Parameters in angle brackets are mandatory, square brackets optional.
@@ -135,7 +135,7 @@ Description:
 
     A newly-created note can be reversed with UNDO (see 'help undo'), e.g.
     to fix a typo -- this removes the note entirely rather than just
-    deactivating it. DEACTIVATE/REACTIVATE are not undoable this way.
+    deactivating it. (DEACTIVATE/REACTIVATE are not undoable this way.)
 
     Other forms of manual note management:
         To deactivate: NOTE DEACTIVATE|DE|D|DELETE
@@ -196,22 +196,14 @@ Can be invoked as:
   {}
 
 Description:
-  Reverses the single most recent IN, OUT, INOUT, EDIT, DELETE or FLIP
-  command (for just the tag(s) it affected), or the single most recent
-  new NOTE (removes that note entirely, rather than just deactivating
-  it). NOTE DEACTIVATE/REACTIVATE are not covered.
+  Reverses the single most recent tag-changing or note creation command.
 
   Only available for about 2 minutes after that command. After that (or
   after any other tag-changing command or new NOTE happens in between),
   UNDO will say there is nothing to undo -- use EDIT or DELETE instead.
 
-  A new NOTE and a tag command (IN/OUT/etc.) compete for the same single
-  undo slot: whichever happened most recently is what UNDO will reverse.
-
-  UNDO is not available across a restart of TagTracker: if the program is
-  closed and reopened, there is nothing pending to undo. Nothing is lost
-  by this -- your data was already saved before the restart -- you just
-  lose the one-key shortcut and would use EDIT/DELETE instead.
+  This will undo: IN, OUT, INOUT, FLIP, EDIT, DELETE, and NOTE creation. It
+  will not undo tag retirements, registrations, note deactivation, etc.
 
   Use REDO to reverse an UNDO.
 """,
