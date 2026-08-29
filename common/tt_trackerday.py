@@ -425,6 +425,14 @@ class TrackerDay:
         for tagid in list(self.regular_tagids | self.oversize_tagids):
             biketag = self.biketags[tagid]
             conf_type = self._configured_bike_type(tagid)
+            if conf_type == RETIRED:
+                # This tagid lingers in regular_tagids/oversize_tagids per
+                # the "reminder" above, but it's now retired -- that's
+                # already handled by the loop above (sets biketag.status,
+                # not bike_type). RETIRED is a status, not an assignable
+                # bike_type; falling through would stamp bike_type with
+                # the RETIRED sentinel, which BikeTag() rejects.
+                continue
             if biketag.bike_type != conf_type:
                 # Mismatch between config and biketags list.
                 if biketag.status in {BikeTag.IN_USE, BikeTag.DONE}:

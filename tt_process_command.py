@@ -674,7 +674,8 @@ def process_command(
             pr.iprint(label, style=k.WARNING_STYLE)
             NoiseMaker.queue_play()
             return False
-        pr.iprint(f"Undid: {label}", style=k.ANSWER_STYLE)
+        pr.iprint("Undoing:", style=k.ERROR_STYLE, end="")
+        pr.iprint(f" {label}", style=k.ANSWER_STYLE)
         NoiseMaker.queue_add(k.UNDO)
         NoiseMaker.queue_play()
         return True
