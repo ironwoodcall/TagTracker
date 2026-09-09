@@ -46,6 +46,7 @@ import tt_audit_report as aud
 import tt_reports as rep
 import tt_tag_inv as inv
 import tt_retire
+import tt_undo
 
 # from tt_cmdparse import CmdBits
 from tt_commands import (
@@ -60,6 +61,20 @@ import tt_call_leaderboard
 from tt_sounds import NoiseMaker
 import tt_main_bits as bits
 from tt_internet_monitor import InternetMonitorController
+
+
+def _ensure_resolved_time(args: list) -> list:
+    """Return args with a concrete resolved time in position 1.
+
+    IN, OUT, INOUT and FLIP all take an *optional* time argument that
+    defaults to 'now'. Resolve that default here, once, before the handler
+    (and before any undo/redo record of this command) ever sees it -- so
+    'now' is captured at the moment the command actually runs and is never
+    re-evaluated later by a redo.
+    """
+    if len(args) > 1:
+        return args
+    return list(args) + [VTime("now")]
 
 
 def print_tag_inout(biketag: BikeTag, inout: str, when: VTime) -> None:
@@ -270,7 +285,7 @@ def check_in(args: list, today: TrackerDay) -> bool:
 
     """
 
-    bike_time = VTime(args[1]) if len(args) > 1 else VTime("now")
+    bike_time = VTime(args[1])
     if not bits.check_bike_time_reasonable(bike_time=bike_time, day=today):
         return False
 
@@ -318,7 +333,7 @@ def check_out(args: list, today: TrackerDay) -> bool:
 
     """
 
-    bike_time = VTime(args[1]) if len(args) > 1 else VTime("now")
+    bike_time = VTime(args[1])
     if not bits.check_bike_time_reasonable(bike_time=bike_time, day=today):
         return False
 
@@ -351,7 +366,7 @@ def check_out(args: list, today: TrackerDay) -> bool:
 def flip_tags(args: list, today: TrackerDay) -> bool:
     """Flip tag(s): check out then check back in at the same time."""
 
-    flip_time = VTime(args[1]) if len(args) > 1 else VTime("now")
+    flip_time = VTime(args[1])
     if not bits.check_bike_time_reasonable(bike_time=flip_time, day=today):
         return False
 
@@ -408,7 +423,7 @@ def guess_check_inout(args: list, today: TrackerDay) -> bool:
 
     """
 
-    bike_time = VTime("now")
+    bike_time = VTime(args[1])
     if not bits.check_bike_time_reasonable(bike_time=bike_time, day=today):
         # In addition to default error message, add something helpful
         pr.iprint(
@@ -629,6 +644,62 @@ def process_command(
     # Assume no change in data unless we find out otherwise.
     data_changed = False
 
+    # Redo: substitute in the previously-undone command's resolved cmd/args
+    # and fall through into the normal dispatch below, exactly as if it had
+    # just been freshly typed. That dispatch will, in turn, record a fresh
+    # undo point for it -- so redo naturally re-arms undo. See tt_undo.py.
+    if cmd == CmdKeys.CMD_REDO:
+        ok, label, redo_cmd, redo_args = tt_undo.UndoManager.try_redo(today)
+        if not ok:
+            pr.iprint(label, style=k.WARNING_STYLE)
+            NoiseMaker.queue_add(k.ALERT)
+            NoiseMaker.queue_play()
+            return False
+        pr.iprint("Redoing:", style=k.ERROR_STYLE, end="")
+        pr.iprint(f"  {label}  ", style=k.HIGHLIGHT_STYLE)
+        NoiseMaker.queue_add(k.REDO)
+        if redo_cmd is None:
+            # Already fully applied inside try_redo() (a re-created note --
+            # replaying it as a fresh NOTE command would re-stamp 'now'
+            # instead of its real original time). Nothing left to dispatch.
+            pr.iprint("Noted.", style=k.SUBTITLE_STYLE)
+            NoiseMaker.queue_add(k.NEW_NOTE)
+            NoiseMaker.queue_play()
+            return True
+        cmd, args = redo_cmd, redo_args
+
+    # Undo: restore the pending snapshot directly (this is not itself
+    # something the dispatch ladder below handles).
+    if cmd == CmdKeys.CMD_UNDO:
+        ok, label = tt_undo.UndoManager.try_undo(today)
+        if not ok:
+            pr.iprint(label, style=k.WARNING_STYLE)
+            NoiseMaker.queue_add(k.ALERT)
+            NoiseMaker.queue_play()
+            return False
+        pr.iprint("Undoing:", style=k.ERROR_STYLE, end="")
+        pr.iprint(f"  {label}  ", style=k.ANSWER_STYLE)
+        NoiseMaker.queue_add(k.UNDO)
+        NoiseMaker.queue_play()
+        return True
+
+    # IN/OUT/INOUT/FLIP take an optional time argument that defaults to
+    # 'now'; resolve that now, once, before the handler (or an undo/redo
+    # record of this command) ever sees it.
+    if cmd in (
+        CmdKeys.CMD_BIKE_IN,
+        CmdKeys.CMD_BIKE_OUT,
+        CmdKeys.CMD_BIKE_INOUT,
+        CmdKeys.CMD_FLIP,
+    ):
+        args = _ensure_resolved_time(args)
+
+    # If this is an in-scope, tag-mutating command, snapshot the tag(s) it
+    # names before running it, so a later 'undo' has something to restore.
+    undo_snapshot = None
+    if cmd in tt_undo.TAG_UNDOABLE_COMMANDS:
+        undo_snapshot = tt_undo.UndoManager.snapshot(today, args[0])
+
     # This huge ladder of commands is in aphabetical order
     # in order to make it easy to confirm against the list of
     # command configurations.
@@ -705,7 +776,15 @@ def process_command(
             InternetMonitorController.notifications_off(monitor_delay)
             pr.iprint(f"Suppressing internet monitoring for {monitor_delay} minutes.")
     elif cmd == CmdKeys.CMD_NOTES:
+        notes_before = len(today.notes.notes)
         data_changed = tt_notes_command.notes_command(notes_list=today.notes, args=args)
+        # Only a new note (not a DELETE/REACTIVATE toggle, which leaves the
+        # list length unchanged) becomes an undo point.
+        if data_changed and len(today.notes.notes) > notes_before:
+            new_note = today.notes.notes[-1]
+            tt_undo.UndoManager.record_note_created(
+                new_note, tt_undo.build_note_label(new_note)
+            )
     elif cmd == CmdKeys.CMD_PUBLISH:
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
@@ -729,6 +808,8 @@ def process_command(
     elif cmd in {CmdKeys.CMD_UPPERCASE, CmdKeys.CMD_LOWERCASE}:
         # Change to uc or lc tags
         set_tag_case(cmd == CmdKeys.CMD_UPPERCASE)
+    elif cmd == CmdKeys.CMD_VERSION:
+        bits.print_version()
     else:
         # An unhandled command
         canonical_invocation = COMMANDS[cmd].invoke[0].upper()
@@ -736,6 +817,18 @@ def process_command(
         NoiseMaker.queue_add(k.ALERT)
 
     # Note autodelete is handled in main loop after tag-note printing
+
+    # If this was an in-scope command and it actually changed something,
+    # it becomes the new undo point (and clears any pending redo).
+    if cmd in tt_undo.TAG_UNDOABLE_COMMANDS and data_changed:
+        tt_undo.UndoManager.record(
+            cmd_key=cmd,
+            resolved_args=args,
+            today=today,
+            tagids_requested=args[0],
+            snapshot_before=undo_snapshot,
+            label=tt_undo.build_label(cmd, args),
+        )
 
     NoiseMaker.queue_play()
     return data_changed

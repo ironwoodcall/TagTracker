@@ -117,12 +117,15 @@ class CmdKeys:
     CMD_PUBLISH = "PUBLISH"
     CMD_QUERY = "QUERY"
     CMD_RECENT = "RECENT"
+    CMD_REDO = "REDO"
     CMD_REGISTRATIONS = "REGISTRATIONS"
     CMD_RETIRE = "RETIRE"
     CMD_STATS = "STATS"
     CMD_TAGS = "TAGS"
+    CMD_UNDO = "UNDO"
     CMD_UNRETIRE = "UNRETIRE"
     CMD_UPPERCASE = "UPPERCASE"
+    CMD_VERSION = "VERSION"
 
 
 # CmdConfig class
@@ -293,6 +296,8 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
+    # Re-applies the most recently undone command. See tt_undo.py.
+    CmdKeys.CMD_REDO: CmdConfig(invoke=["redo", "red"]),
     # Registrations:  e.g. r or r + 1 or r +1... so 2 args total.
     CmdKeys.CMD_REGISTRATIONS: CmdConfig(
         invoke=["registrations", "registration", "register", "reg"],
@@ -319,6 +324,8 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
+    # Reverses the single most recent tag-mutating command. See tt_undo.py.
+    CmdKeys.CMD_UNDO: CmdConfig(invoke=["undo", "u", "un"]),
     CmdKeys.CMD_UNRETIRE: CmdConfig(
         invoke=["unretire","unret"],
         arg_configs=[
@@ -326,6 +333,8 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
+    # Reprints the startup version line. See tt_main_bits.print_version().
+    CmdKeys.CMD_VERSION: CmdConfig(invoke=["version", "ver", "v"]),
 }
 
 

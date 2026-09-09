@@ -106,7 +106,7 @@ def notes_command(notes_list: NotesManager, args: list[str]) -> bool:
 
     text = args[0].strip()  # .lower()
 
-    if text.lower() in {"deactiavte", "de", "delete", "del", "d"}:
+    if text.lower() in {"deactivate", "de", "delete", "del", "d"}:
         data_changed = handle_delete_undelete_command(notes_list=notes_list, deleting=True)
         if data_changed:
             NoiseMaker.play(k.OK_DONE)
