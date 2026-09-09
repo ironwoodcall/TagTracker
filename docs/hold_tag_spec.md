@@ -290,37 +290,87 @@ work, not required for this feature.
   - Update the key line at [:89](../tt_tag_inv.py#L89) to mention
     `'Hd'=Held`.
 - **`audit`** ([tt_audit_report.py](../tt_audit_report.py)): a **third**
-  grid, parallel to the existing "Bikes still onsite"
-  ([:144](../tt_audit_report.py#L144)) and "Tags potentially available for
-  re-use" ([:170](../tt_audit_report.py#L170)) sections — not a marker
-  squeezed into either existing grid (an earlier draft of this spec
-  proposed overlaying a held-marker into the re-use grid; a dedicated
-  section is clearer and needs no such overlay, since held tags are
-  already excluded from that grid for free via the `status_as_at()`
-  change above — a blank cell there is now simply correct, because the
-  tag is enumerated in its own section instead):
+  grid, parallel to the existing "Bikes still onsite" and "Tags
+  potentially available for re-use" sections:
 
   ```
-  Tags held, marked unavailable for (re)use today (N tags)
-  <prefix grid, same rendering as the existing two: tag number shown if
-   held, retired_tag_str if retired, blank otherwise>
+  Tags held, marked unavailable for (re-)use today (N tags)
   ```
 
   Built from `day.tags_held()`, grouped by prefix the same way
-  `prefixes_on_hand`/`prefixes_returned_out` are built at
-  [:131](../tt_audit_report.py#L131)-132. Shown only when there's at least
-  one held tag (mirroring `retired_report()`'s empty-list skip in
-  [tt_tag_inv.py:159](../tt_tag_inv.py#L159)), so an ordinary day's audit
-  is unchanged.
+  `prefixes_on_hand`/`prefixes_returned_out` already are. Shown only when
+  there's at least one held tag, so an ordinary day's audit is unchanged.
+  Each grid's *row selection* stays exactly as before (a prefix only gets
+  a row if it has a tag of that grid's own category) — a prefix that's
+  held-only, say, still won't get a row in the onsite or re-use grids.
 
-  **Known limitation to document, not fix:** `hold`/`unhold` don't record
+  **Revised beyond the original draft, based on a look at real sample
+  output:** every *cell* within an already-shown row now displays one of
+  five markers — not just retired — via a single shared classification
+  (`_draw_tag_grid()`, driven by `BikeTag.status_as_at()`): a tag number
+  for that grid's own category, and one of `●`/`○`/`<`/`>`/`-`
+  (retired/held/checked-in/checked-out/available) for every other
+  category. A cell is truly blank only when there's no tag defined for
+  that slot at all — the first pass at this stopped short of that: it
+  left `UNUSED` (exists, just not used today) rendering identically to
+  "no such tag," which on real output turned out to be most of the grid
+  and was genuinely ambiguous; `available_tag_str` (default `" -"`,
+  matching the `tags` command's own `TAG_INV_AVAILABLE` symbol) closes
+  that gap. A held-`DONE` tag correctly shows the held marker rather than
+  the checked-out one in every grid, since `status_as_at()` already
+  prioritizes `HELD` over `DONE`. `○` is deliberately drawn from the same
+  Unicode block (Geometric Shapes, U+25A0-25FF) as the already-in-production
+  `●` (U+25CF) — same East Asian Width category, so whatever
+  single-column-width behaviour `●` already gets from a given
+  terminal/font, `○` should get identically; still worth an eyeball check
+  in the actual deployment terminal. `<`/`>`/`-` need no such reasoning —
+  plain ASCII, and `<`/`>` are already this app's own convention for
+  in/out (see `print_tag_inout()`'s `"<---in---"`/`"---out--->"`).
+  `tt_publish.py`'s non-terminal destination passes ASCII fallbacks for
+  the one non-ASCII marker (`retired_tag_str="<>"` already did;
+  `held_tag_str="()"` added to match) and richer 2-letter codes for
+  in/out (`in_use_tag_str="In"`, `done_tag_str="Ou"` added to match — the
+  latter two reusing the `tags` command's own `In`/`Ou` codes for
+  consistency); `available_tag_str` needed no override there since its
+  default is already plain ASCII.
+
+  **Known limitation, documented not fixed:** `hold`/`unhold` don't record
   a timestamp (there's no "held as of HH:MM" concept — a tag just is or
-  isn't held, right now). The rest of `audit`'s sections are computed
-  *as of* an optional time argument (`as_of_when`), reconstructing
-  historical state. The held section can't do that — it always reflects
-  *current* held state regardless of what time the audit report is run
-  for. Worth a one-line caveat in the report/help text so a
-  `audit 09:00` run late in the day doesn't look like it's misreporting.
+  isn't held, right now). The rest of `audit` is computed *as of* an
+  optional time argument (`as_of_when`), reconstructing historical state;
+  the held marker/section can't do that — it always reflects *current*
+  held state regardless of what time the audit report is run for.
+
+  **Dimmed non-primary markers.** Every marker cell (everything shown as
+  `●`/`○`/`<`/`>`/`-` rather than a number) prints in a new `k.DIM_STYLE`
+  (grey — `Fore.LIGHTBLACK_EX` on terminal, deliberately without stacking
+  `Style.DIM` on top since that risked becoming unreadable rather than
+  just de-emphasized; swappable to dark blue via `Fore.BLUE` if grey
+  doesn't read well in practice), so the numbers — what each particular
+  grid actually exists to show — visually stand out from everything else
+  in the row. This needed a small new primitive,
+  `tt_printer.iprint_segments()`, since `iprint()` only ever applies one
+  style to an entire line and a grid row now mixes styled and unstyled
+  cells; it keeps the same guarantee `iprint()` already gives — a file
+  redirect (`tt_publish.py`) or the echo log always gets the plain,
+  unstyled text, regardless of what's shown on screen.
+
+  **`AUDIT_GRID_FULL_MARKERS` config flag.** The full-marker grid look is
+  new and its reception by operators is untested, so it's behind a
+  boolean in `client_base_config.py` (default `False`, matching the look
+  from before this feature — overridden to `True` in
+  `client_local_config.py` for now to try it out) rather than being
+  unconditional. `True` is everything described above (five markers,
+  dimmed, shared `Key:` line); `False` collapses `markers` to just
+  `{BikeTag.RETIRED: retired_tag_str}` (so held/in-use/done/unused all
+  fall through to blank, matching the exact pre-feature behavior),
+  prints undimmed (`k.NORMAL_STYLE`, since the retired dot was never
+  dimmed before this option existed), and restores the original inline
+  `"Bikes still onsite at HH:MM ( ● --> retired tag)"` note instead of
+  the shared key line. The flag applies uniformly to all three grids,
+  onsite/re-use/held alike — the "Tags held" *section* itself is shown
+  either way; only its cell style follows the flag, same as the other
+  two grids.
 - **`query`** ([tt_process_command.py:466](../tt_process_command.py#L466)): can't be a
   simple additional `elif` in the existing mutually-exclusive
   `UNUSED`/`RETIRED`/"show visits" chain, because a held `DONE` tag needs

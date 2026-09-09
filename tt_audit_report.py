@@ -26,6 +26,7 @@ import common.tt_constants as k
 from common.tt_time import VTime
 from common.tt_tag import TagID
 from common.tt_trackerday import TrackerDay
+from common.tt_biketag import BikeTag
 import common.tt_util as ut
 import tt_printer as pr
 import client_base_config as cfg
@@ -33,6 +34,24 @@ import tt_reports as rep
 
 
 DEFAULT_RETIRED_TAG_STR = " ●"
+# "○" is deliberately chosen from the same Unicode block (Geometric
+# Shapes, U+25A0-25FF) as the already-in-use "●" (U+25CF) -- both share
+# the same East Asian Width category ('Ambiguous'), so whatever
+# single-column-width behaviour "●" already gets from a given
+# terminal/font, "○" should get identically. "<"/">" need no such
+# reasoning -- plain ASCII, and already this app's own convention for
+# in/out (see print_tag_inout()'s "<---in---"/"---out--->"). Plain-text
+# fallbacks for non-terminal destinations (e.g. tt_publish.py) are passed
+# explicitly by the caller, same as retired_tag_str="<>" already is.
+DEFAULT_HELD_TAG_STR = " ○"
+DEFAULT_IN_USE_TAG_STR = " <"
+DEFAULT_DONE_TAG_STR = " >"
+# Matches the 'tags' command's own TAG_INV_AVAILABLE symbol
+# (tt_tag_inv.py) -- distinguishes "this tag exists but simply hasn't
+# been used today" from a cell with no defined tag at all, which is the
+# only thing that now stays truly blank (NO_ITEM_STR).
+DEFAULT_AVAILABLE_TAG_STR = " -"
+NO_ITEM_STR = "  "  # what to show when there's no tag at all for this slot
 
 # def notes_bit(day: OldTrackerDay) -> None:
 #     """Add a 'notes' section to a report."""
@@ -81,12 +100,62 @@ def inout_summary(day: TrackerDay, as_of_when: VTime = VTime("")) -> None:
     )
 
 
+def _draw_tag_grid(
+    day: TrackerDay,
+    prefixes,
+    as_of_when: VTime,
+    home_category: str,
+    markers: dict,
+    other_style: str = k.DIM_STYLE,
+) -> None:
+    """Print one prefix-by-tagnum grid.
+
+    Each cell shows the tag number if the tag's current category (from
+    status_as_at()) is home_category; otherwise it shows that category's
+    marker via 'markers' (or blank if that category isn't in 'markers' --
+    see AUDIT_GRID_FULL_MARKERS in client_base_config.py, which controls
+    whether 'markers' has all five categories or just RETIRED). A cell is
+    blank outright only when there's no tag defined for that slot at all.
+
+    Cells that aren't this grid's own category of interest (i.e.
+    everything shown as a marker rather than a number) print in
+    'other_style' -- dimmed (k.DIM_STYLE) when AUDIT_GRID_FULL_MARKERS is
+    on, so the numbers stand out from the rest; k.NORMAL_STYLE when it's
+    off, matching the undimmed retired-dot-only look from before that
+    option existed.
+    """
+    if not prefixes:
+        pr.iprint("-no bikes-")
+        return
+    for prefix in sorted(prefixes):
+        greatest_num = ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids)
+        if greatest_num is None:
+            continue
+        segments = [(f"{prefix:3>} ", k.NORMAL_STYLE)]
+        for i in range(0, greatest_num + 1):
+            biketag = day.biketags.get(TagID(f"{prefix}{i}"))
+            if not biketag:
+                s, style = NO_ITEM_STR, k.NORMAL_STYLE
+            else:
+                category = biketag.status_as_at(as_of_when)
+                if category == home_category:
+                    s, style = f"{i:02d}", k.NORMAL_STYLE
+                else:
+                    s, style = markers.get(category, NO_ITEM_STR), other_style
+            segments.append((f" {s}", style))
+        pr.iprint_segments(segments)
+
+
 def audit_report(
     day: TrackerDay,
     args: list[str],
     include_notes: bool = True,
     include_returns: bool = False,
     retired_tag_str: str = DEFAULT_RETIRED_TAG_STR,
+    held_tag_str: str = DEFAULT_HELD_TAG_STR,
+    in_use_tag_str: str = DEFAULT_IN_USE_TAG_STR,
+    done_tag_str: str = DEFAULT_DONE_TAG_STR,
+    available_tag_str: str = DEFAULT_AVAILABLE_TAG_STR,
 ) -> None:
     """Create & display audit report as at a particular time.
 
@@ -138,55 +207,51 @@ def audit_report(
         else:
             returns_by_colour[colour_code] += len(numbers)
 
-    NO_ITEM_STR = "  "  # what to show when there's no tag
+    # AUDIT_GRID_FULL_MARKERS (client_base_config.py) switches every grid
+    # below between two looks, uniformly (the "Tags held" grid included --
+    # its existence isn't gated by this flag, only its own cell style is):
+    #   True:  every cell shows a marker (retired/held/in-use/done/unused)
+    #          for whichever category isn't that grid's own, dimmed, so
+    #          the numbers -- what that grid is actually for -- stand out.
+    #   False: only retired shows (undimmed, as it always has); every
+    #          other non-home-category cell stays blank, exactly as
+    #          before this option existed.
+    full_markers = cfg.AUDIT_GRID_FULL_MARKERS
+    if full_markers:
+        markers = {
+            BikeTag.RETIRED: retired_tag_str,
+            BikeTag.HELD: held_tag_str,
+            BikeTag.IN_USE: in_use_tag_str,
+            BikeTag.DONE: done_tag_str,
+            BikeTag.UNUSED: available_tag_str,
+        }
+        other_style = k.DIM_STYLE
+    else:
+        markers = {BikeTag.RETIRED: retired_tag_str}
+        other_style = k.NORMAL_STYLE
+
+    if full_markers:
+        pr.iprint()
+        pr.iprint(
+            f"Key: '{retired_tag_str.strip()}'=retired  '{held_tag_str.strip()}'=held  "
+            f"'{in_use_tag_str.strip()}'=checked in  '{done_tag_str.strip()}'=checked out  "
+            f"'{available_tag_str.strip()}'=unused today",
+            style=k.NORMAL_STYLE,
+        )
+
+    # Bikes still onsite.
     pr.iprint()
-    # Bikes still; onsite
-    pr.iprint(
-        f"Bikes still onsite at {as_of_when.short}"
-        f" ({retired_tag_str} --> retired tag)",
-        style=k.SUBTITLE_STYLE,
-    )
-    for prefix in sorted(prefixes_on_hand.keys()):
-        numbers = prefixes_on_hand[prefix]
-        line = f"{prefix:3>} "
-        greatest_num = ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids)
-        if greatest_num is None:
-            continue
-        for i in range(
-            0, ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1
-        ):
-            if i in numbers:
-                s = f"{i:02d}"
-            elif TagID(f"{prefix}{i}") in day.retired_tagids:
-                s = retired_tag_str
-            else:
-                s = NO_ITEM_STR
-            line = f"{line} {s}"
-        pr.iprint(line)
-    if not prefixes_on_hand:
-        pr.iprint("-no bikes-")
+    onsite_header = f"Bikes still onsite at {as_of_when.short}"
+    if not full_markers:
+        onsite_header += f" ({retired_tag_str} --> retired tag)"
+    pr.iprint(onsite_header, style=k.SUBTITLE_STYLE)
+    _draw_tag_grid(day, prefixes_on_hand.keys(), as_of_when, BikeTag.IN_USE, markers, other_style)
 
     # Bikes returned out -- tags matrix.
     if include_returns:
         pr.iprint()
         pr.iprint(f"Tags potentially available for re-use ({len(tags_done)} tags)", style=k.SUBTITLE_STYLE)
-        for prefix in sorted(prefixes_returned_out.keys()):
-            numbers = prefixes_returned_out[prefix]
-            line = f"{prefix:3>} "
-            for i in range(
-                0,
-                ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids) + 1,
-            ):
-                if i in numbers:
-                    s = f"{i:02d}"
-                elif TagID(f"{prefix}{i}") in day.retired_tagids:
-                    s = retired_tag_str
-                else:
-                    s = NO_ITEM_STR
-                line = f"{line} {s}"
-            pr.iprint(line)
-        if not prefixes_returned_out:
-            pr.iprint("-no bikes-")
+        _draw_tag_grid(day, prefixes_returned_out.keys(), as_of_when, BikeTag.DONE, markers, other_style)
 
     # Held tags -- unavailable for reuse today, but not retired. Shown
     # only when there is at least one (an ordinary day's audit is
@@ -199,24 +264,10 @@ def audit_report(
         prefixes_held = ut.tagnums_by_prefix(held_tags)
         pr.iprint()
         pr.iprint(
-            f"Tags held, marked unavailable for (re)use today ({len(held_tags)} tags)",
+            f"Tags held, marked unavailable for (re-)use today ({len(held_tags)} tags)",
             style=k.SUBTITLE_STYLE,
         )
-        for prefix in sorted(prefixes_held.keys()):
-            numbers = prefixes_held[prefix]
-            line = f"{prefix:3>} "
-            greatest_num = ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids)
-            if greatest_num is None:
-                continue
-            for i in range(0, greatest_num + 1):
-                if i in numbers:
-                    s = f"{i:02d}"
-                elif TagID(f"{prefix}{i}") in day.retired_tagids:
-                    s = retired_tag_str
-                else:
-                    s = NO_ITEM_STR
-                line = f"{line} {s}"
-            pr.iprint(line)
+        _draw_tag_grid(day, prefixes_held.keys(), as_of_when, BikeTag.HELD, markers, other_style)
 
     # if include_notes:
     #     notes_bit(day)

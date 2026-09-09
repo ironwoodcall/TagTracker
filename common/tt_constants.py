@@ -91,6 +91,7 @@ WARNING_STYLE = "warn_style"
 ERROR_STYLE = "error_style"
 ALERT_STYLE = "alert_style"
 STRONG_ALERT_STYLE = "strong_alert_style"
+DIM_STYLE = "dim_style"
 
 
 def set_html_style():
@@ -110,6 +111,7 @@ def set_html_style():
         ALERT_STYLE: '<span style="color: white; background-color: blue; font-weight: bold;">',
         STRONG_ALERT_STYLE:
             '<span style="color: white; background-color: red; font-weight: bold;">',
+        DIM_STYLE: '<span style="color: grey; background-color: black;">',
     }
 
 
@@ -129,6 +131,12 @@ def set_terminal_style():
         ERROR_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}",
         ALERT_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.BLUE}",
         STRONG_ALERT_STYLE: f"{Style.BRIGHT}{Fore.WHITE}{Back.RED}",
+        # Grey, not dark blue, for now -- swap to f"{Fore.BLUE}{Back.BLACK}"
+        # if grey doesn't read well in practice. Deliberately no
+        # Style.BRIGHT/DIM on top of LIGHTBLACK_EX: colorama's DIM stacked
+        # on an already-dim colour risks becoming unreadable rather than
+        # just de-emphasized.
+        DIM_STYLE: f"{Fore.LIGHTBLACK_EX}{Back.BLACK}",
     }
 
 
