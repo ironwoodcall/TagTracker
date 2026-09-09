@@ -52,6 +52,11 @@ TOKEN_BIKE_VISITS = "bike_visits"
 TOKEN_REGULAR_TAGIDS = "regular_tagids"
 TOKEN_OVERSIZE_TAGIDS = "oversize_tagids"
 TOKEN_RETIRED_TAGIDS = "retired_tagids"
+# Unlike the tagid-type tokens above, held_tagids is not config-sourced --
+# see TrackerDay.tags_held() and docs/hold_tag_spec.md. Read defensively
+# (.get(..., [])) since datafiles written before this feature existed won't
+# have the key.
+TOKEN_HELD_TAGIDS = "held_tagids"
 TOKEN_NOTES = "notes"
 TOKEN_SITE_NAME = "site_name"
 TOKEN_SITE_HANDLE = "site_handle"
@@ -444,6 +449,18 @@ class TrackerDay:
                 else:
                     # The biketag not used yet, can change its type.
                     biketag.bike_type = conf_type
+
+        # A held tag must be UNUSED or DONE. This shouldn't happen from
+        # normal operation (hold()/unhold() already enforce it), but a
+        # hand-edited or stale datafile could produce it -- clear the flag
+        # rather than leave an inconsistent held+IN_USE/RETIRED tag.
+        for biketag in self.biketags.values():
+            if biketag.held and biketag.status not in {BikeTag.UNUSED, BikeTag.DONE}:
+                biketag.held = False
+                fixes += [
+                    f"Tag {biketag.tagid} held flag cleared (status is {biketag.status})."
+                ]
+
         return fixes
 
     def _swap_tagid_between_sets(self, tagid):
@@ -528,13 +545,33 @@ class TrackerDay:
             changed = True
         return changed
 
+    def hold_tag(self, tagid: TagID) -> bool:
+        """Mark tagid held. Returns True if a change occurred."""
+        biketag = self.biketags.get(tagid)
+        return bool(biketag) and biketag.hold()
+
+    def unhold_tag(self, tagid: TagID) -> bool:
+        """Release a held tagid. Returns True if a change occurred."""
+        biketag = self.biketags.get(tagid)
+        return bool(biketag) and biketag.unhold()
+
+    def tags_held(self) -> list[TagID]:
+        """List of tagids currently held.
+
+        Unlike retired_tagids, this is not a stored/config-sourced set --
+        it's derived from each BikeTag's own .held flag, which is what
+        gets persisted to and loaded from the datafile (see
+        _day_to_json_dict/_day_from_json_dict).
+        """
+        return [b.tagid for b in self.biketags.values() if b.held]
+
     def all_usable_tags(self) -> frozenset[TagID]:
         """Return set of all usable tags."""
         return frozenset(
             [
                 t.tagid
                 for t in self.biketags.values()
-                if (t.status and t.status != t.RETIRED)
+                if (t.status and t.status != t.RETIRED and not t.held)
             ]
         )
         ##return frozenset((self.regular_tagids | self.oversize_tagids) - self.retired_tagids)
@@ -631,6 +668,12 @@ class TrackerDay:
             if biketag.status == biketag.RETIRED:
                 if tag not in self.retired_tagids:
                     errors.append(f"Tag {tag} is RETIRED but not in retired list.")
+            elif biketag.held:
+                # Held tags are deliberately excluded from
+                # all_usable_tags() (see docs/hold_tag_spec.md); that's
+                # not a config inconsistency the way being unexpectedly
+                # absent from all_usable_tags() otherwise would be.
+                continue
             elif tag not in _allowed_tags:
                 errors.append(
                     f"Tag {tag} is status available but not so in config'd lists"
@@ -755,6 +798,7 @@ class TrackerDay:
             TOKEN_REGULAR_TAGIDS: sorted(list(self.regular_tagids)),
             TOKEN_OVERSIZE_TAGIDS: sorted(list(self.oversize_tagids)),
             TOKEN_RETIRED_TAGIDS: sorted(list(self.retired_tagids)),
+            TOKEN_HELD_TAGIDS: sorted(self.tags_held()),
             TOKEN_NOTES: self.notes.serialize(),
         }
 
@@ -824,6 +868,14 @@ class TrackerDay:
 
         # Initialize the biketags from the tagid lists
         day.initialize_biketags()
+
+        # Apply held flags (not config-sourced -- see TOKEN_HELD_TAGIDS).
+        # Read defensively: datafiles written before this feature existed
+        # won't have the key.
+        for maybetag in data.get(TOKEN_HELD_TAGIDS, []):
+            tagid = TagID(maybetag)
+            if tagid in day.biketags:
+                day.biketags[tagid].hold()
 
         # Add the visits, assuring sorted by ascending time_in
         # FIXME: set the biketag.status fields

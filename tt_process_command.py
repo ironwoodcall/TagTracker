@@ -46,6 +46,7 @@ import tt_audit_report as aud
 import tt_reports as rep
 import tt_tag_inv as inv
 import tt_retire
+import tt_hold
 import tt_undo
 
 # from tt_cmdparse import CmdBits
@@ -466,17 +467,24 @@ def query_command(day: TrackerDay, targets: list[TagID]) -> None:
     """Query one or more tags."""
     pr.iprint()
     for tagid in targets:
-        msgs = []
         if tagid not in day.biketags:
             msgs = [f"Tag {tagid} unknown."]
         else:
             biketag: BikeTag = day.biketags[tagid]
-            if biketag.status == biketag.UNUSED:
-                msgs = [f"Tag {tagid} not used yet today."]
-            elif biketag.status == biketag.RETIRED:
-                msgs = [f"Tag {tagid} is retired."]
+            msgs = []
+            # A held tag gets this note in addition to (not instead of)
+            # its real visit history, if any -- a held DONE tag's visit
+            # times are still genuinely useful information. A held UNUSED
+            # tag has no visits, so it naturally ends up with only this
+            # one line.
+            if biketag.held:
+                msgs.append(f"Tag {tagid} is held (not available for use today).")
+            if biketag.status == biketag.RETIRED:
+                msgs.append(f"Tag {tagid} is retired.")
+            elif biketag.status == biketag.UNUSED:
+                if not biketag.held:
+                    msgs.append(f"Tag {tagid} not used yet today.")
             else:
-                msgs = []
                 for i, visit in enumerate(biketag.visits, start=1):
                     visit: BikeVisit
                     msg = f"Tag {tagid} visit {i}: bike in at {visit.time_in.tidy}; "
@@ -747,6 +755,8 @@ def process_command(
         rep.fullness_graph(day=today, as_of_when=when)
     elif cmd == CmdKeys.CMD_HELP:
         tt_help.help_command(args)
+    elif cmd == CmdKeys.CMD_HOLD:
+        data_changed = tt_hold.hold(today=today, tags=args[0])
     elif cmd == CmdKeys.CMD_HOURS:
         data_changed = bits.confirm_hours(today=today)
     elif cmd == CmdKeys.CMD_LEFTOVERS:
@@ -803,6 +813,8 @@ def process_command(
         ##last_published = maybe_publish(last_published, force=True)
     elif cmd == CmdKeys.CMD_TAGS:
         inv.tags_config_report(today, args, False)
+    elif cmd == CmdKeys.CMD_UNHOLD:
+        data_changed = tt_hold.unhold(today=today, tags=args[0])
     elif cmd == CmdKeys.CMD_UNRETIRE:
         data_changed = tt_retire.unretire(today=today, tags=args[0])
     elif cmd in {CmdKeys.CMD_UPPERCASE, CmdKeys.CMD_LOWERCASE}:

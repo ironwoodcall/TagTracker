@@ -284,6 +284,10 @@ def _evaluate_tag(
 
 
 def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcome:
+    if biketag.held:
+        return TagOutcome(
+            tag, "is held; release it (UNHOLD) before retiring", k.WARNING_STYLE
+        )
     if biketag.status == BikeTag.RETIRED:
         if in_config:
             return TagOutcome(tag, "is already retired", k.ANSWER_STYLE)
@@ -326,6 +330,10 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
 
 
 def _evaluate_unretire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcome:
+    if biketag.held:
+        return TagOutcome(
+            tag, "is held; release it (UNHOLD) before unretiring", k.WARNING_STYLE
+        )
     if biketag.status == BikeTag.RETIRED:
         if in_config:
             return TagOutcome(

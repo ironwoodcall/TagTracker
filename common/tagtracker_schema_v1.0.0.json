@@ -72,6 +72,12 @@
           "type": "string"
         }
       },
+      "held_tagids": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
       "notes": {
         "type": "array",
         "items": {

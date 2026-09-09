@@ -254,15 +254,18 @@ def check_bike_time_reasonable(bike_time: VTime, day: TrackerDay) -> bool:
 def check_tagid_usable(tagid: TagID, today: TrackerDay) -> bool:
     """Checks if tagid is usable, error msg if not.
 
-    In this context, usable means REGULAR or OVERSIZE and
-    not RETIRED.
+    In this context, usable means REGULAR or OVERSIZE, not RETIRED, and
+    not currently HELD.
 
     Returns True if usable, False if not.
     """
     if tagid in today.all_usable_tags():
         return True
 
-    if tagid in today.retired_tagids:
+    biketag = today.biketags.get(tagid)
+    if biketag and biketag.held:
+        msg = f"Tag {tagid} is held."
+    elif tagid in today.retired_tagids:
         msg = f"Tag {tagid} is retired."
     else:
         msg = f"No tag '{tagid.original}' available today."

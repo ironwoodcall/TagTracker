@@ -49,6 +49,7 @@ To enter and change tracking data
   View/manage attendant notes   :  NOTE [DEACTIVATE|REACTIVATE|note text]
   View/set bike registrations   :  REGISTER [+n|-n|=n]
   Retire or unretire tags       :  RETIRE | UNRETIRE <tag(s)>
+  Hold or unhold tags           :  HOLD | UNHOLD <tag(s)>
 
 Information and reports
   Show info about one tag       :  QUERY <tag(s)>
@@ -379,6 +380,55 @@ Description:
 
   Use the RETIRE command to reverse this operation.
   Use the TAGS command to see a list of retired tags.
+""",
+
+    CmdKeys.CMD_HOLD: """
+Command: HOLD <tag(s)>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to mark held (unavailable for use today)
+
+Description:
+  Marks tag(s) as held: not available for check-in/out/edit/delete today,
+  but not retired either. For two situations:
+    - A bike was left in the lockup overnight; its tag is still on it, but
+      it isn't available for a new customer until it's picked up (or, in
+      any case, only until the day resets).
+    - A bike was checked in and out today (tag status DONE) but set aside
+      for the rest of the day (e.g. no kickstand) rather than returned to
+      circulation.
+
+  A tag can only be held from status UNUSED or DONE. A tag that is
+  checked in (IN_USE) must be checked out first; a retired tag cannot be
+  held.
+
+  Held tags show as 'Hd' in the TAGS and AUDIT reports, and 'held' in
+  QUERY. There is no automatic detection of held tags -- entering them is
+  manual, at the operator's discretion.
+
+  All held tags reset (are released) at the start of each new day; this
+  is not tracked in configuration the way RETIRE is.
+
+  Use the UNHOLD command to release a held tag.
+""",
+
+    CmdKeys.CMD_UNHOLD: """
+Command: UNHOLD <tag(s)>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to release from hold
+
+Description:
+  Releases previously held tag(s), making them available again (as
+  whatever they truthfully already were -- UNUSED or DONE).
+
+  Use the HOLD command to hold a tag; see 'help hold'.
 """,
 
     CmdKeys.CMD_MONITOR: """

@@ -188,6 +188,36 @@ def audit_report(
         if not prefixes_returned_out:
             pr.iprint("-no bikes-")
 
+    # Held tags -- unavailable for reuse today, but not retired. Shown
+    # only when there is at least one (an ordinary day's audit is
+    # unchanged), and independent of include_returns since this is core
+    # status information, not an optional detail. Note: HOLD/UNHOLD carry
+    # no timestamp, so unlike the rest of this report, this always
+    # reflects *current* held state, not state "as of" as_of_when.
+    held_tags = day.tags_held()
+    if held_tags:
+        prefixes_held = ut.tagnums_by_prefix(held_tags)
+        pr.iprint()
+        pr.iprint(
+            f"Tags held, marked unavailable for (re)use today ({len(held_tags)} tags)",
+            style=k.SUBTITLE_STYLE,
+        )
+        for prefix in sorted(prefixes_held.keys()):
+            numbers = prefixes_held[prefix]
+            line = f"{prefix:3>} "
+            greatest_num = ut.greatest_tagnum(prefix, day.regular_tagids, day.oversize_tagids)
+            if greatest_num is None:
+                continue
+            for i in range(0, greatest_num + 1):
+                if i in numbers:
+                    s = f"{i:02d}"
+                elif TagID(f"{prefix}{i}") in day.retired_tagids:
+                    s = retired_tag_str
+                else:
+                    s = NO_ITEM_STR
+                line = f"{line} {s}"
+            pr.iprint(line)
+
     # if include_notes:
     #     notes_bit(day)
 

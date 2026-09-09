@@ -53,6 +53,7 @@ TAG_INV_AVAILABLE = (" -", k.NORMAL_STYLE)
 TAG_INV_BIKE_IN = ("In", k.ANSWER_STYLE)
 TAG_INV_BIKE_OUT = ("Ou", k.PROMPT_STYLE)
 TAG_INV_RETIRED = ("Rt", k.WARNING_STYLE)
+TAG_INV_HELD = ("Hd", k.WARNING_STYLE)
 TAG_INV_ERROR = ("!?", k.ERROR_STYLE)
 
 
@@ -89,7 +90,8 @@ def tag_inventory_matrix(
         f"Key: '{TAG_INV_AVAILABLE[0]}'=Unused today; "
         f"'{TAG_INV_BIKE_IN[0]}'=Bike In; "
         f"'{TAG_INV_BIKE_OUT[0]}'=Bike Out (tag is reusable); "
-        f"'{TAG_INV_RETIRED[0]}'=Retired",
+        f"'{TAG_INV_RETIRED[0]}'=Retired; "
+        f"'{TAG_INV_HELD[0]}'=Held (unavailable for reuse today)",
         style=k.NORMAL_STYLE,
     )
     pr.iprint()
@@ -134,6 +136,8 @@ def tag_inventory_matrix(
                 tag_states.append(TAG_INV_BIKE_OUT)
             elif tag_status == this_biketag.RETIRED:
                 tag_states.append(TAG_INV_RETIRED)
+            elif tag_status == this_biketag.HELD:
+                tag_states.append(TAG_INV_HELD)
             else:
                 tag_states.append(TAG_INV_ERROR)
 

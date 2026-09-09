@@ -1,7 +1,7 @@
 # HOLD/UNHOLD: marking tags unavailable for reuse today — Design Spec
 
-Status: draft, not yet implemented. Written for review/edit before
-implementation begins (on a new branch, off `main`). Originates from a
+Status: implemented on `feat/594/hold-unhold`, verified via
+`helpers/test_hold.py`. Not yet committed/merged. Originates from a
 GitHub issue asking for a way to mark tags "in a state that reports as
 neither in nor out nor retired nor unused," and extended during design
 review to cover a second use case (see "Two use cases" below).
@@ -321,7 +321,7 @@ work, not required for this feature.
   *current* held state regardless of what time the audit report is run
   for. Worth a one-line caveat in the report/help text so a
   `audit 09:00` run late in the day doesn't look like it's misreporting.
-- **`query`** ([tt_reports.py:465](../tt_reports.py#L465)): can't be a
+- **`query`** ([tt_process_command.py:466](../tt_process_command.py#L466)): can't be a
   simple additional `elif` in the existing mutually-exclusive
   `UNUSED`/`RETIRED`/"show visits" chain, because a held `DONE` tag needs
   **both** a "this tag is held" note **and** its real visit history (when
@@ -388,7 +388,9 @@ included individually, same as `in`/`out` are. Give `build_label()`
 9. Report changes: `TAG_INV_HELD` + key line in
    [tt_tag_inv.py](../tt_tag_inv.py); new held-tags grid/section (with the
    as-of-time caveat) in [tt_audit_report.py](../tt_audit_report.py);
-   restructured `query` branch in [tt_reports.py](../tt_reports.py).
+   restructured `query_command()` in
+   [tt_process_command.py](../tt_process_command.py) (query_command lives
+   there, not in tt_reports.py -- corrected during implementation).
 10. Undo/redo wiring: add `CMD_HOLD`/`CMD_UNHOLD` to
     `TAG_UNDOABLE_COMMANDS`, label support in `build_label()`
     ([tt_undo.py](../tt_undo.py)).

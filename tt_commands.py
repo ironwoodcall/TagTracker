@@ -107,6 +107,7 @@ class CmdKeys:
     CMD_DATAFORM = "DATAFORM"
     CMD_FULL_CHART = "FULLNESS_CHART"
     CMD_HELP = "HELP"
+    CMD_HOLD = "HOLD"
     CMD_HOURS = "HOURS"
     CMD_LEADERBOARD = "LEADERBOARD"
     CMD_LEFTOVERS = "LEFTOVERS"
@@ -123,6 +124,7 @@ class CmdKeys:
     CMD_STATS = "STATS"
     CMD_TAGS = "TAGS"
     CMD_UNDO = "UNDO"
+    CMD_UNHOLD = "UNHOLD"
     CMD_UNRETIRE = "UNRETIRE"
     CMD_UPPERCASE = "UPPERCASE"
     CMD_VERSION = "VERSION"
@@ -259,9 +261,15 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_HELP: CmdConfig(
-        invoke=["help", "h"],
+        invoke=["help"],
         arg_configs=[
             ArgConfig(ARG_TOKEN, optional=True),
+        ],
+    ),
+    CmdKeys.CMD_HOLD: CmdConfig(
+        invoke=["hold"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Hold what tag(s)? "),
         ],
     ),
     CmdKeys.CMD_HOURS: CmdConfig(invoke=["hours", "hour", "open"]),
@@ -270,7 +278,7 @@ COMMANDS = {
         invoke=["max", "m", "maximum", "maximums"],
         arg_configs=[ArgConfig(ARG_TOKEN, optional=True)],
     ),
-    CmdKeys.CMD_LEFTOVERS: CmdConfig(invoke=["leftovers", "leftover","left","l"]),
+    CmdKeys.CMD_LEFTOVERS: CmdConfig(invoke=["left", "l"]),
     CmdKeys.CMD_LOWERCASE: CmdConfig(invoke=["lc", "lowercase"]),
     CmdKeys.CMD_MONITOR: CmdConfig(
         invoke=["monitor", "mon"],
@@ -325,7 +333,13 @@ COMMANDS = {
         ],
     ),
     # Reverses the single most recent tag-mutating command. See tt_undo.py.
-    CmdKeys.CMD_UNDO: CmdConfig(invoke=["undo", "u", "un"]),
+    CmdKeys.CMD_UNDO: CmdConfig(invoke=["undo", "u"]),
+    CmdKeys.CMD_UNHOLD: CmdConfig(
+        invoke=["unhold", "unh"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Unhold (release) what tag(s)? "),
+        ],
+    ),
     CmdKeys.CMD_UNRETIRE: CmdConfig(
         invoke=["unretire","unret"],
         arg_configs=[
@@ -344,6 +358,37 @@ def find_command(command_invocation):
         if conf.matches(command_invocation.lower()):
             return command
     return ""
+
+
+def _suggest_commands(word: str) -> list[str]:
+    """Return canonical command names (invoke[0]) that 'word' could be a
+    (stemmed/abbreviated) start of, e.g. 'reti' -> ['retire'].
+
+    Used only to build a "Did you mean...?" hint for an otherwise
+    unrecognized word -- it doesn't change what gets executed, so it can't
+    introduce the kind of silent-misfire ambiguity the parser otherwise
+    guards against (see docs/to-do.txt item C7).
+    """
+    word = word.lower()
+    if not word:
+        return []
+    suggestions = []
+    for conf in COMMANDS.values():
+        canonical = conf.invoke[0]
+        if canonical.startswith(word) and canonical not in suggestions:
+            suggestions.append(canonical)
+    return suggestions
+
+
+def _did_you_mean(word: str) -> str:
+    """Return a "Did you mean...?" hint string for 'word', or "" if none."""
+    suggestions = _suggest_commands(word)
+    if not suggestions:
+        return ""
+    quoted = [f"'{s}'" for s in suggestions]
+    if len(quoted) == 1:
+        return f" Did you mean {quoted[0]}?"
+    return f" Did you mean {', '.join(quoted[:-1])}, or {quoted[-1]}?"
 
 def tags_arg(cmd_keyword) -> int:
     """Returns which arg for cmd_keyword is an ARG_TAGS, or None."""
@@ -514,8 +559,10 @@ def _parse_user_command(user_str: str) -> ParsedCommand:
     # What command is this?
     what_command = find_command(parts[0])
     if not what_command:
+        hint = _did_you_mean(parts[0])
         return ParsedCommand(
-            status=PARSED_ERROR, message="Unrecognized command. Enter 'help' for help."
+            status=PARSED_ERROR,
+            message=f"Unrecognized command.{hint} Enter 'help' for help.",
         )
     cmd_config = COMMANDS[what_command]
     arg_parts = parts[1:]  # These are the potential arguments
