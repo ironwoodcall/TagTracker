@@ -53,7 +53,7 @@ TAG_INV_AVAILABLE = (" -", k.NORMAL_STYLE)
 TAG_INV_BIKE_IN = ("In", k.ANSWER_STYLE)
 TAG_INV_BIKE_OUT = ("Ou", k.PROMPT_STYLE)
 TAG_INV_RETIRED = ("Rt", k.WARNING_STYLE)
-TAG_INV_HELD = ("Hd", k.WARNING_STYLE)
+TAG_INV_HELD = ("Su", k.WARNING_STYLE)  # displayed as "suspended" -- see docs/hold_tag_spec.md
 TAG_INV_ERROR = ("!?", k.ERROR_STYLE)
 
 
@@ -94,7 +94,7 @@ def tag_inventory_matrix(
     )
     pr.iprint(
         f"     '{TAG_INV_RETIRED[0]}'=Retired; "
-        f"'{TAG_INV_HELD[0]}'=Held (not available for reuse today)",
+        f"'{TAG_INV_HELD[0]}'=Suspended (not available for reuse today)",
         style=k.NORMAL_STYLE,
     )
     pr.iprint()

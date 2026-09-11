@@ -478,7 +478,7 @@ def query_command(day: TrackerDay, targets: list[TagID]) -> None:
             # tag has no visits, so it naturally ends up with only this
             # one line.
             if biketag.held:
-                msgs.append(f"Tag {tagid} is held (not available for use today).")
+                msgs.append(f"Tag {tagid} is suspended (not available for use today).")
             if biketag.status == biketag.RETIRED:
                 msgs.append(f"Tag {tagid} is retired.")
             elif biketag.status == biketag.UNUSED:

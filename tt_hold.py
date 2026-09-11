@@ -104,25 +104,25 @@ def _evaluate_tag(tag: TagID, today: TrackerDay, mode: str) -> _TagOutcome:
 
 def _evaluate_hold(tag: TagID, biketag: BikeTag, today: TrackerDay) -> _TagOutcome:
     if biketag.held:
-        return _TagOutcome(tag, "is already held", k.ANSWER_STYLE)
+        return _TagOutcome(tag, "is already suspended", k.ANSWER_STYLE)
     if biketag.status == BikeTag.RETIRED:
-        return _TagOutcome(tag, "is retired; cannot be held", k.WARNING_STYLE)
+        return _TagOutcome(tag, "is retired; cannot be suspended", k.WARNING_STYLE)
     if biketag.status == BikeTag.IN_USE:
         return _TagOutcome(
-            tag, "is checked in; check it out before holding", k.WARNING_STYLE
+            tag, "is checked in; check it out before suspending", k.WARNING_STYLE
         )
     if biketag.status not in {BikeTag.UNUSED, BikeTag.DONE}:
         return _TagOutcome(
-            tag, f"cannot be held (status {biketag.status})", k.WARNING_STYLE
+            tag, f"cannot be suspended (status {biketag.status})", k.WARNING_STYLE
         )
     if today.hold_tag(tag):
-        return _TagOutcome(tag, "is now held", k.ANSWER_STYLE, changed=True)
-    return _TagOutcome(tag, "could not be held", k.WARNING_STYLE)
+        return _TagOutcome(tag, "is now suspended", k.ANSWER_STYLE, changed=True)
+    return _TagOutcome(tag, "could not be suspended", k.WARNING_STYLE)
 
 
 def _evaluate_unhold(tag: TagID, biketag: BikeTag, today: TrackerDay) -> _TagOutcome:
     if not biketag.held:
-        return _TagOutcome(tag, "is not held", k.ANSWER_STYLE)
+        return _TagOutcome(tag, "is not suspended", k.ANSWER_STYLE)
     if today.unhold_tag(tag):
-        return _TagOutcome(tag, "is no longer held", k.ANSWER_STYLE, changed=True)
-    return _TagOutcome(tag, "could not be released", k.WARNING_STYLE)
+        return _TagOutcome(tag, "is no longer suspended", k.ANSWER_STYLE, changed=True)
+    return _TagOutcome(tag, "could not be unsuspended", k.WARNING_STYLE)

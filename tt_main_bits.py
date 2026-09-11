@@ -264,7 +264,7 @@ def check_tagid_usable(tagid: TagID, today: TrackerDay) -> bool:
 
     biketag = today.biketags.get(tagid)
     if biketag and biketag.held:
-        msg = f"Tag {tagid} is held."
+        msg = f"Tag {tagid} is suspended."
     elif tagid in today.retired_tagids:
         msg = f"Tag {tagid} is retired."
     else:

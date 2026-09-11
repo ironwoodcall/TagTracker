@@ -266,10 +266,13 @@ COMMANDS = {
             ArgConfig(ARG_TOKEN, optional=True),
         ],
     ),
+    # CmdKeys.CMD_HOLD is invoked as SUSPEND -- see docs/hold_tag_spec.md
+    # for why the internal name didn't follow (kept scoped to
+    # user-facing wording/invocation, same precedent as the LEFT rename).
     CmdKeys.CMD_HOLD: CmdConfig(
-        invoke=["hold"],
+        invoke=["suspend", "sus", "s"],
         arg_configs=[
-            ArgConfig(ARG_TAGS, optional=False, prompt="Hold what tag(s)? "),
+            ArgConfig(ARG_TAGS, optional=False, prompt="Suspend what tag(s)? "),
         ],
     ),
     CmdKeys.CMD_HOURS: CmdConfig(invoke=["hours", "hour", "open"]),
@@ -321,7 +324,8 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_STATS: CmdConfig(
-        invoke=["statistics", "stat", "stats", "s"],
+        # "s" moved to SUSPEND -- stats now needs at least "stat".
+        invoke=["statistics", "stat", "stats"],
         arg_configs=[
             ArgConfig(ARG_TIME, optional=True),
         ],
@@ -335,9 +339,9 @@ COMMANDS = {
     # Reverses the single most recent tag-mutating command. See tt_undo.py.
     CmdKeys.CMD_UNDO: CmdConfig(invoke=["undo", "u"]),
     CmdKeys.CMD_UNHOLD: CmdConfig(
-        invoke=["unhold", "unh"],
+        invoke=["unsuspend", "unsus", "uns"],
         arg_configs=[
-            ArgConfig(ARG_TAGS, optional=False, prompt="Unhold (release) what tag(s)? "),
+            ArgConfig(ARG_TAGS, optional=False, prompt="Unsuspend (release) what tag(s)? "),
         ],
     ),
     CmdKeys.CMD_UNRETIRE: CmdConfig(

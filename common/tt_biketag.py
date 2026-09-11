@@ -131,7 +131,7 @@ class BikeTag:
             # Checked in addition to (not instead of) the status checks
             # below, since a held tag's true status may be DONE -- which
             # would otherwise be perfectly eligible for reuse.
-            return f"Tag {self.tagid} is held."
+            return f"Tag {self.tagid} is suspended."
         if self.status not in {self.UNUSED, self.IN_USE, self.DONE}:
             return f"PROBLEM: tag {self.tagid} has unknown status {self.status}!"
         if new_check_in:

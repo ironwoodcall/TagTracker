@@ -458,7 +458,7 @@ class TrackerDay:
             if biketag.held and biketag.status not in {BikeTag.UNUSED, BikeTag.DONE}:
                 biketag.held = False
                 fixes += [
-                    f"Tag {biketag.tagid} held flag cleared (status is {biketag.status})."
+                    f"Tag {biketag.tagid} is no longer suspended (status is {biketag.status})."
                 ]
 
         return fixes

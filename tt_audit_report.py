@@ -233,7 +233,7 @@ def audit_report(
     if full_markers:
         pr.iprint()
         pr.iprint(
-            f"Key: '{retired_tag_str.strip()}'=retired  '{held_tag_str.strip()}'=held  "
+            f"Key: '{retired_tag_str.strip()}'=retired  '{held_tag_str.strip()}'=suspended  "
             f"'{in_use_tag_str.strip()}'=checked in  '{done_tag_str.strip()}'=checked out  "
             f"'{available_tag_str.strip()}'=unused today",
             style=k.NORMAL_STYLE,
@@ -264,7 +264,7 @@ def audit_report(
         prefixes_held = ut.tagnums_by_prefix(held_tags)
         pr.iprint()
         pr.iprint(
-            f"Tags held, marked unavailable for (re-)use today ({len(held_tags)} tags)",
+            f"Tags suspended, marked unavailable for (re-)use today ({len(held_tags)} tags)",
             style=k.SUBTITLE_STYLE,
         )
         _draw_tag_grid(day, prefixes_held.keys(), as_of_when, BikeTag.HELD, markers, other_style)
