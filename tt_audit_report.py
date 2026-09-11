@@ -264,7 +264,7 @@ def audit_report(
         prefixes_held = ut.tagnums_by_prefix(held_tags)
         pr.iprint()
         pr.iprint(
-            f"Tags suspended, marked unavailable for (re-)use today ({len(held_tags)} tags)",
+            f"Tags suspended, marked unavailable until tomorrow ({len(held_tags)} tags)",
             style=k.SUBTITLE_STYLE,
         )
         _draw_tag_grid(day, prefixes_held.keys(), as_of_when, BikeTag.HELD, markers, other_style)
