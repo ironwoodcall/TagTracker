@@ -408,6 +408,126 @@ included individually, same as `in`/`out` are. Give `build_label()`
   "reflects current state, not as-of-time" caveat for audit's held
   section.
 
+## Follow-on idea: pre-marking a hold while still checked in (not yet implemented, discussed only)
+
+**Use case.** A bike comes in and gets tagged, then the operator realizes
+it has to be leaned against the fence (or otherwise set aside) rather
+than racked normally. Right now `hold` can't be used yet — the tag is
+`IN_USE`, and `hold()` only accepts `UNUSED`/`DONE`. The operator wants to
+mark it *now*, while it's still checked in, so that the moment it's
+checked out it goes straight to `HELD` instead of briefly becoming a
+normal, reusable `DONE` tag.
+
+**A second, orthogonal flag: `BikeTag.pending_hold: bool = False`.**
+`held` can't be set while `IN_USE` — that's load-bearing (it's what keeps
+`status` untouched and truthful). So "mark this for hold" while checked
+in needs its own flag, meaningful only while `status == IN_USE`.
+
+**Trigger point: `BikeTag.finish_visit()`.** This is the one place a
+visit's status flips `IN_USE → DONE`. Add: if `pending_hold`, clear it
+and call `hold()` (equivalently, just set `held = True` directly) in the
+same breath that `status` becomes `DONE`. One flag, one check, one
+existing choke point — no new call sites needed anywhere check-out
+already happens (`check_out`, `edit_out`, `flip`'s checkout leg).
+
+**Same verbs, extended eligibility.** `hold`/`unhold` reused, not new
+commands. `hold()`'s eligible-status set grows to
+`{UNUSED, DONE, IN_USE}`:
+- `UNUSED`/`DONE`: unchanged, holds immediately.
+- `IN_USE`: sets `pending_hold = True` instead of `held`; message
+  differs ("will be held when checked out", not "is now held").
+`unhold()` on a still-`IN_USE`, pending tag just clears `pending_hold`
+("hold cancelled" — distinct message, since nothing was ever actually
+held).
+
+**Open interaction: `flip`.** `flip` is checkout-then-immediate-checkin
+on the same tag. If a pending-hold tag gets flipped, `finish_visit()`
+would set `held = True` at the checkout instant, and the very next
+`check_in()` call would then refuse it (`_test_time_in()` blocks a held
+tag). Two ways to resolve, not decided here:
+1. `flip` clears a pending hold rather than honoring it (rationale: a
+   flip's whole point is "keep this tag in active service," which is in
+   tension with the operator's stated intent to set it aside).
+2. `finish_visit()`'s auto-conversion only fires for a "real" checkout,
+   with `flip` exempted somehow (messier — `finish_visit()` has no
+   inherent notion of "this checkout is part of a flip").
+
+Leaning toward (1), but flagging rather than deciding.
+
+**Visibility, per discussion:**
+- `tags` command: invisible. A pending-hold tag shows exactly as any
+  other `In` tag; no marker.
+- `audit`: invisible in the top ("still onsite") and middle ("available
+  for re-use") grids too — it's `IN_USE`, so it shows there as an
+  ordinary numbered/marked cell like any other checked-in tag, same as
+  today. The **held grid** gets an *additional, redundant* entry for it
+  — the tag shows up there too (even though it isn't really `HELD` yet),
+  parenthesized to mark it as pending rather than actual.
+
+  This needs two mechanical changes, both scoped to the held grid only
+  (not `TrackerDay.tags_held()` itself, which must stay pending-hold-free
+  — `all_usable_tags()`, `check_tagid_usable()`, and the retire/unretire
+  guards must keep treating a pending tag as a completely normal in-use
+  tag until it actually converts):
+  - A new `TrackerDay.tags_pending_hold()` (mirrors `tags_held()`,
+    filters on `.pending_hold` instead of `.held`), used only by
+    `audit_report()` to widen the held grid's *row* selection to
+    `tags_held() | tags_pending_hold()` — so a prefix whose only
+    "held-adjacent" tag is a pending one still gets a row.
+  - `_draw_tag_grid()` needs an escape hatch for the held grid's *cell*
+    rendering: a pending tag's `status_as_at()` is `IN_USE`, not `HELD`,
+    so today's category-vs-`home_category` logic would render it as the
+    ordinary `<` marker. The held-grid call would need to pass the set of
+    pending tagids so the loop can override to the parenthesized-number
+    form for those specific cells, regardless of category.
+
+  **Open formatting problem, not resolved here:** every grid cell is a
+  strict 2-character field (matching two-digit tag numbers 00-15), with
+  1 separating space between cells — that's the whole basis for the
+  column-alignment work earlier in this doc. A literal `"(03)"` is 4
+  characters — doesn't fit. Candidate resolutions, undecided:
+  1. Accept a local ripple: render it at its natural width and let the
+     rest of that one row shift right of the header index line. Probably
+     rare enough (few pending holds at once) to be tolerable, but genuinely
+     breaks alignment for anything after it in that row.
+  2. Drop the literal parens; convey "pending, not actual" via style
+     alone (e.g. the number printed in `k.DIM_STYLE`, plain 2-char width,
+     documented in the key) — keeps alignment perfect, doesn't literally
+     match "parenthesized."
+  3. Widen *every* cell in *every* grid by one character globally, so a
+     4-char parenthesized entry always fits — safe, but changes the
+     established width/density of the whole grid for what should be a
+     rare case.
+
+**Persistence: yes, across restarts** (per discussion — same reasoning
+as `held_tagids`: a mid-day crash/restart shouldn't lose the operator's
+intent). New JSON key, e.g. `TOKEN_PENDING_HOLD_TAGIDS =
+"pending_hold_tagids"`, written from `tags_pending_hold()`. **Load
+ordering matters and is subtle**: it must be applied strictly *after*
+all of a day's historical visits are reconstructed (`start_visit`/
+`finish_visit` calls in `_day_from_json_dict()`), via direct field
+assignment (`biketag.pending_hold = True`), never by re-invoking
+`finish_visit()` or any hold-related method. Reason: `finish_visit()` is
+also what runs during load to reconstruct every already-completed
+historical visit; if `pending_hold` were applied *before* that
+reconstruction loop, a tag whose historical visit is already closed
+would spuriously trigger the auto-hold-on-checkout conversion on every
+single reload — converting it to `HELD` every time the file loads, which
+is wrong. In a consistent file this shouldn't arise anyway (a tag's
+`pending_hold` should only ever coexist with it currently being
+`IN_USE`, since the conversion is synchronous at the moment of a live
+check-out), but the load order needs to guarantee it regardless. Add a
+`harmonize_biketags()`-style reconciliation guard mirroring the existing
+`held`-flag one: if a loaded tag has `pending_hold` but its reconstructed
+status isn't `IN_USE`, clear it and report a fix message.
+
+**Undo/redo needs to know about the new field too** — same class of bug
+already caught and fixed for `held` itself: `tt_undo._clone_biketag()`
+and `_state_key()` would need `pending_hold` added alongside `status`/
+`held`/`visits`, or marking (or cancelling) a pending hold — which
+touches neither `status` nor `held` — would be invisible to undo's
+change-detection, exactly the bug `held` had before that fix.
+
 ## Task list
 
 1. `BikeTag.held` field + `hold()`/`unhold()` methods +
