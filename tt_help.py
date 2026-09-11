@@ -57,7 +57,7 @@ Information and reports
   Show audit info               :  AUDIT [time]
   Show times for leftovers      :  LEFT
   Estimate further bikes today  :  ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE]
-  Show tag configurations       :  TAGS
+  Show tag configurations       :  TAGS [VERBOSE|FULL]
   Show day-end stats report     :  STATS [time]
   Graph busy- and fullness      :  GRAPH
   Show chart of all activity    :  CHART
@@ -66,7 +66,7 @@ Information and reports
 Other
   Help with commands            :  HELP [command]
   Set tags to UPPER/LOWER CASE  :  UPPERCASE | UC | LOWERCASE | LC
-  Display internal data dump    :  DUMP [VERBOSE|V]
+  Display internal data dump    :  DUMP [VERBOSE|FULL]
   Emit debug breadcrumbs        :  DEBUG <ON|OFF>
   Suppress internet alerts      :  MONITOR <OFF|ON>
   Show program version          :  VERSION

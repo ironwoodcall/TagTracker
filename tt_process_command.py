@@ -63,6 +63,11 @@ from tt_sounds import NoiseMaker
 import tt_main_bits as bits
 from tt_internet_monitor import InternetMonitorController
 
+# Canonical "verbose/full" keyword set accepted by commands with a
+# verbose-style optional argument (DUMP, ESTIMATE, TAGS). Compare against
+# the upper-cased, stripped token.
+VERBOSE_TOKENS = {"FULL", "VERBOSE", "F", "V"}
+
 
 def _ensure_resolved_time(args: list) -> list:
     """Return args with a concrete resolved time in position 1.
@@ -558,15 +563,15 @@ def dump_data_command(today: TrackerDay, args: list):
 
     on entry:
         today is TrackerDay object of this day's data
-        args[0] if present might be the string 'verbose'
+        args[0] if present might be 'verbose'/'full' (or a short form)
     """
 
     verbose = False
 
     if args:
-        choice = str(args[0]).strip().lower()
-        if choice not in {"verbose", "v"}:
-            pr.iprint(f"Unknown parameter '{args[0]}'\nDUMP [verbose]")
+        choice = str(args[0]).strip().upper()
+        if choice not in VERBOSE_TOKENS:
+            pr.iprint(f"Unknown parameter '{args[0]}'\nDUMP [VERBOSE|FULL]")
             return
         verbose = True
 
@@ -581,6 +586,21 @@ def dump_data_command(today: TrackerDay, args: list):
         pr.iprint("DaySummary (verbose):", num_indents=0, style=k.ERROR_STYLE)
         for line in str(DaySummary(today)).splitlines():
             pr.iprint(line)
+
+
+def tags_command(today: TrackerDay, args: list) -> None:
+    """Show the tag configuration/status report.
+
+    on entry:
+        args[0] if present might be 'verbose'/'full' (or a short form),
+        requesting rows for all configured tags rather than just the
+        ones used today.
+    """
+    choice = str(args[0]).strip().upper() if args and args[0] else ""
+    if choice and choice not in VERBOSE_TOKENS:
+        pr.iprint(f"Unrecognized TAGS parameter '{args[0]}'\nTAGS [VERBOSE|FULL]")
+        return
+    inv.tags_config_report(today, full=bool(choice))
 
 
 def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
@@ -599,12 +619,12 @@ def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
     #   LEGACY|OLD -> legacy estimator
     #   FULL|VERBOSE -> verbose output
     choice = (args[0].strip().upper() if args else "") if args else ""
-    allowed = {"", "STANDARD", "FULL", "F", "VERBOSE", "V", "VER", "SCHEDULE", "QUICK"}
+    allowed = {"", "STANDARD", "SCHEDULE", "QUICK"} | VERBOSE_TOKENS
     if args and choice not in allowed:
         pr.iprint(f"Unrecognized ESTIMATE parameter '{args[0]}'", style=k.WARNING_STYLE)
         return
     estimation_type = "standard"
-    if choice in {"FULL", "VERBOSE", "F", "VER", "V"}:
+    if choice in VERBOSE_TOKENS:
         estimation_type = "verbose"
     elif choice in {"SCHEDULE", "QUICK"}:
         estimation_type = choice.lower()
@@ -812,7 +832,7 @@ def process_command(
         publishment.publish(day=today)
         ##last_published = maybe_publish(last_published, force=True)
     elif cmd == CmdKeys.CMD_TAGS:
-        inv.tags_config_report(today, args, False)
+        tags_command(today=today, args=args)
     elif cmd == CmdKeys.CMD_UNHOLD:
         data_changed = tt_hold.unhold(today=today, tags=args[0])
     elif cmd == CmdKeys.CMD_UNRETIRE:

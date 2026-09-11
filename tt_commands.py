@@ -333,7 +333,9 @@ COMMANDS = {
     CmdKeys.CMD_TAGS: CmdConfig(
         invoke=["tags", "tag", "t"],
         arg_configs=[
-            ArgConfig(ARG_TIME, optional=True),
+            # Optional mode selector: VERBOSE/FULL shows all configured
+            # tags, not just tags used today.
+            ArgConfig(ARG_TOKEN, optional=True),
         ],
     ),
     # Reverses the single most recent tag-mutating command. See tt_undo.py.

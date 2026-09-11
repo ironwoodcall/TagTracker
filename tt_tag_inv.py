@@ -178,16 +178,14 @@ def retired_report(day: TrackerDay) -> None:
     # ut.line_wrapper(retireds_str, print_handler=pr.iprint)
 
 
-def tags_config_report(
-    day: TrackerDay, args: list, include_empty_groups: bool = True
-) -> None:
-    """Report the current tags configuration."""
-    as_of_when = VTime((args and args[0]) or "now")
-    if not as_of_when:
-        pr.iprint(f"Unrecognized time {as_of_when.original}", style=k.WARNING_STYLE)
-        return
+def tags_config_report(day: TrackerDay, full: bool = False) -> None:
+    """Report the current tags configuration.
+
+    If full, include rows for every configured tag, not just tags used
+    today (the default).
+    """
     pr.iprint()
     pr.iprint("Current tags configuration", style=k.TITLE_STYLE)
     # colours_report(day)
     retired_report(day)
-    tag_inventory_matrix(day, as_of_when, include_empty_groups=include_empty_groups)
+    tag_inventory_matrix(day, include_empty_groups=full)
