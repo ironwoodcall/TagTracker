@@ -116,7 +116,12 @@ def _evaluate_hold(tag: TagID, biketag: BikeTag, today: TrackerDay) -> _TagOutco
             tag, f"cannot be suspended (status {biketag.status})", k.WARNING_STYLE
         )
     if today.hold_tag(tag):
-        return _TagOutcome(tag, "is now suspended", k.ANSWER_STYLE, changed=True)
+        return _TagOutcome(
+            tag,
+            "is suspended (marked as unavailable until tomorrow)",
+            k.ANSWER_STYLE,
+            changed=True,
+        )
     return _TagOutcome(tag, "could not be suspended", k.WARNING_STYLE)
 
 

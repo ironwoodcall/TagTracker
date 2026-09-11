@@ -512,6 +512,13 @@ class TrackerDay:
     def retire_tag(self, tagid: TagID) -> bool:
         """Add tagid to today's retired set and mark BikeTag retired.
 
+        Retiring supersedes suspension: a suspended tag being retired is
+        no longer merely "temporarily unavailable," it's gone for good,
+        so any pending suspension is cleared here rather than left to
+        coexist with RETIRED -- which would make a later UNSUSPEND
+        misleadingly imply the tag is usable again, when it's still
+        retired underneath.
+
         Returns True if a change occurred.
         """
         biketag = self.biketags.get(tagid)
@@ -525,6 +532,9 @@ class TrackerDay:
             changed = True
         if biketag.status != BikeTag.RETIRED:
             biketag.status = BikeTag.RETIRED
+            changed = True
+        if biketag.held:
+            biketag.held = False
             changed = True
         return changed
 

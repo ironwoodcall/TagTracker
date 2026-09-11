@@ -284,10 +284,9 @@ def _evaluate_tag(
 
 
 def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcome:
-    if biketag.held:
-        return TagOutcome(
-            tag, "is suspended; release it (UNSUSPEND) before retiring", k.WARNING_STYLE
-        )
+    # A suspended tag CAN be retired -- retiring supersedes suspension
+    # (permanent, not temporary), so TrackerDay.retire_tag() clears
+    # .held as part of applying it. No guard needed here.
     if biketag.status == BikeTag.RETIRED:
         if in_config:
             return TagOutcome(tag, "is already retired", k.ANSWER_STYLE)
@@ -318,6 +317,16 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
             tag,
             "will be marked for retirement starting tomorrow (already used today)",
             k.ANSWER_STYLE,
+            add_to_config=True,
+        )
+    if biketag.held:
+        # Retiring supersedes suspension outright -- say so, so it's
+        # clear the suspension isn't lingering underneath the retirement.
+        return TagOutcome(
+            tag,
+            "was suspended; will be retired instead",
+            k.ANSWER_STYLE,
+            retire_today=True,
             add_to_config=True,
         )
     return TagOutcome(
