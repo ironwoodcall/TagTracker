@@ -89,9 +89,12 @@ def tag_inventory_matrix(
     pr.iprint(
         f"Key: '{TAG_INV_AVAILABLE[0]}'=Unused today; "
         f"'{TAG_INV_BIKE_IN[0]}'=Bike In; "
-        f"'{TAG_INV_BIKE_OUT[0]}'=Bike Out (tag is reusable); "
-        f"'{TAG_INV_RETIRED[0]}'=Retired; "
-        f"'{TAG_INV_HELD[0]}'=Held (unavailable for reuse today)",
+        f"'{TAG_INV_BIKE_OUT[0]}'=Bike Out; ",
+        style=k.NORMAL_STYLE,
+    )
+    pr.iprint(
+        f"     '{TAG_INV_RETIRED[0]}'=Retired; "
+        f"'{TAG_INV_HELD[0]}'=Held (not available for reuse today)",
         style=k.NORMAL_STYLE,
     )
     pr.iprint()
