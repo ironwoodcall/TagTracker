@@ -105,7 +105,6 @@ class CmdKeys:
     CMD_ESTIMATE = "ESTIMATE"
     CMD_EXIT = "EXIT"
     CMD_DATAFORM = "DATAFORM"
-    CMD_FULL_CHART = "FULLNESS_CHART"
     CMD_HELP = "HELP"
     CMD_HOLD = "HOLD"
     CMD_HOURS = "HOURS"
@@ -194,14 +193,8 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
-    # CmdKeys.CMD_BUSY: CmdConfig(
-    #     invoke=["busy", "b"],
-    #     arg_configs=[
-    #         ArgConfig(ARG_TIME, optional=True),
-    #     ],
-    # ),
     CmdKeys.CMD_GRAPHS: CmdConfig(
-        invoke=["graph","graphs","g","busy-chart", "busy-graph","full-graph","full-chart"],
+        invoke=["graph","g"],
         arg_configs=[
             ArgConfig(ARG_TIME, optional=True),
         ],
@@ -254,12 +247,6 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_EXIT: CmdConfig(invoke=["exit", "ex", "x"]),
-    CmdKeys.CMD_FULL_CHART: CmdConfig(
-        invoke=["fullness-chart", "full-chart", "fullness_chart", "full_chart"],
-        arg_configs=[
-            ArgConfig(ARG_TIME, optional=True),
-        ],
-    ),
     CmdKeys.CMD_HELP: CmdConfig(
         invoke=["help"],
         arg_configs=[

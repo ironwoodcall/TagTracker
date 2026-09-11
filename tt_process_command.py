@@ -69,6 +69,11 @@ from tt_internet_monitor import InternetMonitorController
 VERBOSE_TOKENS = {"FULL", "VERBOSE", "F", "V"}
 
 
+def _deprecated_notice() -> None:
+    """Print a standard notice that the current command is deprecated."""
+    pr.iprint("This command is deprecated.", style=k.ERROR_STYLE)
+
+
 def _ensure_resolved_time(args: list) -> list:
     """Return args with a concrete resolved time in position 1.
 
@@ -751,7 +756,10 @@ def process_command(
     #         "'BUSY' command is now part of 'STATS' command.", style=k.WARNING_STYLE
     #     )
     elif cmd == CmdKeys.CMD_CHART:
+        _deprecated_notice()
         rep.full_chart(day=today)
+    elif cmd == CmdKeys.CMD_DATAFORM:
+        _deprecated_notice()
     elif cmd == CmdKeys.CMD_DEBUG:
         cfg.DEBUG = args[0]
         InternetMonitorController.set_debug(args[0])
@@ -767,9 +775,8 @@ def process_command(
         estimate(today=today, args=args)
     elif cmd == CmdKeys.CMD_EXIT:
         return False
-    # elif cmd == CmdKeys.CMD_FULL_CHART:
-    #     rep.fullness_graph(pack_day_data())
     elif cmd == CmdKeys.CMD_GRAPHS:
+        _deprecated_notice()
         when = args[0] if args else ""
         rep.busy_graph(day=today, as_of_when=when)
         rep.fullness_graph(day=today, as_of_when=when)
@@ -816,6 +823,7 @@ def process_command(
                 new_note, tt_undo.build_note_label(new_note)
             )
     elif cmd == CmdKeys.CMD_PUBLISH:
+        _deprecated_notice()
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
         query_command(day=today, targets=args[0])

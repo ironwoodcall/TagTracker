@@ -324,6 +324,8 @@ Arguments:
     [end_time] : optional ending time for graphs (default: end of day)
 
 Description:
+    Deprecated -- no longer maintained.
+
     Shows histograms of busyness (ins + outs) and fullness across the day.
     If [end_time] is supplied, only data up to that time is included.
 
@@ -525,16 +527,6 @@ Description:
 
     CmdKeys.CMD_PUBLISH: """
 Command: PUBLISH
-
-Can be invoked as:
-  {}
-
-Description:
-  Deprecated -- no longer maintained.
-""",
-
-    CmdKeys.CMD_FULL_CHART: """
-Command: FULLNESS_CHART
 
 Can be invoked as:
   {}
