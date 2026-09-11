@@ -465,6 +465,103 @@ Diagnostic codes (shown at the end of alert messages):
   TIMEOUT002 : HTTP request timed out inside urllib handling.
   URL<REASON>: URLError raised (suffix abbreviates the underlying reason).
 """,
+
+    CmdKeys.CMD_DELETE: """
+Command: DELETE <tag(s)> <in|out> <yes>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to delete a check-in/check-out for
+    <in|out>: which event to delete
+    <yes>   : confirms the deletion
+
+Description:
+  Deletes a check-in or check-out recorded for tag(s) today. Use UNDO
+  right after if this was a mistake.
+""",
+
+    CmdKeys.CMD_EDIT: """
+Command: EDIT <tag(s)> <in|out> <time>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to edit
+    <in|out>: which event to change
+    <time>  : new time (HHMM or 'now')
+
+Description:
+  Changes the check-in or check-out time recorded for tag(s) today.
+""",
+
+    CmdKeys.CMD_RECENT: """
+Command: RECENT [start_time] [end_time]
+
+Can be invoked as:
+  {}
+
+Arguments:
+    [start_time] [end_time]: optional time range to show
+        (default: from 30 minutes ago to now)
+
+Description:
+  Lists check-ins and check-outs within a time window -- handy for
+  reviewing what just happened.
+""",
+
+    CmdKeys.CMD_HOURS: """
+Command: HOURS
+
+Can be invoked as:
+  {}
+
+Description:
+  Shows today's opening/closing times and prompts to confirm or change
+  them.
+""",
+
+    CmdKeys.CMD_PUBLISH: """
+Command: PUBLISH
+
+Can be invoked as:
+  {}
+
+Description:
+  Deprecated -- no longer maintained.
+""",
+
+    CmdKeys.CMD_FULL_CHART: """
+Command: FULLNESS_CHART
+
+Can be invoked as:
+  {}
+
+Description:
+  Deprecated -- no longer maintained.
+""",
+
+    CmdKeys.CMD_DATAFORM: """
+Command: DATAFORM
+
+Can be invoked as:
+  {}
+
+Description:
+  Deprecated -- no longer maintained.
+""",
+
+    CmdKeys.CMD_CHART: """
+Command: CHART
+
+Can be invoked as:
+  {}
+
+Description:
+  Deprecated -- no longer maintained.
+""",
 }
 
 
