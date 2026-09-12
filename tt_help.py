@@ -69,7 +69,7 @@ Other
   Display internal data dump    :  DUMP [VERBOSE|FULL]
   Emit debug breadcrumbs        :  DEBUG <ON|OFF>
   Suppress internet alerts      :  MONITOR <OFF|ON>
-  Show program version          :  VERSION
+  Show version & status         :  VERSION
   Exit                          :  EXIT | x
 
 Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
@@ -185,9 +185,11 @@ Can be invoked as:
   {}
 
 Description:
-  Reprints the version line shown when TagTracker starts up, e.g.
-  'TagTracker version: main (b562c40: 2026-08-28 21:39)'. Useful if you
-  need it again later in the session without restarting.
+  A quick status check. Reprints the version line shown when TagTracker
+  starts up, e.g. 'TagTracker version: main (b562c40: 2026-08-28 21:39)',
+  plus today's operating hours, what data is being edited, and (if any)
+  tags that are still showing as suspended from close of business
+  yesterday.
 """,
 
     CmdKeys.CMD_UNDO: """

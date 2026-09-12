@@ -29,6 +29,7 @@ import client_base_config as cfg
 from common.tt_time import VTime
 import common.tt_constants as k
 import tt_default_hours
+import tt_hold
 from common.tt_trackerday import TrackerDay
 from common.get_version import get_version_info
 from tt_sounds import NoiseMaker
@@ -44,9 +45,25 @@ except ImportError:
     PYFIGLET = False
 
 
-def print_version():
-    """Print the version line, e.g. 'TagTracker version: main (b562c40: 2026-08-28 21:39)'."""
+def print_version(today: TrackerDay = None):
+    """Print the version line, e.g. 'TagTracker version: main (b562c40: 2026-08-28 21:39)'.
+
+    If given today's TrackerDay, this doubles as a general status check:
+    also print today's operating hours, what data is being edited, and
+    (if any) tags left suspended as of yesterday's close of business.
+    """
     pr.iprint(f"TagTracker version: {get_version_info()}")
+    if today is None:
+        return
+    pr.iprint(
+        f"Editing {today.site_name} bike parking data for "
+        f"{ut.date_str(today.date, long_date=True)}.",
+        style=k.HIGHLIGHT_STYLE,
+    )
+    open_str = today.time_open.short if today.time_open else "(not set)"
+    close_str = today.time_closed.short if today.time_closed else "(not set)"
+    pr.iprint(f"Today's hours: {open_str} - {close_str}", style=k.HIGHLIGHT_STYLE)
+    tt_hold.report_previous_day_held_tags(cfg.DATA_FOLDER)
 
 
 def splash():

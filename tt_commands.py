@@ -340,7 +340,8 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
-    # Reprints the startup version line. See tt_main_bits.print_version().
+    # Version/status line: version, hours, what's being edited, and any
+    # tags left suspended since yesterday. See tt_main_bits.print_version().
     CmdKeys.CMD_VERSION: CmdConfig(invoke=["version", "ver", "v"]),
 }
 

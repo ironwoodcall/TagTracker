@@ -54,6 +54,7 @@ from common.tt_trackerday import TrackerDay, TrackerDayError
 import client_base_config as cfg
 import tt_printer as pr
 import tt_datafile as df
+import tt_hold
 import tt_publish as pub
 
 # import tt_notes as notes
@@ -369,6 +370,9 @@ if __name__ == "__main__":
 
     # Display data owner notice.
     bits.data_owner_notice()
+
+    # Note any tags left suspended as of yesterday's close of business.
+    tt_hold.report_previous_day_held_tags(cfg.DATA_FOLDER)
 
     # Set UC if needed (NB: datafiles are always LC)
     TagID.uc(cfg.TAGS_UPPERCASE)

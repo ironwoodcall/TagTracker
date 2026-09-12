@@ -26,13 +26,17 @@ Copyright (C) 2023-2026 Julias Hocking & Todd Glover
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass
 from typing import Sequence
 
 import common.tt_constants as k
+import common.tt_util as ut
 from common.tt_biketag import BikeTag
 from common.tt_tag import TagID
-from common.tt_trackerday import TrackerDay
+from common.tt_trackerday import TrackerDay, TOKEN_HELD_TAGIDS
+import tt_datafile as df
 import tt_printer as pr
 from tt_sounds import NoiseMaker
 from tt_tag_outcomes import TagOutcome, print_outcomes
@@ -121,3 +125,53 @@ def _evaluate_unhold(tag: TagID, biketag: BikeTag, today: TrackerDay) -> _TagOut
     if today.unhold_tag(tag):
         return _TagOutcome(tag, "is no longer suspended", k.ANSWER_STYLE, changed=True)
     return _TagOutcome(tag, "could not be unsuspended", k.WARNING_STYLE)
+
+
+def previous_day_held_tags(folder: str, whatdate: str = "yesterday") -> list[TagID] | None:
+    """Return tags left suspended as of the end of whatdate, or None.
+
+    This is a kludge: rather than tracking held-over-midnight state as its
+    own thing, it just reaches into whatdate's own datafile (if there is
+    one) and reads back the held-tags list it saved. Returns None if
+    there's no datafile for that date (nothing to report); returns []
+    (falsy) if there is a datafile but it has no held tags.
+
+    Reads the file directly instead of doing a full TrackerDay.load_from_file()
+    -- this is a peek at another day's leftover state, not an edit of it,
+    and a full load could fail for reasons (schema drift, config mismatch)
+    that have nothing to do with the one field being asked about here.
+    """
+    filepath = df.datafile_name(folder, whatdate)
+    if not filepath or not os.path.exists(filepath):
+        return None
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    tags = [TagID(t) for t in data.get(TOKEN_HELD_TAGIDS, [])]
+    return sorted(t for t in tags if t)
+
+
+def report_previous_day_held_tags(folder: str, whatdate: str = "yesterday") -> None:
+    """Print a note of tags left suspended as of the end of whatdate, if any.
+
+    Silent if there's no datafile for whatdate, or if it had no held tags
+    -- this is an FYI, not a warning, so it says nothing unless there's
+    something worth mentioning.
+    """
+    tags = previous_day_held_tags(folder, whatdate)
+    if not tags:
+        return
+    pr.iprint()
+    pr.iprint(
+        f"{len(tags)} {ut.plural(len(tags),'tag')} left suspended as of close "
+        f"of business {ut.date_str(whatdate,long_date=True)}:",
+        style=k.SUBTITLE_STYLE,
+    )
+    for group in ut.taglists_by_colour(tags):
+        ut.line_wrapper(
+            " ".join(tag.cased for tag in group),
+            print_handler=pr.iprint,
+            print_handler_args={"num_indents": 2},
+        )
