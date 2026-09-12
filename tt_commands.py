@@ -382,11 +382,11 @@ def _did_you_mean(word: str) -> str:
     suggestions = _suggest_commands(word)
     if not suggestions:
         return ""
-    prefix = 'Similar: '
+    prefix = 'Similar:'
     quoted = [f"'{s}'" for s in suggestions]
     if len(quoted) == 1:
         return f" {prefix} {quoted[0]}."
-    return f" {prefix} {', '.join(quoted[:-1])}, or {quoted[-1]}."
+    return f" {prefix} {'; '.join(quoted)}."
 
 def tags_arg(cmd_keyword) -> int:
     """Returns which arg for cmd_keyword is an ARG_TAGS, or None."""
