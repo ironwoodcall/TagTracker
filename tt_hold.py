@@ -169,9 +169,8 @@ def report_previous_day_held_tags(folder: str, whatdate: str = "yesterday") -> N
         f"of business {ut.date_str(whatdate,long_date=True)}:",
         style=k.SUBTITLE_STYLE,
     )
-    for group in ut.taglists_by_colour(tags):
-        ut.line_wrapper(
-            " ".join(tag.cased for tag in group),
-            print_handler=pr.iprint,
-            print_handler_args={"num_indents": 2},
-        )
+    ut.line_wrapper(
+        " ".join(tag.cased for tag in tags),
+        print_handler=pr.iprint,
+        print_handler_args={"num_indents": 2},
+    )

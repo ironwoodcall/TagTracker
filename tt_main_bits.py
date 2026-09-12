@@ -45,16 +45,19 @@ except ImportError:
     PYFIGLET = False
 
 
-def print_version(today: TrackerDay = None):
-    """Print the version line, e.g. 'TagTracker version: main (b562c40: 2026-08-28 21:39)'.
-
-    If given today's TrackerDay, this doubles as a general status check:
-    also print today's operating hours, what data is being edited, and
-    (if any) tags left suspended as of yesterday's close of business.
-    """
+def print_version():
+    """Print the version line, e.g. 'TagTracker version: main (b562c40: 2026-08-28 21:39)'."""
     pr.iprint(f"TagTracker version: {get_version_info()}")
-    if today is None:
-        return
+
+
+def print_overview(today: TrackerDay) -> None:
+    """Print a status overview: version, today's hours, what data is being
+    edited, and (if any) tags left suspended as of yesterday's close of
+    business.
+    """
+    pr.iprint("Today overview", style=k.TITLE_STYLE)
+    pr.iprint()
+    print_version()
     pr.iprint(
         f"Editing {today.site_name} bike parking data for "
         f"{ut.date_str(today.date, long_date=True)}.",

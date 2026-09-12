@@ -126,7 +126,7 @@ class CmdKeys:
     CMD_UNHOLD = "UNHOLD"
     CMD_UNRETIRE = "UNRETIRE"
     CMD_UPPERCASE = "UPPERCASE"
-    CMD_VERSION = "VERSION"
+    CMD_OVERVIEW = "OVERVIEW"
 
 
 # CmdConfig class
@@ -340,9 +340,9 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
-    # Version/status line: version, hours, what's being edited, and any
-    # tags left suspended since yesterday. See tt_main_bits.print_version().
-    CmdKeys.CMD_VERSION: CmdConfig(invoke=["version", "ver", "v"]),
+    # Today overview: version, hours, what's being edited, and any tags
+    # left suspended since yesterday. See tt_main_bits.print_overview().
+    CmdKeys.CMD_OVERVIEW: CmdConfig(invoke=["overview", "over", "v"]),
 }
 
 
