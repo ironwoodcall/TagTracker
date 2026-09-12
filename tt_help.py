@@ -188,8 +188,11 @@ Description:
   A quick "Today overview" status check. Shows the version line shown
   when TagTracker starts up, e.g.
   'TagTracker version: main (b562c40: 2026-08-28 21:39)', plus today's
-  operating hours, what data is being edited, and (if any) tags that
-  are still showing as suspended from close of business yesterday.
+  operating hours, what data is being edited, a quick tally of bikes
+  in/out/on-hand and registrations, a nudge to run LINT if any data
+  issues are found, any tags currently suspended, and (if any) tags
+  that are still showing as suspended from close of business
+  yesterday.
 """,
 
     CmdKeys.CMD_UNDO: """

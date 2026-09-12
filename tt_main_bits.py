@@ -52,12 +52,13 @@ def print_version():
 
 def print_overview(today: TrackerDay) -> None:
     """Print a status overview: version, today's hours, what data is being
-    edited, and (if any) tags left suspended as of yesterday's close of
-    business.
+    edited, a quick activity tally, and (if any) tags currently suspended
+    or left suspended as of yesterday's close of business.
     """
     pr.iprint("Today overview", style=k.TITLE_STYLE)
     pr.iprint()
     print_version()
+    pr.iprint()
     pr.iprint(
         f"Editing {today.site_name} bike parking data for "
         f"{ut.date_str(today.date, long_date=True)}.",
@@ -66,6 +67,30 @@ def print_overview(today: TrackerDay) -> None:
     open_str = today.time_open.short if today.time_open else "(not set)"
     close_str = today.time_closed.short if today.time_closed else "(not set)"
     pr.iprint(f"Today's hours: {open_str} - {close_str}", style=k.HIGHLIGHT_STYLE)
+
+    num_in = today.num_bikes_parked("now")[0]
+    num_out = today.num_bikes_returned("now")[0]
+    num_on_hand = today.num_tags_in_use("now")
+    pr.iprint(
+        f"{num_in} {ut.plural(num_in,'bike')} in, {num_out} out, "
+        f"{num_on_hand} on hand.",
+        style=k.HIGHLIGHT_STYLE,
+    )
+    num_regs = today.registrations.num_registrations
+    pr.iprint(
+        f"{num_regs} {ut.plural(num_regs,'registration')} recorded today.",
+        style=k.HIGHLIGHT_STYLE,
+    )
+
+    lint_errs = today.lint_check(strict_datetimes=True)
+    if lint_errs:
+        pr.iprint(
+            f"{len(lint_errs)} data {ut.plural(len(lint_errs),'issue')} found "
+            "-- try LINT.",
+            style=k.WARNING_STYLE,
+        )
+
+    tt_hold.report_current_held_tags(today)
     tt_hold.report_previous_day_held_tags(cfg.DATA_FOLDER)
 
 

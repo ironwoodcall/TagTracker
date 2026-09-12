@@ -153,6 +153,17 @@ def previous_day_held_tags(folder: str, whatdate: str = "yesterday") -> list[Tag
     return sorted(t for t in tags if t)
 
 
+def _report_tag_list(header: str, tags: Sequence[TagID]) -> None:
+    """Print a header line followed by a space-separated, wrapped tag list."""
+    pr.iprint()
+    pr.iprint(header, style=k.SUBTITLE_STYLE)
+    ut.line_wrapper(
+        " ".join(tag.cased for tag in tags),
+        print_handler=pr.iprint,
+        print_handler_args={"num_indents": 2},
+    )
+
+
 def report_previous_day_held_tags(folder: str, whatdate: str = "yesterday") -> None:
     """Print a note of tags left suspended as of the end of whatdate, if any.
 
@@ -163,14 +174,26 @@ def report_previous_day_held_tags(folder: str, whatdate: str = "yesterday") -> N
     tags = previous_day_held_tags(folder, whatdate)
     if not tags:
         return
-    pr.iprint()
-    pr.iprint(
-        f"{len(tags)} {ut.plural(len(tags),'tag')} left suspended as of close "
-        f"of business {ut.date_str(whatdate,long_date=True)}:",
-        style=k.SUBTITLE_STYLE,
+    resolved_date = ut.date_str(whatdate)
+    date_label = (
+        "yesterday"
+        if resolved_date == ut.date_str("yesterday")
+        else ut.date_str(resolved_date, long_date=True)
     )
-    ut.line_wrapper(
-        " ".join(tag.cased for tag in tags),
-        print_handler=pr.iprint,
-        print_handler_args={"num_indents": 2},
+    _report_tag_list(
+        f"{len(tags)} {ut.plural(len(tags),'tag')} left suspended {date_label}:",
+        tags,
+    )
+
+
+def report_current_held_tags(today: TrackerDay) -> None:
+    """Print a note of tags currently suspended today, if any.
+
+    Silent if nothing is currently held -- an FYI, not a warning.
+    """
+    tags = sorted(today.tags_held())
+    if not tags:
+        return
+    _report_tag_list(
+        f"{len(tags)} {ut.plural(len(tags),'tag')} currently suspended:", tags
     )
