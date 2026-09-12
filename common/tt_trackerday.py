@@ -576,7 +576,13 @@ class TrackerDay:
         return [b.tagid for b in self.biketags.values() if b.held]
 
     def all_usable_tags(self) -> frozenset[TagID]:
-        """Return set of all usable tags."""
+        """Return set of all usable tags -- i.e. available to check out
+        right now (excludes both retired and held tags).
+
+        For "is this tagid part of today's configured inventory at all"
+        (a different question -- true for a held or even a retired tag),
+        see configured_tags() instead.
+        """
         return frozenset(
             [
                 t.tagid
@@ -584,7 +590,14 @@ class TrackerDay:
                 if (t.status and t.status != t.RETIRED and not t.held)
             ]
         )
-        ##return frozenset((self.regular_tagids | self.oversize_tagids) - self.retired_tagids)
+
+    def configured_tags(self) -> frozenset[TagID]:
+        """Return the set of all tags configured for today, regardless of
+        current status -- retired, held, or in use are all still
+        "configured." See all_usable_tags() for "available to check out
+        right now" instead.
+        """
+        return frozenset(self.regular_tagids | self.oversize_tagids)
 
     def fix_2400_events(self):
         """Change any 24:00 events to 23:59, warn, return Tags changed."""
@@ -672,19 +685,18 @@ class TrackerDay:
         return errors
 
     def _check_allowed_tags(self) -> list[str]:
+        # Uses configured_tags(), not all_usable_tags(): this check is
+        # "is this tagid part of today's configured inventory," which a
+        # held tag still is -- all_usable_tags() would wrongly exclude it
+        # (that method means "available to check out right now" instead),
+        # forcing a held-specific carve-out here.
         errors = []
-        _allowed_tags = self.all_usable_tags()
+        _configured_tags = self.configured_tags()
         for tag, biketag in self.biketags.items():
             if biketag.status == biketag.RETIRED:
                 if tag not in self.retired_tagids:
                     errors.append(f"Tag {tag} is RETIRED but not in retired list.")
-            elif biketag.held:
-                # Held tags are deliberately excluded from
-                # all_usable_tags() (see docs/hold_tag_spec.md); that's
-                # not a config inconsistency the way being unexpectedly
-                # absent from all_usable_tags() otherwise would be.
-                continue
-            elif tag not in _allowed_tags:
+            elif tag not in _configured_tags:
                 errors.append(
                     f"Tag {tag} is status available but not so in config'd lists"
                 )
@@ -1070,31 +1082,40 @@ class TrackerDay:
         total_out = regular_out + oversize_out
         return total_out, regular_out, oversize_out
 
-    def num_tags_in_use(self, as_of_when: str = "") -> int:
+    def num_tags_in_use(self, as_of_when: str = "", live: bool = True) -> int:
         """Number of bikes present."""
-        return len(self.tags_in_use(as_of_when))
+        return len(self.tags_in_use(as_of_when, live=live))
 
-    def tags_in_use(self, as_of_when: str = "") -> list[TagID]:
+    def tags_in_use(self, as_of_when: str = "", live: bool = True) -> list[TagID]:
         """List of bikes that are are present as of as_of_when.
 
         Critical to this working is the constraint that a tagid will
         only be used for one visit at any one time.
+
+        live is forwarded to BikeTag.status_as_at() -- pass live=False
+        when as_of_when is a genuinely historical time, so a tag held
+        since then doesn't hide its true as-of-then status. See
+        status_as_at()'s docstring.
         """
 
         as_of_when = VTime(as_of_when or "now")
         return [
             b.tagid
             for b in self.biketags.values()
-            if b.status_as_at(as_of_when) == BikeTag.IN_USE
+            if b.status_as_at(as_of_when, live=live) == BikeTag.IN_USE
         ]
 
-    def tags_done(self, as_of_when: str = "") -> list:
-        """List of tagids of biketags that are in a 'DONE' state as_of_when."""
+    def tags_done(self, as_of_when: str = "", live: bool = True) -> list:
+        """List of tagids of biketags that are in a 'DONE' state as_of_when.
+
+        live is forwarded to BikeTag.status_as_at() -- see tags_in_use()
+        and status_as_at()'s docstrings.
+        """
         as_of_when = VTime(as_of_when or "now")
         return [
             b.tagid
             for b in self.biketags.values()
-            if b.status_as_at(as_of_when) == BikeTag.DONE
+            if b.status_as_at(as_of_when, live=live) == BikeTag.DONE
         ]
 
     def max_bikes_up_to_time(self, as_of_when: str = ""):

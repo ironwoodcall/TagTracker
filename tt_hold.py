@@ -35,13 +35,11 @@ from common.tt_tag import TagID
 from common.tt_trackerday import TrackerDay
 import tt_printer as pr
 from tt_sounds import NoiseMaker
+from tt_tag_outcomes import TagOutcome, print_outcomes
 
 
 @dataclass
-class _TagOutcome:
-    tag: TagID
-    message: str
-    style: str
+class _TagOutcome(TagOutcome):
     changed: bool = False
 
 
@@ -74,15 +72,7 @@ def _process(today: TrackerDay, tags: Sequence[TagID], mode: str) -> bool:
         return False
 
     outcomes = [_evaluate_tag(TagID(tag), today, mode) for tag in tags]
-
-    width = max((len(str(o.tag)) for o in outcomes), default=4)
-    pr.iprint()
-    for outcome in outcomes:
-        pr.iprint(
-            f"{str(outcome.tag):<{width}}  {outcome.message}",
-            style=outcome.style,
-            num_indents=2,
-        )
+    print_outcomes(outcomes)
 
     any_changed = any(outcome.changed for outcome in outcomes)
     if any_changed:

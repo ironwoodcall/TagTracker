@@ -209,12 +209,18 @@ Prints up to three grids of tag numbers, one row per colour:
   least one tag is suspended).
 
 Depending on how your site has it set up, each grid may show *only* its
-own numbers with retired tags marked as a dot, or it may show a fuller
-picture where every cell says something — a small mark for a tag that's
-checked in, checked out, suspended, or retired even if that's not the
-category the grid is named for, and a dash for a tag that simply hasn't
-been used yet. Either way, a genuinely blank cell always means the same
-thing: there's no such tag at that spot at all.
+own numbers with retired tags marked as a dot (the default), or it may
+show a fuller picture where every cell says something — a small mark for
+a tag that's checked in, checked out, suspended, or retired even if
+that's not the category the grid is named for, and a dash for a tag that
+simply hasn't been used yet.
+
+In the fuller picture, a genuinely blank cell does always mean there's no
+such tag at that spot at all. In the default (dot-only) view, though, a
+blank cell is ambiguous: it means either that, *or* that the tag exists
+but simply isn't in this grid's own category and isn't retired (e.g. a
+tag that hasn't been used yet at all shows blank in every grid, not just
+the ones it doesn't belong to).
 
 One quirk worth knowing: the suspended grid always reflects the *current*
 moment, not the time you asked the audit report for. If you run

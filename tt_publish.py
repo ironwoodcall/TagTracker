@@ -26,6 +26,7 @@ import os
 #import pathlib
 
 import common.tt_constants as k
+from common.tt_biketag import BikeTag
 from common.tt_time import VTime
 import common.tt_util as ut
 from common.tt_trackerday import TrackerDay
@@ -104,10 +105,12 @@ class Publisher:
             day,
             args,
             include_returns=True,
-            retired_tag_str="<>",
-            held_tag_str="()",
-            in_use_tag_str="In",
-            done_tag_str="Ou",
+            markers={
+                BikeTag.RETIRED: "<>",
+                BikeTag.HELD: "()",
+                BikeTag.IN_USE: "In",
+                BikeTag.DONE: "Ou",
+            },
         )
         pr.set_output()
 

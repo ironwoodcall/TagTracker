@@ -38,6 +38,7 @@ from common.tt_trackerday import TrackerDay
 import common.tt_util as ut
 import tt_printer as pr
 from tt_sounds import NoiseMaker
+from tt_tag_outcomes import TagOutcome as _BaseTagOutcome, print_outcomes
 
 
 _CONFIG_FILE = Path(__file__).resolve().parent / "client_local_config.py"
@@ -48,14 +49,12 @@ _CONFIG_PATTERN = re.compile(
 
 
 @dataclass
-class TagOutcome:
-    tag: TagID
-    message: str
-    style: str
+class TagOutcome(_BaseTagOutcome):
     retire_today: bool = False
     unretire_today: bool = False
     add_to_config: bool = False
     remove_from_config: bool = False
+    unhold_today: bool = False
 
     @property
     def needs_change(self) -> bool:
@@ -64,6 +63,7 @@ class TagOutcome:
             or self.unretire_today
             or self.add_to_config
             or self.remove_from_config
+            or self.unhold_today
         )
 
 
@@ -143,18 +143,9 @@ def _load_config_state() -> tuple[str, Optional[re.Match[str]], set[TagID]]:
     return text, match, tags
 
 
-def _display_outcomes(outcomes: Sequence[TagOutcome], actionable:bool) -> None:
-    width = max((len(str(o.tag)) for o in outcomes), default=4)
-    pr.iprint()
-    if actionable:
-        pr.iprint( "Use this command with care!",style=k.ERROR_STYLE)
-
-    for outcome in outcomes:
-        pr.iprint(
-            f"{str(outcome.tag):<{width}}  {outcome.message}",
-            style=outcome.style,
-            num_indents=2,
-        )
+def _display_outcomes(outcomes: Sequence[TagOutcome], actionable: bool) -> None:
+    banner = "Use this command with care!" if actionable else ""
+    print_outcomes(outcomes, banner=banner, banner_style=k.ERROR_STYLE)
 
 
 def _confirm(count: int) -> bool:
@@ -198,6 +189,8 @@ def _apply_changes(
         if outcome.retire_today and today.retire_tag(outcome.tag):
             today_changed = True
         if outcome.unretire_today and today.unretire_tag(outcome.tag):
+            today_changed = True
+        if outcome.unhold_today and today.unhold_tag(outcome.tag):
             today_changed = True
 
     delta = (len(new_config - config_tags), len(config_tags - new_config))
@@ -285,8 +278,14 @@ def _evaluate_tag(
 
 def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcome:
     # A suspended tag CAN be retired -- retiring supersedes suspension
-    # (permanent, not temporary), so TrackerDay.retire_tag() clears
-    # .held as part of applying it. No guard needed here.
+    # (permanent, not temporary). When the tag can be retired outright
+    # today (status UNUSED), TrackerDay.retire_tag() clears .held as part
+    # of applying it, so no extra handling is needed for that case below.
+    # But when the tag was used today (status DONE), retire_tag() itself
+    # refuses to touch it today (today's history has to stay DONE) and
+    # retirement is only queued for tomorrow -- so the suspension has to
+    # be lifted explicitly here instead, or it would otherwise linger for
+    # the rest of today even though the user asked to retire the tag.
     if biketag.status == BikeTag.RETIRED:
         if in_config:
             return TagOutcome(tag, "is already retired", k.ANSWER_STYLE)
@@ -300,6 +299,14 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
     used_today = bool(biketag.visits)
     if in_config:
         if used_today:
+            if biketag.held:
+                return TagOutcome(
+                    tag,
+                    "was suspended; suspension lifted (already marked as "
+                    "retired, starting tomorrow)",
+                    k.ANSWER_STYLE,
+                    unhold_today=True,
+                )
             return TagOutcome(
                 tag,
                 "is already marked as retired, starting tomorrow",
@@ -313,25 +320,24 @@ def _evaluate_retire(tag: TagID, biketag: BikeTag, in_config: bool) -> TagOutcom
         )
 
     if used_today:
+        if biketag.held:
+            return TagOutcome(
+                tag,
+                "was suspended; suspension lifted; will be marked for "
+                "retirement starting tomorrow (already used today)",
+                k.ANSWER_STYLE,
+                add_to_config=True,
+                unhold_today=True,
+            )
         return TagOutcome(
             tag,
             "will be marked for retirement starting tomorrow (already used today)",
             k.ANSWER_STYLE,
             add_to_config=True,
         )
-    if biketag.held:
-        # Retiring supersedes suspension outright -- say so, so it's
-        # clear the suspension isn't lingering underneath the retirement.
-        return TagOutcome(
-            tag,
-            "was suspended; will be retired instead",
-            k.ANSWER_STYLE,
-            retire_today=True,
-            add_to_config=True,
-        )
     return TagOutcome(
         tag,
-        "will be retired",
+        "was suspended; will be retired instead" if biketag.held else "will be retired",
         k.ANSWER_STYLE,
         retire_today=True,
         add_to_config=True,

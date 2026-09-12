@@ -355,9 +355,11 @@ def find_command(command_invocation):
 
 def _suggest_commands(word: str) -> list[str]:
     """Return canonical command names (invoke[0]) that 'word' could be a
-    (stemmed/abbreviated) start of, e.g. 'reti' -> ['retire'].
+    typo of, e.g. 'reti' -> ['retire'] (word is a truncated/abbreviated
+    start of canonical) or 'leftovers' -> ['left'] (canonical is itself a
+    short form -- word is canonical's own natural, longer spelling).
 
-    Used only to build a "Did you mean...?" hint for an otherwise
+    Used only to build a "Similar commands: ..." hint for an otherwise
     unrecognized word -- it doesn't change what gets executed, so it can't
     introduce the kind of silent-misfire ambiguity the parser otherwise
     guards against (see docs/to-do.txt item C7).
@@ -368,20 +370,23 @@ def _suggest_commands(word: str) -> list[str]:
     suggestions = []
     for conf in COMMANDS.values():
         canonical = conf.invoke[0]
-        if canonical.startswith(word) and canonical not in suggestions:
+        if (
+            canonical.startswith(word) or word.startswith(canonical)
+        ) and canonical not in suggestions:
             suggestions.append(canonical)
     return suggestions
 
 
 def _did_you_mean(word: str) -> str:
-    """Return a "Did you mean...?" hint string for 'word', or "" if none."""
+    """Return a "Similar commands: ..." hint string for 'word', or "" if none."""
     suggestions = _suggest_commands(word)
     if not suggestions:
         return ""
+    prefix = 'Similar: '
     quoted = [f"'{s}'" for s in suggestions]
     if len(quoted) == 1:
-        return f" Did you mean {quoted[0]}?"
-    return f" Did you mean {', '.join(quoted[:-1])}, or {quoted[-1]}?"
+        return f" {prefix} {quoted[0]}."
+    return f" {prefix} {', '.join(quoted[:-1])}, or {quoted[-1]}."
 
 def tags_arg(cmd_keyword) -> int:
     """Returns which arg for cmd_keyword is an ARG_TAGS, or None."""

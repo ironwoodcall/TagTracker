@@ -109,8 +109,15 @@ def _tag_summary(today: "TrackerDay") -> str:
     reg = len(today.regular_tagids)
     ovr = len(today.oversize_tagids)
     retired = len(today.retired_tagids)
+    held = len(today.tags_held())
     usable = len(today.all_usable_tags())
 
+    # status_counts is built from raw .status (never HELD -- that's a
+    # status_as_at()-only pseudo-status, see BikeTag.status_as_at()), so it
+    # always sums to the full tag count regardless of who's suspended.
+    # usable excludes both retired and held tags, so "held" is reported
+    # alongside it here -- otherwise usable would silently diverge from
+    # status_counts by the held count with no way to tell why.
     status_counts = Counter(b.status for b in today.biketags.values())
     status_bit = _format_status_counts(status_counts)
 
@@ -120,7 +127,7 @@ def _tag_summary(today: "TrackerDay") -> str:
     conform_bit = "yes" if conformity else "no"
 
     return (
-        f"Tags R:{reg} O:{ovr} Ret:{retired} usable:{usable}"
+        f"Tags R:{reg} O:{ovr} Ret:{retired} Held:{held} usable:{usable}"
         f" | status {status_bit} | ids_conform {conform_bit}"
     )
 

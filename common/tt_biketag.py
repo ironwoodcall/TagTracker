@@ -263,20 +263,26 @@ class BikeTag:
         self.held = False
         return True
 
-    def status_as_at(self, as_of_when: str = ""):
-        """Return the status as of a particular time."""
+    def status_as_at(self, as_of_when: str = "", live: bool = True):
+        """Return the status as of a particular time.
+
+        live controls whether a held tag reports as HELD (a reporting-only
+        pseudo-status, not itself a value of .status) instead of its real
+        UNUSED/DONE status underneath. Defaults to True, matching every
+        pre-existing caller, which all mean "as of right now." HOLD/UNHOLD
+        carries no timestamp of its own, so a suspension can't be
+        reconstructed "as of" an earlier moment -- pass live=False for a
+        genuinely historical as_of_when and this returns the tag's real
+        historical status instead, ignoring .held.
+        """
         # Return RETIRED status if the current status is RETIRED
         if self.status == self.RETIRED:
             return self.RETIRED
 
         # A held tag reports as HELD regardless of its true status (which
-        # stays UNUSED or DONE underneath -- see the .held field). This is
-        # a reporting-only pseudo-status, not itself a value of .status.
-        # Checked at the same priority as RETIRED, before any as_of_when
-        # (visit-derived) logic: held has no timestamp of its own, so it
-        # can't be reconstructed "as of" an earlier time -- it always
-        # reflects current, not historical, state.
-        if self.held:
+        # stays UNUSED or DONE underneath -- see the .held field), but only
+        # for a live query -- see the live param above.
+        if live and self.held:
             return self.HELD
 
         # Return UNUSED if there are no visits or the first visit is after the given time
