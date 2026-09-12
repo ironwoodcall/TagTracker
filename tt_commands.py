@@ -342,7 +342,7 @@ COMMANDS = {
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
     # Today overview: version, hours, what's being edited, and any tags
     # left suspended since yesterday. See tt_main_bits.print_overview().
-    CmdKeys.CMD_OVERVIEW: CmdConfig(invoke=["overview", "over", "v"]),
+    CmdKeys.CMD_OVERVIEW: CmdConfig(invoke=["overview", "over", "ov", "v"]),
 }
 
 
