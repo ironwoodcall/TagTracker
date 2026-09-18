@@ -52,8 +52,8 @@ def print_version():
 
 def print_overview(today: TrackerDay) -> None:
     """Print a status overview: version, today's hours, what data is being
-    edited, a quick activity tally, and (if any) tags currently suspended
-    or left suspended as of yesterday's close of business.
+    edited, a quick activity tally, and (if any) tags currently
+    suspended. (For tags left suspended from a prior day, see YESTERDAY.)
     """
     pr.iprint("Today overview", style=k.TITLE_STYLE)
     pr.iprint()
@@ -91,7 +91,6 @@ def print_overview(today: TrackerDay) -> None:
         )
 
     tt_hold.report_current_held_tags(today)
-    tt_hold.report_previous_day_held_tags(cfg.DATA_FOLDER)
 
 
 def splash():
