@@ -153,7 +153,7 @@ def previous_day_held_tags(folder: str, whatdate: str = "yesterday") -> list[Tag
     return sorted(t for t in tags if t)
 
 
-def _report_tag_list(header: str, tags: Sequence[TagID]) -> None:
+def print_tag_list(header: str, tags: Sequence[TagID]) -> None:
     """Print a header line followed by a space-separated, wrapped tag list."""
     pr.iprint()
     pr.iprint(header, style=k.SUBTITLE_STYLE)
@@ -180,7 +180,7 @@ def report_previous_day_held_tags(folder: str, whatdate: str = "yesterday") -> N
         if resolved_date == ut.date_str("yesterday")
         else ut.date_str(resolved_date, long_date=True)
     )
-    _report_tag_list(
+    print_tag_list(
         f"{len(tags)} {ut.plural(len(tags),'tag')} left suspended {date_label}:",
         tags,
     )
@@ -194,6 +194,6 @@ def report_current_held_tags(today: TrackerDay) -> None:
     tags = sorted(today.tags_held())
     if not tags:
         return
-    _report_tag_list(
+    print_tag_list(
         f"{len(tags)} {ut.plural(len(tags),'tag')} currently suspended:", tags
     )

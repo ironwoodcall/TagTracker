@@ -55,6 +55,7 @@ Information and reports
   Show info about one tag       :  QUERY <tag(s)>
   Show recent activity          :  RECENT [time] [time]
   Show audit info               :  AUDIT [time]
+  Look back at the last open day:  YESTERDAY
   Show times for leftovers      :  LEFT
   Estimate further bikes today  :  ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE]
   Show tag configurations       :  TAGS [VERBOSE|FULL]
@@ -193,6 +194,20 @@ Description:
   issues are found, any tags currently suspended, and (if any) tags
   that are still showing as suspended from close of business
   yesterday.
+""",
+
+    CmdKeys.CMD_YESTERDAY: """
+Command: YESTERDAY
+
+Can be invoked as:
+  {}
+
+Description:
+  Looks back at the most recent datafile dated before today (usually
+  yesterday's, but reaches further back if there's a gap) and reports,
+  from that day's own saved state: any notes recorded, what tags were
+  left suspended at close of business, and the same in/out/on-site
+  summary table AUDIT shows. Says so if there's no earlier datafile.
 """,
 
     CmdKeys.CMD_UNDO: """

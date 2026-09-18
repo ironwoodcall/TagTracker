@@ -28,7 +28,7 @@ Copyright (C) 2023-2024 Julias Hocking & Todd Glover
 
 """
 
-# import os
+import os
 import re
 
 # import tempfile
@@ -64,6 +64,30 @@ def datafile_name(folder: str, whatdate: str = "today") -> str:
     if not date:
         return ""
     return f"{folder}/{cfg.DATA_BASENAME}{date}.json"
+
+
+_DATAFILE_NAME_RE = re.compile(
+    rf"^{re.escape(cfg.DATA_BASENAME)}(\d{{4}}-\d{{2}}-\d{{2}})\.json$"
+)
+
+
+def most_recent_datafile_before(folder: str, before_date: str = "today") -> str:
+    """Return the filepath of the most recent datafile dated before before_date.
+
+    Scans folder for this site's datafiles (same naming as datafile_name())
+    and returns the one with the latest date that's still earlier than
+    before_date. Returns "" if the folder doesn't exist, has no datafiles,
+    or none with an earlier date -- e.g. this is day one.
+    """
+    cutoff = ut.date_str(before_date)
+    if not cutoff or not os.path.isdir(folder):
+        return ""
+    best_date = ""
+    for name in os.listdir(folder):
+        r = _DATAFILE_NAME_RE.match(name)
+        if r and best_date < r.group(1) < cutoff:
+            best_date = r.group(1)
+    return f"{folder}/{cfg.DATA_BASENAME}{best_date}.json" if best_date else ""
 
 
 

@@ -48,6 +48,7 @@ import tt_tag_inv as inv
 import tt_retire
 import tt_hold
 import tt_undo
+import tt_yesterday
 
 # from tt_cmdparse import CmdBits
 from tt_commands import (
@@ -850,6 +851,8 @@ def process_command(
         set_tag_case(cmd == CmdKeys.CMD_UPPERCASE)
     elif cmd == CmdKeys.CMD_OVERVIEW:
         bits.print_overview(today)
+    elif cmd == CmdKeys.CMD_YESTERDAY:
+        tt_yesterday.report(cfg.DATA_FOLDER)
     else:
         # An unhandled command
         canonical_invocation = COMMANDS[cmd].invoke[0].upper()

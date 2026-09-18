@@ -127,6 +127,7 @@ class CmdKeys:
     CMD_UNRETIRE = "UNRETIRE"
     CMD_UPPERCASE = "UPPERCASE"
     CMD_OVERVIEW = "OVERVIEW"
+    CMD_YESTERDAY = "YESTERDAY"
 
 
 # CmdConfig class
@@ -343,6 +344,10 @@ COMMANDS = {
     # Today overview: version, hours, what's being edited, and any tags
     # left suspended since yesterday. See tt_main_bits.print_overview().
     CmdKeys.CMD_OVERVIEW: CmdConfig(invoke=["overview", "over", "ov", "v"]),
+    # Look back at the most recent day before today: its notes, tags left
+    # suspended at close of business, and its in/out/on-site summary.
+    # See tt_yesterday.report().
+    CmdKeys.CMD_YESTERDAY: CmdConfig(invoke=["yesterday", "yester", "y"]),
 }
 
 
