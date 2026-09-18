@@ -203,11 +203,9 @@ Can be invoked as:
   {}
 
 Description:
-  Looks back at the most recent datafile dated before today (usually
-  yesterday's, but reaches further back if there's a gap) and reports,
-  from that day's own saved state: any notes recorded, what tags were
-  left suspended at close of business, and the same in/out/on-site
-  summary table AUDIT shows. Says so if there's no earlier datafile.
+  Reports summary information from yesterday at close of business.
+  (If there is no information about yesterday, will use data from
+  the most recent available prior day.)
 """,
 
     CmdKeys.CMD_UNDO: """

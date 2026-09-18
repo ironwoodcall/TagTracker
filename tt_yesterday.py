@@ -95,13 +95,11 @@ def report(folder: str) -> None:
     held = sorted(day.tags_held())
     if held:
         tt_hold.print_tag_list(
-            f"{len(held)} {ut.plural(len(held),'tag')} suspended at close "
-            "of business:",
-            held,
+            f"{len(held)} {ut.plural(len(held),'tag')} suspended:", held
         )
     else:
         pr.iprint()
-        pr.iprint("No tags were suspended at close of business.", style=k.SUBTITLE_STYLE)
+        pr.iprint("No tags were suspended.", style=k.SUBTITLE_STYLE)
 
     closing = day.time_closed or VTime("23:59")
     aud.inout_summary(day, as_of_when=closing, live=False)
