@@ -24,6 +24,7 @@ Copyright (C) 2023-2026 Julias Hocking & Todd Glover
 
 from __future__ import annotations
 
+from common.tt_tag import TagID
 from common.tt_time import VTime
 from common.tt_trackerday import TrackerDay, TrackerDayError
 import common.tt_constants as k
@@ -33,6 +34,20 @@ import tt_datafile as df
 import tt_hold
 import tt_notes_command as notes_cmd
 import tt_printer as pr
+
+
+def _latest_event(day: TrackerDay) -> tuple[VTime, TagID, bool] | None:
+    """Return (time, tag, is_check_in) for the day's single latest event.
+
+    Considers both check-ins and check-outs across every tag; returns
+    None if the day has no visits at all.
+    """
+    latest = None
+    for visit in day.all_visits():
+        for when, is_check_in in ((visit.time_in, True), (visit.time_out, False)):
+            if when and (latest is None or when > latest[0]):
+                latest = (when, visit.tagid, is_check_in)
+    return latest
 
 
 def report(folder: str) -> None:
@@ -61,9 +76,12 @@ def report(folder: str) -> None:
             pr.iprint(s, style=k.ERROR_STYLE, num_indents=2)
         return
 
-    date_label = ut.date_str(day.date, long_date=True) if day.date else filepath
+    if day.date == ut.date_str("yesterday"):
+        date_label = "yesterday"
+    else:
+        date_label = ut.date_str(day.date, long_date=True) if day.date else filepath
     pr.iprint()
-    pr.iprint(f"Overview of {date_label}", style=k.TITLE_STYLE)
+    pr.iprint(f"Overview of {date_label}, as at end of day", style=k.TITLE_STYLE)
 
     active_notes = day.notes.active_notes()
     if active_notes:
@@ -87,3 +105,12 @@ def report(folder: str) -> None:
 
     closing = day.time_closed or VTime("23:59")
     aud.inout_summary(day, as_of_when=closing, live=False)
+
+    pr.iprint()
+    latest = _latest_event(day)
+    if latest:
+        when, tag, is_check_in = latest
+        action = "in" if is_check_in else "out"
+        pr.iprint(f"Last tag activity: {tag} checked {action} at {when.short}.")
+    else:
+        pr.iprint("No tag activity recorded.")
