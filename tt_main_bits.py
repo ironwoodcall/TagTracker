@@ -29,6 +29,7 @@ import client_base_config as cfg
 from common.tt_time import VTime
 import common.tt_constants as k
 import tt_default_hours
+import tt_hold
 from common.tt_trackerday import TrackerDay
 from common.get_version import get_version_info
 from tt_sounds import NoiseMaker
@@ -47,6 +48,49 @@ except ImportError:
 def print_version():
     """Print the version line, e.g. 'TagTracker version: main (b562c40: 2026-08-28 21:39)'."""
     pr.iprint(f"TagTracker version: {get_version_info()}")
+
+
+def print_overview(today: TrackerDay) -> None:
+    """Print a status overview: version, today's hours, what data is being
+    edited, a quick activity tally, and (if any) tags currently
+    suspended. (For tags left suspended from a prior day, see YESTERDAY.)
+    """
+    pr.iprint("Today overview", style=k.TITLE_STYLE)
+    pr.iprint()
+    print_version()
+    pr.iprint()
+    pr.iprint(
+        f"Editing {today.site_name} bike parking data for "
+        f"{ut.date_str(today.date, long_date=True)}.",
+        style=k.HIGHLIGHT_STYLE,
+    )
+    open_str = today.time_open.short if today.time_open else "(not set)"
+    close_str = today.time_closed.short if today.time_closed else "(not set)"
+    pr.iprint(f"Today's hours: {open_str} - {close_str}", style=k.HIGHLIGHT_STYLE)
+
+    num_in = today.num_bikes_parked("now")[0]
+    num_out = today.num_bikes_returned("now")[0]
+    num_on_hand = today.num_tags_in_use("now")
+    pr.iprint(
+        f"{num_in} {ut.plural(num_in,'bike')} in, {num_out} out, "
+        f"{num_on_hand} on hand.",
+        style=k.HIGHLIGHT_STYLE,
+    )
+    num_regs = today.registrations.num_registrations
+    pr.iprint(
+        f"{num_regs} {ut.plural(num_regs,'registration')} recorded today.",
+        style=k.HIGHLIGHT_STYLE,
+    )
+
+    lint_errs = today.lint_check(strict_datetimes=True)
+    if lint_errs:
+        pr.iprint(
+            f"{len(lint_errs)} data {ut.plural(len(lint_errs),'issue')} found "
+            "-- try LINT.",
+            style=k.WARNING_STYLE,
+        )
+
+    tt_hold.report_current_held_tags(today)
 
 
 def splash():
@@ -254,15 +298,18 @@ def check_bike_time_reasonable(bike_time: VTime, day: TrackerDay) -> bool:
 def check_tagid_usable(tagid: TagID, today: TrackerDay) -> bool:
     """Checks if tagid is usable, error msg if not.
 
-    In this context, usable means REGULAR or OVERSIZE and
-    not RETIRED.
+    In this context, usable means REGULAR or OVERSIZE, not RETIRED, and
+    not currently HELD.
 
     Returns True if usable, False if not.
     """
     if tagid in today.all_usable_tags():
         return True
 
-    if tagid in today.retired_tagids:
+    biketag = today.biketags.get(tagid)
+    if biketag and biketag.held:
+        msg = f"Tag {tagid} is suspended."
+    elif tagid in today.retired_tagids:
         msg = f"Tag {tagid} is retired."
     else:
         msg = f"No tag '{tagid.original}' available today."

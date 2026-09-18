@@ -43,6 +43,14 @@ CURSOR = ">>> "
 INCLUDE_TIME_IN_PROMPT = True
 TAGS_UPPERCASE = False
 
+# AUDIT report tag grids: if True, every cell in every grid shows a
+# marker (retired/held/checked-in/checked-out/unused), dimmed, for
+# whichever category isn't that grid's own; if False, only the original
+# retired-tag dot is shown and everything else stays blank (the look
+# before this option existed). Applies uniformly to all three grids
+# (onsite/re-use/held) -- the "Tags held" grid is shown either way.
+AUDIT_GRID_FULL_MARKERS = False
+
 # data owner -- If set, this notice will display when tagtraacker starts.
 # This can be a string, or if a list of strings, displays as multiple lines.
 DATA_OWNER = ""

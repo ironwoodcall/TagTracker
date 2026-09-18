@@ -105,8 +105,8 @@ class CmdKeys:
     CMD_ESTIMATE = "ESTIMATE"
     CMD_EXIT = "EXIT"
     CMD_DATAFORM = "DATAFORM"
-    CMD_FULL_CHART = "FULLNESS_CHART"
     CMD_HELP = "HELP"
+    CMD_HOLD = "HOLD"
     CMD_HOURS = "HOURS"
     CMD_LEADERBOARD = "LEADERBOARD"
     CMD_LEFTOVERS = "LEFTOVERS"
@@ -123,9 +123,11 @@ class CmdKeys:
     CMD_STATS = "STATS"
     CMD_TAGS = "TAGS"
     CMD_UNDO = "UNDO"
+    CMD_UNHOLD = "UNHOLD"
     CMD_UNRETIRE = "UNRETIRE"
     CMD_UPPERCASE = "UPPERCASE"
-    CMD_VERSION = "VERSION"
+    CMD_OVERVIEW = "OVERVIEW"
+    CMD_YESTERDAY = "YESTERDAY"
 
 
 # CmdConfig class
@@ -192,14 +194,8 @@ COMMANDS = {
             ArgConfig(ARG_TIME, optional=True),
         ],
     ),
-    # CmdKeys.CMD_BUSY: CmdConfig(
-    #     invoke=["busy", "b"],
-    #     arg_configs=[
-    #         ArgConfig(ARG_TIME, optional=True),
-    #     ],
-    # ),
     CmdKeys.CMD_GRAPHS: CmdConfig(
-        invoke=["graph","graphs","g","busy-chart", "busy-graph","full-graph","full-chart"],
+        invoke=["graph","g"],
         arg_configs=[
             ArgConfig(ARG_TIME, optional=True),
         ],
@@ -252,16 +248,19 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_EXIT: CmdConfig(invoke=["exit", "ex", "x"]),
-    CmdKeys.CMD_FULL_CHART: CmdConfig(
-        invoke=["fullness-chart", "full-chart", "fullness_chart", "full_chart"],
-        arg_configs=[
-            ArgConfig(ARG_TIME, optional=True),
-        ],
-    ),
     CmdKeys.CMD_HELP: CmdConfig(
-        invoke=["help", "h"],
+        invoke=["help"],
         arg_configs=[
             ArgConfig(ARG_TOKEN, optional=True),
+        ],
+    ),
+    # CmdKeys.CMD_HOLD is invoked as SUSPEND -- see docs/hold_tag_spec.md
+    # for why the internal name didn't follow (kept scoped to
+    # user-facing wording/invocation, same precedent as the LEFT rename).
+    CmdKeys.CMD_HOLD: CmdConfig(
+        invoke=["suspend", "sus", "s"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Suspend what tag(s)? "),
         ],
     ),
     CmdKeys.CMD_HOURS: CmdConfig(invoke=["hours", "hour", "open"]),
@@ -270,7 +269,7 @@ COMMANDS = {
         invoke=["max", "m", "maximum", "maximums"],
         arg_configs=[ArgConfig(ARG_TOKEN, optional=True)],
     ),
-    CmdKeys.CMD_LEFTOVERS: CmdConfig(invoke=["leftovers", "leftover","left","l"]),
+    CmdKeys.CMD_LEFTOVERS: CmdConfig(invoke=["left", "l"]),
     CmdKeys.CMD_LOWERCASE: CmdConfig(invoke=["lc", "lowercase"]),
     CmdKeys.CMD_MONITOR: CmdConfig(
         invoke=["monitor", "mon"],
@@ -313,7 +312,8 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_STATS: CmdConfig(
-        invoke=["statistics", "stat", "stats", "s"],
+        # "s" moved to SUSPEND -- stats now needs at least "stat".
+        invoke=["statistics", "stat", "stats"],
         arg_configs=[
             ArgConfig(ARG_TIME, optional=True),
         ],
@@ -321,11 +321,19 @@ COMMANDS = {
     CmdKeys.CMD_TAGS: CmdConfig(
         invoke=["tags", "tag", "t"],
         arg_configs=[
-            ArgConfig(ARG_TIME, optional=True),
+            # Optional mode selector: VERBOSE/FULL shows all configured
+            # tags, not just tags used today.
+            ArgConfig(ARG_TOKEN, optional=True),
         ],
     ),
     # Reverses the single most recent tag-mutating command. See tt_undo.py.
-    CmdKeys.CMD_UNDO: CmdConfig(invoke=["undo", "u", "un"]),
+    CmdKeys.CMD_UNDO: CmdConfig(invoke=["undo", "u"]),
+    CmdKeys.CMD_UNHOLD: CmdConfig(
+        invoke=["unsuspend", "unsus", "uns"],
+        arg_configs=[
+            ArgConfig(ARG_TAGS, optional=False, prompt="Unsuspend (release) what tag(s)? "),
+        ],
+    ),
     CmdKeys.CMD_UNRETIRE: CmdConfig(
         invoke=["unretire","unret"],
         arg_configs=[
@@ -333,8 +341,13 @@ COMMANDS = {
         ],
     ),
     CmdKeys.CMD_UPPERCASE: CmdConfig(invoke=["uc", "uppercase"]),
-    # Reprints the startup version line. See tt_main_bits.print_version().
-    CmdKeys.CMD_VERSION: CmdConfig(invoke=["version", "ver", "v"]),
+    # Today overview: version, hours, what's being edited, and any tags
+    # left suspended since yesterday. See tt_main_bits.print_overview().
+    CmdKeys.CMD_OVERVIEW: CmdConfig(invoke=["overview", "over", "ov", "v"]),
+    # Look back at the most recent day before today: its notes, tags left
+    # suspended at close of business, and its in/out/on-site summary.
+    # See tt_yesterday.report().
+    CmdKeys.CMD_YESTERDAY: CmdConfig(invoke=["yesterday", "yester", "y"]),
 }
 
 
@@ -344,6 +357,42 @@ def find_command(command_invocation):
         if conf.matches(command_invocation.lower()):
             return command
     return ""
+
+
+def _suggest_commands(word: str) -> list[str]:
+    """Return canonical command names (invoke[0]) that 'word' could be a
+    typo of, e.g. 'reti' -> ['retire'] (word is a truncated/abbreviated
+    start of canonical) or 'leftovers' -> ['left'] (canonical is itself a
+    short form -- word is canonical's own natural, longer spelling).
+
+    Used only to build a "Similar commands: ..." hint for an otherwise
+    unrecognized word -- it doesn't change what gets executed, so it can't
+    introduce the kind of silent-misfire ambiguity the parser otherwise
+    guards against (see docs/to-do.txt item C7).
+    """
+    word = word.lower()
+    if not word:
+        return []
+    suggestions = []
+    for conf in COMMANDS.values():
+        canonical = conf.invoke[0]
+        if (
+            canonical.startswith(word) or word.startswith(canonical)
+        ) and canonical not in suggestions:
+            suggestions.append(canonical)
+    return suggestions
+
+
+def _did_you_mean(word: str) -> str:
+    """Return a "Similar commands: ..." hint string for 'word', or "" if none."""
+    suggestions = _suggest_commands(word)
+    if not suggestions:
+        return ""
+    prefix = 'Similar:'
+    quoted = [f"'{s}'" for s in suggestions]
+    if len(quoted) == 1:
+        return f" {prefix} {quoted[0]}."
+    return f" {prefix} {'; '.join(quoted)}."
 
 def tags_arg(cmd_keyword) -> int:
     """Returns which arg for cmd_keyword is an ARG_TAGS, or None."""
@@ -514,8 +563,10 @@ def _parse_user_command(user_str: str) -> ParsedCommand:
     # What command is this?
     what_command = find_command(parts[0])
     if not what_command:
+        hint = _did_you_mean(parts[0])
         return ParsedCommand(
-            status=PARSED_ERROR, message="Unrecognized command. Enter 'help' for help."
+            status=PARSED_ERROR,
+            message=f"Unrecognized command.{hint} Enter 'help' for help.",
         )
     cmd_config = COMMANDS[what_command]
     arg_parts = parts[1:]  # These are the potential arguments

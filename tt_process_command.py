@@ -46,7 +46,9 @@ import tt_audit_report as aud
 import tt_reports as rep
 import tt_tag_inv as inv
 import tt_retire
+import tt_hold
 import tt_undo
+import tt_yesterday
 
 # from tt_cmdparse import CmdBits
 from tt_commands import (
@@ -61,6 +63,16 @@ import tt_call_leaderboard
 from tt_sounds import NoiseMaker
 import tt_main_bits as bits
 from tt_internet_monitor import InternetMonitorController
+
+# Canonical "verbose/full" keyword set accepted by commands with a
+# verbose-style optional argument (DUMP, ESTIMATE, TAGS). Compare against
+# the upper-cased, stripped token.
+VERBOSE_TOKENS = {"FULL", "VERBOSE", "F", "V"}
+
+
+def _deprecated_notice() -> None:
+    """Print a standard notice that the current command is deprecated."""
+    pr.iprint("This command is deprecated.", style=k.ERROR_STYLE)
 
 
 def _ensure_resolved_time(args: list) -> list:
@@ -466,17 +478,24 @@ def query_command(day: TrackerDay, targets: list[TagID]) -> None:
     """Query one or more tags."""
     pr.iprint()
     for tagid in targets:
-        msgs = []
         if tagid not in day.biketags:
             msgs = [f"Tag {tagid} unknown."]
         else:
             biketag: BikeTag = day.biketags[tagid]
-            if biketag.status == biketag.UNUSED:
-                msgs = [f"Tag {tagid} not used yet today."]
-            elif biketag.status == biketag.RETIRED:
-                msgs = [f"Tag {tagid} is retired."]
+            msgs = []
+            # A held tag gets this note in addition to (not instead of)
+            # its real visit history, if any -- a held DONE tag's visit
+            # times are still genuinely useful information. A held UNUSED
+            # tag has no visits, so it naturally ends up with only this
+            # one line.
+            if biketag.held:
+                msgs.append(f"Tag {tagid} is suspended (not available for use today).")
+            if biketag.status == biketag.RETIRED:
+                msgs.append(f"Tag {tagid} is retired.")
+            elif biketag.status == biketag.UNUSED:
+                if not biketag.held:
+                    msgs.append(f"Tag {tagid} not used yet today.")
             else:
-                msgs = []
                 for i, visit in enumerate(biketag.visits, start=1):
                     visit: BikeVisit
                     msg = f"Tag {tagid} visit {i}: bike in at {visit.time_in.tidy}; "
@@ -550,15 +569,15 @@ def dump_data_command(today: TrackerDay, args: list):
 
     on entry:
         today is TrackerDay object of this day's data
-        args[0] if present might be the string 'verbose'
+        args[0] if present might be 'verbose'/'full' (or a short form)
     """
 
     verbose = False
 
     if args:
-        choice = str(args[0]).strip().lower()
-        if choice not in {"verbose", "v"}:
-            pr.iprint(f"Unknown parameter '{args[0]}'\nDUMP [verbose]")
+        choice = str(args[0]).strip().upper()
+        if choice not in VERBOSE_TOKENS:
+            pr.iprint(f"Unknown parameter '{args[0]}'\nDUMP [VERBOSE|FULL]")
             return
         verbose = True
 
@@ -573,6 +592,21 @@ def dump_data_command(today: TrackerDay, args: list):
         pr.iprint("DaySummary (verbose):", num_indents=0, style=k.ERROR_STYLE)
         for line in str(DaySummary(today)).splitlines():
             pr.iprint(line)
+
+
+def tags_command(today: TrackerDay, args: list) -> None:
+    """Show the tag configuration/status report.
+
+    on entry:
+        args[0] if present might be 'verbose'/'full' (or a short form),
+        requesting rows for all configured tags rather than just the
+        ones used today.
+    """
+    choice = str(args[0]).strip().upper() if args and args[0] else ""
+    if choice and choice not in VERBOSE_TOKENS:
+        pr.iprint(f"Unrecognized TAGS parameter '{args[0]}'\nTAGS [VERBOSE|FULL]")
+        return
+    inv.tags_config_report(today, full=bool(choice))
 
 
 def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
@@ -591,12 +625,12 @@ def estimate(today: TrackerDay, args: Optional[List[str]] = None) -> None:
     #   LEGACY|OLD -> legacy estimator
     #   FULL|VERBOSE -> verbose output
     choice = (args[0].strip().upper() if args else "") if args else ""
-    allowed = {"", "STANDARD", "FULL", "F", "VERBOSE", "V", "VER", "SCHEDULE", "QUICK"}
+    allowed = {"", "STANDARD", "SCHEDULE", "QUICK"} | VERBOSE_TOKENS
     if args and choice not in allowed:
         pr.iprint(f"Unrecognized ESTIMATE parameter '{args[0]}'", style=k.WARNING_STYLE)
         return
     estimation_type = "standard"
-    if choice in {"FULL", "VERBOSE", "F", "VER", "V"}:
+    if choice in VERBOSE_TOKENS:
         estimation_type = "verbose"
     elif choice in {"SCHEDULE", "QUICK"}:
         estimation_type = choice.lower()
@@ -723,7 +757,10 @@ def process_command(
     #         "'BUSY' command is now part of 'STATS' command.", style=k.WARNING_STYLE
     #     )
     elif cmd == CmdKeys.CMD_CHART:
+        _deprecated_notice()
         rep.full_chart(day=today)
+    elif cmd == CmdKeys.CMD_DATAFORM:
+        _deprecated_notice()
     elif cmd == CmdKeys.CMD_DEBUG:
         cfg.DEBUG = args[0]
         InternetMonitorController.set_debug(args[0])
@@ -739,14 +776,15 @@ def process_command(
         estimate(today=today, args=args)
     elif cmd == CmdKeys.CMD_EXIT:
         return False
-    # elif cmd == CmdKeys.CMD_FULL_CHART:
-    #     rep.fullness_graph(pack_day_data())
     elif cmd == CmdKeys.CMD_GRAPHS:
+        _deprecated_notice()
         when = args[0] if args else ""
         rep.busy_graph(day=today, as_of_when=when)
         rep.fullness_graph(day=today, as_of_when=when)
     elif cmd == CmdKeys.CMD_HELP:
         tt_help.help_command(args)
+    elif cmd == CmdKeys.CMD_HOLD:
+        data_changed = tt_hold.hold(today=today, tags=args[0])
     elif cmd == CmdKeys.CMD_HOURS:
         data_changed = bits.confirm_hours(today=today)
     elif cmd == CmdKeys.CMD_LEFTOVERS:
@@ -786,6 +824,7 @@ def process_command(
                 new_note, tt_undo.build_note_label(new_note)
             )
     elif cmd == CmdKeys.CMD_PUBLISH:
+        _deprecated_notice()
         publishment.publish_reports(day=today, args=args, mention=True)
     elif cmd == CmdKeys.CMD_QUERY:
         query_command(day=today, targets=args[0])
@@ -802,14 +841,18 @@ def process_command(
         publishment.publish(day=today)
         ##last_published = maybe_publish(last_published, force=True)
     elif cmd == CmdKeys.CMD_TAGS:
-        inv.tags_config_report(today, args, False)
+        tags_command(today=today, args=args)
+    elif cmd == CmdKeys.CMD_UNHOLD:
+        data_changed = tt_hold.unhold(today=today, tags=args[0])
     elif cmd == CmdKeys.CMD_UNRETIRE:
         data_changed = tt_retire.unretire(today=today, tags=args[0])
     elif cmd in {CmdKeys.CMD_UPPERCASE, CmdKeys.CMD_LOWERCASE}:
         # Change to uc or lc tags
         set_tag_case(cmd == CmdKeys.CMD_UPPERCASE)
-    elif cmd == CmdKeys.CMD_VERSION:
-        bits.print_version()
+    elif cmd == CmdKeys.CMD_OVERVIEW:
+        bits.print_overview(today)
+    elif cmd == CmdKeys.CMD_YESTERDAY:
+        tt_yesterday.report(cfg.DATA_FOLDER)
     else:
         # An unhandled command
         canonical_invocation = COMMANDS[cmd].invoke[0].upper()

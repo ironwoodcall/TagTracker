@@ -59,6 +59,12 @@ TAG_UNDOABLE_COMMANDS = {
     CmdKeys.CMD_EDIT,
     CmdKeys.CMD_DELETE,
     CmdKeys.CMD_FLIP,
+    # Unlike RETIRE/UNRETIRE, neither of these touches
+    # client_local_config.py -- each is a pure BikeTag.held flip, so both
+    # fit the generic snapshot/restore mechanism individually (they don't
+    # need to be excluded as a pair the way RETIRE/UNRETIRE are).
+    CmdKeys.CMD_HOLD,
+    CmdKeys.CMD_UNHOLD,
 }
 
 _INOUT_WORD = {"i": "in", "o": "out"}
@@ -79,13 +85,22 @@ def _clone_biketag(biketag: BikeTag) -> BikeTag:
     clone = BikeTag(biketag.tagid, biketag.bike_type)
     clone.status = biketag.status
     clone.visits = copy.deepcopy(biketag.visits)
+    clone.held = biketag.held
     return clone
 
 
 def _state_key(biketag: BikeTag) -> tuple:
-    """A comparable snapshot of the parts of a BikeTag that undo cares about."""
+    """A comparable snapshot of the parts of a BikeTag that undo cares about.
+
+    Includes .held explicitly: HOLD/UNHOLD never touch .status or .visits
+    (that's the whole point of .held being orthogonal to status -- see
+    docs/hold_tag_spec.md), so without this, a hold/unhold change would be
+    invisible to this diff and record() would never arm an undo point for
+    it.
+    """
     return (
         biketag.status,
+        biketag.held,
         tuple((v.time_in, v.time_out) for v in biketag.visits),
     )
 

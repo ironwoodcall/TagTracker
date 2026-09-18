@@ -26,6 +26,7 @@ import os
 #import pathlib
 
 import common.tt_constants as k
+from common.tt_biketag import BikeTag
 from common.tt_time import VTime
 import common.tt_util as ut
 from common.tt_trackerday import TrackerDay
@@ -100,7 +101,17 @@ class Publisher:
         fullfn = os.path.join(cfg.REPORTS_FOLDER, fn)
         if not pr.set_output(fullfn):
             return
-        aud.audit_report(day, args, include_returns=True,retired_tag_str="<>")
+        aud.audit_report(
+            day,
+            args,
+            include_returns=True,
+            markers={
+                BikeTag.RETIRED: "<>",
+                BikeTag.HELD: "()",
+                BikeTag.IN_USE: "In",
+                BikeTag.DONE: "Ou",
+            },
+        )
         pr.set_output()
 
     def publish_datafile(self, day: TrackerDay, folder: str) -> bool:

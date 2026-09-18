@@ -53,6 +53,7 @@ TAG_INV_AVAILABLE = (" -", k.NORMAL_STYLE)
 TAG_INV_BIKE_IN = ("In", k.ANSWER_STYLE)
 TAG_INV_BIKE_OUT = ("Ou", k.PROMPT_STYLE)
 TAG_INV_RETIRED = ("Rt", k.WARNING_STYLE)
+TAG_INV_HELD = ("Su", k.WARNING_STYLE)  # displayed as "suspended" -- see docs/hold_tag_spec.md
 TAG_INV_ERROR = ("!?", k.ERROR_STYLE)
 
 
@@ -88,8 +89,12 @@ def tag_inventory_matrix(
     pr.iprint(
         f"Key: '{TAG_INV_AVAILABLE[0]}'=Unused today; "
         f"'{TAG_INV_BIKE_IN[0]}'=Bike In; "
-        f"'{TAG_INV_BIKE_OUT[0]}'=Bike Out (tag is reusable); "
-        f"'{TAG_INV_RETIRED[0]}'=Retired",
+        f"'{TAG_INV_BIKE_OUT[0]}'=Bike Out; ",
+        style=k.NORMAL_STYLE,
+    )
+    pr.iprint(
+        f"     '{TAG_INV_RETIRED[0]}'=Retired; "
+        f"'{TAG_INV_HELD[0]}'=Suspended (not available for reuse today)",
         style=k.NORMAL_STYLE,
     )
     pr.iprint()
@@ -134,6 +139,8 @@ def tag_inventory_matrix(
                 tag_states.append(TAG_INV_BIKE_OUT)
             elif tag_status == this_biketag.RETIRED:
                 tag_states.append(TAG_INV_RETIRED)
+            elif tag_status == this_biketag.HELD:
+                tag_states.append(TAG_INV_HELD)
             else:
                 tag_states.append(TAG_INV_ERROR)
 
@@ -171,16 +178,14 @@ def retired_report(day: TrackerDay) -> None:
     # ut.line_wrapper(retireds_str, print_handler=pr.iprint)
 
 
-def tags_config_report(
-    day: TrackerDay, args: list, include_empty_groups: bool = True
-) -> None:
-    """Report the current tags configuration."""
-    as_of_when = VTime((args and args[0]) or "now")
-    if not as_of_when:
-        pr.iprint(f"Unrecognized time {as_of_when.original}", style=k.WARNING_STYLE)
-        return
+def tags_config_report(day: TrackerDay, full: bool = False) -> None:
+    """Report the current tags configuration.
+
+    If full, include rows for every configured tag, not just tags used
+    today (the default).
+    """
     pr.iprint()
     pr.iprint("Current tags configuration", style=k.TITLE_STYLE)
     # colours_report(day)
     retired_report(day)
-    tag_inventory_matrix(day, as_of_when, include_empty_groups=include_empty_groups)
+    tag_inventory_matrix(day, include_empty_groups=full)

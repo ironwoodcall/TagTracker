@@ -49,6 +49,9 @@ class BikeTag:
     DONE = "DONE"
     UNUSED = "UNUSED"
     RETIRED = "RETIRED"
+    # HELD is not a value of .status (see .held below) -- it is only ever
+    # returned by status_as_at(), as a reporting-only pseudo-status.
+    HELD = "HELD"
 
     # all_biketags: dict[str, "BikeTag"] = {}
 
@@ -65,6 +68,13 @@ class BikeTag:
         self.status = self.UNUSED
         self.visits: list[BikeVisit] = []
         self.bike_type = bike_type
+        # held is orthogonal to status (deliberately not a status value --
+        # see docs/hold_tag_spec.md): a tag can be held while UNUSED (an
+        # overnight lockup leftover) or while DONE (checked in and out,
+        # then set aside for the rest of the day), and status stays
+        # truthful throughout so releasing a hold needs no bookkeeping to
+        # restore it.
+        self.held = False
         if self.bike_type not in (REGULAR, OVERSIZE, UNKNOWN):
             raise BikeTagError(f"Unknown bike type '{bike_type}' for {tagid}")
         # BikeTag.all_biketags[tagid] = self
@@ -117,6 +127,11 @@ class BikeTag:
         """
         if self.status == self.RETIRED:
             return f"Tag {self.tagid} is retired."
+        if self.held:
+            # Checked in addition to (not instead of) the status checks
+            # below, since a held tag's true status may be DONE -- which
+            # would otherwise be perfectly eligible for reuse.
+            return f"Tag {self.tagid} is suspended."
         if self.status not in {self.UNUSED, self.IN_USE, self.DONE}:
             return f"PROBLEM: tag {self.tagid} has unknown status {self.status}!"
         if new_check_in:
@@ -231,11 +246,44 @@ class BikeTag:
         else:
             raise BikeTagError("Invalid state for delete_out")
 
-    def status_as_at(self, as_of_when: str = ""):
-        """Return the status as of a particular time."""
+    def hold(self) -> bool:
+        """Mark this tag held. Only valid from UNUSED or DONE.
+
+        Returns True if a change occurred.
+        """
+        if self.held or self.status not in {self.UNUSED, self.DONE}:
+            return False
+        self.held = True
+        return True
+
+    def unhold(self) -> bool:
+        """Release a held tag. Returns True if a change occurred."""
+        if not self.held:
+            return False
+        self.held = False
+        return True
+
+    def status_as_at(self, as_of_when: str = "", live: bool = True):
+        """Return the status as of a particular time.
+
+        live controls whether a held tag reports as HELD (a reporting-only
+        pseudo-status, not itself a value of .status) instead of its real
+        UNUSED/DONE status underneath. Defaults to True, matching every
+        pre-existing caller, which all mean "as of right now." HOLD/UNHOLD
+        carries no timestamp of its own, so a suspension can't be
+        reconstructed "as of" an earlier moment -- pass live=False for a
+        genuinely historical as_of_when and this returns the tag's real
+        historical status instead, ignoring .held.
+        """
         # Return RETIRED status if the current status is RETIRED
         if self.status == self.RETIRED:
             return self.RETIRED
+
+        # A held tag reports as HELD regardless of its true status (which
+        # stays UNUSED or DONE underneath -- see the .held field), but only
+        # for a live query -- see the live param above.
+        if live and self.held:
+            return self.HELD
 
         # Return UNUSED if there are no visits or the first visit is after the given time
         if not self.visits or self.visits[0].time_in > as_of_when:

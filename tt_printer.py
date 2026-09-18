@@ -189,6 +189,34 @@ def iprint(text: str = "", num_indents: int = None, style=None, end="\n") -> Non
         echo(f"{indent}{text}{end}")
 
 
+def iprint_segments(
+    segments: list[tuple[str, str]], num_indents: int = None, end: str = "\n"
+) -> None:
+    """Print one line built from (text, style) segments, each its own style.
+
+    iprint() only ever applies a single style to a whole line; this is for
+    the rare case (e.g. tt_audit_report.py's tag grids) where different
+    parts of the same line need different styling. As with iprint(), only
+    screen output gets styled -- a file destination or the echo log always
+    gets the plain, unstyled concatenation of the segments' text, same
+    guarantee iprint() already gives for a single style.
+    """
+    num_indents = 1 if num_indents is None else num_indents
+    indent = _INDENT * num_indents
+    plain_text = "".join(text for text, _ in segments)
+
+    if _destination:
+        _destination_file.write(f"{indent}{plain_text}{end}")
+    elif COLOUR_ACTIVE:
+        styled_text = "".join(text_style(text, style=style) for text, style in segments)
+        print(f"{indent}{styled_text}", end=end)
+    else:
+        print(f"{indent}{plain_text}", end=end)
+
+    if _echo_state and not _destination:
+        echo(f"{indent}{plain_text}{end}")
+
+
 def text_alert(message: str = "", style=None) -> None:
     """Print an alert message at the top of the screen.
 

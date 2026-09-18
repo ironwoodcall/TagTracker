@@ -49,14 +49,16 @@ To enter and change tracking data
   View/manage attendant notes   :  NOTE [DEACTIVATE|REACTIVATE|note text]
   View/set bike registrations   :  REGISTER [+n|-n|=n]
   Retire or unretire tags       :  RETIRE | UNRETIRE <tag(s)>
+  Suspend or unsuspend tags     :  SUSPEND | UNSUSPEND <tag(s)>
 
 Information and reports
   Show info about one tag       :  QUERY <tag(s)>
   Show recent activity          :  RECENT [time] [time]
   Show audit info               :  AUDIT [time]
+  Look back at the last open day:  YESTERDAY
   Show times for leftovers      :  LEFT
   Estimate further bikes today  :  ESTIMATE [STANDARD|VERBOSE|QUICK|SCHEDULE]
-  Show tag configurations       :  TAGS
+  Show tag configurations       :  TAGS [VERBOSE|FULL]
   Show day-end stats report     :  STATS [time]
   Graph busy- and fullness      :  GRAPH
   Show chart of all activity    :  CHART
@@ -65,10 +67,10 @@ Information and reports
 Other
   Help with commands            :  HELP [command]
   Set tags to UPPER/LOWER CASE  :  UPPERCASE | UC | LOWERCASE | LC
-  Display internal data dump    :  DUMP [VERBOSE|V]
+  Display internal data dump    :  DUMP [VERBOSE|FULL]
   Emit debug breadcrumbs        :  DEBUG <ON|OFF>
   Suppress internet alerts      :  MONITOR <OFF|ON>
-  Show program version          :  VERSION
+  Show today's overview         :  OVERVIEW
   Exit                          :  EXIT | x
 
 Most commands have short forms.  Eg "i" for IN, "rec" for RECENT.
@@ -177,16 +179,33 @@ Description:
   but continues for the other tags (if any) in the list.
 """,
 
-    CmdKeys.CMD_VERSION: """
-Command: VERSION
+    CmdKeys.CMD_OVERVIEW: """
+Command: OVERVIEW
 
 Can be invoked as:
   {}
 
 Description:
-  Reprints the version line shown when TagTracker starts up, e.g.
-  'TagTracker version: main (b562c40: 2026-08-28 21:39)'. Useful if you
-  need it again later in the session without restarting.
+  A quick "Today overview" status check. Shows the version line shown
+  when TagTracker starts up, e.g.
+  'TagTracker version: main (b562c40: 2026-08-28 21:39)', plus today's
+  operating hours, what data is being edited, a quick tally of bikes
+  in/out/on-hand and registrations, a nudge to run LINT if any data
+  issues are found, and any tags currently suspended.
+
+  For an overview of a prior day, see YESTERDAY.
+""",
+
+    CmdKeys.CMD_YESTERDAY: """
+Command: YESTERDAY
+
+Can be invoked as:
+  {}
+
+Description:
+  Reports summary information from yesterday at close of business.
+  (If there is no information about yesterday, will use data from
+  the most recent available prior day.)
 """,
 
     CmdKeys.CMD_UNDO: """
@@ -323,6 +342,8 @@ Arguments:
     [end_time] : optional ending time for graphs (default: end of day)
 
 Description:
+    Deprecated -- no longer maintained.
+
     Shows histograms of busyness (ins + outs) and fullness across the day.
     If [end_time] is supplied, only data up to that time is included.
 
@@ -381,6 +402,54 @@ Description:
   Use the TAGS command to see a list of retired tags.
 """,
 
+    CmdKeys.CMD_HOLD: """
+Command: SUSPEND <tag(s)>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to suspend (unavailable for use today)
+
+Description:
+  Marks tag(s) as suspended: not available for check-in/out/edit/delete
+  just for today (not retired, but not available). For two situations:
+    - A bike was left in the lockup overnight; its tag is still on it, but
+      it isn't available for a new customer until it's picked up (or, in
+      any case, only until the day resets).
+    - A bike was checked in and out today (tag status DONE) but set aside
+      for the rest of the day (e.g. no kickstand) rather than returned to
+      circulation.
+
+  A tag can only be suspended if it's unused or its bike has been
+  checked back out.
+
+  Suspended tags show as 'Su' in the TAGS and AUDIT reports, and
+  'suspended' in QUERY. There is no automatic detection of tags to
+  suspend -- entering them is manual, at the operator's discretion.
+
+  All suspended tags reset (are released) at the start of each new day;
+  this is not tracked in configuration the way RETIRE is.
+
+  Use the UNSUSPEND command to release a suspended tag.
+""",
+
+    CmdKeys.CMD_UNHOLD: """
+Command: UNSUSPEND <tag(s)>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to release from suspension
+
+Description:
+  Releases previously suspended tag(s), making them available again (as
+  whatever they truthfully already were -- UNUSED or DONE).
+
+  Use the SUSPEND command to suspend a tag; see 'help suspend'.
+""",
+
     CmdKeys.CMD_MONITOR: """
 Command: MONITOR <OFF|ON>
 
@@ -415,6 +484,93 @@ Diagnostic codes (shown at the end of alert messages):
   TIMEOUT001 : HTTP request timed out awaiting the primary response.
   TIMEOUT002 : HTTP request timed out inside urllib handling.
   URL<REASON>: URLError raised (suffix abbreviates the underlying reason).
+""",
+
+    CmdKeys.CMD_DELETE: """
+Command: DELETE <tag(s)> <in|out> <yes>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to delete a check-in/check-out for
+    <in|out>: which event to delete
+    <yes>   : confirms the deletion
+
+Description:
+  Deletes a check-in or check-out recorded for tag(s) today. Use UNDO
+  right after if this was a mistake.
+""",
+
+    CmdKeys.CMD_EDIT: """
+Command: EDIT <tag(s)> <in|out> <time>
+
+Can be invoked as:
+  {}
+
+Arguments:
+    <tag(s)>: one or more tags to edit
+    <in|out>: which event to change
+    <time>  : new time (HHMM or 'now')
+
+Description:
+  Changes the check-in or check-out time recorded for tag(s) today.
+""",
+
+    CmdKeys.CMD_RECENT: """
+Command: RECENT [start_time] [end_time]
+
+Can be invoked as:
+  {}
+
+Arguments:
+    [start_time] [end_time]: optional time range to show
+        (default: from 30 minutes ago to now)
+
+Description:
+  Lists check-ins and check-outs within a time window -- handy for
+  reviewing what just happened.
+""",
+
+    CmdKeys.CMD_HOURS: """
+Command: HOURS
+
+Can be invoked as:
+  {}
+
+Description:
+  Shows today's opening/closing times and prompts to confirm or change
+  them.
+""",
+
+    CmdKeys.CMD_PUBLISH: """
+Command: PUBLISH
+
+Can be invoked as:
+  {}
+
+Description:
+  Deprecated -- no longer maintained.
+""",
+
+    CmdKeys.CMD_DATAFORM: """
+Command: DATAFORM
+
+Can be invoked as:
+  {}
+
+Description:
+  Deprecated -- no longer maintained.
+""",
+
+    CmdKeys.CMD_CHART: """
+Command: CHART
+
+Can be invoked as:
+  {}
+
+Description:
+  Deprecated -- no longer maintained.
 """,
 }
 
