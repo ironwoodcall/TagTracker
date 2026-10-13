@@ -1,8 +1,9 @@
 # Recreating a datafile from a TagTracker transcript
 
-Status: **design discussion only** — no script written yet. This document
-is the place to settle the open questions below before writing
-`helpers/transcript_to_playback.py` / `helpers/transcript_to_datafile.py`.
+Status: **built**. `helpers/transcript_to_datafile.py` and
+`helpers/transcript_to_playback.py` both exist now, on a shared
+`helpers/transcript_sim.py` core; section 8 has what was decided and
+what the validation run against real data turned up.
 
 Source material surveyed: all 168 files in `/tmp/tt-transcripts`
 (`echo-YYYY-MM-DD.txt`, April–September 2026), plus the current parser,
@@ -242,14 +243,18 @@ Built:
   plus the tag-canonicalization helpers (`canonical_tagid`,
   `parse_tagids_str`) both renderers below share.
 - `helpers/transcript_to_datafile.py` -- the direct-datafile renderer.
-  Classifies tags via `--config` (exec'd standalone, like
-  client_base_config.py's own `from client_local_config import *`, but
-  without its import-time side effects); writes the current JSON
-  datafile shape; `--dry-run`, `--force`,
-  `--date`/`--time-open`/`--time-closed`/`--site-name`/`--site-handle`
-  overrides, `--unknown-tag-size`, `--no-notes`, and a best-effort
-  `--verify` round-trip load through the real `TrackerDay.load_from_file()`
-  after writing.
+  Takes exactly one transcript and one output datafile path (both
+  required positionals), and won't overwrite an existing datafile
+  unless `--force` is given. Classifies tags via `--config` (exec'd
+  standalone, like client_base_config.py's own
+  `from client_local_config import *`, but without its import-time side
+  effects); writes the current JSON datafile shape, notes included.
+  Date/hours/site name/handle are read from the transcript (or the
+  config) rather than being CLI options -- they're single scalars in
+  the output JSON, trivial to hand-edit there directly if one ever
+  needs correcting. Also has `--unknown-tag-size`, `--dry-run`, and a
+  best-effort `--verify` round-trip load through the real
+  `TrackerDay.load_from_file()` after writing.
 - `helpers/transcript_to_playback.py` -- the playback-command renderer.
   Groups same-timestamp, same-direction tags onto one `in`/`out` line
   (tiebreaking `out` before `in` at an identical timestamp, so a

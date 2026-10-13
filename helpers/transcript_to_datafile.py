@@ -8,11 +8,20 @@ it maps a SimulatedDay onto the current datafile JSON shape (the same
 shape common/tt_trackerday.py's TrackerDay._day_to_json_dict() writes)
 and saves it.
 
+Takes exactly one transcript and writes exactly one datafile, and won't
+overwrite an existing one unless told to (--force). Fields like
+date/hours/site name are read from the transcript (or the config, for
+site name/handle) rather than being CLI options -- they're single
+scalars in the output JSON, trivial to hand-edit there directly if one
+ever needs correcting.
+
 Usage:
-    helpers/transcript_to_datafile.py /tmp/tt-transcripts/echo-2026-04-26.txt
-    helpers/transcript_to_datafile.py --dry-run /tmp/tt-transcripts/echo-*.txt
-    helpers/transcript_to_datafile.py --out /tmp/out.json one-transcript.txt
-    helpers/transcript_to_datafile.py --config /path/to/other_client_local_config.py *.txt
+    helpers/transcript_to_datafile.py echo-2026-04-26.txt \\
+        ../data/victoriacityhall_2026-04-26.json
+    helpers/transcript_to_datafile.py --dry-run echo-2026-04-26.txt out.json
+    helpers/transcript_to_datafile.py --force echo-2026-04-26.txt out.json
+    helpers/transcript_to_datafile.py --config /path/to/other_client_local_config.py \\
+        echo-2026-04-26.txt out.json
 
 Copyright (C) 2023-2026 Julias Hocking & Todd Glover
 
@@ -68,7 +77,6 @@ except ImportError:
 _CONFIG_DEFAULTS = {
     "SITE_NAME": "Default Site",
     "SITE_HANDLE": "bikeparking",
-    "DATA_FOLDER": "../data",
     "REGULAR_TAGS": "",
     "OVERSIZE_TAGS": "",
     "RETIRED_TAGS": "",
@@ -95,9 +103,7 @@ def load_tag_config(config_path: Path) -> dict:
     return namespace
 
 
-def resolve_date(day: SimulatedDay, transcript_path: Path, override: str | None) -> str | None:
-    if override:
-        return override
+def resolve_date(day: SimulatedDay, transcript_path: Path) -> str | None:
     if day.date:
         return day.date
     m = _FILENAME_DATE_RE.search(transcript_path.name)
@@ -115,7 +121,6 @@ def build_datafile_dict(
     regular_tagids: set[str],
     oversize_tagids: set[str],
     retired_tagids: set[str],
-    include_notes: bool,
     unknown_tag_size: str,
     warn,
 ) -> dict:
@@ -157,14 +162,13 @@ def build_datafile_dict(
         )
 
     notes = []
-    if include_notes:
-        for time_str, text in day.notes:
-            if not text:
-                continue
-            if re.match(r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$", time_str or ""):
-                notes.append(f"A|{time_str}|{text}")
-            else:
-                notes.append(f"A||{text}")
+    for time_str, text in day.notes:
+        if not text:
+            continue
+        if re.match(r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$", time_str or ""):
+            notes.append(f"A|{time_str}|{text}")
+        else:
+            notes.append(f"A||{text}")
 
     return {
         "comment:": f"This is a TagTracker datafile for {site_handle} on {date}.",
@@ -207,8 +211,11 @@ def verify_round_trip(data: dict, path: Path) -> list[str]:
     return problems
 
 
-def process_one(args, transcript_path: Path, tag_config: dict) -> bool:
-    """Returns True on success (file written or dry-run would-write)."""
+def process(args, tag_config: dict) -> bool:
+    """Returns True on success (file written, or dry-run would-write)."""
+    transcript_path: Path = args.transcript
+    out_path: Path = args.datafile
+
     print(f"== {transcript_path.name} ==")
     text = transcript_path.read_text(encoding="utf-8", errors="replace")
     day = simulate(text)
@@ -216,33 +223,24 @@ def process_one(args, transcript_path: Path, tag_config: dict) -> bool:
     def warn(msg: str) -> None:
         print(f"  warning: {msg}")
 
-    date = resolve_date(day, transcript_path, args.date)
+    date = resolve_date(day, transcript_path)
     if not date:
-        print("  ERROR: could not determine the date (no 'Editing ...' line, "
-              "no YYYY-MM-DD in filename, no --date given) -- skipping.")
+        print("  ERROR: could not determine the date (no 'Editing ...' line "
+              "in the transcript, and no YYYY-MM-DD in its filename).")
         return False
 
     if not day.time_open or not day.time_closed:
-        print(f"  ERROR: could not determine opening/closing hours for {date} "
-              "-- skipping. Pass --time-open/--time-closed to override.")
+        print(f"  ERROR: could not determine opening/closing hours for {date}.")
         return False
-    if args.time_open:
-        day.time_open = args.time_open
-    if args.time_closed:
-        day.time_closed = args.time_closed
-
-    site_name = args.site_name or tag_config["SITE_NAME"]
-    site_handle = args.site_handle or tag_config["SITE_HANDLE"]
 
     data = build_datafile_dict(
         day,
         date=date,
-        site_name=site_name,
-        site_handle=site_handle,
+        site_name=tag_config["SITE_NAME"],
+        site_handle=tag_config["SITE_HANDLE"],
         regular_tagids=tag_config["_regular_tagids"],
         oversize_tagids=tag_config["_oversize_tagids"],
         retired_tagids=tag_config["_retired_tagids"],
-        include_notes=not args.no_notes,
         unknown_tag_size=args.unknown_tag_size,
         warn=warn,
     )
@@ -258,19 +256,12 @@ def process_one(args, transcript_path: Path, tag_config: dict) -> bool:
         f"({n_open} still open)  notes={len(data['notes'])}"
     )
 
-    if args.out:
-        out_path = Path(args.out)
-    else:
-        basename = f"{site_handle}_"
-        out_path = Path(args.data_folder or (BIN_DIR / tag_config["DATA_FOLDER"])) / f"{basename}{date}.json"
-    out_path = out_path.resolve()
-
     if args.dry_run:
         print(f"  (dry-run) would write {out_path}")
         return True
 
     if out_path.exists() and not args.force:
-        print(f"  ERROR: {out_path} already exists -- use --force to overwrite. Skipping.")
+        print(f"  ERROR: {out_path} already exists -- use --force to overwrite.")
         return False
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -287,7 +278,8 @@ def process_one(args, transcript_path: Path, tag_config: dict) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("transcripts", nargs="+", type=Path, help="ECHO transcript file(s)")
+    parser.add_argument("transcript", type=Path, help="ECHO transcript file")
+    parser.add_argument("datafile", type=Path, help="Datafile to write (must not already exist)")
     parser.add_argument(
         "--config",
         type=Path,
@@ -295,14 +287,6 @@ def main() -> int:
         help="client_local_config.py to source the tag universe from "
         "(default: %(default)s)",
     )
-    parser.add_argument("--data-folder", type=Path, help="Folder to write datafiles into")
-    parser.add_argument("--out", type=Path, help="Exact output path (only with one transcript)")
-    parser.add_argument("--date", help="Override the date (YYYY-MM-DD)")
-    parser.add_argument("--time-open", help="Override the opening time (HH:MM)")
-    parser.add_argument("--time-closed", help="Override the closing time (HH:MM)")
-    parser.add_argument("--site-name", help="Override the site name")
-    parser.add_argument("--site-handle", help="Override the site handle")
-    parser.add_argument("--no-notes", action="store_true", help="Omit notes from the output")
     parser.add_argument(
         "--unknown-tag-size",
         choices=["skip", "regular", "oversize"],
@@ -321,8 +305,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.out and len(args.transcripts) > 1:
-        parser.error("--out can only be used with a single transcript")
+    if not args.transcript.exists():
+        parser.error(f"transcript file not found: {args.transcript}")
 
     try:
         raw_config = load_tag_config(args.config)
@@ -335,16 +319,7 @@ def main() -> int:
     tag_config["_oversize_tagids"] = parse_tagids_str(raw_config["OVERSIZE_TAGS"])
     tag_config["_retired_tagids"] = parse_tagids_str(raw_config["RETIRED_TAGS"])
 
-    ok = True
-    for transcript_path in args.transcripts:
-        if not transcript_path.exists():
-            print(f"== {transcript_path} ==\n  ERROR: file not found.")
-            ok = False
-            continue
-        if not process_one(args, transcript_path, tag_config):
-            ok = False
-
-    return 0 if ok else 1
+    return 0 if process(args, tag_config) else 1
 
 
 if __name__ == "__main__":
