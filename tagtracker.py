@@ -42,6 +42,29 @@ if sys.version_info < (3, 10):
     sys.exit(1)
 
 # pylint: disable=wrong-import-position
+import client_base_config as cfg
+import tt_site_config
+
+# Choose the site and load its config before importing the rest of the
+# program: many modules use config values (e.g. DATA_BASENAME) as they load.
+SITE_CHOICE = tt_site_config.StartupChoice()
+if __name__ == "__main__":
+    try:
+        SITE_CHOICE = tt_site_config.start_up(cfg, sys.argv[1:])
+    except tt_site_config.SiteChoiceCancelled:
+        print()
+        print("No site chosen. Ask the bike parking manager or TagTracker admin for help.")
+        print()
+        sys.exit(1)
+    except tt_site_config.SiteConfigError as e:
+        print()
+        print("** Configuration error: **")
+        for line in e.args:
+            print(f"   {line}")
+        print("Contact TagTracker admin.")
+        print()
+        sys.exit(1)
+
 import common.tt_constants as k
 from common.tt_tag import TagID
 
@@ -51,7 +74,6 @@ from common.tt_tag import TagID
 from common.tt_time import VTime
 import common.tt_util as ut
 from common.tt_trackerday import TrackerDay, TrackerDayError
-import client_base_config as cfg
 import tt_printer as pr
 import tt_datafile as df
 import tt_hold
@@ -159,24 +181,6 @@ def main_loop(today: TrackerDay):
     publishment.publish(today)
 
 
-def custom_datafile() -> str:
-    """Return filepath of  custom datafilename specified.
-
-    Returns custom filepath if given, "" if not.
-    File is checked to exist.
-    """
-    if len(sys.argv) <= 1:
-        return ""
-    # Custom datafile name or location
-    file = sys.argv[1]
-    # File there?
-    if not os.path.exists(file):
-        pr.iprint(f"Error: File {file} not found", style=k.ERROR_STYLE)
-        error_exit()
-    # This is the custom datafile & it exists
-    return file
-
-
 def set_taglists_from_config(day: TrackerDay):
     """Assign oversize, regular, and retired tag IDs from config."""
 
@@ -257,8 +261,7 @@ def midnight_passed(today_is: str) -> bool:
 def set_up_today() -> TrackerDay:
     """Initialize today's tracking data."""
 
-    datafilepath = custom_datafile()
-    datafilepath = datafilepath or df.datafile_name(cfg.DATA_FOLDER)
+    datafilepath = df.datafile_name(cfg.DATA_FOLDER)
     if os.path.exists(datafilepath):
         try:
             day = TrackerDay.load_from_file(datafilepath)
@@ -345,6 +348,18 @@ if __name__ == "__main__":
     if echo_msg:
         pr.iprint()
         pr.iprint(echo_msg, style=k.WARNING_STYLE)
+
+    # Site config notices (e.g. no site config found)
+    if SITE_CHOICE.notices:
+        pr.iprint()
+        for notice in SITE_CHOICE.notices:
+            pr.iprint(f" {notice} ", style=k.WARNING_STYLE)
+    elif SITE_CHOICE.path:
+        pr.iprint()
+        pr.iprint(
+            f"Site config: {os.path.basename(SITE_CHOICE.path)}",
+            style=k.HIGHLIGHT_STYLE,
+        )
 
     # Check that data directory is writable
     if not ut.writable_dir(cfg.DATA_FOLDER):

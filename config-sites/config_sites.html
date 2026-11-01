@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TagTracker set-up</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2228; --muted: #5d6773;
+    --line: #d9dee4; --accent: #1f6feb; --accent-text: #ffffff;
+    --ok: #1a7f37; --ok-bg: #e6f4ea; --warn: #9a6700; --warn-bg: #fff4d6;
+    --err: #c62828; --err-bg: #fdecea; --chip: #eef1f5; --active-bg: #e8f1ff;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171b; --panel: #1d2127; --text: #e6e9ed; --muted: #9aa4af;
+      --line: #313840; --accent: #4c8dff; --accent-text: #0b0d10;
+      --ok: #56c271; --ok-bg: #16301f; --warn: #e3b341; --warn-bg: #33290f;
+      --err: #ff6b6b; --err-bg: #3a1a1a; --chip: #2a3038; --active-bg: #1b2a44;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 12px 20px;
+           display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .device { color: var(--muted); font-size: 13px; }
+  .clock { margin-left: auto; display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .banner { font-size: 13px; padding: 6px 20px; }
+  .banner.warn { background: var(--warn-bg); color: var(--warn); }
+  .banner.err { background: var(--err-bg); color: var(--err); font-size: 15px; padding: 10px 20px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 20px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+           box-shadow: var(--shadow); padding: 18px; margin-bottom: 16px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  h3 { font-size: 15px; margin: 0 0 10px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .spacer { flex: 1; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+           border-radius: 7px; padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.danger { color: var(--err); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.small { padding: 3px 9px; font-size: 13px; }
+  input, select { font: inherit; color: var(--text); background: var(--panel);
+                  border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 3px; }
+  label.check { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 14px; margin: 12px 0 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); font-weight: 600; }
+  tr.active-row { background: var(--active-bg); }
+  tr.archived-row td { color: var(--muted); }
+  .badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--chip); }
+  .badge.active { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .handle { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .msg { border-radius: 8px; padding: 8px 12px; margin: 6px 0; font-size: 14px; }
+  .msg.err { background: var(--err-bg); color: var(--err); }
+  .msg.warn { background: var(--warn-bg); color: var(--warn); }
+  .msg.ok { background: var(--ok-bg); color: var(--ok); }
+  .grid3 { display: grid; grid-template-columns: 2fr 1fr 2fr; gap: 14px; }
+  @media (max-width: 760px) { .grid3 { grid-template-columns: 1fr; } }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .gap-note { font-size: 12px; color: var(--warn); margin-top: 2px; }
+  .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.25);
+            vertical-align: -2px; margin-right: 4px; }
+  .summary { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+  .summary-line { font-size: 14px; padding: 3px 0; }
+  .total { font-weight: 600; margin-top: 6px; }
+  .actions button { margin-right: 4px; }
+  .stickybar { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--line);
+               padding: 12px 20px; display: flex; gap: 10px; align-items: center; }
+  dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text);
+           max-width: 520px; padding: 18px; }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  .hidden { display: none !important; }
+  .tablewrap { overflow-x: auto; }
+  th .sub { display: block; text-transform: none; letter-spacing: 0; font-weight: 400; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>TagTracker set-up</h1>
+  <span class="device" id="deviceText"></span>
+  <div class="clock">
+    <span>Device clock: <strong id="clockText"></strong></span>
+    <span id="clockState" class="badge warn">not confirmed</span>
+    <button class="small" id="clockOk">Looks right</button>
+  </div>
+</header>
+<div class="banner err hidden" id="noServerNote">This page only works with TagTracker set-up running.
+  Start it from the "TagTracker set-up" shortcut, which opens this page for you.</div>
+<div class="banner err hidden" id="goneNote">TagTracker set-up has stopped. Close this page, and start it again from the
+  "TagTracker set-up" shortcut.</div>
+
+<main>
+
+<!-- ============ Screen 1: manage configs ============ -->
+<section id="listScreen">
+  <div id="checks"></div>
+  <div class="panel" id="activePanel"></div>
+
+  <div class="panel">
+    <div class="row" style="margin-bottom:10px">
+      <h2 style="margin:0">Site configurations</h2>
+      <span class="spacer"></span>
+      <label style="display:flex;gap:6px;align-items:center;margin:0;color:var(--text);font-size:14px">
+        <input type="checkbox" id="showArchived"> Show archived
+      </label>
+      <button class="primary" id="newBtn">New configuration</button>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Site</th><th>Handle</th><th>Kind</th><th>Tags</th><th>Datafiles found</th><th>Status</th><th></th></tr></thead>
+        <tbody id="configRows"></tbody>
+      </table>
+    </div>
+    <div class="hint" id="folderText"></div>
+  </div>
+</section>
+
+<!-- ============ Screen 2: edit one config ============ -->
+<section id="editScreen" class="hidden">
+  <div class="row" style="margin-bottom:12px">
+    <button id="backBtn">← All configurations</button>
+    <h2 style="margin:0" id="editTitle">Edit</h2>
+  </div>
+
+  <div class="panel">
+    <h3>Site</h3>
+    <div class="grid3">
+      <div>
+        <label for="fName">Site name</label>
+        <input id="fName" style="width:100%" placeholder="e.g. Victoria Terry Fox Run">
+        <div class="hint">No year needed: the same configuration is used each year, and the datafiles carry the dates.</div>
+      </div>
+      <div>
+        <label for="fHandle">Site handle</label>
+        <input id="fHandle" style="width:100%" class="handle" placeholder="e.g. terryfox" autocomplete="off" maxlength="40">
+        <div class="hint">Unique identifier for this site. Don't include dates unless it's truly a one-off.</div>
+        <div class="hint">File: <span class="handle" id="fileName"></span></div>
+      </div>
+      <div>
+        <label for="fOwner">Data owner</label>
+        <input id="fOwner" style="width:100%" placeholder="e.g. Capital Bike">
+        <div class="hint">Shown when TagTracker starts: <span id="ownerPreview"></span></div>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="fEvent"> Event site
+      <span class="hint" style="margin:0">(shorter command list, no network features). Leave unticked for a permanent site.</span></label>
+    <div id="siteMsgs"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="margin-bottom:6px"><h3 style="margin:0">Tags</h3><span class="spacer"></span>
+      <button class="small" id="addRange">+ Add another range of tags</button></div>
+    <div class="hint" style="margin:0 0 8px">Each range is one colour, a run of letters, and numbers from 0 up to a highest number.
+      e.g. Purple, letters a–j, numbers 0 to 15 = Pa0 … Pj15.</div>
+    <table>
+      <thead><tr><th>Kind</th><th>Colour</th><th>Letters</th>
+        <th>Numbers<span class="sub">from 0 up to…</span></th><th>Covers</th><th></th></tr></thead>
+      <tbody id="rangeRows"></tbody>
+    </table>
+    <div id="rangeMsgs"></div>
+    <div class="summary" id="summary"></div>
+  </div>
+</section>
+</main>
+
+<div class="stickybar hidden" id="editBar">
+  <span id="saveState" class="badge ok">No problems</span>
+  <span class="spacer"></span>
+  <button id="cancelBtn">Cancel</button>
+  <button id="saveBtn">Save</button>
+  <button class="primary" id="saveActiveBtn">Save and make default</button>
+</div>
+
+<dialog id="dlg">
+  <h3 id="dlgTitle"></h3>
+  <div id="dlgBody"></div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end" id="dlgButtons"></div>
+</dialog>
+
+<script>
+"use strict";
+
+// ---------- reference data ----------
+// Swatch colours for colour names. The colours themselves (letters and names)
+// come from TAG_COLOUR_NAMES in the config; these are just for the screen.
+const SWATCH = {
+  white:"#ffffff", black:"#111111", red:"#d32f2f", orange:"#f57c00", yellow:"#fbc02d", green:"#388e3c",
+  blue:"#1976d2", purple:"#8e5cd9", brown:"#8d5a3b", grey:"#9e9e9e", gray:"#9e9e9e", cyan:"#00acc1",
+  magenta:"#d81b60", salmon:"#fa8072", lime:"#c0ca33", indigo:"#3949ab", tan:"#d2b48c", pink:"#f48fb1",
+};
+// Used when the config has no TAG_COLOUR_NAMES.
+const DEFAULT_COLOURS = [
+  ["w","white"],["k","black"],["r","red"],["o","orange"],["y","yellow"],["g","green"],["b","blue"],["p","purple"],
+  ["n","brown"],["e","grey"],["c","cyan"],["m","magenta"],["s","salmon"],["l","lime"],["i","indigo"],["t","tan"],
+];
+const DARK_NAMES = new Set(["black","purple","brown","indigo","navy"]);
+const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
+const HANDLE_RE = /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/;
+const HANDLE_MAX = 32;
+const MAX_NUMBER = 99;
+
+let COLOURS = [];   // [LETTER, Name, swatch]
+let COLOUR = {};    // LETTER -> {name, hex}
+let COLOUR_ORDER = [];
+function setColours(pairs) {
+  const list = (pairs && pairs.length ? pairs : DEFAULT_COLOURS);
+  COLOURS = list.map(([l, n]) => {
+    const name = String(n).trim(), key = name.toLowerCase();
+    const hex = SWATCH[key] || (window.CSS && CSS.supports("color", key) ? key : "#9e9e9e");
+    return [l.toUpperCase(), name.charAt(0).toUpperCase() + name.slice(1), hex];
+  });
+  COLOUR = Object.fromEntries(COLOURS.map(([l,n,h]) => [l,{name:n,hex:h}]));
+  COLOUR_ORDER = COLOURS.map(([l]) => l);
+}
+
+// Standard wording for DATA_OWNER, built from DATA_OWNER_NAME.
+const ownerNotice = name => name.trim()
+  ? `Data is the property of ${name.trim()} and may not be used without written permission.` : "";
+const configFile = h => `site_${h}_config.py`;
+
+// ---------- tag lists <-> ranges ----------
+// Config files hold full REGULAR_TAGS / OVERSIZE_TAGS lists. The page shows them as ranges.
+
+// Expand ranges into tag lists. A range keeps its gaps (r.missing) until the person changes it.
+function tagsFromRanges(ranges) {
+  const out = { regular: [], oversize: [] };
+  for (const r of ranges) {
+    const skip = new Set(r.missing || []);
+    for (let li = LETTERS.indexOf(r.from); li <= LETTERS.indexOf(r.to); li++)
+      for (let n = 0; n <= Number(r.max); n++) {
+        const t = `${r.colour.toLowerCase()}${LETTERS[li]}${n}`;
+        if (!skip.has(t)) out[r.kind].push(t);
+      }
+  }
+  return out;
+}
+
+// Work ranges out from tag lists. Within each kind and colour, each unbroken run of
+// letters is one range, numbered 0 up to the highest number found in the run.
+// Tags missing inside a range are gaps; a whole missing letter starts a new range.
+// Returns { ranges, problems }: problems are messages about tags the page can't show.
+function rangesFromTags(regular, oversize) {
+  const bad = [], unknownColour = new Set(), dupes = [], seen = new Set(), groups = new Map();
+  for (const [kind, list] of [["regular", regular], ["oversize", oversize]]) {
+    for (const raw of list) {
+      const t = raw.trim().toLowerCase();
+      const m = /^([a-z])([a-z])(\d{1,2})$/.exec(t);
+      if (!m) { bad.push(raw); continue; }
+      if (!COLOUR[m[1].toUpperCase()]) { unknownColour.add(m[1]); continue; }
+      if (seen.has(t)) { dupes.push(t); continue; }
+      seen.add(t);
+      const key = `${kind}:${m[1].toUpperCase()}`;
+      if (!groups.has(key)) groups.set(key, { kind, colour: m[1].toUpperCase(), letters: new Map() });
+      const g = groups.get(key);
+      if (!g.letters.has(m[2])) g.letters.set(m[2], new Set());
+      g.letters.get(m[2]).add(Number(m[3]));
+    }
+  }
+  const problems = [];
+  if (bad.length) problems.push(`Tag IDs this page can't read: ${bad.slice(0,5).join(", ")}${bad.length > 5 ? " …" : ""}`);
+  if (unknownColour.size) problems.push(`Colour letters not in TAG_COLOUR_NAMES: ${[...unknownColour].join(", ")}`);
+  if (dupes.length) problems.push(`Tags listed twice: ${dupes.slice(0,5).join(", ")}${dupes.length > 5 ? " …" : ""}`);
+  const ranges = [];
+  for (const g of groups.values()) {
+    const idx = [...g.letters.keys()].map(l => LETTERS.indexOf(l)).sort((a,b) => a - b);
+    let start = 0;
+    for (let i = 1; i <= idx.length; i++) {
+      if (i < idx.length && idx[i] === idx[i-1] + 1) continue;
+      const run = idx.slice(start, i).map(x => LETTERS[x]);
+      const max = Math.max(...run.flatMap(l => [...g.letters.get(l)]));
+      const missing = [];
+      for (const l of run)
+        for (let n = 0; n <= max; n++)
+          if (!g.letters.get(l).has(n)) missing.push(`${g.colour.toLowerCase()}${l}${n}`);
+      ranges.push({ kind: g.kind, colour: g.colour, from: run[0], to: run[run.length-1], max, missing });
+      start = i;
+    }
+  }
+  ranges.sort((a,b) => (a.kind === "oversize") - (b.kind === "oversize")
+    || COLOUR_ORDER.indexOf(a.colour) - COLOUR_ORDER.indexOf(b.colour) || a.from.localeCompare(b.from));
+  return { ranges, problems };
+}
+
+// ---------- dates ----------
+const fmtDate = s => new Date(s+"T00:00").toLocaleDateString("en-CA",{month:"short",day:"numeric",year:"numeric"});
+
+// ---------- talking to the set-up server ----------
+
+const serverApi = {
+  async call(method, path, body) {
+    let resp;
+    try {
+      resp = await fetch(path, { method, headers: body ? {"Content-Type":"application/json"} : {},
+                                 body: body ? JSON.stringify(body) : undefined });
+    } catch (e) {
+      $("goneNote").classList.remove("hidden");
+      throw new Error("TagTracker set-up isn't running any more.");
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.error || `Error ${resp.status}`);
+    return data;
+  },
+  state()          { return this.call("GET", "/api/state"); },
+  save(payload)    { return this.call("POST", "/api/save", payload); },
+  archive(handle)  { return this.call("POST", "/api/archive", {handle}); },
+  restore(handle)  { return this.call("POST", "/api/restore", {handle}); },
+  setActive(handle){ return this.call("POST", "/api/active", {handle}); },
+};
+
+const api = serverApi;
+// Opened as a file rather than from the set-up server: there's no data to show.
+const NO_SERVER = location.protocol === "file:";
+
+// ---------- page state ----------
+let state = null;        // last answer from api.state()
+let configs = [];        // state.sites
+let editing = null;      // working copy of the config being edited
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const foldHandle = s => s.trim().toLowerCase();
+const byHandle = h => configs.find(c => c.handle === h);
+const rangeSize = r => (LETTERS.indexOf(r.to) - LETTERS.indexOf(r.from) + 1) * (Number(r.max) + 1);
+const rangeCount = r => Math.max(0, rangeSize(r) - (r.missing || []).length);
+const tagTotal = c => c.regular.length + c.oversize.length;
+const latest = c => [...c.datafiles].sort().pop();
+const dataText = c => c.datafiles.length
+  ? `${c.datafiles.length} <span class="hint">(latest ${fmtDate(latest(c))})</span>`
+  : `<span style="color:var(--muted)">none</span>`;
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+// Handles are limited to [a-z0-9._-], so they're safe inside an onclick string.
+const hArg = h => `'${esc(h)}'`;
+
+// Colours for one site: the organization's, then the site's own TAG_COLOUR_NAMES if it has one.
+function useColoursFor(c) {
+  const pairs = [...(state.colours || [])];
+  if (c && c.colourNames) for (const [l, n] of Object.entries(c.colourNames)) {
+    const i = pairs.findIndex(p => p[0] === l.toLowerCase());
+    if (i >= 0) pairs[i] = [l.toLowerCase(), n]; else pairs.push([l.toLowerCase(), n]);
+  }
+  setColours(pairs);
+}
+// Why a site can't be edited here, if it can't.
+function editProblems(c) {
+  useColoursFor(c);
+  const p = [...(c.problems || []), ...rangesFromTags(c.regular, c.oversize).problems];
+  useColoursFor(null);
+  return p;
+}
+
+async function reload() {
+  state = await api.state();
+  configs = state.sites;
+  useColoursFor(null);
+  renderList();
+}
+async function act(fn, title = "That didn't work") {
+  try { const r = await fn(); return r || true; }
+  catch (e) {
+    ask(title, `<p>${esc(e.message)}</p>`, [["OK", "primary", null]]);
+    return null;
+  }
+}
+
+// ---------- header, clock ----------
+$("deviceText").textContent = NO_SERVER ? "" : `this laptop only (${location.host})`;
+function tickClock() {
+  $("clockText").textContent = new Date().toLocaleString("en-CA",
+    {weekday:"short", year:"numeric", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"});
+}
+tickClock(); setInterval(tickClock, 15000);
+$("clockOk").onclick = () => {
+  $("clockState").textContent = "confirmed"; $("clockState").className = "badge ok"; $("clockOk").remove();
+};
+
+// Keep the server running while the page is open; tell it when the page goes.
+if (!NO_SERVER) {
+  setInterval(() => fetch("/api/ping", {method:"POST"}).catch(() => $("goneNote").classList.remove("hidden")), 30000);
+  window.addEventListener("pagehide", () => navigator.sendBeacon("/api/bye"));
+}
+
+// ---------- dialog helper ----------
+function ask(title, bodyHtml, buttons) {
+  $("dlgTitle").textContent = title;
+  $("dlgBody").innerHTML = bodyHtml;
+  const box = $("dlgButtons"); box.innerHTML = "";
+  buttons.forEach(([label, cls, fn]) => {
+    const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls;
+    b.onclick = () => { $("dlg").close(); if (fn) fn(); }; box.appendChild(b);
+  });
+  $("dlg").showModal();
+}
+
+// ---------- screen 1 ----------
+function renderActivePanel() {
+  const a = byHandle(state.activeSite);
+  let html = `<div class="row"><div><div class="hint" style="margin:0 0 2px">DEFAULT SITE · TagTracker starts with this one</div>`;
+  if (!state.activeSite) {
+    html += `<h2 style="margin:0">None</h2></div></div>
+      <div class="msg ok">No default site. When TagTracker starts it uses the site with today's datafile,
+        or asks which site to use.</div>`;
+  } else if (!a || a.archived) {
+    html += `<h2 class="handle" style="margin:0">${esc(state.activeSite)}</h2></div><span class="spacer"></span>
+      <button onclick="makeActive('')">Unset as default</button></div>
+      <div class="msg err">The default site is <span class="handle">${esc(state.activeSite)}</span> (ACTIVE_SITE), but there's
+        ${a ? "only an archived config" : "no config"} for it. TagTracker won't start until this is fixed.</div>`;
+  } else {
+    const canEdit = !editProblems(a).length;
+    html += `<h2 style="margin:0">${esc(a.name || a.handle)} <span class="handle" style="color:var(--muted);font-weight:400">(${esc(a.handle)})</span></h2>
+      <div style="color:var(--muted)">${a.eventMode ? "Event site" : "Permanent site"} · ${tagTotal(a)} tags · datafiles found: ${dataText(a)}</div></div>
+      <span class="spacer"></span>${canEdit ? `<button onclick="openEdit(${hArg(a.handle)})">Edit</button>` : ""}
+      <button onclick="makeActive('')">Unset as default</button></div>`;
+    if (a.datafiles.includes(state.today))
+      html += `<div class="msg ok">Today's <span class="handle">${esc(a.handle)}</span> datafile has ${plural(a.checkinsToday, "check-in")}.</div>`;
+    else
+      html += `<div class="msg ok">No datafile for today yet. TagTracker will start one when it's used.</div>`;
+  }
+  if (state.activeProblem)
+    html += `<div class="msg warn">The default site can't be changed here: ${esc(state.activeProblem)}
+      (in <span class="handle">${esc(state.localConfig)}</span>)</div>`;
+  $("activePanel").innerHTML = html;
+}
+
+function renderList() {
+  $("checks").innerHTML = (state.checks || []).map(c => `<div class="msg ${c.level}">${esc(c.text)}</div>`).join("")
+    + (state.template && state.template.problem ? `<div class="msg warn">${esc(state.template.problem)}</div>` : "");
+  renderActivePanel();
+  const show = $("showArchived").checked;
+  const active = state.activeSite;
+  const rows = configs.filter(c => show || !c.archived)
+    .sort((a,b) => (b.handle===active) - (a.handle===active) || a.archived - b.archived
+      || (a.name || a.handle).localeCompare(b.name || b.handle));
+  $("configRows").innerHTML = rows.map(c => {
+    const isActive = c.handle === active;
+    const bad = editProblems(c);
+    const status = isActive ? `<span class="badge active">Default</span>`
+      : c.archived ? `<span class="badge">Archived</span>` : "";
+    const h = hArg(c.handle);
+    const editBtn = bad.length
+      ? `<span class="badge warn" title="${esc(bad.join(" "))}">Can't edit here</span>`
+      : `<button class="small" onclick="openEdit(${h})">Edit</button>
+         <button class="small" onclick="duplicate(${h})">Duplicate</button>`;
+    const actions = c.archived
+      ? `<button class="small" onclick="unarchive(${h})">Restore</button>`
+      : `${editBtn}
+         <button class="small" ${isActive || state.activeProblem ? "disabled" : ""} onclick="makeActive(${h})">Make default</button>
+         <button class="small danger" ${isActive ? 'disabled title="The default site can&#39;t be archived"' : ""} onclick="archive(${h})">Archive</button>`;
+    const badNote = bad.length && !c.archived
+      ? `<div class="hint">Edited by hand: ${esc(bad.join(" "))} Open <span class="handle">${esc(c.file)}</span> in an editor.</div>` : "";
+    return `<tr class="${isActive?"active-row":""} ${c.archived?"archived-row":""}">
+      <td><strong>${esc(c.name || "(no name)")}</strong>${badNote}</td>
+      <td class="handle">${esc(c.handle)}</td><td>${c.eventMode ? "Event" : "Permanent"}</td><td>${tagTotal(c)}</td>
+      <td>${dataText(c)}</td><td>${status}</td><td class="actions" style="white-space:nowrap">${actions}</td></tr>`;
+  }).join("") || `<tr><td colspan="7" class="hint">No site configurations yet.</td></tr>`;
+  $("folderText").innerHTML = `Site configs are in <span class="handle">${esc(state.configsFolder)}</span>.`;
+}
+$("showArchived").onchange = renderList;
+
+function makeActive(handle) {
+  if (!handle) {
+    ask("Unset the default site?",
+        `<p>TagTracker will use the site with today's datafile, or ask which site to use when it starts.</p>`,
+        [["Cancel", "", null], ["Unset as default", "primary", async () => {
+          if (await act(() => api.setActive(""))) reload(); }]]);
+    return;
+  }
+  const c = byHandle(handle);
+  const cur = byHandle(state.activeSite);
+  const notes = [];
+  if (cur && cur.datafiles.includes(state.today) && cur.checkinsToday)
+    notes.push(`<div class="msg warn"><strong>${esc(cur.name)}</strong> already has ${plural(cur.checkinsToday, "check-in")} today.
+      If you switch, the rest of today's check-ins go into a separate datafile for <strong>${esc(c.name)}</strong>.</div>`);
+  ask(`Make "${c.name}" the default site?`,
+      `<p>TagTracker will start with <strong>${esc(c.name)}</strong> (<span class="handle">${esc(c.handle)}</span>) from now on.</p>${notes.join("")}`,
+      [["Cancel", "", null], ["Make default", "primary", async () => {
+        if (await act(() => api.setActive(handle))) reload(); }]]);
+}
+function archive(handle) {
+  const c = byHandle(handle);
+  ask(`Archive "${c.name}"?`,
+      `<p>It drops out of the list but is kept, along with its datafiles. You can restore it with "Show archived".</p>`,
+      [["Cancel","",null],["Archive","primary", async () => { if (await act(() => api.archive(handle))) reload(); }]]);
+}
+async function unarchive(handle) { if (await act(() => api.restore(handle))) reload(); }
+
+function duplicate(handle) {
+  const src = byHandle(handle);
+  const copy = structuredClone(src);
+  Object.assign(copy, { name: "", handle: "", archived: false, datafiles: [], checkinsToday: 0,
+                        ownerNoticeInFile: "", mtime: null, problems: [] });
+  ask(`Duplicate "${src.name}"`,
+      `<p>Starts a new site configuration with ${esc(src.name)}'s tags and data owner. Give it its own name and handle.</p>
+       <p class="hint">To use ${esc(src.name)} again for another year, don't duplicate it: use the same configuration again.
+       The same handle every year keeps the year-over-year reports together.</p>`,
+      [["Cancel","",null], ["Duplicate","primary", () => openEdit(null, copy)]]);
+}
+$("newBtn").onclick = () => {
+  const t = state.template || {};
+  openEdit(null, { handle: "", name: "", ownerName: t.ownerName || "", ownerNoticeInFile: "",
+    eventMode: t.eventMode !== false, regular: t.regular || [], oversize: t.oversize || [],
+    colourNames: null, archived: false, datafiles: [], checkinsToday: 0, mtime: null, problems: [] });
+};
+
+// ---------- screen 2 ----------
+function openEdit(handle, draft) {
+  editing = draft ? draft : structuredClone(byHandle(handle));
+  editing.origHandle = draft ? null : editing.handle;   // null for a new config
+  useColoursFor(editing);
+  // A DATA_OWNER that isn't the standard wording was edited by hand; saving replaces it.
+  editing.customNotice = editing.ownerNoticeInFile && editing.ownerNoticeInFile !== ownerNotice(editing.ownerName)
+    ? editing.ownerNoticeInFile : null;
+  editing.ranges = rangesFromTags(editing.regular, editing.oversize).ranges;
+  $("editTitle").textContent = draft ? "New configuration" : `Edit: ${editing.name || editing.handle}`;
+  $("fName").value = editing.name; $("fHandle").value = editing.handle; $("fOwner").value = editing.ownerName;
+  $("fEvent").checked = !!editing.eventMode;
+  $("listScreen").classList.add("hidden"); $("editScreen").classList.remove("hidden"); $("editBar").classList.remove("hidden");
+  renderEdit(); window.scrollTo(0,0);
+}
+function closeEdit() {
+  editing = null;
+  useColoursFor(null);
+  $("editScreen").classList.add("hidden"); $("editBar").classList.add("hidden"); $("listScreen").classList.remove("hidden");
+  renderList();
+}
+$("backBtn").onclick = $("cancelBtn").onclick = closeEdit;
+
+["fName","fHandle","fOwner"].forEach(f => $(f).addEventListener("input", () => {
+  editing.name = $("fName").value; editing.handle = $("fHandle").value; editing.ownerName = $("fOwner").value;
+  validateAndSummarize();
+}));
+$("fEvent").addEventListener("change", () => { editing.eventMode = $("fEvent").checked; validateAndSummarize(); });
+
+// Any change to a range row drops that row's remembered gaps.
+function setRange(i, field, value) {
+  const r = editing.ranges[i];
+  r[field] = value; r.missing = [];
+  if (field === "colour") renderRanges();
+  validateAndSummarize();
+}
+
+function colourOptions(sel) {
+  return COLOURS.map(([l,n]) => `<option value="${l}" ${l===sel?"selected":""}>${esc(n)} (${l})</option>`).join("");
+}
+function letterOptions(sel) { return LETTERS.map(l => `<option ${l===sel?"selected":""}>${l}</option>`).join(""); }
+function renderRanges() {
+  $("rangeRows").innerHTML = editing.ranges.map((r,i) => `<tr>
+    <td><select onchange="setRange(${i},'kind',this.value)">
+      <option value="regular" ${r.kind==="regular"?"selected":""}>Regular</option>
+      <option value="oversize" ${r.kind==="oversize"?"selected":""}>Oversize</option></select></td>
+    <td><span class="swatch" style="background:${COLOUR[r.colour].hex}"></span>
+      <select onchange="setRange(${i},'colour',this.value)">${colourOptions(r.colour)}</select></td>
+    <td><select onchange="setRange(${i},'from',this.value)">${letterOptions(r.from)}</select>
+      to <select onchange="setRange(${i},'to',this.value)">${letterOptions(r.to)}</select></td>
+    <td>0 to <input type="number" min="0" max="${MAX_NUMBER}" value="${r.max}" style="width:70px"
+      oninput="setRange(${i},'max',this.value)"></td>
+    <td id="count${i}"></td>
+    <td><button class="small danger" onclick="editing.ranges.splice(${i},1);renderEdit()">Remove</button></td></tr>`).join("")
+    || `<tr><td colspan="6" class="hint">No tag ranges yet.</td></tr>`;
+}
+$("addRange").onclick = () => {
+  const used = new Set(editing.ranges.map(r => r.colour));
+  const colour = (COLOURS.find(([l]) => !used.has(l)) || COLOURS[0])[0];
+  editing.ranges.push({kind:"regular", colour, from:"a", to:"e", max:15, missing:[]});
+  renderEdit();
+};
+
+function renderEdit() { renderRanges(); validateAndSummarize(); }
+
+// ---------- checks (they live in the page; the server only reads and writes files) ----------
+function validate() {
+  const out = { site:[], ranges:[], blocking:false };
+  const err = (where, html) => { out[where].push(`<div class="msg err">${html}</div>`); out.blocking = true; };
+  const warn = (where, html) => out[where].push(`<div class="msg warn">${html}</div>`);
+  const raw = editing.handle, h = foldHandle(raw);
+
+  if (!editing.name.trim()) err("site", "Give the site a name.");
+  else if (/\b20\d\d\b/.test(editing.name))
+    warn("site", "The name looks like it includes a year. Leave it out: the same configuration is reused each year.");
+  if (!h) err("site", "Choose a site handle.");
+  else {
+    if (h.length > HANDLE_MAX)
+      err("site", `Handle can be at most ${HANDLE_MAX} characters (this one is ${h.length}).`);
+    if (!HANDLE_RE.test(h))
+      err("site", "Handle can use letters, digits, hyphens, underscores and periods, and must start and end with a letter or digit.");
+    else if (raw !== h) warn("site", `Will be saved as <span class="handle">${esc(h)}</span> (handles aren't case-sensitive).`);
+    if (/(19|20)\d\d/.test(h))
+      warn("site", "The handle looks like it includes a year. Leave dates out unless this is truly a one-off event.");
+    if (editing.origHandle && h !== editing.origHandle)
+      warn("site", `You're changing the handle from <span class="handle">${esc(editing.origHandle)}</span> to
+        <span class="handle">${esc(h)}</span>. In the reports this becomes a different site: data already collected under
+        <span class="handle">${esc(editing.origHandle)}</span>, on this laptop, other laptops or the server, stays there, and new data goes under
+        <span class="handle">${esc(h)}</span>. Only change it if the handle is wrong and the site has never been used.`);
+    const other = configs.find(c => c.handle === h && c.handle !== editing.origHandle);
+    if (other)
+      err("site", `<span class="handle">${esc(h)}</span> already belongs to <strong>${esc(other.name)}</strong>${other.archived ? " (archived)" : ""}.
+        Each site has one configuration. To change that site's tags, edit it instead.`);
+  }
+  if (!editing.ownerName.trim()) warn("site", "No data owner: the start-up notice will be blank.");
+  if (editing.customNotice)
+    warn("site", `This configuration's data owner notice was edited by hand:
+      <em>${esc(editing.customNotice)}</em> Saving replaces it with the standard wording.`);
+
+  editing.ranges.forEach((r,i) => {
+    if (LETTERS.indexOf(r.to) < LETTERS.indexOf(r.from)) err("ranges", `${COLOUR[r.colour].name}: letters run backwards (${r.from} to ${r.to}).`);
+    if (r.max === "" || Number(r.max) < 0 || Number(r.max) > MAX_NUMBER || !Number.isInteger(Number(r.max)))
+      err("ranges", `${COLOUR[r.colour].name}: the highest number must be a whole number from 0 to ${MAX_NUMBER}.`);
+    const cell = $("count"+i);
+    if (cell) {
+      const n = rangeCount(r), gaps = (r.missing || []).length;
+      cell.innerHTML = (rangeSize(r) > 0 ? plural(n, "tag") : "–")
+        + (gaps ? `<div class="gap-note">${plural(gaps, "tag")} missing from this range</div>` : "");
+    }
+    editing.ranges.forEach((s,j) => {
+      if (j <= i || s.colour !== r.colour) return;
+      const a1 = LETTERS.indexOf(r.from), a2 = LETTERS.indexOf(r.to), b1 = LETTERS.indexOf(s.from), b2 = LETTERS.indexOf(s.to);
+      if (a1 <= b2 && b1 <= a2) err("ranges", `${COLOUR[r.colour].name} letters ${r.from}–${r.to} overlap ${s.from}–${s.to}: the same tags would be listed twice.`);
+    });
+  });
+  if (!editing.ranges.length) err("ranges", "Add at least one range of tags.");
+  else if (!editing.ranges.some(r => r.kind === "regular")) warn("ranges", "No regular tags: only oversize.");
+  const dark = [...new Set(editing.ranges.map(r => r.colour).filter(c => DARK_NAMES.has(COLOUR[c].name.toLowerCase())))];
+  if (dark.length > 1) warn("ranges", `${dark.map(c=>COLOUR[c].name).join(" and ")} can be hard to tell apart in poor light.`);
+  return out;
+}
+
+function validateAndSummarize() {
+  const v = validate();
+  $("siteMsgs").innerHTML = v.site.join(""); $("rangeMsgs").innerHTML = v.ranges.join("");
+  const h = foldHandle(editing.handle);
+  $("fileName").textContent = h ? configFile(h) : "–";
+  $("ownerPreview").textContent = ownerNotice(editing.ownerName) || "(nothing)";
+  const by = {regular:0, oversize:0};
+  const lines = editing.ranges.map(r => {
+    const n = rangeCount(r), gaps = (r.missing || []).length;
+    by[r.kind] += n;
+    return `<div class="summary-line"><span class="swatch" style="background:${COLOUR[r.colour].hex}"></span>
+      ${esc(COLOUR[r.colour].name)} (${r.colour}), letters ${r.from}–${r.to}, numbers 0–${esc(r.max)}:
+      covers <strong>${n}</strong> ${r.kind} tags${gaps ? ` (${gaps} missing)` : ""}
+      <span class="hint">(${r.colour}${r.from}0 … ${r.colour}${r.to}${esc(r.max)})</span></div>`;
+  });
+  $("summary").innerHTML = (lines.join("") || `<div class="hint">No tags yet.</div>`) +
+    `<div class="total">Covers ${by.regular} regular + ${by.oversize} oversize = ${by.regular + by.oversize} tags</div>
+     <div class="hint">Changing a range puts back any tags missing from it. Retired tags make the number in use lower.</div>`;
+  const nWarn = v.site.concat(v.ranges).filter(x => x.includes("msg warn")).length;
+  $("saveState").className = "badge " + (v.blocking ? "warn" : "ok");
+  $("saveState").textContent = v.blocking ? "Fix the problems marked in red to save"
+    : nWarn ? `OK to save · ${plural(nWarn, "warning")}` : "No problems";
+  $("saveBtn").disabled = $("saveActiveBtn").disabled = v.blocking;
+}
+
+function save(thenActivate) {
+  const h = foldHandle(editing.handle);
+  if (editing.origHandle && h !== editing.origHandle && !editing.handleChangeConfirmed) {
+    const local = editing.datafiles.length
+      ? `<p>This laptop has ${plural(editing.datafiles.length, "datafile")} for
+         <span class="handle">${esc(editing.origHandle)}</span>; they keep the old handle.</p>` : "";
+    ask("Change the site handle?",
+      `<p>From <span class="handle">${esc(editing.origHandle)}</span> to <span class="handle">${esc(h)}</span>.</p>
+       <p>Past data for this site may be on other laptops or already on the server, so this laptop can't tell
+       how much there is. All of it stays under <span class="handle">${esc(editing.origHandle)}</span>; from now on,
+       this site's data goes under <span class="handle">${esc(h)}</span>, and the reports show them as two sites.</p>${local}`,
+      [["Keep the old handle", "", null],
+       ["Change handle", "primary", () => { editing.handleChangeConfirmed = true; save(thenActivate); }]]);
+    return;
+  }
+  const { regular, oversize } = tagsFromRanges(editing.ranges);
+  const payload = {
+    origHandle: editing.origHandle, mtime: editing.mtime,
+    values: {
+      SITE_NAME: editing.name.trim(), SITE_HANDLE: h, EVENT_MODE: !!editing.eventMode,
+      DATA_OWNER_NAME: editing.ownerName.trim(), DATA_OWNER: ownerNotice(editing.ownerName),
+      REGULAR_TAGS: regular, OVERSIZE_TAGS: oversize,
+    },
+  };
+  $("saveBtn").disabled = $("saveActiveBtn").disabled = true;
+  act(() => api.save(payload), "Couldn't save").then(async result => {
+    if (!result) { validateAndSummarize(); return; }   // keep the edits on screen
+    editing = null;
+    await reload();
+    closeEdit();
+    if (result.note) ask("Saved", `<p>${esc(result.note)}</p>`, [["OK","primary",null]]);
+    else if (thenActivate && h !== state.activeSite) makeActive(h);
+  });
+}
+$("saveBtn").onclick = () => save(false);
+$("saveActiveBtn").onclick = () => save(true);
+
+if (NO_SERVER) {
+  $("noServerNote").classList.remove("hidden");
+  $("activePanel").innerHTML = `<div class="msg err">No site configurations to show: TagTracker set-up isn't running.</div>`;
+} else {
+  reload().catch(e => {
+    $("activePanel").innerHTML = `<div class="msg err">Couldn't read the site configurations: ${esc(e.message)}</div>`;
+  });
+}
+</script>
+</body>
+</html>

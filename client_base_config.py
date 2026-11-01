@@ -26,7 +26,6 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
     """
 import sys
-import re
 
 ###########################################################
 #            BEGINNING OF CONFIG SECTION                  #
@@ -54,6 +53,9 @@ AUDIT_GRID_FULL_MARKERS = False
 # data owner -- If set, this notice will display when tagtraacker starts.
 # This can be a string, or if a list of strings, displays as multiple lines.
 DATA_OWNER = ""
+# Just the owner's name. Read only by the site config manager (config-sites),
+# which builds DATA_OWNER from it; TagTracker shows DATA_OWNER.
+DATA_OWNER_NAME = ""
 
 # Things related to playing sounds (client only)
 SOUND_PLAYER = "mpg321"  # If not full filepath then this needs to be on PATH
@@ -78,9 +80,23 @@ UNDO_WINDOW_SECONDS = 2 * 60
 INTERNET_MONITORING_FREQUENCY = 10
 INTERNET_LOG_FOLDER = ""    # Folder for log of internet checks
 
-# Site name identifier goes into the datafile, used in aggregation
-SITE_NAME = "Default Site"
-SITE_HANDLE = "bikeparking"  # This is used in aggregation and filenames
+# Site name identifier goes into the datafile, used in aggregation.
+# No defaults: TagTracker won't start until a config layer sets them.
+SITE_NAME = ""
+SITE_HANDLE = ""  # This is used in aggregation and filenames
+
+# True for an event (short-term) site: shorter command list, no network features.
+EVENT_MODE = False
+
+# Site configs: one site_<handle>_config.py per site, loaded over this file
+# and client_local_config.py. Relative paths are from the program folder.
+SITE_CONFIGS_FOLDER = "../site_configs"
+# File that New configuration (in config-sites) starts from.
+SITE_CONFIG_TEMPLATE = "config-sites/site_config_template.py"
+# Handle of the site TagTracker uses if none is given with --site.
+# Set in client_local_config.py (the site config manager writes it there).
+# Empty: TagTracker uses today's datafile, or asks.
+ACTIVE_SITE = ""
 
 # Files and folder locations
 DATA_FOLDER = "../data"  # Folder to keep datafiles in
@@ -183,17 +199,15 @@ except Exception as e:  # pylint:disable=broad-exception-caught
     print()
     sys.exit(1)
 
-# Final checks of local config and adjustments based on it.
+# Adjustments based on the local config.
+# Checks that SITE_HANDLE etc. are set and valid happen in TagTracker's
+# start-up (tt_site_config.check_needed_values), not here, so that other
+# programs that load this config (database loader, helpers) aren't stopped.
 
-# SITE_HANDLE forms filename and database ID parts.
-if not re.match(r'^[a-zA-Z0-9_\-.\~!]+$',SITE_HANDLE) or len(SITE_HANDLE) > 32:
-    print()
-    print("** Configuration error: **")
-    print("   SITE_HANDLE has unsuitable characters or is too long (max len 32).")
-    print("Contact TagTracker admin.")
-    print()
-    sys.exit(1)
+# Handles aren't case-sensitive.
+SITE_HANDLE = str(SITE_HANDLE).strip().lower()
 
-# Filenames are based on SITE_HANDLE
-DATA_BASENAME = f"{SITE_HANDLE}_"  # Files will be {BASENAME}YY-MM-DD.dat
+# Filenames are based on SITE_HANDLE.
+# TagTracker resets this after loading a site config.
+DATA_BASENAME = f"{SITE_HANDLE}_"  # Files will be {BASENAME}YYYY-MM-DD.json
 
