@@ -22,6 +22,8 @@ Copyright (C) 2023-2025 Julias Hocking & Todd Glover
 
 """
 
+import re
+
 from common.tt_time import VTime
 from common.tt_tag import TagID
 import tt_printer as pr
@@ -540,12 +542,61 @@ def _chunkize_for_one_arg(
     return parsed.status != PARSED_ERROR
 
 
+# A scanned command: #i-<tagid> or #o-<tagid> (also #in-, #out-).
+_SCAN_RE = re.compile(r"#(i|in|o|out)-(\S+)", re.IGNORECASE)
+NOT_A_SCAN_MSG = "Not a TagTracker scan."
+
+
+def _translate_scan(user_str: str) -> tuple[str | None, str]:
+    """Turn a scanned command into a typed one.
+
+    First removes any text matching cfg.SCAN_IGNORE_PREFIX (e.g. the
+    website URL on a fob). Then:
+      - not a scan: returns (None, "") and user_str is parsed as usual;
+      - a scan: returns ("in <tagid>" or "out <tagid>", "");
+      - looks like a scan but isn't valid: returns ("", error message).
+    """
+    s = user_str.strip()
+
+    prefix = getattr(cfg, "SCAN_IGNORE_PREFIX", "")
+    if prefix:
+        try:
+            m = re.match(prefix, s, re.IGNORECASE)
+        except re.error:
+            return "", "SCAN_IGNORE_PREFIX in the config isn't a valid pattern."
+        if m and m.end() > 0:
+            s = s[m.end() :]
+            if not s.startswith("#"):
+                # e.g. some other website's QR code
+                return "", NOT_A_SCAN_MSG
+
+    if not s.startswith("#"):
+        return None, ""
+
+    m = _SCAN_RE.fullmatch(s)
+    if not m:
+        return "", NOT_A_SCAN_MSG
+    tag = TagID(m.group(2))
+    if not tag:
+        return "", f"{NOT_A_SCAN_MSG} (Unrecognized tag '{m.group(2)}'.)"
+    command = "in" if m.group(1).lower().startswith("i") else "out"
+    return f"{command} {tag}", ""
+
+
 def _parse_user_command(user_str: str) -> ParsedCommand:
     """Parses user_str as a full command line."""
 
     squawk(f"  _parse_user_command has {user_str=}", cfg.DEBUG)
     if not user_str:
         return ParsedCommand(status=PARSED_EMPTY)
+
+    # Scanned command? (#i-<tagid>, #o-<tagid>, maybe with a URL in front)
+    scanned, scan_error = _translate_scan(user_str)
+    if scan_error:
+        return ParsedCommand(status=PARSED_ERROR, message=scan_error)
+    if scanned:
+        squawk(f"  scan read as {scanned=}", cfg.DEBUG)
+        user_str = scanned
 
     # Special case: If first chr is '/' make it a 'query' command
     if user_str[0] == "/":

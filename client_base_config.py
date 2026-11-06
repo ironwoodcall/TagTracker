@@ -124,6 +124,14 @@ MAX_NOTE_LENGTH = 80
 # Ask confirmatino for checkouts when visits less than this duration.
 CHECK_OUT_CONFIRM_TIME = 10  # mins
 
+# Scanned commands: a QR code on a tag reads as #i-<tagid> (check in)
+# or #o-<tagid> (check out). A fob's code has a website URL in front,
+# e.g. https://capitalbike.ca/#o-rk7.
+# This is a regular expression for text to ignore at the start of a
+# command, up to the "#". Matched case-insensitively. "" turns it off.
+# A site could narrow it, e.g. r"https://capitalbike\.ca/"
+SCAN_IGNORE_PREFIX = r"https?://[^#\s]*"
+
 # This is for development debugging
 DEBUG = False
 
